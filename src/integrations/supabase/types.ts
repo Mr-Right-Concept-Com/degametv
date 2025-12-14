@@ -14,16 +14,1046 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      analytics_events: {
+        Row: {
+          content_id: string | null
+          country: string | null
+          created_at: string
+          device_type: string | null
+          event_data: Json
+          event_type: string
+          id: string
+          ip_address: string | null
+          stream_id: string | null
+          tenant_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          content_id?: string | null
+          country?: string | null
+          created_at?: string
+          device_type?: string | null
+          event_data?: Json
+          event_type: string
+          id?: string
+          ip_address?: string | null
+          stream_id?: string | null
+          tenant_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          content_id?: string | null
+          country?: string | null
+          created_at?: string
+          device_type?: string | null
+          event_data?: Json
+          event_type?: string
+          id?: string
+          ip_address?: string | null
+          stream_id?: string | null
+          tenant_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analytics_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string
+          entity_id: string | null
+          entity_type: string
+          id: string
+          ip_address: string | null
+          new_data: Json | null
+          old_data: Json | null
+          tenant_id: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          ip_address?: string | null
+          new_data?: Json | null
+          old_data?: Json | null
+          tenant_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          ip_address?: string | null
+          new_data?: Json | null
+          old_data?: Json | null
+          tenant_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      channels: {
+        Row: {
+          banner_url: string | null
+          category: string | null
+          created_at: string
+          description: string | null
+          epg_url: string | null
+          id: string
+          is_active: boolean | null
+          is_live: boolean | null
+          logo_url: string | null
+          metadata: Json | null
+          monetization: Database["public"]["Enums"]["monetization_type"]
+          name: string
+          slug: string
+          sort_order: number | null
+          stream_url: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          banner_url?: string | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          epg_url?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_live?: boolean | null
+          logo_url?: string | null
+          metadata?: Json | null
+          monetization?: Database["public"]["Enums"]["monetization_type"]
+          name: string
+          slug: string
+          sort_order?: number | null
+          stream_url?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          banner_url?: string | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          epg_url?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_live?: boolean | null
+          logo_url?: string | null
+          metadata?: Json | null
+          monetization?: Database["public"]["Enums"]["monetization_type"]
+          name?: string
+          slug?: string
+          sort_order?: number | null
+          stream_url?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channels_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content: {
+        Row: {
+          availability_end: string | null
+          availability_start: string | null
+          banner_url: string | null
+          cast_crew: Json | null
+          created_at: string
+          creator_id: string | null
+          currency: string | null
+          description: string | null
+          duration: number | null
+          episode_number: number | null
+          genres: string[] | null
+          id: string
+          is_drm_protected: boolean | null
+          is_featured: boolean | null
+          like_count: number | null
+          metadata: Json | null
+          monetization: Database["public"]["Enums"]["monetization_type"]
+          parent_id: string | null
+          poster_url: string | null
+          price: number | null
+          rating: number | null
+          release_date: string | null
+          season_number: number | null
+          slug: string
+          sort_order: number | null
+          status: Database["public"]["Enums"]["content_status"]
+          tags: string[] | null
+          tenant_id: string
+          thumbnail_url: string | null
+          title: string
+          trailer_url: string | null
+          type: Database["public"]["Enums"]["content_type"]
+          updated_at: string
+          video_url: string | null
+          view_count: number | null
+        }
+        Insert: {
+          availability_end?: string | null
+          availability_start?: string | null
+          banner_url?: string | null
+          cast_crew?: Json | null
+          created_at?: string
+          creator_id?: string | null
+          currency?: string | null
+          description?: string | null
+          duration?: number | null
+          episode_number?: number | null
+          genres?: string[] | null
+          id?: string
+          is_drm_protected?: boolean | null
+          is_featured?: boolean | null
+          like_count?: number | null
+          metadata?: Json | null
+          monetization?: Database["public"]["Enums"]["monetization_type"]
+          parent_id?: string | null
+          poster_url?: string | null
+          price?: number | null
+          rating?: number | null
+          release_date?: string | null
+          season_number?: number | null
+          slug: string
+          sort_order?: number | null
+          status?: Database["public"]["Enums"]["content_status"]
+          tags?: string[] | null
+          tenant_id: string
+          thumbnail_url?: string | null
+          title: string
+          trailer_url?: string | null
+          type?: Database["public"]["Enums"]["content_type"]
+          updated_at?: string
+          video_url?: string | null
+          view_count?: number | null
+        }
+        Update: {
+          availability_end?: string | null
+          availability_start?: string | null
+          banner_url?: string | null
+          cast_crew?: Json | null
+          created_at?: string
+          creator_id?: string | null
+          currency?: string | null
+          description?: string | null
+          duration?: number | null
+          episode_number?: number | null
+          genres?: string[] | null
+          id?: string
+          is_drm_protected?: boolean | null
+          is_featured?: boolean | null
+          like_count?: number | null
+          metadata?: Json | null
+          monetization?: Database["public"]["Enums"]["monetization_type"]
+          parent_id?: string | null
+          poster_url?: string | null
+          price?: number | null
+          rating?: number | null
+          release_date?: string | null
+          season_number?: number | null
+          slug?: string
+          sort_order?: number | null
+          status?: Database["public"]["Enums"]["content_status"]
+          tags?: string[] | null
+          tenant_id?: string
+          thumbnail_url?: string | null
+          title?: string
+          trailer_url?: string | null
+          type?: Database["public"]["Enums"]["content_type"]
+          updated_at?: string
+          video_url?: string | null
+          view_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "content"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feature_flags: {
+        Row: {
+          conditions: Json | null
+          created_at: string
+          feature_key: string
+          id: string
+          is_enabled: boolean | null
+          rollout_percentage: number | null
+          tenant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          conditions?: Json | null
+          created_at?: string
+          feature_key: string
+          id?: string
+          is_enabled?: boolean | null
+          rollout_percentage?: number | null
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          conditions?: Json | null
+          created_at?: string
+          feature_key?: string
+          id?: string
+          is_enabled?: boolean | null
+          rollout_percentage?: number | null
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feature_flags_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      live_streams: {
+        Row: {
+          actual_end: string | null
+          actual_start: string | null
+          banner_url: string | null
+          chat_enabled: boolean | null
+          created_at: string
+          creator_id: string
+          currency: string | null
+          description: string | null
+          id: string
+          is_ticketed: boolean | null
+          metadata: Json | null
+          monetization: Database["public"]["Enums"]["monetization_type"]
+          peak_viewers: number | null
+          playback_url: string | null
+          recording_enabled: boolean | null
+          recording_url: string | null
+          rtmp_url: string | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+          status: Database["public"]["Enums"]["stream_status"]
+          stream_key: string
+          tenant_id: string
+          thumbnail_url: string | null
+          ticket_price: number | null
+          title: string
+          updated_at: string
+          viewer_count: number | null
+        }
+        Insert: {
+          actual_end?: string | null
+          actual_start?: string | null
+          banner_url?: string | null
+          chat_enabled?: boolean | null
+          created_at?: string
+          creator_id: string
+          currency?: string | null
+          description?: string | null
+          id?: string
+          is_ticketed?: boolean | null
+          metadata?: Json | null
+          monetization?: Database["public"]["Enums"]["monetization_type"]
+          peak_viewers?: number | null
+          playback_url?: string | null
+          recording_enabled?: boolean | null
+          recording_url?: string | null
+          rtmp_url?: string | null
+          scheduled_end?: string | null
+          scheduled_start?: string | null
+          status?: Database["public"]["Enums"]["stream_status"]
+          stream_key: string
+          tenant_id: string
+          thumbnail_url?: string | null
+          ticket_price?: number | null
+          title: string
+          updated_at?: string
+          viewer_count?: number | null
+        }
+        Update: {
+          actual_end?: string | null
+          actual_start?: string | null
+          banner_url?: string | null
+          chat_enabled?: boolean | null
+          created_at?: string
+          creator_id?: string
+          currency?: string | null
+          description?: string | null
+          id?: string
+          is_ticketed?: boolean | null
+          metadata?: Json | null
+          monetization?: Database["public"]["Enums"]["monetization_type"]
+          peak_viewers?: number | null
+          playback_url?: string | null
+          recording_enabled?: boolean | null
+          recording_url?: string | null
+          rtmp_url?: string | null
+          scheduled_end?: string | null
+          scheduled_start?: string | null
+          status?: Database["public"]["Enums"]["stream_status"]
+          stream_key?: string
+          tenant_id?: string
+          thumbnail_url?: string | null
+          ticket_price?: number | null
+          title?: string
+          updated_at?: string
+          viewer_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_streams_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string | null
+          id: string
+          metadata: Json | null
+          payment_type: string
+          provider: string | null
+          reference_id: string | null
+          status: Database["public"]["Enums"]["payment_status"]
+          stripe_payment_id: string | null
+          tenant_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string | null
+          id?: string
+          metadata?: Json | null
+          payment_type: string
+          provider?: string | null
+          reference_id?: string | null
+          status?: Database["public"]["Enums"]["payment_status"]
+          stripe_payment_id?: string | null
+          tenant_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string | null
+          id?: string
+          metadata?: Json | null
+          payment_type?: string
+          provider?: string | null
+          reference_id?: string | null
+          status?: Database["public"]["Enums"]["payment_status"]
+          stripe_payment_id?: string | null
+          tenant_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_settings: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_public: boolean | null
+          setting_key: string
+          setting_value: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean | null
+          setting_key: string
+          setting_value: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean | null
+          setting_key?: string
+          setting_value?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          country: string | null
+          created_at: string
+          display_name: string | null
+          email: string | null
+          full_name: string | null
+          id: string
+          language: string | null
+          timezone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          country?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          language?: string | null
+          timezone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          country?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          language?: string | null
+          timezone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      revenue_splits: {
+        Row: {
+          content_id: string | null
+          created_at: string
+          creator_share: number
+          id: string
+          is_default: boolean | null
+          licensee_share: number
+          platform_share: number
+          tenant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          content_id?: string | null
+          created_at?: string
+          creator_share?: number
+          id?: string
+          is_default?: boolean | null
+          licensee_share?: number
+          platform_share?: number
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          content_id?: string | null
+          created_at?: string
+          creator_share?: number
+          id?: string
+          is_default?: boolean | null
+          licensee_share?: number
+          platform_share?: number
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revenue_splits_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "content"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revenue_splits_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_plans: {
+        Row: {
+          created_at: string
+          currency: string | null
+          description: string | null
+          features: Json | null
+          id: string
+          interval: string | null
+          is_active: boolean | null
+          name: string
+          price: number
+          sort_order: number | null
+          stripe_price_id: string | null
+          tenant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string | null
+          description?: string | null
+          features?: Json | null
+          id?: string
+          interval?: string | null
+          is_active?: boolean | null
+          name: string
+          price: number
+          sort_order?: number | null
+          stripe_price_id?: string | null
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string | null
+          description?: string | null
+          features?: Json | null
+          id?: string
+          interval?: string | null
+          is_active?: boolean | null
+          name?: string
+          price?: number
+          sort_order?: number | null
+          stripe_price_id?: string | null
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_plans_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscriptions: {
+        Row: {
+          cancel_at: string | null
+          cancelled_at: string | null
+          created_at: string
+          current_period_end: string
+          current_period_start: string
+          id: string
+          metadata: Json | null
+          plan_id: string
+          status: Database["public"]["Enums"]["subscription_status"]
+          stripe_subscription_id: string | null
+          tenant_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cancel_at?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          current_period_end: string
+          current_period_start?: string
+          id?: string
+          metadata?: Json | null
+          plan_id: string
+          status?: Database["public"]["Enums"]["subscription_status"]
+          stripe_subscription_id?: string | null
+          tenant_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cancel_at?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          metadata?: Json | null
+          plan_id?: string
+          status?: Database["public"]["Enums"]["subscription_status"]
+          stripe_subscription_id?: string | null
+          tenant_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscriptions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenants: {
+        Row: {
+          cdn_config: Json | null
+          created_at: string
+          custom_domain: string | null
+          favicon_url: string | null
+          features: Json | null
+          id: string
+          is_active: boolean | null
+          logo_url: string | null
+          name: string
+          owner_id: string | null
+          payment_config: Json | null
+          primary_color: string | null
+          secondary_color: string | null
+          settings: Json | null
+          slug: string
+          type: Database["public"]["Enums"]["tenant_type"]
+          updated_at: string
+        }
+        Insert: {
+          cdn_config?: Json | null
+          created_at?: string
+          custom_domain?: string | null
+          favicon_url?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean | null
+          logo_url?: string | null
+          name: string
+          owner_id?: string | null
+          payment_config?: Json | null
+          primary_color?: string | null
+          secondary_color?: string | null
+          settings?: Json | null
+          slug: string
+          type?: Database["public"]["Enums"]["tenant_type"]
+          updated_at?: string
+        }
+        Update: {
+          cdn_config?: Json | null
+          created_at?: string
+          custom_domain?: string | null
+          favicon_url?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean | null
+          logo_url?: string | null
+          name?: string
+          owner_id?: string | null
+          payment_config?: Json | null
+          primary_color?: string | null
+          secondary_color?: string | null
+          settings?: Json | null
+          slug?: string
+          type?: Database["public"]["Enums"]["tenant_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tickets: {
+        Row: {
+          content_id: string | null
+          created_at: string
+          currency: string | null
+          id: string
+          is_used: boolean | null
+          metadata: Json | null
+          price: number
+          stream_id: string | null
+          tenant_id: string
+          ticket_code: string
+          ticket_type: Database["public"]["Enums"]["ticket_type"]
+          used_at: string | null
+          user_id: string
+          valid_from: string
+          valid_until: string
+        }
+        Insert: {
+          content_id?: string | null
+          created_at?: string
+          currency?: string | null
+          id?: string
+          is_used?: boolean | null
+          metadata?: Json | null
+          price: number
+          stream_id?: string | null
+          tenant_id: string
+          ticket_code: string
+          ticket_type?: Database["public"]["Enums"]["ticket_type"]
+          used_at?: string | null
+          user_id: string
+          valid_from: string
+          valid_until: string
+        }
+        Update: {
+          content_id?: string | null
+          created_at?: string
+          currency?: string | null
+          id?: string
+          is_used?: boolean | null
+          metadata?: Json | null
+          price?: number
+          stream_id?: string | null
+          tenant_id?: string
+          ticket_code?: string
+          ticket_type?: Database["public"]["Enums"]["ticket_type"]
+          used_at?: string | null
+          user_id?: string
+          valid_from?: string
+          valid_until?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tickets_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "content"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_stream_id_fkey"
+            columns: ["stream_id"]
+            isOneToOne: false
+            referencedRelation: "live_streams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          tenant_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          tenant_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          tenant_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      watch_history: {
+        Row: {
+          completed: boolean | null
+          content_id: string
+          created_at: string
+          id: string
+          last_watched_at: string
+          tenant_id: string | null
+          user_id: string
+          watch_duration: number | null
+          watch_position: number | null
+        }
+        Insert: {
+          completed?: boolean | null
+          content_id: string
+          created_at?: string
+          id?: string
+          last_watched_at?: string
+          tenant_id?: string | null
+          user_id: string
+          watch_duration?: number | null
+          watch_position?: number | null
+        }
+        Update: {
+          completed?: boolean | null
+          content_id?: string
+          created_at?: string
+          id?: string
+          last_watched_at?: string
+          tenant_id?: string | null
+          user_id?: string
+          watch_duration?: number | null
+          watch_position?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "watch_history_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "content"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "watch_history_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      watchlists: {
+        Row: {
+          content_id: string
+          created_at: string
+          id: string
+          tenant_id: string | null
+          user_id: string
+        }
+        Insert: {
+          content_id: string
+          created_at?: string
+          id?: string
+          tenant_id?: string | null
+          user_id: string
+        }
+        Update: {
+          content_id?: string
+          created_at?: string
+          id?: string
+          tenant_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "watchlists_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "content"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "watchlists_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_tenant_id: { Args: { _user_id: string }; Returns: string }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_super_admin: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      app_role:
+        | "super_admin"
+        | "platform_admin"
+        | "licensee_admin"
+        | "creator"
+        | "moderator"
+        | "viewer"
+      content_status:
+        | "draft"
+        | "processing"
+        | "published"
+        | "scheduled"
+        | "archived"
+        | "deleted"
+      content_type:
+        | "movie"
+        | "series"
+        | "episode"
+        | "trailer"
+        | "short"
+        | "live"
+        | "vod"
+        | "channel"
+      monetization_type: "free" | "svod" | "tvod" | "avod" | "ppv" | "ticket"
+      payment_status: "pending" | "completed" | "failed" | "refunded"
+      stream_status: "scheduled" | "live" | "ended" | "cancelled"
+      subscription_status:
+        | "active"
+        | "cancelled"
+        | "expired"
+        | "paused"
+        | "trial"
+      tenant_type: "platform" | "licensee" | "creator"
+      ticket_type: "live" | "replay" | "combo" | "screening"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +1180,45 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: [
+        "super_admin",
+        "platform_admin",
+        "licensee_admin",
+        "creator",
+        "moderator",
+        "viewer",
+      ],
+      content_status: [
+        "draft",
+        "processing",
+        "published",
+        "scheduled",
+        "archived",
+        "deleted",
+      ],
+      content_type: [
+        "movie",
+        "series",
+        "episode",
+        "trailer",
+        "short",
+        "live",
+        "vod",
+        "channel",
+      ],
+      monetization_type: ["free", "svod", "tvod", "avod", "ppv", "ticket"],
+      payment_status: ["pending", "completed", "failed", "refunded"],
+      stream_status: ["scheduled", "live", "ended", "cancelled"],
+      subscription_status: [
+        "active",
+        "cancelled",
+        "expired",
+        "paused",
+        "trial",
+      ],
+      tenant_type: ["platform", "licensee", "creator"],
+      ticket_type: ["live", "replay", "combo", "screening"],
+    },
   },
 } as const
