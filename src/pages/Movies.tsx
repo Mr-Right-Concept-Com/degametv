@@ -27,11 +27,11 @@ export default function Movies() {
       case 'rating':
         return (b.rating || 0) - (a.rating || 0);
       case 'newest':
-        return new Date(b.release_date || 0).getTime() - new Date(a.release_date || 0).getTime();
+        return new Date(b.releaseDate || 0).getTime() - new Date(a.releaseDate || 0).getTime();
       case 'title':
         return a.title.localeCompare(b.title);
       default:
-        return (b.view_count || 0) - (a.view_count || 0);
+        return (b.viewCount || 0) - (a.viewCount || 0);
     }
   });
 
@@ -125,11 +125,11 @@ export default function Movies() {
               key={movie.id}
               id={movie.id}
               title={movie.title}
-              thumbnail={movie.thumbnail_url}
+              thumbnail={movie.thumbnailUrl}
               type="movie"
               rating={movie.rating}
               duration={movie.duration}
-              year={movie.release_date ? new Date(movie.release_date).getFullYear() : undefined}
+              year={movie.releaseDate ? new Date(movie.releaseDate).getFullYear() : undefined}
               genre={movie.genres?.[0]}
             />
           ))}

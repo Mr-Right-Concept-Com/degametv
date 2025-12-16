@@ -10,9 +10,9 @@ const heroSlides = mockMovies.slice(0, 4).map((movie) => ({
   id: movie.id,
   title: movie.title,
   description: movie.description,
-  banner: movie.banner_url || movie.thumbnail_url,
+  banner: movie.bannerUrl || movie.thumbnailUrl,
   rating: movie.rating,
-  year: movie.release_date ? new Date(movie.release_date).getFullYear() : undefined,
+  year: movie.releaseDate ? new Date(movie.releaseDate).getFullYear() : undefined,
   duration: movie.duration,
   genres: movie.genres,
 }));
@@ -44,18 +44,18 @@ export default function Index() {
   const trendingContent = mockMovies.slice(0, 10).map((m) => ({
     id: m.id,
     title: m.title,
-    thumbnail: m.thumbnail_url,
+    thumbnail: m.thumbnailUrl,
     type: 'movie' as const,
     rating: m.rating,
     duration: m.duration,
-    year: m.release_date ? new Date(m.release_date).getFullYear() : undefined,
+    year: m.releaseDate ? new Date(m.releaseDate).getFullYear() : undefined,
     genre: m.genres?.[0],
   }));
 
   const seriesContent = mockSeries.slice(0, 10).map((s) => ({
     id: s.id,
     title: s.title,
-    thumbnail: s.thumbnail_url,
+    thumbnail: s.thumbnailUrl,
     type: 'series' as const,
     rating: s.rating,
     genre: s.genres?.[0],
@@ -64,10 +64,10 @@ export default function Index() {
   const liveContent = mockLiveStreams.slice(0, 10).map((l) => ({
     id: l.id,
     title: l.title,
-    thumbnail: l.thumbnail_url || l.banner_url,
+    thumbnail: l.thumbnailUrl || l.bannerUrl,
     type: 'live' as const,
     isLive: l.status === 'live',
-    viewerCount: l.viewer_count,
+    viewerCount: l.viewerCount,
   }));
 
   return (
