@@ -27,11 +27,11 @@ export default function Series() {
       case 'rating':
         return (b.rating || 0) - (a.rating || 0);
       case 'newest':
-        return new Date(b.release_date || 0).getTime() - new Date(a.release_date || 0).getTime();
+        return new Date(b.releaseDate || 0).getTime() - new Date(a.releaseDate || 0).getTime();
       case 'title':
         return a.title.localeCompare(b.title);
       default:
-        return (b.view_count || 0) - (a.view_count || 0);
+        return (b.viewCount || 0) - (a.viewCount || 0);
     }
   });
 
@@ -123,7 +123,7 @@ export default function Series() {
               key={series.id}
               id={series.id}
               title={series.title}
-              thumbnail={series.thumbnail_url}
+              thumbnail={series.thumbnailUrl}
               type="series"
               rating={series.rating}
               genre={series.genres?.[0]}

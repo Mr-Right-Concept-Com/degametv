@@ -30,11 +30,11 @@ export default function ContentDetail() {
     .map((m) => ({
       id: m.id,
       title: m.title,
-      thumbnail: m.thumbnail_url,
+      thumbnail: m.thumbnailUrl,
       type: 'movie' as const,
       rating: m.rating,
       duration: m.duration,
-      year: m.release_date ? new Date(m.release_date).getFullYear() : undefined,
+      year: m.releaseDate ? new Date(m.releaseDate).getFullYear() : undefined,
       genre: m.genres?.[0],
     }));
 
@@ -43,7 +43,7 @@ export default function ContentDetail() {
       {/* Hero Banner */}
       <div className="relative h-[60vh] md:h-[70vh]">
         <img
-          src={content.banner_url || content.thumbnail_url}
+          src={content.bannerUrl || content.thumbnailUrl}
           alt={content.title}
           className="w-full h-full object-cover"
         />
@@ -57,7 +57,7 @@ export default function ContentDetail() {
           {/* Poster */}
           <div className="flex-shrink-0">
             <img
-              src={content.thumbnail_url}
+              src={content.thumbnailUrl}
               alt={content.title}
               className="w-48 md:w-64 rounded-xl shadow-2xl"
             />
@@ -85,10 +85,10 @@ export default function ContentDetail() {
             </h1>
 
             <div className="flex items-center gap-4 text-muted-foreground mb-4">
-              {content.release_date && (
+              {content.releaseDate && (
                 <span className="flex items-center gap-1">
                   <Calendar className="w-4 h-4" />
-                  {new Date(content.release_date).getFullYear()}
+                  {new Date(content.releaseDate).getFullYear()}
                 </span>
               )}
               {content.duration && (
@@ -137,13 +137,13 @@ export default function ContentDetail() {
             </div>
 
             {/* Cast & Crew */}
-            {content.cast_crew && Array.isArray(content.cast_crew) && content.cast_crew.length > 0 && (
+            {content.castCrew && Array.isArray(content.castCrew) && content.castCrew.length > 0 && (
               <div className="mb-8">
                 <h3 className="font-semibold mb-3">Cast & Crew</h3>
                 <div className="flex flex-wrap gap-2">
-                  {(content.cast_crew as string[]).slice(0, 6).map((person, i) => (
+                  {content.castCrew.slice(0, 6).map((person, i) => (
                     <Badge key={i} variant="outline">
-                      {person}
+                      {person.name} ({person.role})
                     </Badge>
                   ))}
                 </div>

@@ -57,7 +57,7 @@ export default function Live() {
                   >
                     <div className="aspect-video relative">
                       <img
-                        src={stream.thumbnail_url || stream.banner_url}
+                        src={stream.thumbnailUrl || stream.bannerUrl}
                         alt={stream.title}
                         className="w-full h-full object-cover transition-transform group-hover:scale-105"
                       />
@@ -72,7 +72,7 @@ export default function Live() {
                       {/* Viewer Count */}
                       <div className="absolute bottom-3 right-3 flex items-center gap-1 text-sm text-white/90">
                         <Users className="w-4 h-4" />
-                        {stream.viewer_count?.toLocaleString()}
+                        {stream.viewerCount?.toLocaleString()}
                       </div>
 
                       {/* Play Overlay */}
@@ -120,11 +120,11 @@ export default function Live() {
                 >
                   <div className="relative w-16 h-16 mx-auto mb-3">
                     <img
-                      src={channel.logo_url}
+                      src={channel.logoUrl}
                       alt={channel.name}
                       className="w-full h-full object-contain rounded-lg"
                     />
-                    {channel.is_live && (
+                    {channel.isLive && (
                       <span className="absolute -top-1 -right-1 w-3 h-3 bg-accent rounded-full animate-pulse" />
                     )}
                   </div>
@@ -153,7 +153,7 @@ export default function Live() {
                     className="flex items-center gap-4 p-4 rounded-xl bg-card border border-border/50"
                   >
                     <img
-                      src={stream.thumbnail_url || stream.banner_url}
+                      src={stream.thumbnailUrl || stream.bannerUrl}
                       alt={stream.title}
                       className="w-32 h-20 object-cover rounded-lg"
                     />
@@ -163,14 +163,14 @@ export default function Live() {
                       <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Calendar className="w-4 h-4" />
-                          {stream.scheduled_start
-                            ? new Date(stream.scheduled_start).toLocaleDateString()
+                          {stream.scheduledStart
+                            ? new Date(stream.scheduledStart).toLocaleDateString()
                             : 'TBD'}
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="w-4 h-4" />
-                          {stream.scheduled_start
-                            ? new Date(stream.scheduled_start).toLocaleTimeString([], {
+                          {stream.scheduledStart
+                            ? new Date(stream.scheduledStart).toLocaleTimeString([], {
                                 hour: '2-digit',
                                 minute: '2-digit',
                               })

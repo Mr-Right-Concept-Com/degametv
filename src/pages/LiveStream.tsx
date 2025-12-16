@@ -44,7 +44,7 @@ export default function LiveStream() {
           {/* Player */}
           <div className="relative flex-1 bg-black">
             <img
-              src={stream.banner_url || stream.thumbnail_url}
+              src={stream.bannerUrl || stream.thumbnailUrl}
               alt={stream.title}
               className="w-full h-full object-cover"
             />
@@ -60,7 +60,7 @@ export default function LiveStream() {
                     </Badge>
                     <span className="text-white flex items-center gap-1">
                       <Users className="w-4 h-4" />
-                      {stream.viewer_count?.toLocaleString()} watching
+                      {stream.viewerCount?.toLocaleString()} watching
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -109,7 +109,7 @@ export default function LiveStream() {
         </div>
 
         {/* Chat Sidebar */}
-        {stream.chat_enabled && isChatOpen && (
+        {stream.chatEnabled && isChatOpen && (
           <div className="w-80 border-l border-border flex flex-col bg-card hidden md:flex">
             <div className="p-4 border-b border-border">
               <h3 className="font-semibold flex items-center gap-2">
