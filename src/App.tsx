@@ -5,7 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { TenantProvider } from "@/hooks/useTenant";
-import Index from "./pages/Index";
+
+// Pages
+import LandingPage from "./pages/LandingPage";
 import Auth from "./pages/Auth";
 import Movies from "./pages/Movies";
 import Series from "./pages/Series";
@@ -15,10 +17,17 @@ import LiveStream from "./pages/LiveStream";
 import Cinema from "./pages/Cinema";
 import CinemaEvent from "./pages/CinemaEvent";
 import NotFound from "./pages/NotFound";
-import AdminDashboard from "./pages/admin/Dashboard";
-import TenantsPage from "./pages/admin/Tenants";
-import UsersPage from "./pages/admin/Users";
-import ModulesPage from "./pages/admin/Modules";
+
+// Admin Pages
+import Dashboard from "./pages/admin/Dashboard";
+import Tenants from "./pages/admin/Tenants";
+import Users from "./pages/admin/Users";
+import Modules from "./pages/admin/Modules";
+import ContentManagement from "./pages/admin/ott/ContentManagement";
+import OTTAnalytics from "./pages/admin/ott/OTTAnalytics";
+import StreamManagement from "./pages/admin/live/StreamManagement";
+import ScreeningManagement from "./pages/admin/cinema/ScreeningManagement";
+import WhiteLabel from "./pages/admin/settings/WhiteLabel";
 
 const queryClient = new QueryClient();
 
@@ -31,7 +40,8 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <Routes>
-              <Route path="/" element={<Index />} />
+              {/* Public Routes */}
+              <Route path="/" element={<LandingPage />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/movies" element={<Movies />} />
               <Route path="/series" element={<Series />} />
@@ -40,11 +50,18 @@ const App = () => (
               <Route path="/live/:id" element={<LiveStream />} />
               <Route path="/cinema" element={<Cinema />} />
               <Route path="/cinema/:id" element={<CinemaEvent />} />
+              
               {/* Admin Routes */}
-              <Route path="/admin" element={<AdminDashboard />} />
-              <Route path="/admin/tenants" element={<TenantsPage />} />
-              <Route path="/admin/users" element={<UsersPage />} />
-              <Route path="/admin/modules" element={<ModulesPage />} />
+              <Route path="/admin" element={<Dashboard />} />
+              <Route path="/admin/tenants" element={<Tenants />} />
+              <Route path="/admin/users" element={<Users />} />
+              <Route path="/admin/modules" element={<Modules />} />
+              <Route path="/admin/content" element={<ContentManagement />} />
+              <Route path="/admin/analytics" element={<OTTAnalytics />} />
+              <Route path="/admin/streams" element={<StreamManagement />} />
+              <Route path="/admin/screenings" element={<ScreeningManagement />} />
+              <Route path="/admin/white-label" element={<WhiteLabel />} />
+              
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
