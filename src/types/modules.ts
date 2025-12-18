@@ -1,4 +1,4 @@
-// Module System Types
+// Module System Types - 17 Core Modules
 export type ModuleId = 
   | 'ott-vod'
   | 'live-streaming'
@@ -11,14 +11,19 @@ export type ModuleId =
   | 'white-label'
   | 'analytics'
   | 'xr-immersive'
-  | 'developer-api';
+  | 'developer-api'
+  | 'audio-podcast'
+  | 'cms-media'
+  | 'elearning'
+  | 'app-addon'
+  | 'module-manager';
 
 export interface Module {
   id: ModuleId;
   name: string;
   description: string;
   icon: string;
-  category: 'content' | 'streaming' | 'commerce' | 'platform' | 'future';
+  category: 'content' | 'streaming' | 'commerce' | 'platform' | 'future' | 'infrastructure';
   isCore: boolean;
   pricing: {
     type: 'included' | 'addon' | 'usage-based' | 'enterprise';
@@ -29,6 +34,7 @@ export interface Module {
   features: string[];
   dependencies?: ModuleId[];
   status: 'stable' | 'beta' | 'coming-soon';
+  trialDays?: number;
 }
 
 export interface TenantModule {
@@ -42,6 +48,8 @@ export interface TenantModule {
     limit: number;
     period: 'daily' | 'monthly' | 'yearly';
   };
+  trialEndsAt?: string;
+  billingStatus?: 'trial' | 'active' | 'past_due' | 'cancelled';
 }
 
 export interface TenantBranding {
@@ -66,6 +74,9 @@ export interface TenantConfig {
   billingEmail?: string;
   createdAt: string;
   updatedAt: string;
+  trialEndsAt?: string;
+  selfService: boolean;
+  autopilot: boolean;
 }
 
 // Platform-wide settings
@@ -81,9 +92,11 @@ export interface PlatformSettings {
   };
   supportedPaymentProviders: string[];
   supportedCDNProviders: string[];
+  defaultTrialDays: number;
+  autopilotEnabled: boolean;
 }
 
-// Module definitions
+// Module definitions - 17 Core Modules
 export const MODULE_DEFINITIONS: Module[] = [
   {
     id: 'ott-vod',
@@ -99,27 +112,34 @@ export const MODULE_DEFINITIONS: Module[] = [
       'Watch history & continue watching',
       'Multi-profile support',
       'Offline downloads (apps)',
-      'Content recommendations'
+      'AI recommendations & search',
+      'Multi-language audio & subtitles',
+      'Adaptive streaming',
+      'Parental controls'
     ],
-    status: 'stable'
+    status: 'stable',
+    trialDays: 14
   },
   {
     id: 'live-streaming',
     name: 'Live Streaming',
-    description: 'Professional live events, sports, concerts, and conferences',
+    description: 'Professional live events with multi-camera, chat, and analytics',
     icon: 'Radio',
     category: 'streaming',
     isCore: true,
     pricing: { type: 'included', currency: 'USD' },
     features: [
-      'RTMP / SRT ingest',
-      'OBS & Streamlabs support',
-      'Live chat integration',
+      'RTMP / SRT / WebRTC ingest',
+      'Multi-camera switching',
+      'Live chat & polls',
       'Real-time viewer analytics',
-      'Auto-recording',
-      'Secure access controls'
+      'Geo-fencing & secure access',
+      'Auto-recording → replay',
+      'AI moderation & auto-captioning',
+      'Virtual gifts'
     ],
-    status: 'stable'
+    status: 'stable',
+    trialDays: 14
   },
   {
     id: 'virtual-cinema',
@@ -138,12 +158,13 @@ export const MODULE_DEFINITIONS: Module[] = [
       'Screening analytics'
     ],
     dependencies: ['live-streaming'],
-    status: 'stable'
+    status: 'stable',
+    trialDays: 7
   },
   {
     id: 'linear-tv',
     name: 'Linear TV / FAST',
-    description: '24/7 scheduled channels with EPG and ad insertion',
+    description: '24/7 scheduled channels with EPG, cloud DVR, and dynamic ads',
     icon: 'Tv',
     category: 'content',
     isCore: false,
@@ -153,51 +174,78 @@ export const MODULE_DEFINITIONS: Module[] = [
       '24/7 channels',
       'FAST channels',
       'Electronic Program Guide',
-      'SCTE-35 ad insertion',
-      'Multi-channel management'
+      'Dynamic ad insertion',
+      'Cloud DVR',
+      'Hybrid live + VOD'
     ],
-    status: 'stable'
+    status: 'stable',
+    trialDays: 7
   },
   {
     id: 'short-form',
     name: 'Short-Form Video',
-    description: 'TikTok/Reels-style vertical video platform',
+    description: 'TikTok/Reels-style vertical video with AI feed ranking',
     icon: 'Smartphone',
     category: 'content',
     isCore: false,
     pricing: { type: 'addon', basePrice: 79, currency: 'USD' },
     features: [
       'Vertical video support',
+      'AI feed ranking',
       'Creator tools',
-      'Algorithmic feed',
       'Likes, comments, shares',
-      'Duet & stitch features',
-      'Sound library'
+      'Remix / stitch / duet',
+      'Trends & challenges',
+      'Virtual gifts / coins'
     ],
-    status: 'beta'
+    status: 'beta',
+    trialDays: 7
+  },
+  {
+    id: 'audio-podcast',
+    name: 'Audio / Podcast',
+    description: 'Music, podcasts, and audiobooks with creator dashboards',
+    icon: 'Headphones',
+    category: 'content',
+    isCore: false,
+    pricing: { type: 'addon', basePrice: 69, currency: 'USD' },
+    features: [
+      'Music streaming',
+      'Podcast hosting',
+      'Audiobooks',
+      'Offline downloads',
+      'Multi-language support',
+      'AI recommendations',
+      'Creator dashboards',
+      'Royalty management'
+    ],
+    status: 'stable',
+    trialDays: 7
   },
   {
     id: 'ticketing',
     name: 'Ticketing & Access',
-    description: 'Universal ticketing for all content types',
+    description: 'Universal ticketing for live, replay, VOD, and eLearning',
     icon: 'Ticket',
     category: 'commerce',
     isCore: true,
     pricing: { type: 'included', currency: 'USD' },
     features: [
-      'Event tickets',
-      'VOD access passes',
+      'Live event tickets',
+      'Replay access passes',
+      'VOD access tickets',
+      'eLearning course tickets',
       'Expiry rules',
       'QR/Token validation',
       'Email delivery',
-      'Bulk ticketing'
+      'Platform commission'
     ],
     status: 'stable'
   },
   {
     id: 'monetization',
     name: 'Monetization Engine',
-    description: 'Complete billing and revenue management',
+    description: 'Complete billing with auto-trial and dynamic module billing',
     icon: 'CreditCard',
     category: 'commerce',
     isCore: true,
@@ -206,16 +254,18 @@ export const MODULE_DEFINITIONS: Module[] = [
       'Subscriptions',
       'One-time payments',
       'Usage-based billing',
-      'Revenue splits',
+      'Revenue splits (Platform/Tenant/Creator)',
       'Multi-currency',
-      'Coupons & promos'
+      'Coupons & promos',
+      'Auto-trial → auto-payment',
+      'Dynamic module billing'
     ],
     status: 'stable'
   },
   {
     id: 'marketplace',
     name: 'Content Marketplace',
-    description: 'Buy, sell, and license content',
+    description: 'Buy, sell, and license content with royalty tracking',
     icon: 'Store',
     category: 'commerce',
     isCore: false,
@@ -223,35 +273,79 @@ export const MODULE_DEFINITIONS: Module[] = [
     features: [
       'Content listing',
       'Rights management',
-      'Licensing terms',
+      'Licensing contracts',
       'Distributor dashboards',
-      'B2B transactions',
-      'Contract management'
+      'Syndication',
+      'Royalty tracking',
+      'B2B transactions'
     ],
-    status: 'beta'
+    status: 'beta',
+    trialDays: 14
+  },
+  {
+    id: 'cms-media',
+    name: 'CMS / Media Management',
+    description: 'Universal library with transcoding, AI tagging, and workflow automation',
+    icon: 'FolderOpen',
+    category: 'infrastructure',
+    isCore: true,
+    pricing: { type: 'included', currency: 'USD' },
+    features: [
+      'Universal content library',
+      'Transcoding & adaptive streaming',
+      'AI tagging & metadata',
+      'Rights & DRM management',
+      'Workflow automation',
+      'Multi-language & subtitles',
+      'Engagement analytics',
+      'API access for all modules'
+    ],
+    status: 'stable'
+  },
+  {
+    id: 'elearning',
+    name: 'eLearning / Education',
+    description: 'Live & on-demand courses with quizzes, certificates, and gamification',
+    icon: 'GraduationCap',
+    category: 'content',
+    isCore: false,
+    pricing: { type: 'addon', basePrice: 129, currency: 'USD' },
+    features: [
+      'Live & on-demand courses',
+      'Quizzes & assignments',
+      'Gamification & badges',
+      'Progress tracking',
+      'Certificates',
+      'AI-driven recommendations',
+      'Discussion forums',
+      'Collaboration tools'
+    ],
+    status: 'stable',
+    trialDays: 14
   },
   {
     id: 'white-label',
     name: 'White-Label & Enterprise',
-    description: 'Full branding control and custom deployments',
+    description: 'Full branding control with custom domains and deployments',
     icon: 'Palette',
     category: 'platform',
     isCore: false,
     pricing: { type: 'enterprise', currency: 'USD' },
     features: [
-      'Custom branding',
+      'Custom branding (logo, colors, fonts)',
       'Custom domains',
       'Mobile app branding',
       'Email templates',
-      'Feature toggles',
-      'Custom CSS/themes'
+      'Feature toggles per tenant',
+      'Enterprise contracts',
+      'Setup services'
     ],
     status: 'stable'
   },
   {
     id: 'analytics',
     name: 'AI & Analytics',
-    description: 'Intelligence layer with recommendations and insights',
+    description: 'Cross-module analytics with predictive AI and recommendations',
     icon: 'BarChart3',
     category: 'platform',
     isCore: true,
@@ -262,6 +356,8 @@ export const MODULE_DEFINITIONS: Module[] = [
       'Revenue forecasting',
       'Viewer insights',
       'Piracy detection',
+      'Cross-module analytics',
+      'Predictive AI',
       'Custom reports'
     ],
     status: 'stable'
@@ -269,36 +365,75 @@ export const MODULE_DEFINITIONS: Module[] = [
   {
     id: 'xr-immersive',
     name: 'XR / Immersive',
-    description: 'AR, VR, and interactive media experiences',
+    description: 'AR, VR, 360° video, and gamified experiences',
     icon: 'Glasses',
     category: 'future',
     isCore: false,
     pricing: { type: 'enterprise', currency: 'USD' },
     features: [
       'VR cinemas',
-      'Interactive storytelling',
-      'Immersive live events',
+      'AR/VR interactive storytelling',
       '360° video support',
-      'Spatial audio',
-      'XR device support'
+      'Gamified experiences',
+      'Future hardware (AR glasses, metaverse)',
+      'Spatial audio'
     ],
     status: 'coming-soon'
   },
   {
     id: 'developer-api',
     name: 'Developer Platform',
-    description: 'APIs, SDKs, and third-party integrations',
+    description: 'REST & GraphQL APIs with SDKs and plugin marketplace',
     icon: 'Code2',
     category: 'platform',
     isCore: false,
     pricing: { type: 'usage-based', usagePrice: 0.0001, currency: 'USD' },
     features: [
       'REST & GraphQL APIs',
-      'SDKs (JS, iOS, Android)',
+      'SDKs: Web, iOS, Android, TV, XR',
       'Webhooks',
+      'Third-party integrations',
+      'Plugin marketplace',
       'OAuth integration',
-      'Rate limiting',
-      'API analytics'
+      'Rate limiting'
+    ],
+    status: 'stable',
+    trialDays: 30
+  },
+  {
+    id: 'app-addon',
+    name: 'App Add-On / Hybrid',
+    description: 'iOS, Android, Desktop, and PWA deployment with managed services',
+    icon: 'TabletSmartphone',
+    category: 'infrastructure',
+    isCore: false,
+    pricing: { type: 'addon', basePrice: 299, currency: 'USD' },
+    features: [
+      'iOS app generation',
+      'Android app generation',
+      'Desktop (Tauri/Electron)',
+      'PWA-ready',
+      'Self-service: ready-to-use files + guides',
+      'Managed: store upload & updates',
+      'Tenant branding preserved'
+    ],
+    status: 'beta'
+  },
+  {
+    id: 'module-manager',
+    name: 'Flexible Module Management',
+    description: 'Add or remove modules anytime with auto-integration and billing',
+    icon: 'Settings2',
+    category: 'infrastructure',
+    isCore: true,
+    pricing: { type: 'included', currency: 'USD' },
+    features: [
+      'Add/remove modules anytime',
+      'Auto-integration (admin, user, frontend)',
+      'Prorated billing',
+      'Free trial for new modules',
+      'Autopilot compatible',
+      'Unified system sync'
     ],
     status: 'stable'
   }
@@ -315,3 +450,6 @@ export const getCoreModules = (): Module[] =>
 
 export const getAddonModules = (): Module[] =>
   MODULE_DEFINITIONS.filter(m => !m.isCore);
+
+export const getModulesByStatus = (status: Module['status']): Module[] =>
+  MODULE_DEFINITIONS.filter(m => m.status === status);
