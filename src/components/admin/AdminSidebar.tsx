@@ -15,6 +15,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { useState } from 'react';
+import { MODULE_DEFINITIONS, ModuleId } from '@/types/modules';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Film, Radio, Clapperboard, Tv, Smartphone, Ticket, 
@@ -26,43 +27,36 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   badge?: string;
-  children?: NavItem[];
+  moduleId?: ModuleId;
 }
 
 export function AdminSidebar() {
   const location = useLocation();
-  const { isSuperAdmin, isPlatformAdmin, tenant } = useTenant();
+  const { isSuperAdmin, isPlatformAdmin, tenant, isModuleEnabled } = useTenant();
   const { signOut, user } = useAuth();
   const [modulesOpen, setModulesOpen] = useState(true);
 
-  const superAdminNav: NavItem[] = [
+  // Platform Admin Navigation (Super Admin only)
+  const platformNav: NavItem[] = [
     { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
     { label: 'Tenants', href: '/admin/tenants', icon: Building2 },
     { label: 'Users', href: '/admin/users', icon: Users },
-    { label: 'Platform Settings', href: '/admin/settings', icon: Settings },
+    { label: 'Modules', href: '/admin/modules', icon: Package },
   ];
 
-  const moduleNav: NavItem[] = [
-    { label: 'OTT / VOD', href: '/admin/modules/ott-vod', icon: Film },
-    { label: 'Live Streaming', href: '/admin/modules/live-streaming', icon: Radio },
-    { label: 'Virtual Cinema', href: '/admin/modules/virtual-cinema', icon: Clapperboard },
-    { label: 'Linear TV', href: '/admin/modules/linear-tv', icon: Tv },
-    { label: 'Short-Form', href: '/admin/modules/short-form', icon: Smartphone, badge: 'Beta' },
-    { label: 'Ticketing', href: '/admin/modules/ticketing', icon: Ticket },
-    { label: 'Monetization', href: '/admin/modules/monetization', icon: CreditCard },
-    { label: 'Marketplace', href: '/admin/modules/marketplace', icon: Store, badge: 'Beta' },
-    { label: 'White-Label', href: '/admin/modules/white-label', icon: Palette },
-    { label: 'Analytics', href: '/admin/modules/analytics', icon: BarChart3 },
-    { label: 'XR / Immersive', href: '/admin/modules/xr-immersive', icon: Glasses, badge: 'Soon' },
-    { label: 'Developer API', href: '/admin/modules/developer-api', icon: Code2 },
-  ];
+  // 12 Module Navigation - Dynamic based on enabled modules
+  const moduleNav: NavItem[] = MODULE_DEFINITIONS.map(module => ({
+    label: module.name,
+    href: `/admin/modules/${module.id}`,
+    icon: iconMap[module.icon] || Package,
+    badge: module.status === 'beta' ? 'Beta' : module.status === 'coming-soon' ? 'Soon' : undefined,
+    moduleId: module.id,
+  }));
 
-  const contentNav: NavItem[] = [
-    { label: 'Movies', href: '/admin/content/movies', icon: Film },
-    { label: 'Series', href: '/admin/content/series', icon: Tv },
-    { label: 'Live Events', href: '/admin/content/live', icon: Radio },
-    { label: 'Channels', href: '/admin/content/channels', icon: Tv },
-  ];
+  // Filter to only show enabled modules (or all for super admins)
+  const visibleModules = isSuperAdmin 
+    ? moduleNav 
+    : moduleNav.filter(item => item.moduleId && isModuleEnabled(item.moduleId));
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
@@ -76,46 +70,51 @@ export function AdminSidebar() {
             {tenant?.name || 'AGE Media'}
           </span>
           <span className="text-xs text-muted-foreground">
-            {isSuperAdmin ? 'Super Admin' : isPlatformAdmin ? 'Platform Admin' : 'Admin'}
+            {isSuperAdmin ? 'Super Admin' : isPlatformAdmin ? 'Platform Admin' : 'Tenant Admin'}
           </span>
         </div>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
-        {/* Super Admin Section */}
+        {/* Platform Section (Super Admin Only) */}
         {isSuperAdmin && (
           <div className="space-y-1">
             <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Platform
             </p>
-            {superAdminNav.map((item) => (
+            {platformNav.map((item) => (
               <NavLink key={item.href} item={item} isActive={location.pathname === item.href} />
             ))}
           </div>
         )}
 
-        {/* Modules Section */}
+        {/* Modules Section - 12 Core Modules */}
         <Collapsible open={modulesOpen} onOpenChange={setModulesOpen}>
           <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors">
-            Modules
+            Modules ({visibleModules.length})
             <ChevronDown className={cn("h-4 w-4 transition-transform", modulesOpen && "rotate-180")} />
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-1 mt-1">
-            {moduleNav.map((item) => (
-              <NavLink key={item.href} item={item} isActive={location.pathname === item.href} />
+            {visibleModules.map((item) => (
+              <NavLink 
+                key={item.href} 
+                item={item} 
+                isActive={location.pathname.startsWith(item.href)} 
+              />
             ))}
           </CollapsibleContent>
         </Collapsible>
 
-        {/* Content Management */}
+        {/* Settings */}
         <div className="space-y-1">
           <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Content
+            Settings
           </p>
-          {contentNav.map((item) => (
-            <NavLink key={item.href} item={item} isActive={location.pathname === item.href} />
-          ))}
+          <NavLink 
+            item={{ label: 'White-Label', href: '/admin/modules/white-label', icon: Palette }}
+            isActive={location.pathname === '/admin/modules/white-label'}
+          />
         </div>
       </nav>
 

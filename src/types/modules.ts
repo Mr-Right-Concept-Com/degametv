@@ -1,29 +1,24 @@
-// Module System Types - 17 Core Modules
+// Module System Types - 12 Core Modules (Strict Architecture)
 export type ModuleId = 
-  | 'ott-vod'
-  | 'live-streaming'
-  | 'virtual-cinema'
-  | 'linear-tv'
-  | 'short-form'
-  | 'ticketing'
-  | 'monetization'
-  | 'marketplace'
-  | 'white-label'
-  | 'analytics'
-  | 'xr-immersive'
-  | 'developer-api'
-  | 'audio-podcast'
-  | 'cms-media'
-  | 'elearning'
-  | 'app-addon'
-  | 'module-manager';
+  | 'ott-vod'           // 1. OTT / VOD
+  | 'live-streaming'    // 2. Live Streaming
+  | 'virtual-cinema'    // 3. Virtual Cinema / Live-to-Replay
+  | 'linear-tv'         // 4. Linear TV / FAST
+  | 'short-form'        // 5. Short-Form Video
+  | 'ticketing'         // 6. Ticketing & Access (Shared)
+  | 'monetization'      // 7. Monetization & Billing Engine
+  | 'marketplace'       // 8. Marketplace & Content Licensing
+  | 'white-label'       // 9. White-Label & Enterprise
+  | 'analytics'         // 10. AI, Analytics & Intelligence
+  | 'xr-immersive'      // 11. XR / Immersive
+  | 'developer-api';    // 12. Developer Platform & API
 
 export interface Module {
   id: ModuleId;
   name: string;
   description: string;
   icon: string;
-  category: 'content' | 'streaming' | 'commerce' | 'platform' | 'future' | 'infrastructure';
+  category: 'content' | 'streaming' | 'commerce' | 'platform' | 'future';
   isCore: boolean;
   pricing: {
     type: 'included' | 'addon' | 'usage-based' | 'enterprise';
@@ -35,6 +30,10 @@ export interface Module {
   dependencies?: ModuleId[];
   status: 'stable' | 'beta' | 'coming-soon';
   trialDays?: number;
+  // Module surfaces
+  hasPlatformAdmin: boolean;
+  hasEndUser: boolean;
+  hasPublicPages: boolean;
 }
 
 export interface TenantModule {
@@ -96,8 +95,9 @@ export interface PlatformSettings {
   autopilotEnabled: boolean;
 }
 
-// Module definitions - 17 Core Modules
+// 12 Module Definitions - Strict Architecture
 export const MODULE_DEFINITIONS: Module[] = [
+  // === 1. OTT / VOD MODULE ===
   {
     id: 'ott-vod',
     name: 'OTT / VOD',
@@ -113,13 +113,17 @@ export const MODULE_DEFINITIONS: Module[] = [
       'Multi-profile support',
       'Offline downloads (apps)',
       'AI recommendations & search',
-      'Multi-language audio & subtitles',
-      'Adaptive streaming',
+      'DRM & geo-blocking',
       'Parental controls'
     ],
     status: 'stable',
-    trialDays: 14
+    trialDays: 14,
+    hasPlatformAdmin: true,
+    hasEndUser: true,
+    hasPublicPages: true
   },
+  
+  // === 2. LIVE STREAMING MODULE ===
   {
     id: 'live-streaming',
     name: 'Live Streaming',
@@ -130,17 +134,21 @@ export const MODULE_DEFINITIONS: Module[] = [
     pricing: { type: 'included', currency: 'USD' },
     features: [
       'RTMP / SRT / WebRTC ingest',
-      'Multi-camera switching',
+      'Stream key management',
       'Live chat & polls',
+      'Ticket pricing & access rules',
       'Real-time viewer analytics',
-      'Geo-fencing & secure access',
-      'Auto-recording → replay',
-      'AI moderation & auto-captioning',
-      'Virtual gifts'
+      'Chat moderation',
+      'Auto-recording → replay'
     ],
     status: 'stable',
-    trialDays: 14
+    trialDays: 14,
+    hasPlatformAdmin: true,
+    hasEndUser: true,
+    hasPublicPages: true
   },
+  
+  // === 3. VIRTUAL CINEMA / LIVE-TO-REPLAY MODULE ===
   {
     id: 'virtual-cinema',
     name: 'Virtual Cinema',
@@ -154,13 +162,19 @@ export const MODULE_DEFINITIONS: Module[] = [
       'Live → Replay conversion',
       'Custom replay windows',
       'DRM-protected playback',
-      'Festival scheduling',
-      'Screening analytics'
+      'Festival & lineup scheduling',
+      'Screening analytics',
+      'Revenue splits'
     ],
     dependencies: ['live-streaming'],
     status: 'stable',
-    trialDays: 7
+    trialDays: 7,
+    hasPlatformAdmin: true,
+    hasEndUser: true,
+    hasPublicPages: true
   },
+  
+  // === 4. LINEAR TV / FAST CHANNEL MODULE ===
   {
     id: 'linear-tv',
     name: 'Linear TV / FAST',
@@ -170,17 +184,21 @@ export const MODULE_DEFINITIONS: Module[] = [
     isCore: false,
     pricing: { type: 'addon', basePrice: 149, currency: 'USD' },
     features: [
-      'Scheduled playlists',
-      '24/7 channels',
-      'FAST channels',
-      'Electronic Program Guide',
+      'Channel creation',
+      'Playlist scheduling',
+      'Electronic Program Guide (EPG)',
       'Dynamic ad insertion',
       'Cloud DVR',
-      'Hybrid live + VOD'
+      'Ad-supported viewing'
     ],
     status: 'stable',
-    trialDays: 7
+    trialDays: 7,
+    hasPlatformAdmin: true,
+    hasEndUser: true,
+    hasPublicPages: true
   },
+  
+  // === 5. SHORT-FORM VIDEO MODULE ===
   {
     id: 'short-form',
     name: 'Short-Form Video',
@@ -192,36 +210,20 @@ export const MODULE_DEFINITIONS: Module[] = [
     features: [
       'Vertical video support',
       'AI feed ranking',
-      'Creator tools',
+      'Creator approvals & moderation',
       'Likes, comments, shares',
-      'Remix / stitch / duet',
-      'Trends & challenges',
-      'Virtual gifts / coins'
+      'Follow creators',
+      'Virtual gifts / coins',
+      'Trends & challenges'
     ],
     status: 'beta',
-    trialDays: 7
+    trialDays: 7,
+    hasPlatformAdmin: true,
+    hasEndUser: true,
+    hasPublicPages: true
   },
-  {
-    id: 'audio-podcast',
-    name: 'Audio / Podcast',
-    description: 'Music, podcasts, and audiobooks with creator dashboards',
-    icon: 'Headphones',
-    category: 'content',
-    isCore: false,
-    pricing: { type: 'addon', basePrice: 69, currency: 'USD' },
-    features: [
-      'Music streaming',
-      'Podcast hosting',
-      'Audiobooks',
-      'Offline downloads',
-      'Multi-language support',
-      'AI recommendations',
-      'Creator dashboards',
-      'Royalty management'
-    ],
-    status: 'stable',
-    trialDays: 7
-  },
+  
+  // === 6. TICKETING & ACCESS MODULE (Shared) ===
   {
     id: 'ticketing',
     name: 'Ticketing & Access',
@@ -231,17 +233,21 @@ export const MODULE_DEFINITIONS: Module[] = [
     isCore: true,
     pricing: { type: 'included', currency: 'USD' },
     features: [
-      'Live event tickets',
-      'Replay access passes',
-      'VOD access tickets',
-      'eLearning course tickets',
+      'Ticket types management',
       'Expiry rules',
+      'Access control',
       'QR/Token validation',
-      'Email delivery',
-      'Platform commission'
+      'Checkout flow',
+      'Ticket wallet',
+      'Email delivery'
     ],
-    status: 'stable'
+    status: 'stable',
+    hasPlatformAdmin: true,
+    hasEndUser: true,
+    hasPublicPages: false
   },
+  
+  // === 7. MONETIZATION & BILLING ENGINE ===
   {
     id: 'monetization',
     name: 'Monetization Engine',
@@ -251,17 +257,21 @@ export const MODULE_DEFINITIONS: Module[] = [
     isCore: true,
     pricing: { type: 'included', currency: 'USD' },
     features: [
-      'Subscriptions',
-      'One-time payments',
-      'Usage-based billing',
+      'Pricing models',
       'Revenue splits (Platform/Tenant/Creator)',
-      'Multi-currency',
+      'Subscriptions & one-time payments',
       'Coupons & promos',
-      'Auto-trial → auto-payment',
-      'Dynamic module billing'
+      'Invoices & payouts',
+      'Multi-currency',
+      'Checkout & payment history'
     ],
-    status: 'stable'
+    status: 'stable',
+    hasPlatformAdmin: true,
+    hasEndUser: true,
+    hasPublicPages: false
   },
+  
+  // === 8. MARKETPLACE & CONTENT LICENSING MODULE ===
   {
     id: 'marketplace',
     name: 'Content Marketplace',
@@ -271,58 +281,22 @@ export const MODULE_DEFINITIONS: Module[] = [
     isCore: false,
     pricing: { type: 'addon', basePrice: 199, currency: 'USD' },
     features: [
-      'Content listing',
+      'Content listings',
+      'Licensing terms & contracts',
       'Rights management',
-      'Licensing contracts',
-      'Distributor dashboards',
-      'Syndication',
-      'Royalty tracking',
+      'Deal tracking',
+      'Browse & purchase',
+      'Creator dashboards',
       'B2B transactions'
     ],
     status: 'beta',
-    trialDays: 14
+    trialDays: 14,
+    hasPlatformAdmin: true,
+    hasEndUser: true,
+    hasPublicPages: true
   },
-  {
-    id: 'cms-media',
-    name: 'CMS / Media Management',
-    description: 'Universal library with transcoding, AI tagging, and workflow automation',
-    icon: 'FolderOpen',
-    category: 'infrastructure',
-    isCore: true,
-    pricing: { type: 'included', currency: 'USD' },
-    features: [
-      'Universal content library',
-      'Transcoding & adaptive streaming',
-      'AI tagging & metadata',
-      'Rights & DRM management',
-      'Workflow automation',
-      'Multi-language & subtitles',
-      'Engagement analytics',
-      'API access for all modules'
-    ],
-    status: 'stable'
-  },
-  {
-    id: 'elearning',
-    name: 'eLearning / Education',
-    description: 'Live & on-demand courses with quizzes, certificates, and gamification',
-    icon: 'GraduationCap',
-    category: 'content',
-    isCore: false,
-    pricing: { type: 'addon', basePrice: 129, currency: 'USD' },
-    features: [
-      'Live & on-demand courses',
-      'Quizzes & assignments',
-      'Gamification & badges',
-      'Progress tracking',
-      'Certificates',
-      'AI-driven recommendations',
-      'Discussion forums',
-      'Collaboration tools'
-    ],
-    status: 'stable',
-    trialDays: 14
-  },
+  
+  // === 9. WHITE-LABEL & ENTERPRISE MODULE ===
   {
     id: 'white-label',
     name: 'White-Label & Enterprise',
@@ -332,16 +306,20 @@ export const MODULE_DEFINITIONS: Module[] = [
     isCore: false,
     pricing: { type: 'enterprise', currency: 'USD' },
     features: [
-      'Custom branding (logo, colors, fonts)',
+      'Branding controls (logo, colors, fonts)',
       'Custom domains',
-      'Mobile app branding',
+      'App configuration',
+      'Feature toggles',
       'Email templates',
-      'Feature toggles per tenant',
-      'Enterprise contracts',
-      'Setup services'
+      'Fully branded experience'
     ],
-    status: 'stable'
+    status: 'stable',
+    hasPlatformAdmin: true,
+    hasEndUser: true, // Fully branded end-user experience
+    hasPublicPages: false
   },
+  
+  // === 10. AI, ANALYTICS & INTELLIGENCE MODULE ===
   {
     id: 'analytics',
     name: 'AI & Analytics',
@@ -351,17 +329,21 @@ export const MODULE_DEFINITIONS: Module[] = [
     isCore: true,
     pricing: { type: 'usage-based', usagePrice: 0.001, currency: 'USD' },
     features: [
+      'Dashboards & insights',
+      'Predictions & forecasting',
       'Content recommendations',
       'Engagement analytics',
       'Revenue forecasting',
       'Viewer insights',
-      'Piracy detection',
-      'Cross-module analytics',
-      'Predictive AI',
-      'Custom reports'
+      'Personalized discovery'
     ],
-    status: 'stable'
+    status: 'stable',
+    hasPlatformAdmin: true,
+    hasEndUser: true, // Personalized recommendations
+    hasPublicPages: false
   },
+  
+  // === 11. XR / IMMERSIVE MODULE ===
   {
     id: 'xr-immersive',
     name: 'XR / Immersive',
@@ -371,15 +353,20 @@ export const MODULE_DEFINITIONS: Module[] = [
     isCore: false,
     pricing: { type: 'enterprise', currency: 'USD' },
     features: [
-      'VR cinemas',
-      'AR/VR interactive storytelling',
+      'Experience setup',
+      'Hardware rules',
+      'Pricing configuration',
+      'VR/AR playback',
       '360° video support',
-      'Gamified experiences',
-      'Future hardware (AR glasses, metaverse)',
-      'Spatial audio'
+      'Interactive experiences'
     ],
-    status: 'coming-soon'
+    status: 'coming-soon',
+    hasPlatformAdmin: true,
+    hasEndUser: true,
+    hasPublicPages: false
   },
+  
+  // === 12. DEVELOPER PLATFORM & API MODULE ===
   {
     id: 'developer-api',
     name: 'Developer Platform',
@@ -389,53 +376,18 @@ export const MODULE_DEFINITIONS: Module[] = [
     isCore: false,
     pricing: { type: 'usage-based', usagePrice: 0.0001, currency: 'USD' },
     features: [
+      'API keys management',
       'REST & GraphQL APIs',
-      'SDKs: Web, iOS, Android, TV, XR',
       'Webhooks',
-      'Third-party integrations',
-      'Plugin marketplace',
-      'OAuth integration',
-      'Rate limiting'
+      'SDK access (Web, iOS, Android)',
+      'Usage metrics',
+      'Third-party integrations'
     ],
     status: 'stable',
-    trialDays: 30
-  },
-  {
-    id: 'app-addon',
-    name: 'App Add-On / Hybrid',
-    description: 'iOS, Android, Desktop, and PWA deployment with managed services',
-    icon: 'TabletSmartphone',
-    category: 'infrastructure',
-    isCore: false,
-    pricing: { type: 'addon', basePrice: 299, currency: 'USD' },
-    features: [
-      'iOS app generation',
-      'Android app generation',
-      'Desktop (Tauri/Electron)',
-      'PWA-ready',
-      'Self-service: ready-to-use files + guides',
-      'Managed: store upload & updates',
-      'Tenant branding preserved'
-    ],
-    status: 'beta'
-  },
-  {
-    id: 'module-manager',
-    name: 'Flexible Module Management',
-    description: 'Add or remove modules anytime with auto-integration and billing',
-    icon: 'Settings2',
-    category: 'infrastructure',
-    isCore: true,
-    pricing: { type: 'included', currency: 'USD' },
-    features: [
-      'Add/remove modules anytime',
-      'Auto-integration (admin, user, frontend)',
-      'Prorated billing',
-      'Free trial for new modules',
-      'Autopilot compatible',
-      'Unified system sync'
-    ],
-    status: 'stable'
+    trialDays: 30,
+    hasPlatformAdmin: true,
+    hasEndUser: false, // Developers are not viewers
+    hasPublicPages: false
   }
 ];
 
@@ -453,3 +405,9 @@ export const getAddonModules = (): Module[] =>
 
 export const getModulesByStatus = (status: Module['status']): Module[] =>
   MODULE_DEFINITIONS.filter(m => m.status === status);
+
+export const getModulesWithPlatformAdmin = (): Module[] =>
+  MODULE_DEFINITIONS.filter(m => m.hasPlatformAdmin);
+
+export const getModulesWithEndUser = (): Module[] =>
+  MODULE_DEFINITIONS.filter(m => m.hasEndUser);
