@@ -16,7 +16,7 @@ export default function ModulesPage() {
   };
 
   const categories = [
-    { id: 'all', label: 'All Modules' },
+    { id: 'all', label: 'All (12 Modules)' },
     { id: 'content', label: 'Content' },
     { id: 'streaming', label: 'Streaming' },
     { id: 'commerce', label: 'Commerce' },

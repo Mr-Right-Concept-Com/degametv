@@ -37,6 +37,8 @@ const DEFAULT_TENANT: TenantConfig = {
   plan: 'professional',
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
+  selfService: true,
+  autopilot: true,
 };
 
 export function TenantProvider({ children }: { children: ReactNode }) {
@@ -86,11 +88,13 @@ export function TenantProvider({ children }: { children: ReactNode }) {
                   secondaryColor: tenantData.secondary_color || '#8B5CF6',
                   accentColor: '#10B981',
                 },
-                modules: DEFAULT_TENANT.modules, // TODO: Fetch from tenant config
+                modules: DEFAULT_TENANT.modules,
                 status: tenantData.is_active ? 'active' : 'suspended',
                 plan: 'professional',
                 createdAt: tenantData.created_at,
                 updatedAt: tenantData.updated_at,
+                selfService: true,
+                autopilot: true,
               });
             }
           }
