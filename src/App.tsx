@@ -10,6 +10,7 @@ import { TenantProvider } from "@/hooks/useTenant";
 import LandingPage from "./pages/LandingPage";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import TenantOnboarding from "./pages/onboarding/TenantOnboarding";
 
 // End-User Pages (Module-Specific)
 import Movies from "./pages/Movies";
@@ -26,7 +27,7 @@ import Tenants from "./pages/admin/Tenants";
 import Users from "./pages/admin/Users";
 import Modules from "./pages/admin/Modules";
 
-// Module Admin Pages (12 Modules)
+// Module Admin Pages (17 Modules)
 import ContentManagement from "./pages/admin/ott/ContentManagement";
 import OTTAnalytics from "./pages/admin/ott/OTTAnalytics";
 import StreamManagement from "./pages/admin/live/StreamManagement";
@@ -53,6 +54,7 @@ const App = () => (
               {/* ============ PUBLIC ENTRY PAGES ============ */}
               <Route path="/" element={<LandingPage />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/onboarding" element={<TenantOnboarding />} />
               
               {/* ============ END-USER EXPERIENCE (White-Label Frontend) ============ */}
               {/* Module 1: OTT/VOD - Browse, Watch, Subscriptions */}

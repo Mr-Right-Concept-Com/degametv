@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Building2, Package, Settings, 
   Film, Radio, Clapperboard, Tv, Smartphone, Ticket, 
   CreditCard, Store, Palette, BarChart3, Glasses, Code2,
-  ChevronDown, LogOut
+  ChevronDown, LogOut, Headphones, Database, GraduationCap
 } from 'lucide-react';
 import { useTenant } from '@/hooks/useTenant';
 import { useAuth } from '@/hooks/useAuth';
@@ -20,6 +20,7 @@ import { MODULE_DEFINITIONS, ModuleId } from '@/types/modules';
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Film, Radio, Clapperboard, Tv, Smartphone, Ticket, 
   CreditCard, Store, Palette, BarChart3, Glasses, Code2,
+  Headphones, Database, GraduationCap, Settings, Package
 };
 
 interface NavItem {
