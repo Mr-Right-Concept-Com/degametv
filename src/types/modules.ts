@@ -1,24 +1,29 @@
-// Module System Types - 12 Core Modules (Strict Architecture)
+// Module System Types - 17 JUVUKO Modules (Complete Architecture)
 export type ModuleId = 
   | 'ott-vod'           // 1. OTT / VOD
   | 'live-streaming'    // 2. Live Streaming
   | 'virtual-cinema'    // 3. Virtual Cinema / Live-to-Replay
   | 'linear-tv'         // 4. Linear TV / FAST
   | 'short-form'        // 5. Short-Form Video
-  | 'ticketing'         // 6. Ticketing & Access (Shared)
+  | 'ticketing'         // 6. Ticketing & Access
   | 'monetization'      // 7. Monetization & Billing Engine
   | 'marketplace'       // 8. Marketplace & Content Licensing
   | 'white-label'       // 9. White-Label & Enterprise
   | 'analytics'         // 10. AI, Analytics & Intelligence
   | 'xr-immersive'      // 11. XR / Immersive
-  | 'developer-api';    // 12. Developer Platform & API
+  | 'developer-api'     // 12. Developer Platform & API
+  | 'audio-podcast'     // 13. Audio / Podcast
+  | 'cms-media'         // 14. CMS / Media Management
+  | 'elearning'         // 15. eLearning / Education
+  | 'app-addon'         // 16. App Add-on / Hybrid Deployment
+  | 'module-management';// 17. Flexible Module Management (Meta)
 
 export interface Module {
   id: ModuleId;
   name: string;
   description: string;
   icon: string;
-  category: 'content' | 'streaming' | 'commerce' | 'platform' | 'future';
+  category: 'content' | 'streaming' | 'commerce' | 'platform' | 'future' | 'core';
   isCore: boolean;
   pricing: {
     type: 'included' | 'addon' | 'usage-based' | 'enterprise';
@@ -68,7 +73,7 @@ export interface TenantConfig {
   domain?: string;
   branding: TenantBranding;
   modules: TenantModule[];
-  status: 'active' | 'suspended' | 'trial' | 'pending';
+  status: 'active' | 'suspended' | 'trial' | 'pending' | 'provisioning';
   plan: 'starter' | 'professional' | 'enterprise' | 'custom';
   billingEmail?: string;
   createdAt: string;
@@ -95,7 +100,7 @@ export interface PlatformSettings {
   autopilotEnabled: boolean;
 }
 
-// 12 Module Definitions - Strict Architecture
+// 17 Module Definitions - JUVUKO Architecture
 export const MODULE_DEFINITIONS: Module[] = [
   // === 1. OTT / VOD MODULE ===
   {
@@ -223,7 +228,7 @@ export const MODULE_DEFINITIONS: Module[] = [
     hasPublicPages: true
   },
   
-  // === 6. TICKETING & ACCESS MODULE (Shared) ===
+  // === 6. TICKETING & ACCESS MODULE ===
   {
     id: 'ticketing',
     name: 'Ticketing & Access',
@@ -315,7 +320,7 @@ export const MODULE_DEFINITIONS: Module[] = [
     ],
     status: 'stable',
     hasPlatformAdmin: true,
-    hasEndUser: true, // Fully branded end-user experience
+    hasEndUser: true,
     hasPublicPages: false
   },
   
@@ -339,7 +344,7 @@ export const MODULE_DEFINITIONS: Module[] = [
     ],
     status: 'stable',
     hasPlatformAdmin: true,
-    hasEndUser: true, // Personalized recommendations
+    hasEndUser: true,
     hasPublicPages: false
   },
   
@@ -386,7 +391,134 @@ export const MODULE_DEFINITIONS: Module[] = [
     status: 'stable',
     trialDays: 30,
     hasPlatformAdmin: true,
-    hasEndUser: false, // Developers are not viewers
+    hasEndUser: false,
+    hasPublicPages: false
+  },
+  
+  // === 13. AUDIO / PODCAST MODULE ===
+  {
+    id: 'audio-podcast',
+    name: 'Audio / Podcast',
+    description: 'Music, podcasts, audiobooks with offline downloads',
+    icon: 'Headphones',
+    category: 'content',
+    isCore: false,
+    pricing: { type: 'addon', basePrice: 69, currency: 'USD' },
+    features: [
+      'Podcast hosting',
+      'Music streaming',
+      'Audiobook support',
+      'Offline downloads',
+      'Multi-language',
+      'AI recommendations',
+      'Creator dashboards',
+      'Royalty management'
+    ],
+    status: 'stable',
+    trialDays: 14,
+    hasPlatformAdmin: true,
+    hasEndUser: true,
+    hasPublicPages: true
+  },
+  
+  // === 14. CMS / MEDIA MANAGEMENT MODULE (Core) ===
+  {
+    id: 'cms-media',
+    name: 'CMS / Media Management',
+    description: 'Universal media library feeding all modules',
+    icon: 'Database',
+    category: 'core',
+    isCore: true,
+    pricing: { type: 'included', currency: 'USD' },
+    features: [
+      'Universal content library',
+      'Transcoding & adaptive streaming',
+      'AI tagging & metadata',
+      'Rights & DRM management',
+      'Workflow automation',
+      'Multi-language & subtitles',
+      'Engagement analytics',
+      'API access for all modules'
+    ],
+    status: 'stable',
+    hasPlatformAdmin: true,
+    hasEndUser: false,
+    hasPublicPages: false
+  },
+  
+  // === 15. ELEARNING / EDUCATION MODULE ===
+  {
+    id: 'elearning',
+    name: 'eLearning / Education',
+    description: 'Live & on-demand courses with quizzes and certificates',
+    icon: 'GraduationCap',
+    category: 'content',
+    isCore: false,
+    pricing: { type: 'addon', basePrice: 129, currency: 'USD' },
+    features: [
+      'Live & On-Demand courses',
+      'Quizzes & assignments',
+      'Gamification & badges',
+      'Progress tracking',
+      'Certificates',
+      'AI-driven recommendations',
+      'Discussion forums',
+      'Collaboration tools'
+    ],
+    status: 'stable',
+    trialDays: 14,
+    hasPlatformAdmin: true,
+    hasEndUser: true,
+    hasPublicPages: true
+  },
+  
+  // === 16. APP ADD-ON / HYBRID DEPLOYMENT MODULE ===
+  {
+    id: 'app-addon',
+    name: 'App Add-on',
+    description: 'iOS, Android, Desktop apps with tenant branding',
+    icon: 'Smartphone',
+    category: 'platform',
+    isCore: false,
+    pricing: { type: 'addon', basePrice: 299, currency: 'USD' },
+    features: [
+      'iOS app deployment',
+      'Android app deployment',
+      'Desktop (Tauri/Electron)',
+      'PWA support',
+      'Self-service guides',
+      'Managed store uploads',
+      'Automatic updates',
+      'Tenant branding preserved'
+    ],
+    status: 'stable',
+    hasPlatformAdmin: true,
+    hasEndUser: true,
+    hasPublicPages: false
+  },
+  
+  // === 17. FLEXIBLE MODULE MANAGEMENT (Meta-Module) ===
+  {
+    id: 'module-management',
+    name: 'Module Management',
+    description: 'Add/remove modules anytime with auto-billing updates',
+    icon: 'Settings',
+    category: 'core',
+    isCore: true,
+    pricing: { type: 'included', currency: 'USD' },
+    features: [
+      'Add modules anytime',
+      'Remove modules anytime',
+      'Auto UI updates',
+      'Auto billing updates',
+      'Prorated billing',
+      'Multi-currency support',
+      'Trial per module',
+      'Spin-off ready'
+    ],
+    status: 'stable',
+    hasPlatformAdmin: true,
+    hasEndUser: false,
     hasPublicPages: false
   }
 ];
@@ -411,3 +543,12 @@ export const getModulesWithPlatformAdmin = (): Module[] =>
 
 export const getModulesWithEndUser = (): Module[] =>
   MODULE_DEFINITIONS.filter(m => m.hasEndUser);
+
+export const getContentModules = (): Module[] =>
+  MODULE_DEFINITIONS.filter(m => m.category === 'content' || m.category === 'streaming');
+
+export const getCommerceModules = (): Module[] =>
+  MODULE_DEFINITIONS.filter(m => m.category === 'commerce');
+
+export const getPlatformModules = (): Module[] =>
+  MODULE_DEFINITIONS.filter(m => m.category === 'platform' || m.category === 'core');
