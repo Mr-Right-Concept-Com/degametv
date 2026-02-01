@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Play, Info, ChevronLeft, ChevronRight, Star } from 'lucide-react';
+import { Play, Info, ChevronLeft, ChevronRight, Star, Ticket } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -14,6 +14,8 @@ interface HeroSlide {
   year?: number;
   duration?: number;
   genres?: string[];
+  isPremiere?: boolean;
+  price?: number;
 }
 
 interface HeroSliderProps {
@@ -52,7 +54,7 @@ export function HeroSlider({ slides, autoPlay = true, interval = 6000 }: HeroSli
   const currentSlide = slides[currentIndex];
 
   return (
-    <section className="relative h-[70vh] md:h-[80vh] overflow-hidden">
+    <section className="relative h-[70vh] md:h-[85vh] overflow-hidden">
       {/* Background Image */}
       {slides.map((slide, index) => (
         <div
@@ -67,8 +69,11 @@ export function HeroSlider({ slides, autoPlay = true, interval = 6000 }: HeroSli
             alt={slide.title}
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-background via-background/60 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+          {/* African Pattern Overlay */}
+          <div className="absolute inset-0 african-pattern" />
+          {/* Gradients */}
+          <div className="absolute inset-0 bg-gradient-to-r from-background via-background/70 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background/30" />
         </div>
       ))}
 
@@ -78,9 +83,15 @@ export function HeroSlider({ slides, autoPlay = true, interval = 6000 }: HeroSli
           <div className="max-w-2xl">
             {/* Badges */}
             <div className="flex items-center gap-2 mb-4">
-              {currentSlide.rating && (
-                <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/50">
-                  <Star className="w-3 h-3 mr-1 fill-yellow-400" />
+              {currentSlide.isPremiere && (
+                <Badge className="premiere-badge text-background border-0">
+                  <Ticket className="w-3 h-3 mr-1" />
+                  PREMIERE
+                </Badge>
+              )}
+              {currentSlide.rating && currentSlide.rating > 0 && (
+                <Badge className="bg-accent/20 text-accent border-accent/50">
+                  <Star className="w-3 h-3 mr-1 fill-accent" />
                   {currentSlide.rating.toFixed(1)}
                 </Badge>
               )}
@@ -89,7 +100,7 @@ export function HeroSlider({ slides, autoPlay = true, interval = 6000 }: HeroSli
               )}
               {currentSlide.duration && (
                 <Badge variant="outline">
-                  {Math.floor(currentSlide.duration / 60)}h {currentSlide.duration % 60}m
+                  {Math.floor(currentSlide.duration / 3600)}h {Math.floor((currentSlide.duration % 3600) / 60)}m
                 </Badge>
               )}
             </div>
@@ -102,26 +113,36 @@ export function HeroSlider({ slides, autoPlay = true, interval = 6000 }: HeroSli
             {/* Genres */}
             {currentSlide.genres && (
               <div className="flex items-center gap-2 mb-4">
-                {currentSlide.genres.slice(0, 3).map((genre) => (
+                {currentSlide.genres.slice(0, 3).map((genre, i) => (
                   <span key={genre} className="text-sm text-muted-foreground">
                     {genre}
+                    {i < Math.min(currentSlide.genres!.length, 3) - 1 && (
+                      <span className="ml-2 text-accent">•</span>
+                    )}
                   </span>
                 ))}
               </div>
             )}
 
             {/* Description */}
-            <p className="text-muted-foreground text-lg mb-6 line-clamp-3 animate-fade-in animation-delay-200">
+            <p className="text-muted-foreground text-lg mb-6 line-clamp-3 animate-fade-in">
               {currentSlide.description}
             </p>
 
             {/* Actions */}
-            <div className="flex items-center gap-3 animate-fade-in animation-delay-400">
-              <Button size="lg" className="bg-gradient-primary hover:opacity-90 gap-2">
-                <Play className="w-5 h-5 fill-white" />
-                Watch Now
-              </Button>
-              <Button size="lg" variant="outline" className="gap-2" asChild>
+            <div className="flex items-center gap-3 animate-fade-in">
+              {currentSlide.isPremiere ? (
+                <Button size="lg" className="gradient-gold text-background hover:opacity-90 gap-2">
+                  <Ticket className="w-5 h-5" />
+                  Buy Ticket {currentSlide.price && `- $${currentSlide.price}`}
+                </Button>
+              ) : (
+                <Button size="lg" className="gradient-primary hover:opacity-90 gap-2">
+                  <Play className="w-5 h-5 fill-white" />
+                  Watch Now
+                </Button>
+              )}
+              <Button size="lg" variant="outline" className="gap-2 border-border/50 hover:border-accent" asChild>
                 <Link to={`/content/${currentSlide.id}`}>
                   <Info className="w-5 h-5" />
                   More Info
@@ -138,7 +159,7 @@ export function HeroSlider({ slides, autoPlay = true, interval = 6000 }: HeroSli
           <Button
             variant="ghost"
             size="icon"
-            className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-background/30 backdrop-blur-sm hover:bg-background/50"
+            className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-background/30 backdrop-blur-sm hover:bg-background/50 border border-border/30"
             onClick={goToPrevious}
           >
             <ChevronLeft className="w-6 h-6" />
@@ -146,7 +167,7 @@ export function HeroSlider({ slides, autoPlay = true, interval = 6000 }: HeroSli
           <Button
             variant="ghost"
             size="icon"
-            className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-background/30 backdrop-blur-sm hover:bg-background/50"
+            className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-background/30 backdrop-blur-sm hover:bg-background/50 border border-border/30"
             onClick={goToNext}
           >
             <ChevronRight className="w-6 h-6" />
@@ -162,10 +183,10 @@ export function HeroSlider({ slides, autoPlay = true, interval = 6000 }: HeroSli
               key={index}
               onClick={() => goToSlide(index)}
               className={cn(
-                'w-2 h-2 rounded-full transition-all duration-300',
+                'h-2 rounded-full transition-all duration-300',
                 index === currentIndex
-                  ? 'w-8 bg-primary'
-                  : 'bg-white/30 hover:bg-white/50'
+                  ? 'w-8 bg-accent'
+                  : 'w-2 bg-white/30 hover:bg-white/50'
               )}
             />
           ))}

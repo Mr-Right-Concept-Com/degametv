@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Menu, X, Search, Bell, User, Play, Tv, Film, Ticket, LayoutDashboard } from 'lucide-react';
+import { Menu, X, Search, Bell, User, Film, Tv, Radio, Ticket, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,25 +19,30 @@ export function Navbar() {
   const navigate = useNavigate();
 
   const navLinks = [
-    { label: 'Home', href: '/', icon: Play },
+    { label: 'Home', href: '/', icon: Film },
     { label: 'Movies', href: '/movies', icon: Film },
     { label: 'Series', href: '/series', icon: Tv },
-    { label: 'Live', href: '/live', icon: Play },
+    { label: 'Live', href: '/live', icon: Radio },
     { label: 'Cinema', href: '/cinema', icon: Ticket },
   ];
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/50">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-xl border-b border-border/30">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center">
-              <Play className="w-6 h-6 text-white fill-white" />
+            <div className="w-10 h-10 rounded-lg gradient-royal flex items-center justify-center">
+              <Film className="w-6 h-6 text-white" />
             </div>
-            <span className="text-xl font-display font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              AGE Media
-            </span>
+            <div className="flex flex-col">
+              <span className="text-xl font-display font-bold text-gradient-royal">
+                DeGameTV
+              </span>
+              <span className="text-[10px] text-muted-foreground -mt-1 tracking-wider">
+                NOLLYWOOD & MORE
+              </span>
+            </div>
           </Link>
 
           {/* Desktop Navigation */}
@@ -60,8 +65,8 @@ export function Navbar() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search..."
-                  className="w-48 lg:w-64 pl-9 bg-muted/50 border-border/50 focus:border-primary"
+                  placeholder="Search movies..."
+                  className="w-48 lg:w-64 pl-9 bg-muted/50 border-border/50 focus:border-accent"
                 />
               </div>
             </div>
@@ -79,13 +84,13 @@ export function Navbar() {
               <>
                 <Button variant="ghost" size="icon" className="relative">
                   <Bell className="w-5 h-5" />
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-accent rounded-full" />
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full" />
                 </Button>
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="rounded-full">
-                      <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-full gradient-royal flex items-center justify-center">
                         <User className="w-4 h-4 text-white" />
                       </div>
                     </Button>
@@ -107,7 +112,7 @@ export function Navbar() {
                 </DropdownMenu>
               </>
             ) : (
-              <Button onClick={() => navigate('/auth')} className="bg-gradient-primary hover:opacity-90">
+              <Button onClick={() => navigate('/auth')} className="gradient-royal text-white hover:opacity-90">
                 Sign In
               </Button>
             )}

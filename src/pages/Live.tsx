@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, Radio, Users, Calendar, Play, Clock } from 'lucide-react';
+import { Search, Radio, Users, Calendar, Play, Clock, Ticket } from 'lucide-react';
 import { mockLiveStreams, mockChannels } from '@/data/mockData';
 import { Link } from 'react-router-dom';
 
@@ -23,20 +23,28 @@ export default function Live() {
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-display font-bold mb-2 flex items-center gap-3">
-            <Radio className="w-10 h-10 text-accent animate-pulse" />
-            Live
-          </h1>
-          <p className="text-muted-foreground">
-            Watch live streams and TV channels in real-time
-          </p>
+          <div className="flex items-center gap-3 mb-2">
+            <Radio className="w-10 h-10 text-primary animate-pulse" />
+            <div>
+              <h1 className="text-4xl font-display font-bold">Live</h1>
+              <p className="text-muted-foreground">
+                Watch live events and African TV channels
+              </p>
+            </div>
+          </div>
         </div>
 
         <Tabs defaultValue="streams" className="w-full">
-          <TabsList className="mb-6">
-            <TabsTrigger value="streams">Live Streams</TabsTrigger>
-            <TabsTrigger value="channels">TV Channels</TabsTrigger>
-            <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+          <TabsList className="mb-6 bg-card">
+            <TabsTrigger value="streams" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              Live Events
+            </TabsTrigger>
+            <TabsTrigger value="channels" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              TV Channels
+            </TabsTrigger>
+            <TabsTrigger value="upcoming" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              Upcoming
+            </TabsTrigger>
           </TabsList>
 
           {/* Live Streams */}
@@ -44,8 +52,8 @@ export default function Live() {
             {liveNow.length === 0 ? (
               <div className="text-center py-16">
                 <Radio className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-xl font-semibold mb-2">No live streams right now</h3>
-                <p className="text-muted-foreground">Check back later or browse upcoming streams</p>
+                <h3 className="text-xl font-semibold mb-2">No live events right now</h3>
+                <p className="text-muted-foreground">Check back later or browse upcoming events</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -53,7 +61,7 @@ export default function Live() {
                   <Link
                     key={stream.id}
                     to={`/live/${stream.id}`}
-                    className="group relative rounded-xl overflow-hidden bg-card border border-border/50 hover:border-accent/50 transition-all"
+                    className="group relative rounded-xl overflow-hidden bg-card border border-border/50 hover:border-primary/50 transition-all"
                   >
                     <div className="aspect-video relative">
                       <img
@@ -64,10 +72,18 @@ export default function Live() {
                       <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent" />
                       
                       {/* Live Badge */}
-                      <Badge className="absolute top-3 left-3 bg-accent text-white border-0 animate-pulse">
+                      <Badge className="absolute top-3 left-3 bg-primary text-primary-foreground border-0 animate-pulse">
                         <span className="w-2 h-2 bg-white rounded-full mr-1.5" />
                         LIVE
                       </Badge>
+
+                      {/* Ticketed Badge */}
+                      {stream.isTicketed && (
+                        <Badge className="absolute top-3 right-3 bg-accent text-background border-0">
+                          <Ticket className="w-3 h-3 mr-1" />
+                          ${stream.ticketPrice}
+                        </Badge>
+                      )}
 
                       {/* Viewer Count */}
                       <div className="absolute bottom-3 right-3 flex items-center gap-1 text-sm text-white/90">
@@ -77,14 +93,14 @@ export default function Live() {
 
                       {/* Play Overlay */}
                       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <div className="w-16 h-16 rounded-full bg-accent/90 flex items-center justify-center">
+                        <div className="w-16 h-16 rounded-full gradient-primary flex items-center justify-center">
                           <Play className="w-8 h-8 text-white fill-white ml-1" />
                         </div>
                       </div>
                     </div>
 
                     <div className="p-4">
-                      <h3 className="font-semibold line-clamp-1 group-hover:text-accent transition-colors">
+                      <h3 className="font-semibold line-clamp-1 group-hover:text-primary transition-colors">
                         {stream.title}
                       </h3>
                       <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
@@ -116,7 +132,7 @@ export default function Live() {
                 <Link
                   key={channel.id}
                   to={`/channel/${channel.id}`}
-                  className="group p-4 rounded-xl bg-card border border-border/50 hover:border-primary/50 transition-all text-center"
+                  className="group p-4 rounded-xl bg-card border border-border/50 hover:border-accent/50 transition-all text-center"
                 >
                   <div className="relative w-16 h-16 mx-auto mb-3">
                     <img
@@ -125,10 +141,10 @@ export default function Live() {
                       className="w-full h-full object-contain rounded-lg"
                     />
                     {channel.isLive && (
-                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-accent rounded-full animate-pulse" />
+                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full animate-pulse" />
                     )}
                   </div>
-                  <h4 className="font-medium text-sm group-hover:text-primary transition-colors line-clamp-1">
+                  <h4 className="font-medium text-sm group-hover:text-accent transition-colors line-clamp-1">
                     {channel.name}
                   </h4>
                   <p className="text-xs text-muted-foreground mt-1">{channel.category}</p>
@@ -142,7 +158,7 @@ export default function Live() {
             {upcoming.length === 0 ? (
               <div className="text-center py-16">
                 <Calendar className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-xl font-semibold mb-2">No upcoming streams</h3>
+                <h3 className="text-xl font-semibold mb-2">No upcoming events</h3>
                 <p className="text-muted-foreground">Stay tuned for new scheduled events</p>
               </div>
             ) : (
@@ -178,7 +194,9 @@ export default function Live() {
                         </span>
                       </div>
                     </div>
-                    <Button variant="outline">Set Reminder</Button>
+                    <Button variant="outline" className="border-accent text-accent hover:bg-accent hover:text-background">
+                      Set Reminder
+                    </Button>
                   </div>
                 ))}
               </div>

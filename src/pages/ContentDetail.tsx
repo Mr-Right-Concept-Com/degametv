@@ -3,8 +3,8 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { ContentRow } from '@/components/content/ContentRow';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Play, Plus, Share2, Star, Clock, Calendar, Download, Heart } from 'lucide-react';
-import { mockMovies, mockSeries } from '@/data/mockData';
+import { Play, Plus, Share2, Star, Clock, Calendar, Download, Heart, Ticket } from 'lucide-react';
+import { mockMovies, mockSeries, nollywoodStars } from '@/data/mockData';
 
 export default function ContentDetail() {
   const { id } = useParams<{ id: string }>();
@@ -16,13 +16,15 @@ export default function ContentDetail() {
       <MainLayout>
         <div className="container mx-auto px-4 py-16 text-center">
           <h1 className="text-2xl font-bold mb-4">Content not found</h1>
-          <Button asChild>
+          <Button asChild className="gradient-primary">
             <Link to="/">Go Home</Link>
           </Button>
         </div>
       </MainLayout>
     );
   }
+
+  const isPremiere = content.monetization === 'ticket';
 
   const relatedContent = mockMovies
     .filter((m) => m.id !== id && m.genres?.some((g) => content.genres?.includes(g)))
@@ -38,6 +40,9 @@ export default function ContentDetail() {
       genre: m.genres?.[0],
     }));
 
+  // Get cast from castCrew if available
+  const cast = content.castCrew && Array.isArray(content.castCrew) ? content.castCrew : [];
+
   return (
     <MainLayout>
       {/* Hero Banner */}
@@ -47,6 +52,7 @@ export default function ContentDetail() {
           alt={content.title}
           className="w-full h-full object-cover"
         />
+        <div className="absolute inset-0 african-pattern opacity-20" />
         <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
       </div>
@@ -56,26 +62,39 @@ export default function ContentDetail() {
         <div className="flex flex-col md:flex-row gap-8">
           {/* Poster */}
           <div className="flex-shrink-0">
-            <img
-              src={content.thumbnailUrl}
-              alt={content.title}
-              className="w-48 md:w-64 rounded-xl shadow-2xl"
-            />
+            <div className="relative">
+              <img
+                src={content.thumbnailUrl}
+                alt={content.title}
+                className="w-48 md:w-64 rounded-xl shadow-2xl border border-border/30"
+              />
+              {isPremiere && (
+                <Badge className="absolute -top-2 -right-2 premiere-badge text-background border-0">
+                  <Ticket className="w-3 h-3 mr-1" />
+                  PREMIERE
+                </Badge>
+              )}
+            </div>
           </div>
 
           {/* Details */}
           <div className="flex-1">
-            <div className="flex items-center gap-2 mb-3">
-              {content.rating && (
-                <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/50">
-                  <Star className="w-3 h-3 mr-1 fill-yellow-400" />
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              {content.rating && content.rating > 0 && (
+                <Badge className="bg-accent/20 text-accent border-accent/50">
+                  <Star className="w-3 h-3 mr-1 fill-accent" />
                   {content.rating.toFixed(1)}
                 </Badge>
               )}
-              <Badge variant="outline">{content.type}</Badge>
+              <Badge variant="outline" className="capitalize">{content.type}</Badge>
               {content.monetization !== 'free' && (
-                <Badge className="bg-accent/20 text-accent border-accent/50">
+                <Badge className="bg-primary/20 text-primary border-primary/50">
                   {content.monetization.toUpperCase()}
+                </Badge>
+              )}
+              {isPremiere && content.price && (
+                <Badge className="gradient-gold text-background border-0">
+                  ${content.price}
                 </Badge>
               )}
             </div>
@@ -84,26 +103,26 @@ export default function ContentDetail() {
               {content.title}
             </h1>
 
-            <div className="flex items-center gap-4 text-muted-foreground mb-4">
+            <div className="flex items-center gap-4 text-muted-foreground mb-4 flex-wrap">
               {content.releaseDate && (
                 <span className="flex items-center gap-1">
-                  <Calendar className="w-4 h-4" />
+                  <Calendar className="w-4 h-4 text-accent" />
                   {new Date(content.releaseDate).getFullYear()}
                 </span>
               )}
               {content.duration && (
                 <span className="flex items-center gap-1">
-                  <Clock className="w-4 h-4" />
-                  {Math.floor(content.duration / 60)}h {content.duration % 60}m
+                  <Clock className="w-4 h-4 text-accent" />
+                  {Math.floor(content.duration / 3600)}h {Math.floor((content.duration % 3600) / 60)}m
                 </span>
               )}
             </div>
 
             {/* Genres */}
             {content.genres && (
-              <div className="flex items-center gap-2 mb-6">
+              <div className="flex items-center gap-2 mb-6 flex-wrap">
                 {content.genres.map((genre) => (
-                  <Badge key={genre} variant="secondary">
+                  <Badge key={genre} variant="secondary" className="bg-muted">
                     {genre}
                   </Badge>
                 ))}
@@ -116,34 +135,55 @@ export default function ContentDetail() {
             </p>
 
             {/* Actions */}
-            <div className="flex items-center gap-3 mb-8">
-              <Button size="lg" className="bg-gradient-primary hover:opacity-90 gap-2">
-                <Play className="w-5 h-5 fill-white" />
-                Watch Now
-              </Button>
-              <Button size="lg" variant="outline" className="gap-2">
+            <div className="flex items-center gap-3 mb-8 flex-wrap">
+              {isPremiere ? (
+                <Button size="lg" className="gradient-gold text-background hover:opacity-90 gap-2">
+                  <Ticket className="w-5 h-5" />
+                  Buy Ticket - ${content.price}
+                </Button>
+              ) : (
+                <Button size="lg" className="gradient-primary hover:opacity-90 gap-2">
+                  <Play className="w-5 h-5 fill-white" />
+                  Watch Now
+                </Button>
+              )}
+              <Button size="lg" variant="outline" className="gap-2 border-border/50 hover:border-accent">
                 <Plus className="w-5 h-5" />
                 Add to List
               </Button>
-              <Button size="icon" variant="ghost" className="rounded-full">
+              <Button size="icon" variant="ghost" className="rounded-full hover:text-accent">
                 <Heart className="w-5 h-5" />
               </Button>
-              <Button size="icon" variant="ghost" className="rounded-full">
+              <Button size="icon" variant="ghost" className="rounded-full hover:text-accent">
                 <Share2 className="w-5 h-5" />
               </Button>
-              <Button size="icon" variant="ghost" className="rounded-full">
+              <Button size="icon" variant="ghost" className="rounded-full hover:text-accent">
                 <Download className="w-5 h-5" />
               </Button>
             </div>
 
             {/* Cast & Crew */}
-            {content.castCrew && Array.isArray(content.castCrew) && content.castCrew.length > 0 && (
+            {cast.length > 0 && (
               <div className="mb-8">
-                <h3 className="font-semibold mb-3">Cast & Crew</h3>
+                <h3 className="font-semibold mb-3 text-accent">Cast & Crew</h3>
                 <div className="flex flex-wrap gap-2">
-                  {content.castCrew.slice(0, 6).map((person, i) => (
-                    <Badge key={i} variant="outline">
-                      {person.name} ({person.role})
+                  {cast.slice(0, 6).map((person: any, i: number) => (
+                    <Badge key={i} variant="outline" className="py-1.5">
+                      {person.name} <span className="text-muted-foreground ml-1">({person.role})</span>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Tags */}
+            {content.tags && content.tags.length > 0 && (
+              <div>
+                <h3 className="font-semibold mb-3 text-accent">Tags</h3>
+                <div className="flex flex-wrap gap-2">
+                  {content.tags.map((tag: string) => (
+                    <Badge key={tag} variant="secondary" className="bg-card">
+                      #{tag}
                     </Badge>
                   ))}
                 </div>
