@@ -36,7 +36,7 @@ export function ContentCard({
     <Link
       to={href}
       className={cn(
-        'group relative block rounded-xl overflow-hidden bg-card border border-border/50 transition-all duration-300 hover:border-primary/50 hover:shadow-glow',
+        'group relative block rounded-xl overflow-hidden bg-card border border-border/50 transition-all duration-300 hover:border-accent/50 hover:shadow-lg hover:shadow-accent/10',
         className
       )}
     >

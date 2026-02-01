@@ -14,8 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        display: ['Space Grotesk', 'system-ui', 'sans-serif'],
+        sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+        display: ['Playfair Display', 'serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -69,13 +69,13 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
-        age: {
-          purple: "hsl(var(--age-purple))",
-          violet: "hsl(var(--age-violet))",
-          blue: "hsl(var(--age-blue))",
-          cyan: "hsl(var(--age-cyan))",
-          pink: "hsl(var(--age-pink))",
-          gold: "hsl(var(--age-gold))",
+        degame: {
+          burgundy: "hsl(var(--degame-burgundy))",
+          wine: "hsl(var(--degame-wine))",
+          gold: "hsl(var(--degame-gold))",
+          amber: "hsl(var(--degame-amber))",
+          bronze: "hsl(var(--degame-bronze))",
+          cream: "hsl(var(--degame-cream))",
         },
       },
       borderRadius: {
