@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Menu, X, Search, Bell, User, Film, Tv, Radio, Ticket, LayoutDashboard } from 'lucide-react';
+import { Menu, X, Search, User, Ticket, LayoutDashboard, Film } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,11 +19,9 @@ export function Navbar() {
   const navigate = useNavigate();
 
   const navLinks = [
-    { label: 'Home', href: '/', icon: Film },
-    { label: 'Movies', href: '/movies', icon: Film },
-    { label: 'Series', href: '/series', icon: Tv },
-    { label: 'Live', href: '/live', icon: Radio },
-    { label: 'Cinema', href: '/cinema', icon: Ticket },
+    { label: 'Now Showing', href: '/' },
+    { label: 'Upcoming', href: '/cinema' },
+    { label: 'My Tickets', href: '/tickets' },
   ];
 
   return (
@@ -40,7 +38,7 @@ export function Navbar() {
                 DeGameTV
               </span>
               <span className="text-[10px] text-muted-foreground -mt-1 tracking-wider">
-                NOLLYWOOD & MORE
+                VIRTUAL CINEMA
               </span>
             </div>
           </Link>
@@ -65,7 +63,7 @@ export function Navbar() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search movies..."
+                  placeholder="Search screenings..."
                   className="w-48 lg:w-64 pl-9 bg-muted/50 border-border/50 focus:border-accent"
                 />
               </div>
@@ -82,9 +80,11 @@ export function Navbar() {
 
             {user ? (
               <>
-                <Button variant="ghost" size="icon" className="relative">
-                  <Bell className="w-5 h-5" />
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full" />
+                <Button variant="outline" size="sm" className="hidden sm:flex gap-2 border-accent text-accent hover:bg-accent hover:text-background" asChild>
+                  <Link to="/cinema">
+                    <Ticket className="w-4 h-4" />
+                    Get Tickets
+                  </Link>
                 </Button>
 
                 <DropdownMenu>
@@ -96,9 +96,9 @@ export function Navbar() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem onClick={() => navigate('/profile')}>
-                      <User className="w-4 h-4 mr-2" />
-                      Profile
+                    <DropdownMenuItem onClick={() => navigate('/tickets')}>
+                      <Ticket className="w-4 h-4 mr-2" />
+                      My Tickets
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate('/admin')}>
                       <LayoutDashboard className="w-4 h-4 mr-2" />
@@ -112,9 +112,15 @@ export function Navbar() {
                 </DropdownMenu>
               </>
             ) : (
-              <Button onClick={() => navigate('/auth')} className="gradient-royal text-white hover:opacity-90">
-                Sign In
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" onClick={() => navigate('/auth')}>
+                  Sign In
+                </Button>
+                <Button onClick={() => navigate('/cinema')} className="gradient-gold text-background hover:opacity-90 gap-2">
+                  <Ticket className="w-4 h-4" />
+                  Get Tickets
+                </Button>
+              </div>
             )}
 
             {/* Mobile Menu Toggle */}
@@ -139,7 +145,6 @@ export function Navbar() {
                 className="flex items-center gap-3 px-4 py-3 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg"
                 onClick={() => setIsMenuOpen(false)}
               >
-                <link.icon className="w-5 h-5" />
                 {link.label}
               </Link>
             ))}
