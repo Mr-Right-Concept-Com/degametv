@@ -1,10 +1,9 @@
 import { useParams, Link } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
-import { ContentRow } from '@/components/content/ContentRow';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Play, Plus, Share2, Star, Clock, Calendar, Download, Heart, Ticket } from 'lucide-react';
-import { mockMovies, mockSeries, nollywoodStars } from '@/data/mockData';
+import { Play, Plus, Share2, Star, Clock, Calendar, Heart, Ticket } from 'lucide-react';
+import { mockMovies, mockSeries } from '@/data/mockData';
 
 export default function ContentDetail() {
   const { id } = useParams<{ id: string }>();
@@ -26,20 +25,6 @@ export default function ContentDetail() {
 
   const isPremiere = content.monetization === 'ticket';
 
-  const relatedContent = mockMovies
-    .filter((m) => m.id !== id && m.genres?.some((g) => content.genres?.includes(g)))
-    .slice(0, 10)
-    .map((m) => ({
-      id: m.id,
-      title: m.title,
-      thumbnail: m.thumbnailUrl,
-      type: 'movie' as const,
-      rating: m.rating,
-      duration: m.duration,
-      year: m.releaseDate ? new Date(m.releaseDate).getFullYear() : undefined,
-      genre: m.genres?.[0],
-    }));
-
   // Get cast from castCrew if available
   const cast = content.castCrew && Array.isArray(content.castCrew) ? content.castCrew : [];
 
@@ -52,7 +37,6 @@ export default function ContentDetail() {
           alt={content.title}
           className="w-full h-full object-cover"
         />
-        <div className="absolute inset-0 african-pattern opacity-20" />
         <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
       </div>
@@ -87,11 +71,6 @@ export default function ContentDetail() {
                 </Badge>
               )}
               <Badge variant="outline" className="capitalize">{content.type}</Badge>
-              {content.monetization !== 'free' && (
-                <Badge className="bg-primary/20 text-primary border-primary/50">
-                  {content.monetization.toUpperCase()}
-                </Badge>
-              )}
               {isPremiere && content.price && (
                 <Badge className="gradient-gold text-background border-0">
                   ${content.price}
@@ -157,9 +136,6 @@ export default function ContentDetail() {
               <Button size="icon" variant="ghost" className="rounded-full hover:text-accent">
                 <Share2 className="w-5 h-5" />
               </Button>
-              <Button size="icon" variant="ghost" className="rounded-full hover:text-accent">
-                <Download className="w-5 h-5" />
-              </Button>
             </div>
 
             {/* Cast & Crew */}
@@ -192,15 +168,6 @@ export default function ContentDetail() {
           </div>
         </div>
       </div>
-
-      {/* Related Content */}
-      {relatedContent.length > 0 && (
-        <ContentRow
-          title="You Might Also Like"
-          items={relatedContent}
-          className="mt-12"
-        />
-      )}
     </MainLayout>
   );
 }

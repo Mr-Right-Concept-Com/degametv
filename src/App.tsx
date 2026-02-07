@@ -6,28 +6,19 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { TenantProvider } from "@/hooks/useTenant";
 
-// Public Pages
-import LandingPage from "./pages/LandingPage";
-import Auth from "./pages/Auth";
-import NotFound from "./pages/NotFound";
-import TenantOnboarding from "./pages/onboarding/TenantOnboarding";
-
-// End-User Pages (Module-Specific)
-import Movies from "./pages/Movies";
-import Series from "./pages/Series";
-import ContentDetail from "./pages/ContentDetail";
-import Live from "./pages/Live";
-import LiveStream from "./pages/LiveStream";
+// End-user pages - Virtual Cinema focused
+import Index from "./pages/Index";
 import Cinema from "./pages/Cinema";
 import CinemaEvent from "./pages/CinemaEvent";
+import ContentDetail from "./pages/ContentDetail";
+import Auth from "./pages/Auth";
+import NotFound from "./pages/NotFound";
 
-// Platform Admin Pages (Super Admin)
+// Admin pages
 import Dashboard from "./pages/admin/Dashboard";
 import Tenants from "./pages/admin/Tenants";
 import Users from "./pages/admin/Users";
 import Modules from "./pages/admin/Modules";
-
-// Module Admin Pages (17 Modules)
 import ContentManagement from "./pages/admin/ott/ContentManagement";
 import OTTAnalytics from "./pages/admin/ott/OTTAnalytics";
 import StreamManagement from "./pages/admin/live/StreamManagement";
@@ -51,70 +42,32 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <Routes>
-              {/* ============ PUBLIC ENTRY PAGES ============ */}
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/onboarding" element={<TenantOnboarding />} />
-              
-              {/* ============ END-USER EXPERIENCE (White-Label Frontend) ============ */}
-              {/* Module 1: OTT/VOD - Browse, Watch, Subscriptions */}
-              <Route path="/movies" element={<Movies />} />
-              <Route path="/series" element={<Series />} />
-              <Route path="/content/:id" element={<ContentDetail />} />
-              
-              {/* Module 2: Live Streaming - Event pages, Ticket purchase, Live player */}
-              <Route path="/live" element={<Live />} />
-              <Route path="/live/:id" element={<LiveStream />} />
-              
-              {/* Module 3: Virtual Cinema - Premiere events, Replay access */}
+              {/* ============ END-USER EXPERIENCE - Virtual Cinema ============ */}
+              <Route path="/" element={<Index />} />
               <Route path="/cinema" element={<Cinema />} />
               <Route path="/cinema/:id" element={<CinemaEvent />} />
+              <Route path="/content/:id" element={<ContentDetail />} />
+              <Route path="/auth" element={<Auth />} />
               
-              {/* ============ PLATFORM ADMIN (Tenant Dashboard) ============ */}
-              {/* Super Admin / Platform Management */}
+              {/* ============ PLATFORM ADMIN ============ */}
               <Route path="/admin" element={<Dashboard />} />
               <Route path="/admin/tenants" element={<Tenants />} />
               <Route path="/admin/users" element={<Users />} />
               <Route path="/admin/modules" element={<Modules />} />
               
-              {/* Module 1: OTT/VOD Admin */}
+              {/* Module Admin Pages */}
               <Route path="/admin/modules/ott-vod" element={<ContentManagement />} />
               <Route path="/admin/modules/ott-vod/analytics" element={<OTTAnalytics />} />
-              
-              {/* Module 2: Live Streaming Admin */}
               <Route path="/admin/modules/live-streaming" element={<StreamManagement />} />
-              
-              {/* Module 3: Virtual Cinema Admin */}
               <Route path="/admin/modules/virtual-cinema" element={<ScreeningManagement />} />
-              
-              {/* Module 4: Linear TV / FAST Admin */}
-              <Route path="/admin/modules/linear-tv" element={<ContentManagement />} />
-              
-              {/* Module 5: Short-Form Video Admin */}
-              <Route path="/admin/modules/short-form" element={<ContentManagement />} />
-              
-              {/* Module 6: Ticketing & Access Admin */}
               <Route path="/admin/modules/ticketing" element={<TicketManagement />} />
-              
-              {/* Module 7: Monetization & Billing Admin */}
               <Route path="/admin/modules/monetization" element={<BillingManagement />} />
-              
-              {/* Module 8: Marketplace & Licensing Admin */}
               <Route path="/admin/modules/marketplace" element={<MarketplaceManagement />} />
-              
-              {/* Module 9: White-Label & Enterprise Admin */}
+              <Route path="/admin/modules/analytics" element={<AnalyticsDashboard />} />
+              <Route path="/admin/modules/xr-immersive" element={<XRManagement />} />
+              <Route path="/admin/modules/developer-api" element={<DeveloperPlatform />} />
               <Route path="/admin/modules/white-label" element={<WhiteLabel />} />
               
-              {/* Module 10: AI & Analytics Admin */}
-              <Route path="/admin/modules/analytics" element={<AnalyticsDashboard />} />
-              
-              {/* Module 11: XR / Immersive Admin */}
-              <Route path="/admin/modules/xr-immersive" element={<XRManagement />} />
-              
-              {/* Module 12: Developer Platform Admin */}
-              <Route path="/admin/modules/developer-api" element={<DeveloperPlatform />} />
-              
-              {/* Fallback */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
