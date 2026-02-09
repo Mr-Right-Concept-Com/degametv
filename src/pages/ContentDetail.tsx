@@ -2,20 +2,20 @@ import { useParams, Link } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Play, Plus, Share2, Star, Clock, Calendar, Heart, Ticket } from 'lucide-react';
+import { Play, Plus, Share2, Star, Clock, Calendar, Heart, Ticket, ArrowLeft } from 'lucide-react';
 import { mockMovies, mockSeries } from '@/data/mockData';
 
 export default function ContentDetail() {
   const { id } = useParams<{ id: string }>();
-  
+
   const content = [...mockMovies, ...mockSeries].find((c) => c.id === id);
-  
+
   if (!content) {
     return (
       <MainLayout>
-        <div className="container mx-auto px-4 py-16 text-center">
+        <div className="container mx-auto px-4 py-20 text-center">
           <h1 className="text-2xl font-bold mb-4">Content not found</h1>
-          <Button asChild className="gradient-primary">
+          <Button asChild className="rounded-full">
             <Link to="/">Go Home</Link>
           </Button>
         </div>
@@ -24,25 +24,29 @@ export default function ContentDetail() {
   }
 
   const isPremiere = content.monetization === 'ticket';
-
-  // Get cast from castCrew if available
   const cast = content.castCrew && Array.isArray(content.castCrew) ? content.castCrew : [];
 
   return (
     <MainLayout>
-      {/* Hero Banner */}
-      <div className="relative h-[60vh] md:h-[70vh]">
+      {/* Hero image */}
+      <div className="relative h-[40vh] md:h-[50vh] bg-secondary">
         <img
           src={content.bannerUrl || content.thumbnailUrl}
           alt={content.title}
           className="w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
       </div>
 
-      {/* Content Info */}
-      <div className="container mx-auto px-4 -mt-48 relative z-10">
+      {/* Content */}
+      <div className="container mx-auto px-4 -mt-32 relative z-10 pb-16">
+        <Button variant="ghost" size="sm" className="mb-6 rounded-full text-muted-foreground" asChild>
+          <Link to="/">
+            <ArrowLeft className="w-4 h-4 mr-1" />
+            Back
+          </Link>
+        </Button>
+
         <div className="flex flex-col md:flex-row gap-8">
           {/* Poster */}
           <div className="flex-shrink-0">
@@ -50,11 +54,10 @@ export default function ContentDetail() {
               <img
                 src={content.thumbnailUrl}
                 alt={content.title}
-                className="w-48 md:w-64 rounded-xl shadow-2xl border border-border/30"
+                className="w-44 md:w-56 rounded-2xl shadow-lg"
               />
               {isPremiere && (
-                <Badge className="absolute -top-2 -right-2 premiere-badge text-background border-0">
-                  <Ticket className="w-3 h-3 mr-1" />
+                <Badge className="absolute -top-2 -right-2 bg-primary text-primary-foreground border-0 rounded-full text-xs px-3">
                   PREMIERE
                 </Badge>
               )}
@@ -64,103 +67,100 @@ export default function ContentDetail() {
           {/* Details */}
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-3 flex-wrap">
-              {content.rating && content.rating > 0 && (
-                <Badge className="bg-accent/20 text-accent border-accent/50">
-                  <Star className="w-3 h-3 mr-1 fill-accent" />
+              {content.rating > 0 && (
+                <span className="flex items-center gap-1 text-sm font-medium text-accent">
+                  <Star className="w-4 h-4 fill-accent" />
                   {content.rating.toFixed(1)}
-                </Badge>
+                </span>
               )}
-              <Badge variant="outline" className="capitalize">{content.type}</Badge>
+              <Badge variant="secondary" className="capitalize rounded-full">{content.type}</Badge>
               {isPremiere && content.price && (
-                <Badge className="gradient-gold text-background border-0">
+                <Badge className="bg-primary text-primary-foreground border-0 rounded-full">
                   ${content.price}
                 </Badge>
               )}
             </div>
 
-            <h1 className="text-4xl md:text-5xl font-display font-bold mb-4">
+            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-3">
               {content.title}
             </h1>
 
-            <div className="flex items-center gap-4 text-muted-foreground mb-4 flex-wrap">
+            <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4 flex-wrap">
               {content.releaseDate && (
                 <span className="flex items-center gap-1">
-                  <Calendar className="w-4 h-4 text-accent" />
+                  <Calendar className="w-4 h-4" />
                   {new Date(content.releaseDate).getFullYear()}
                 </span>
               )}
               {content.duration && (
                 <span className="flex items-center gap-1">
-                  <Clock className="w-4 h-4 text-accent" />
+                  <Clock className="w-4 h-4" />
                   {Math.floor(content.duration / 3600)}h {Math.floor((content.duration % 3600) / 60)}m
                 </span>
               )}
             </div>
 
-            {/* Genres */}
             {content.genres && (
-              <div className="flex items-center gap-2 mb-6 flex-wrap">
+              <div className="flex items-center gap-2 mb-5 flex-wrap">
                 {content.genres.map((genre) => (
-                  <Badge key={genre} variant="secondary" className="bg-muted">
+                  <span key={genre} className="text-xs font-medium bg-secondary text-foreground px-3 py-1 rounded-full">
                     {genre}
-                  </Badge>
+                  </span>
                 ))}
               </div>
             )}
 
-            {/* Description */}
-            <p className="text-muted-foreground text-lg mb-6 max-w-2xl">
+            <p className="text-muted-foreground leading-relaxed mb-6 max-w-2xl">
               {content.description}
             </p>
 
             {/* Actions */}
             <div className="flex items-center gap-3 mb-8 flex-wrap">
               {isPremiere ? (
-                <Button size="lg" className="gradient-gold text-background hover:opacity-90 gap-2">
+                <Button size="lg" className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 gap-2 font-semibold px-8">
                   <Ticket className="w-5 h-5" />
-                  Buy Ticket - ${content.price}
+                  Buy Ticket — ${content.price}
                 </Button>
               ) : (
-                <Button size="lg" className="gradient-primary hover:opacity-90 gap-2">
-                  <Play className="w-5 h-5 fill-white" />
+                <Button size="lg" className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 gap-2 font-semibold px-8">
+                  <Play className="w-5 h-5" />
                   Watch Now
                 </Button>
               )}
-              <Button size="lg" variant="outline" className="gap-2 border-border/50 hover:border-accent">
+              <Button size="lg" variant="outline" className="rounded-full gap-2">
                 <Plus className="w-5 h-5" />
                 Add to List
               </Button>
-              <Button size="icon" variant="ghost" className="rounded-full hover:text-accent">
+              <Button size="icon" variant="ghost" className="rounded-full hover:text-primary">
                 <Heart className="w-5 h-5" />
               </Button>
-              <Button size="icon" variant="ghost" className="rounded-full hover:text-accent">
+              <Button size="icon" variant="ghost" className="rounded-full hover:text-primary">
                 <Share2 className="w-5 h-5" />
               </Button>
             </div>
 
-            {/* Cast & Crew */}
+            {/* Cast */}
             {cast.length > 0 && (
-              <div className="mb-8">
-                <h3 className="font-semibold mb-3 text-accent">Cast & Crew</h3>
+              <div className="mb-6">
+                <h3 className="font-bold text-sm mb-3 text-muted-foreground uppercase tracking-wider">Cast & Crew</h3>
                 <div className="flex flex-wrap gap-2">
                   {cast.slice(0, 6).map((person: any, i: number) => (
-                    <Badge key={i} variant="outline" className="py-1.5">
-                      {person.name} <span className="text-muted-foreground ml-1">({person.role})</span>
-                    </Badge>
+                    <span key={i} className="text-sm bg-secondary px-3 py-1.5 rounded-full">
+                      {person.name} <span className="text-muted-foreground">· {person.role}</span>
+                    </span>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Tags */}
             {content.tags && content.tags.length > 0 && (
               <div>
-                <h3 className="font-semibold mb-3 text-accent">Tags</h3>
+                <h3 className="font-bold text-sm mb-3 text-muted-foreground uppercase tracking-wider">Tags</h3>
                 <div className="flex flex-wrap gap-2">
                   {content.tags.map((tag: string) => (
-                    <Badge key={tag} variant="secondary" className="bg-card">
+                    <span key={tag} className="text-xs text-muted-foreground bg-secondary px-3 py-1 rounded-full">
                       #{tag}
-                    </Badge>
+                    </span>
                   ))}
                 </div>
               </div>
