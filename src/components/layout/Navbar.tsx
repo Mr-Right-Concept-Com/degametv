@@ -26,14 +26,14 @@ export function Navbar() {
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-lg border-b border-border">
-      <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
+      <div className="container mx-auto px-4 sm:px-5">
+        <div className="flex items-center justify-between h-14 sm:h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
-              <Film className="w-5 h-5 text-primary-foreground" />
+          <Link to="/" className="flex items-center gap-2">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-primary flex items-center justify-center">
+              <Film className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />
             </div>
-            <span className="text-lg font-bold text-foreground tracking-tight">
+            <span className="text-base sm:text-lg font-bold text-foreground tracking-tight">
               DeGameTV
             </span>
           </Link>
@@ -52,67 +52,70 @@ export function Navbar() {
           </div>
 
           {/* Right Section */}
-          <div className="flex items-center gap-2">
-            <div className={`${isSearchOpen ? 'flex' : 'hidden md:flex'} items-center`}>
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Desktop search */}
+            <div className="hidden md:flex items-center">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search screenings..."
-                  className="w-48 lg:w-56 pl-9 rounded-full bg-secondary border-0 focus-visible:ring-primary/30"
+                  placeholder="Search..."
+                  className="w-44 lg:w-56 pl-9 rounded-full bg-secondary border-0 focus-visible:ring-primary/30 h-9"
                 />
               </div>
             </div>
 
+            {/* Mobile search toggle */}
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden rounded-full"
+              className="md:hidden rounded-full h-9 w-9"
               onClick={() => setIsSearchOpen(!isSearchOpen)}
             >
-              <Search className="w-5 h-5" />
+              <Search className="w-4 h-4" />
             </Button>
 
             {user ? (
               <>
-                <Button size="sm" className="hidden sm:flex gap-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90" asChild>
+                <Button size="sm" className="hidden sm:flex gap-1.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 h-9 text-xs" asChild>
                   <Link to="/cinema">
-                    <Ticket className="w-4 h-4" />
+                    <Ticket className="w-3.5 h-3.5" />
                     Get Tickets
                   </Link>
                 </Button>
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="rounded-full">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <User className="w-4 h-4 text-primary" />
+                    <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
                       </div>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48 rounded-xl">
-                    <DropdownMenuItem onClick={() => navigate('/tickets')}>
+                  <DropdownMenuContent align="end" className="w-44 sm:w-48 rounded-xl">
+                    <DropdownMenuItem onClick={() => navigate('/tickets')} className="text-sm">
                       <Ticket className="w-4 h-4 mr-2" />
                       My Tickets
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate('/admin')}>
+                    <DropdownMenuItem onClick={() => navigate('/admin')} className="text-sm">
                       <LayoutDashboard className="w-4 h-4 mr-2" />
-                      Admin Dashboard
+                      Admin
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => signOut()}>
+                    <DropdownMenuItem onClick={() => signOut()} className="text-sm">
                       Sign Out
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </>
             ) : (
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" className="rounded-full" onClick={() => navigate('/auth')}>
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <Button variant="ghost" className="rounded-full h-9 text-xs sm:text-sm px-3 sm:px-4" onClick={() => navigate('/auth')}>
                   Sign In
                 </Button>
-                <Button onClick={() => navigate('/cinema')} className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 gap-2">
-                  <Ticket className="w-4 h-4" />
-                  Get Tickets
+                <Button onClick={() => navigate('/cinema')} className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 h-9 text-xs sm:text-sm px-3 sm:px-4">
+                  <Ticket className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Get Tickets</span>
+                  <span className="sm:hidden">Tickets</span>
                 </Button>
               </div>
             )}
@@ -120,22 +123,36 @@ export function Navbar() {
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden rounded-full"
+              className="md:hidden rounded-full h-9 w-9"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
             >
-              {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {isMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </Button>
           </div>
         </div>
 
+        {/* Mobile Search */}
+        {isSearchOpen && (
+          <div className="md:hidden pb-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search screenings..."
+                className="pl-9 rounded-full bg-secondary border-0 focus-visible:ring-primary/30 h-10"
+                autoFocus
+              />
+            </div>
+          </div>
+        )}
+
         {/* Mobile Menu */}
         {isMenuOpen && (
-          <div className="md:hidden py-3 border-t border-border">
+          <div className="md:hidden py-2 border-t border-border">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 to={link.href}
-                className="flex items-center gap-3 px-4 py-3 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-xl"
+                className="flex items-center gap-3 px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary rounded-xl"
                 onClick={() => setIsMenuOpen(false)}
               >
                 {link.label}
