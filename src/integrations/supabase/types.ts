@@ -450,6 +450,54 @@ export type Database = {
           },
         ]
       }
+      payment_gateways: {
+        Row: {
+          created_at: string
+          gateway_name: string
+          id: string
+          is_enabled: boolean | null
+          is_live: boolean | null
+          live_public_key: string | null
+          live_secret_key: string | null
+          settings: Json | null
+          tenant_id: string
+          test_public_key: string | null
+          test_secret_key: string | null
+          updated_at: string
+          webhook_secret: string | null
+        }
+        Insert: {
+          created_at?: string
+          gateway_name: string
+          id?: string
+          is_enabled?: boolean | null
+          is_live?: boolean | null
+          live_public_key?: string | null
+          live_secret_key?: string | null
+          settings?: Json | null
+          tenant_id: string
+          test_public_key?: string | null
+          test_secret_key?: string | null
+          updated_at?: string
+          webhook_secret?: string | null
+        }
+        Update: {
+          created_at?: string
+          gateway_name?: string
+          id?: string
+          is_enabled?: boolean | null
+          is_live?: boolean | null
+          live_public_key?: string | null
+          live_secret_key?: string | null
+          settings?: Json | null
+          tenant_id?: string
+          test_public_key?: string | null
+          test_secret_key?: string | null
+          updated_at?: string
+          webhook_secret?: string | null
+        }
+        Relationships: []
+      }
       payments: {
         Row: {
           amount: number
@@ -631,6 +679,140 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      screening_tickets: {
+        Row: {
+          addons: Json | null
+          created_at: string
+          currency: string | null
+          email: string
+          expires_at: string
+          id: string
+          is_used: boolean | null
+          location: string
+          payment_method: string | null
+          payment_reference: string | null
+          payment_status: string
+          price: number
+          screening_id: string
+          tenant_id: string
+          ticket_code: string
+          used_at: string | null
+          user_id: string | null
+          watch_code: string
+          watch_url: string | null
+        }
+        Insert: {
+          addons?: Json | null
+          created_at?: string
+          currency?: string | null
+          email: string
+          expires_at?: string
+          id?: string
+          is_used?: boolean | null
+          location: string
+          payment_method?: string | null
+          payment_reference?: string | null
+          payment_status?: string
+          price: number
+          screening_id: string
+          tenant_id: string
+          ticket_code: string
+          used_at?: string | null
+          user_id?: string | null
+          watch_code: string
+          watch_url?: string | null
+        }
+        Update: {
+          addons?: Json | null
+          created_at?: string
+          currency?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          is_used?: boolean | null
+          location?: string
+          payment_method?: string | null
+          payment_reference?: string | null
+          payment_status?: string
+          price?: number
+          screening_id?: string
+          tenant_id?: string
+          ticket_code?: string
+          used_at?: string | null
+          user_id?: string | null
+          watch_code?: string
+          watch_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "screening_tickets_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
+            referencedRelation: "screenings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      screenings: {
+        Row: {
+          banner_url: string | null
+          content_id: string
+          created_at: string
+          description: string | null
+          duration: number | null
+          id: string
+          location_pricing: Json
+          metadata: Json | null
+          poster_url: string | null
+          release_date: string | null
+          screening_date: string | null
+          slug: string
+          status: string
+          tenant_id: string
+          title: string
+          trailer_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          banner_url?: string | null
+          content_id: string
+          created_at?: string
+          description?: string | null
+          duration?: number | null
+          id?: string
+          location_pricing?: Json
+          metadata?: Json | null
+          poster_url?: string | null
+          release_date?: string | null
+          screening_date?: string | null
+          slug: string
+          status?: string
+          tenant_id: string
+          title: string
+          trailer_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          banner_url?: string | null
+          content_id?: string
+          created_at?: string
+          description?: string | null
+          duration?: number | null
+          id?: string
+          location_pricing?: Json
+          metadata?: Json | null
+          poster_url?: string | null
+          release_date?: string | null
+          screening_date?: string | null
+          slug?: string
+          status?: string
+          tenant_id?: string
+          title?: string
+          trailer_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       subscription_plans: {
         Row: {
