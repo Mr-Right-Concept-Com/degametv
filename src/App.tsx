@@ -30,6 +30,12 @@ import AnalyticsDashboard from "./pages/admin/analytics/AnalyticsDashboard";
 import DeveloperPlatform from "./pages/admin/developer/DeveloperPlatform";
 import XRManagement from "./pages/admin/xr/XRManagement";
 import WhiteLabel from "./pages/admin/settings/WhiteLabel";
+import PaymentGatewaySettings from "./pages/admin/PaymentGatewaySettings";
+
+// Virtual Cinema Funnel
+import BuyTicket from "./pages/BuyTicket";
+import WatchMovie from "./pages/WatchMovie";
+import MyTickets from "./pages/MyTickets";
 
 const queryClient = new QueryClient();
 
@@ -49,11 +55,17 @@ const App = () => (
               <Route path="/content/:id" element={<ContentDetail />} />
               <Route path="/auth" element={<Auth />} />
               
+              {/* ============ VIRTUAL CINEMA TICKET FUNNEL ============ */}
+              <Route path="/buy/:slug" element={<BuyTicket />} />
+              <Route path="/watch/:watchCode" element={<WatchMovie />} />
+              <Route path="/tickets" element={<MyTickets />} />
+              
               {/* ============ PLATFORM ADMIN ============ */}
               <Route path="/admin" element={<Dashboard />} />
               <Route path="/admin/tenants" element={<Tenants />} />
               <Route path="/admin/users" element={<Users />} />
               <Route path="/admin/modules" element={<Modules />} />
+              <Route path="/admin/settings/payment-gateways" element={<PaymentGatewaySettings />} />
               
               {/* Module Admin Pages */}
               <Route path="/admin/modules/ott-vod" element={<ContentManagement />} />
