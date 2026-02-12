@@ -1,247 +1,356 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { MapPin, Mail, Zap, DollarSign, Check } from 'lucide-react';
+import { MapPin, Mail, Zap, Check, ArrowLeft, Loader2, Clock, Calendar } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+interface Screening {
+  id: string;
+  title: string;
+  slug: string;
+  description: string;
+  poster_url: string;
+  banner_url: string;
+  screening_date: string;
+  duration: number;
+  location_pricing: { nigeria: number; international: number };
+  status: string;
+}
 
 export default function BuyTicket() {
+  const { slug } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
   const [step, setStep] = useState<'location' | 'email' | 'payment' | 'confirmation'>('location');
   const [location, setLocation] = useState<'nigeria' | 'international'>('nigeria');
   const [email, setEmail] = useState('');
   const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
-  const [addons, setAddons] = useState<{ name: string; price: number; selected: boolean }[]>([
-    { name: 'Popcorn & Drink', price: 500, selected: false },
+  const [processing, setProcessing] = useState(false);
+  const [screening, setScreening] = useState<Screening | null>(null);
+  const [loadingScreening, setLoadingScreening] = useState(true);
+  const [confirmation, setConfirmation] = useState<any>(null);
+  const [addons, setAddons] = useState([
+    { name: 'Popcorn & Drink Bundle', price: 500, selected: false },
     { name: 'Premium Candy Pack', price: 300, selected: false },
   ]);
 
-  const pricing = {
-    nigeria: 5000,
-    international: 15,
-  };
+  useEffect(() => {
+    const fetchScreening = async () => {
+      if (!slug) return;
+      const { data, error } = await supabase
+        .from('screenings')
+        .select('*')
+        .eq('slug', slug)
+        .eq('status', 'published')
+        .maybeSingle();
+      
+      if (data) {
+        const pricing = typeof data.location_pricing === 'string' 
+          ? JSON.parse(data.location_pricing) 
+          : data.location_pricing;
+        setScreening({ ...data, location_pricing: pricing } as Screening);
+      }
+      setLoadingScreening(false);
+    };
+    fetchScreening();
+  }, [slug]);
 
+  if (loadingScreening) {
+    return (
+      <MainLayout>
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (!screening) {
+    return (
+      <MainLayout>
+        <div className="min-h-[60vh] flex items-center justify-center px-4">
+          <div className="text-center">
+            <h2 className="text-xl font-bold mb-2">Screening Not Found</h2>
+            <p className="text-muted-foreground mb-4 text-sm">This screening may have ended or doesn't exist.</p>
+            <Button asChild className="rounded-full"><Link to="/cinema">Browse Screenings</Link></Button>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  const pricing = screening.location_pricing;
   const basePrice = pricing[location];
+  const currency = location === 'nigeria' ? 'NGN' : 'USD';
+  const symbol = location === 'nigeria' ? '₦' : '$';
   const addonsTotal = addons.filter(a => a.selected).reduce((sum, a) => sum + a.price, 0);
-  const total = basePrice + addonsTotal;
+  const total = basePrice + (location === 'nigeria' ? addonsTotal : 0);
 
   const paymentMethods = [
     { id: 'stripe', name: 'Credit/Debit Card', icon: '💳', available: true },
     { id: 'paystack', name: 'Paystack', icon: '🔗', available: true },
     { id: 'flutterwave', name: 'Flutterwave', icon: '⚡', available: true },
     { id: 'bank', name: 'Bank Transfer', icon: '🏦', available: true },
-    { id: 'momo', name: 'Mobile Money', icon: '📱', available: true },
-    { id: 'crypto', name: 'Crypto', icon: '₿', available: false },
   ];
 
-  const handlePayment = () => {
-    // Mock payment - would call edge function
-    setStep('confirmation');
+  const steps = ['location', 'email', 'payment', 'confirmation'] as const;
+  const currentIdx = steps.indexOf(step);
+
+  const handlePayment = async () => {
+    if (!selectedPayment) return;
+    setProcessing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('process-payment', {
+        body: {
+          method: selectedPayment,
+          email,
+          amount: total,
+          currency,
+          screeningId: screening.id,
+          location,
+          addons: addons.filter(a => a.selected).map(a => ({ name: a.name, price: a.price })),
+        },
+      });
+
+      if (error || !data?.success) {
+        toast.error('Payment failed. Please try again.');
+        return;
+      }
+
+      setConfirmation(data);
+      setStep('confirmation');
+
+      // Send email with watch link
+      const watchUrl = `${window.location.origin}/watch/${data.watchCode}?email=${encodeURIComponent(email)}`;
+      await supabase.functions.invoke('send-watch-email', {
+        body: {
+          email,
+          movieTitle: screening.title,
+          watchUrl,
+          ticketCode: data.ticketCode,
+          expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+          location,
+          price: total,
+          currency,
+        },
+      });
+
+      toast.success('Ticket confirmed! Check your email for the watch link.');
+    } catch (err) {
+      toast.error('Something went wrong. Please try again.');
+    } finally {
+      setProcessing(false);
+    }
   };
 
   return (
     <MainLayout>
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 py-8 px-4">
-        <div className="max-w-2xl mx-auto">
+      <div className="min-h-screen py-6 sm:py-8 px-4">
+        <div className="max-w-lg mx-auto">
+          {/* Back */}
+          <Button variant="ghost" size="sm" className="mb-4 rounded-full text-xs" asChild>
+            <Link to="/cinema"><ArrowLeft className="w-3.5 h-3.5 mr-1" /> Back</Link>
+          </Button>
+
           {/* Movie Header */}
-          <div className="mb-8 text-center">
-            <div className="aspect-video bg-secondary/30 rounded-lg mb-4 flex items-center justify-center">
-              <img 
-                src="https://images.unsplash.com/photo-1485846234645-a62644f84728?w=800&h=450&fit=crop" 
-                alt="Movie" 
-                className="w-full h-full object-cover rounded-lg"
-              />
+          <div className="mb-6 text-center">
+            {screening.poster_url && (
+              <div className="w-28 h-40 sm:w-32 sm:h-44 mx-auto rounded-xl overflow-hidden mb-3 shadow-lg">
+                <img src={screening.poster_url} alt={screening.title} className="w-full h-full object-cover" />
+              </div>
+            )}
+            <h1 className="text-xl sm:text-2xl font-bold mb-1">{screening.title}</h1>
+            <div className="flex items-center justify-center gap-3 text-xs text-muted-foreground">
+              {screening.screening_date && (
+                <span className="flex items-center gap-1">
+                  <Calendar className="w-3 h-3" />
+                  {new Date(screening.screening_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                </span>
+              )}
+              {screening.duration && (
+                <span className="flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  {screening.duration}min
+                </span>
+              )}
             </div>
-            <h1 className="text-3xl font-bold mb-2">The Wedding Day</h1>
-            <p className="text-muted-foreground">A Nollywood masterpiece | Release: Feb 14, 2025</p>
           </div>
 
-          {/* Progress Indicator */}
-          <div className="flex justify-between mb-8">
-            {['location', 'email', 'payment', 'confirmation'].map((s, i) => (
-              <div key={s} className="flex flex-col items-center flex-1">
-                <div 
-                  className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all ${
-                    step === s 
-                      ? 'bg-primary text-primary-foreground scale-110' 
-                      : ['location', 'email', 'payment'].includes(s) && ['location', 'email', 'payment', 'confirmation'].indexOf(s) < ['location', 'email', 'payment', 'confirmation'].indexOf(step)
-                      ? 'bg-green-500 text-white'
-                      : 'bg-secondary text-muted-foreground'
-                  }`}
-                >
-                  {['location', 'email', 'payment', 'confirmation'].indexOf(s) < ['location', 'email', 'payment', 'confirmation'].indexOf(step) ? '✓' : i + 1}
+          {/* Progress */}
+          <div className="flex items-center justify-between mb-6 px-2">
+            {steps.map((s, i) => (
+              <div key={s} className="flex items-center gap-1 flex-1">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
+                  i < currentIdx ? 'bg-success text-success-foreground scale-90'
+                    : i === currentIdx ? 'bg-primary text-primary-foreground scale-110 shadow-lg'
+                    : 'bg-secondary text-muted-foreground'
+                }`}>
+                  {i < currentIdx ? '✓' : i + 1}
                 </div>
-                <p className="text-xs mt-2 text-muted-foreground capitalize text-center">{s}</p>
+                {i < steps.length - 1 && (
+                  <div className={`flex-1 h-0.5 mx-1 rounded-full transition-colors ${i < currentIdx ? 'bg-success' : 'bg-secondary'}`} />
+                )}
               </div>
             ))}
           </div>
 
-          {/* Step: Location Selection */}
+          {/* Step: Location */}
           {step === 'location' && (
-            <Card className="bg-card/50 border-border/50 mb-6">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MapPin className="w-5 h-5" />
+            <Card className="animate-fade-in border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <MapPin className="w-4 h-4 text-primary" />
                   Where are you watching from?
                 </CardTitle>
-                <CardDescription>Your location determines the ticket price</CardDescription>
+                <CardDescription className="text-xs">Your location determines ticket price</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  {Object.entries(pricing).map(([loc, price]) => (
-                    <label key={loc} className="flex items-center p-4 border border-border rounded-lg cursor-pointer hover:bg-secondary/20 transition">
-                      <RadioGroup value={location} onValueChange={(val) => setLocation(val as 'nigeria' | 'international')}>
-                        <RadioGroupItem value={loc} id={loc} />
-                      </RadioGroup>
-                      <Label htmlFor={loc} className="flex-1 ml-3 cursor-pointer">
-                        <div className="font-medium capitalize">{loc}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {loc === 'nigeria' ? '₦' : '$'}{price.toLocaleString()}
-                        </div>
-                      </Label>
-                      <Badge variant={location === loc ? 'default' : 'secondary'}>
-                        {location === loc ? 'Selected' : 'Available'}
-                      </Badge>
-                    </label>
-                  ))}
-                </div>
-                <Button className="w-full mt-6" onClick={() => setStep('email')}>
-                  Continue to Email
+              <CardContent className="space-y-3">
+                {(['nigeria', 'international'] as const).map((loc) => (
+                  <button
+                    key={loc}
+                    onClick={() => setLocation(loc)}
+                    className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all active:scale-[0.98] ${
+                      location === loc ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/30'
+                    }`}
+                  >
+                    <div className="text-left">
+                      <p className="font-semibold text-sm capitalize">{loc === 'nigeria' ? '🇳🇬 Nigeria' : '🌍 International'}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {loc === 'nigeria' ? 'Pay in Naira' : 'Pay in USD'}
+                      </p>
+                    </div>
+                    <span className="text-lg font-bold text-primary">
+                      {loc === 'nigeria' ? `₦${pricing.nigeria.toLocaleString()}` : `$${pricing.international}`}
+                    </span>
+                  </button>
+                ))}
+                <Button className="w-full rounded-full mt-4 h-11" onClick={() => setStep('email')}>
+                  Continue
                 </Button>
               </CardContent>
             </Card>
           )}
 
-          {/* Step: Email Capture */}
+          {/* Step: Email */}
           {step === 'email' && (
-            <Card className="bg-card/50 border-border/50 mb-6">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Mail className="w-5 h-5" />
+            <Card className="animate-fade-in border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Mail className="w-4 h-4 text-primary" />
                   Where should we send your watch link?
                 </CardTitle>
-                <CardDescription>You'll get an instant "Watch Now" link after payment</CardDescription>
+                <CardDescription className="text-xs">Instant "Watch Now" link after payment</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label htmlFor="email" className="mb-2 block">Email Address</Label>
-                  <Input 
+                  <Label htmlFor="email" className="text-xs mb-1.5 block">Email Address</Label>
+                  <Input
                     id="email"
-                    type="email" 
+                    type="email"
                     placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    className="h-11 rounded-xl"
+                    autoFocus
                   />
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Your email won't be shared. We only use it to send your watch link.
-                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-1.5">We only use it to send your watch link.</p>
                 </div>
-                <div className="flex gap-3">
-                  <Button variant="outline" className="flex-1" onClick={() => setStep('location')}>
-                    Back
-                  </Button>
-                  <Button 
-                    className="flex-1" 
-                    onClick={() => setStep('payment')}
-                    disabled={!email.includes('@')}
-                  >
-                    Continue to Payment
+                <div className="flex gap-2.5">
+                  <Button variant="outline" className="flex-1 rounded-full h-10" onClick={() => setStep('location')}>Back</Button>
+                  <Button className="flex-1 rounded-full h-10" onClick={() => setStep('payment')} disabled={!email.includes('@')}>
+                    Continue
                   </Button>
                 </div>
               </CardContent>
             </Card>
           )}
 
-          {/* Step: Payment Method Selection */}
+          {/* Step: Payment */}
           {step === 'payment' && (
-            <Card className="bg-card/50 border-border/50 mb-6">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Zap className="w-5 h-5" />
+            <Card className="animate-fade-in border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Zap className="w-4 h-4 text-primary" />
                   Choose Payment Method
                 </CardTitle>
-                <CardDescription>Fast, secure, and instant activation</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Add-ons */}
-                <div className="bg-secondary/20 p-4 rounded-lg">
-                  <h3 className="font-medium mb-3">Add Some Extras?</h3>
-                  <div className="space-y-2">
+              <CardContent className="space-y-4">
+                {/* Add-ons (Nigeria only) */}
+                {location === 'nigeria' && (
+                  <div className="bg-secondary/50 p-3 rounded-xl">
+                    <p className="text-xs font-medium mb-2">Add Some Extras?</p>
                     {addons.map((addon, i) => (
-                      <label key={i} className="flex items-center p-2 cursor-pointer hover:bg-secondary/20 rounded transition">
-                        <input 
-                          type="checkbox" 
+                      <label key={i} className="flex items-center gap-2.5 p-2 cursor-pointer rounded-lg hover:bg-secondary/80 transition active:scale-[0.98]">
+                        <input
+                          type="checkbox"
                           checked={addon.selected}
                           onChange={() => {
-                            const newAddons = [...addons];
-                            newAddons[i].selected = !newAddons[i].selected;
-                            setAddons(newAddons);
+                            const a = [...addons];
+                            a[i].selected = !a[i].selected;
+                            setAddons(a);
                           }}
-                          className="w-4 h-4"
+                          className="w-4 h-4 rounded"
                         />
-                        <span className="ml-3 flex-1">{addon.name}</span>
-                        <span className="text-sm font-medium">+₦{addon.price}</span>
+                        <span className="flex-1 text-sm">{addon.name}</span>
+                        <span className="text-xs font-medium text-primary">+₦{addon.price}</span>
                       </label>
                     ))}
                   </div>
-                </div>
+                )}
 
-                <Separator />
-
-                {/* Price Breakdown */}
-                <div className="bg-secondary/10 p-4 rounded-lg space-y-2">
+                {/* Price */}
+                <div className="bg-secondary/30 p-3 rounded-xl space-y-1.5 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Ticket ({location})</span>
-                    <span className="font-medium">₦{basePrice.toLocaleString()}</span>
+                    <span className="text-muted-foreground">Ticket</span>
+                    <span>{symbol}{basePrice.toLocaleString()}</span>
                   </div>
-                  {addonsTotal > 0 && (
+                  {addonsTotal > 0 && location === 'nigeria' && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Add-ons</span>
-                      <span className="font-medium">+₦{addonsTotal.toLocaleString()}</span>
+                      <span>+₦{addonsTotal.toLocaleString()}</span>
                     </div>
                   )}
                   <Separator />
-                  <div className="flex justify-between text-lg font-bold">
+                  <div className="flex justify-between font-bold text-base">
                     <span>Total</span>
-                    <span className="text-primary">₦{total.toLocaleString()}</span>
+                    <span className="text-primary">{symbol}{total.toLocaleString()}</span>
                   </div>
                 </div>
 
-                {/* Payment Methods */}
+                {/* Methods */}
                 <div className="space-y-2">
-                  {paymentMethods.map((method) => (
+                  {paymentMethods.map((m) => (
                     <button
-                      key={method.id}
-                      onClick={() => setSelectedPayment(method.id)}
-                      disabled={!method.available}
-                      className={`w-full p-4 border-2 rounded-lg transition flex items-center gap-3 ${
-                        selectedPayment === method.id
-                          ? 'border-primary bg-primary/10'
-                          : method.available
-                          ? 'border-border hover:border-primary/50'
-                          : 'border-border opacity-50 cursor-not-allowed'
+                      key={m.id}
+                      onClick={() => setSelectedPayment(m.id)}
+                      className={`w-full p-3.5 border-2 rounded-xl transition-all flex items-center gap-3 active:scale-[0.98] ${
+                        selectedPayment === m.id
+                          ? 'border-primary bg-primary/5 shadow-sm'
+                          : 'border-border hover:border-primary/30'
                       }`}
                     >
-                      <span className="text-2xl">{method.icon}</span>
-                      <span className="flex-1 text-left font-medium">{method.name}</span>
-                      {!method.available && <Badge variant="secondary">Coming Soon</Badge>}
+                      <span className="text-xl">{m.icon}</span>
+                      <span className="flex-1 text-left text-sm font-medium">{m.name}</span>
+                      {selectedPayment === m.id && <Check className="w-4 h-4 text-primary" />}
                     </button>
                   ))}
                 </div>
 
-                <div className="flex gap-3 pt-4">
-                  <Button variant="outline" className="flex-1" onClick={() => setStep('email')}>
-                    Back
-                  </Button>
-                  <Button 
-                    className="flex-1" 
+                <div className="flex gap-2.5 pt-2">
+                  <Button variant="outline" className="flex-1 rounded-full h-10" onClick={() => setStep('email')}>Back</Button>
+                  <Button
+                    className="flex-1 rounded-full h-10"
                     onClick={handlePayment}
-                    disabled={!selectedPayment}
+                    disabled={!selectedPayment || processing}
                   >
-                    Pay ₦{total.toLocaleString()}
+                    {processing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                    Pay {symbol}{total.toLocaleString()}
                   </Button>
                 </div>
               </CardContent>
@@ -249,32 +358,35 @@ export default function BuyTicket() {
           )}
 
           {/* Step: Confirmation */}
-          {step === 'confirmation' && (
-            <Card className="bg-card/50 border-border/50 mb-6 border-green-500/50">
-              <CardContent className="p-8 text-center">
-                <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
-                  <Check className="w-8 h-8 text-green-500" />
+          {step === 'confirmation' && confirmation && (
+            <Card className="animate-fade-in border-success/30">
+              <CardContent className="p-6 sm:p-8 text-center">
+                <div className="w-14 h-14 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-4 animate-scale-in">
+                  <Check className="w-7 h-7 text-success" />
                 </div>
-                <h2 className="text-2xl font-bold mb-2">Payment Successful! 🎉</h2>
-                <p className="text-muted-foreground mb-6">
-                  Check your email ({email}) for your "Watch Now" link. You can start watching immediately!
+                <h2 className="text-xl font-bold mb-1">You're In! 🎉</h2>
+                <p className="text-sm text-muted-foreground mb-5">
+                  Check your email ({email}) for your "Watch Now" link.
                 </p>
-                
-                <div className="bg-secondary/20 p-4 rounded-lg mb-6 text-left">
-                  <p className="text-sm font-medium mb-3">Order Details:</p>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Movie:</span> <span>The Wedding Day</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Location:</span> <span className="capitalize">{location}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Total:</span> <span className="font-bold">₦{total.toLocaleString()}</span></div>
-                  </div>
+
+                <div className="bg-secondary/50 p-4 rounded-xl mb-5 text-left space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Movie</span><span className="font-medium">{screening.title}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Location</span><span className="capitalize">{location}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Total</span><span className="font-bold text-primary">{symbol}{total.toLocaleString()}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Ticket</span><span className="font-mono text-xs">{confirmation.ticketCode}</span></div>
                 </div>
 
-                <div className="flex flex-col gap-3">
-                  <Button className="w-full" size="lg">
-                    Go to My Tickets
+                <div className="space-y-2.5">
+                  <Button className="w-full rounded-full h-11" asChild>
+                    <Link to={`/watch/${confirmation.watchCode}?email=${encodeURIComponent(email)}`}>
+                      ▶ Watch Now
+                    </Link>
                   </Button>
-                  <Button variant="outline" className="w-full">
-                    Back to Home
+                  <Button variant="outline" className="w-full rounded-full h-10" asChild>
+                    <Link to="/tickets">My Tickets</Link>
+                  </Button>
+                  <Button variant="ghost" className="w-full rounded-full h-10" asChild>
+                    <Link to="/">Back to Home</Link>
                   </Button>
                 </div>
               </CardContent>
