@@ -31,6 +31,7 @@ import DeveloperPlatform from "./pages/admin/developer/DeveloperPlatform";
 import XRManagement from "./pages/admin/xr/XRManagement";
 import WhiteLabel from "./pages/admin/settings/WhiteLabel";
 import PaymentGatewaySettings from "./pages/admin/PaymentGatewaySettings";
+import ProducerDashboard from "./pages/admin/ProducerDashboard";
 
 // Virtual Cinema Funnel
 import BuyTicket from "./pages/BuyTicket";
@@ -66,6 +67,7 @@ const App = () => (
               <Route path="/admin/users" element={<Users />} />
               <Route path="/admin/modules" element={<Modules />} />
               <Route path="/admin/settings/payment-gateways" element={<PaymentGatewaySettings />} />
+              <Route path="/admin/sales" element={<ProducerDashboard />} />
               
               {/* Module Admin Pages */}
               <Route path="/admin/modules/ott-vod" element={<ContentManagement />} />

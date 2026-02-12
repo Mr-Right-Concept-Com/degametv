@@ -1,214 +1,178 @@
+import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Copy, ExternalLink, CheckCircle, Clock, Ticket } from 'lucide-react';
-
-const mockTickets = [
-  {
-    id: '1',
-    movie: 'The Wedding Day',
-    location: 'Nigeria',
-    price: 5000,
-    purchasedAt: '2025-02-10',
-    expiresAt: '2025-05-10',
-    status: 'active',
-    watchCode: 'watch_abc123xyz',
-  },
-  {
-    id: '2',
-    movie: 'Love in Lagos',
-    location: 'International',
-    price: 15,
-    purchasedAt: '2025-01-20',
-    expiresAt: '2025-04-20',
-    status: 'active',
-    watchCode: 'watch_def456uvw',
-  },
-  {
-    id: '3',
-    movie: 'The Last Dance',
-    location: 'Nigeria',
-    price: 5000,
-    purchasedAt: '2024-12-01',
-    expiresAt: '2025-03-01',
-    status: 'expired',
-    watchCode: 'watch_ghi789rst',
-  },
-];
+import { Copy, ExternalLink, CheckCircle, Clock, Ticket, Play, Loader2, Film } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 export default function MyTickets() {
-  const activeTickets = mockTickets.filter(t => t.status === 'active');
-  const expiredTickets = mockTickets.filter(t => t.status === 'expired');
+  const { user } = useAuth();
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+  useEffect(() => {
+    const fetchTickets = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('screening_tickets')
+        .select('*, screening:screenings(*)')
+        .or(`user_id.eq.${user.id},email.eq.${user.email}`)
+        .order('created_at', { ascending: false });
+
+      if (data) setTickets(data);
+      setLoading(false);
+    };
+
+    fetchTickets();
+  }, [user]);
+
+  const now = new Date();
+  const activeTickets = tickets.filter(t => t.payment_status === 'completed' && new Date(t.expires_at) > now);
+  const expiredTickets = tickets.filter(t => t.payment_status === 'completed' && new Date(t.expires_at) <= now);
+  const pendingTickets = tickets.filter(t => t.payment_status === 'pending');
+
+  const copyLink = (watchCode: string, email: string) => {
+    navigator.clipboard.writeText(`${window.location.origin}/watch/${watchCode}?email=${encodeURIComponent(email)}`);
+    toast.success('Watch link copied!');
   };
+
+  if (loading) {
+    return (
+      <MainLayout>
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 py-8 px-4">
-        <div className="max-w-5xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold mb-2">My Tickets</h1>
-            <p className="text-muted-foreground">Access all your purchased screenings in one place</p>
+      <div className="py-6 sm:py-8 px-4">
+        <div className="max-w-3xl mx-auto">
+          <div className="mb-6">
+            <h1 className="text-2xl sm:text-3xl font-bold mb-0.5">My Tickets</h1>
+            <p className="text-sm text-muted-foreground">Access all your purchased screenings</p>
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <Card className="bg-card/50 border-border/50">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-muted-foreground text-sm mb-1">Active Tickets</p>
-                    <p className="text-3xl font-bold">{activeTickets.length}</p>
-                  </div>
-                  <CheckCircle className="w-12 h-12 text-green-500 opacity-50" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-card/50 border-border/50">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-muted-foreground text-sm mb-1">Expired Tickets</p>
-                    <p className="text-3xl font-bold">{expiredTickets.length}</p>
-                  </div>
-                  <Clock className="w-12 h-12 text-orange-500 opacity-50" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-card/50 border-border/50">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-muted-foreground text-sm mb-1">Total Spent</p>
-                    <p className="text-2xl font-bold">₦{(activeTickets.reduce((sum, t) => sum + (typeof t.price === 'string' ? 0 : t.price), 0) + expiredTickets.reduce((sum, t) => sum + (typeof t.price === 'string' ? 0 : t.price), 0)).toLocaleString()}</p>
-                  </div>
-                  <Ticket className="w-12 h-12 text-primary opacity-50" />
-                </div>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            {[
+              { label: 'Active', value: activeTickets.length, icon: CheckCircle, color: 'text-success' },
+              { label: 'Pending', value: pendingTickets.length, icon: Clock, color: 'text-warning' },
+              { label: 'Expired', value: expiredTickets.length, icon: Ticket, color: 'text-muted-foreground' },
+            ].map((s) => (
+              <div key={s.label} className="p-3 sm:p-4 rounded-xl bg-secondary/50 text-center">
+                <s.icon className={`w-5 h-5 mx-auto mb-1 ${s.color}`} />
+                <p className="text-lg sm:text-2xl font-bold">{s.value}</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">{s.label}</p>
+              </div>
+            ))}
           </div>
 
-          {/* Tickets Tabs */}
-          <Tabs defaultValue="active" className="space-y-6">
-            <TabsList>
-              <TabsTrigger value="active">Active ({activeTickets.length})</TabsTrigger>
-              <TabsTrigger value="expired">Expired ({expiredTickets.length})</TabsTrigger>
-            </TabsList>
+          {tickets.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <Film className="w-12 h-12 mx-auto mb-3 text-muted-foreground/30" />
+                <h3 className="font-bold mb-1">No Tickets Yet</h3>
+                <p className="text-sm text-muted-foreground mb-4">Start watching exclusive Nollywood premieres</p>
+                <Button className="rounded-full" asChild>
+                  <Link to="/cinema">Browse Screenings</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <Tabs defaultValue="active">
+              <TabsList className="mb-4">
+                <TabsTrigger value="active">Active ({activeTickets.length})</TabsTrigger>
+                <TabsTrigger value="pending">Pending ({pendingTickets.length})</TabsTrigger>
+                <TabsTrigger value="expired">Expired ({expiredTickets.length})</TabsTrigger>
+              </TabsList>
 
-            {/* Active Tickets */}
-            <TabsContent value="active" className="space-y-4">
-              {activeTickets.length > 0 ? (
-                <div className="space-y-4">
-                  {activeTickets.map((ticket) => (
-                    <Card key={ticket.id} className="bg-card/50 border-green-500/30 border-2">
-                      <CardContent className="p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center mb-4">
-                          <div>
-                            <h3 className="font-bold text-lg">{ticket.movie}</h3>
-                            <p className="text-sm text-muted-foreground">{ticket.location}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Price</p>
-                            <p className="font-bold">
-                              {typeof ticket.price === 'number' && ticket.price > 100 ? '₦' : '$'}{typeof ticket.price === 'number' ? ticket.price.toLocaleString() : ticket.price}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Expires</p>
-                            <p className="font-bold">{ticket.expiresAt}</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <Badge variant="default" className="w-fit">Active</Badge>
-                          </div>
-                        </div>
+              <TabsContent value="active" className="space-y-3">
+                {activeTickets.map((t) => (
+                  <TicketCard key={t.id} ticket={t} onCopy={copyLink} type="active" />
+                ))}
+              </TabsContent>
 
-                        <div className="flex flex-col sm:flex-row gap-3">
-                          <Button className="flex-1" size="sm">
-                            Watch Now
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => copyToClipboard(`${window.location.origin}/watch/${ticket.watchCode}`)}
-                            className="sm:flex-none"
-                          >
-                            <Copy className="w-4 h-4 mr-2" />
-                            Copy Link
-                          </Button>
-                          <Button variant="ghost" size="sm" className="sm:flex-none">
-                            <ExternalLink className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <Card className="bg-card/50 border-border/50">
-                  <CardContent className="p-12 text-center">
-                    <Ticket className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-                    <h3 className="font-bold mb-2">No Active Tickets</h3>
-                    <p className="text-muted-foreground mb-4">Start watching your favorite Nollywood movies today</p>
-                    <Button>Browse Movies</Button>
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
+              <TabsContent value="pending" className="space-y-3">
+                {pendingTickets.map((t) => (
+                  <TicketCard key={t.id} ticket={t} onCopy={copyLink} type="pending" />
+                ))}
+              </TabsContent>
 
-            {/* Expired Tickets */}
-            <TabsContent value="expired">
-              {expiredTickets.length > 0 ? (
-                <div className="space-y-4">
-                  {expiredTickets.map((ticket) => (
-                    <Card key={ticket.id} className="bg-card/50 border-border/50 opacity-60">
-                      <CardContent className="p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center mb-4">
-                          <div>
-                            <h3 className="font-bold text-lg">{ticket.movie}</h3>
-                            <p className="text-sm text-muted-foreground">{ticket.location}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Price</p>
-                            <p className="font-bold">
-                              {typeof ticket.price === 'number' && ticket.price > 100 ? '₦' : '$'}{typeof ticket.price === 'number' ? ticket.price.toLocaleString() : ticket.price}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Expired</p>
-                            <p className="font-bold">{ticket.expiresAt}</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <Badge variant="secondary" className="w-fit">Expired</Badge>
-                          </div>
-                        </div>
-
-                        <Button variant="outline" className="w-full">
-                          Buy Again
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <Card className="bg-card/50 border-border/50">
-                  <CardContent className="p-12 text-center">
-                    <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-                    <h3 className="font-bold mb-2">No Expired Tickets</h3>
-                    <p className="text-muted-foreground">Keep enjoying your movies!</p>
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-          </Tabs>
+              <TabsContent value="expired" className="space-y-3">
+                {expiredTickets.map((t) => (
+                  <TicketCard key={t.id} ticket={t} onCopy={copyLink} type="expired" />
+                ))}
+              </TabsContent>
+            </Tabs>
+          )}
         </div>
       </div>
     </MainLayout>
+  );
+}
+
+function TicketCard({ ticket, onCopy, type }: { ticket: any; onCopy: (wc: string, email: string) => void; type: string }) {
+  const movieTitle = ticket.screening?.title || 'Movie';
+  const symbol = ticket.currency === 'NGN' ? '₦' : '$';
+
+  return (
+    <Card className={`transition-all active:scale-[0.99] ${
+      type === 'active' ? 'border-success/30' : type === 'pending' ? 'border-warning/30' : 'opacity-60'
+    }`}>
+      <CardContent className="p-4">
+        <div className="flex items-start gap-3 mb-3">
+          {ticket.screening?.poster_url && (
+            <div className="w-14 h-20 rounded-lg overflow-hidden shrink-0">
+              <img src={ticket.screening.poster_url} alt={movieTitle} className="w-full h-full object-cover" />
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <h3 className="font-bold text-sm line-clamp-1">{movieTitle}</h3>
+            <p className="text-xs text-muted-foreground capitalize">{ticket.location}</p>
+            <p className="text-sm font-bold text-primary mt-1">{symbol}{Number(ticket.price).toLocaleString()}</p>
+          </div>
+          <Badge variant={type === 'active' ? 'default' : type === 'pending' ? 'secondary' : 'outline'} className="text-[10px] shrink-0">
+            {type === 'active' ? 'Active' : type === 'pending' ? 'Pending' : 'Expired'}
+          </Badge>
+        </div>
+
+        {type === 'active' && (
+          <div className="flex gap-2">
+            <Button size="sm" className="flex-1 rounded-full h-9 text-xs" asChild>
+              <Link to={`/watch/${ticket.watch_code}?email=${encodeURIComponent(ticket.email)}`}>
+                <Play className="w-3.5 h-3.5 mr-1" /> Watch Now
+              </Link>
+            </Button>
+            <Button variant="outline" size="sm" className="rounded-full h-9" onClick={() => onCopy(ticket.watch_code, ticket.email)}>
+              <Copy className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        )}
+
+        {type === 'expired' && (
+          <Button variant="outline" size="sm" className="w-full rounded-full h-9 text-xs" asChild>
+            <Link to={`/buy/${ticket.screening?.slug || ''}`}>Buy Again</Link>
+          </Button>
+        )}
+
+        <p className="text-[10px] text-muted-foreground mt-2">
+          {type === 'active' ? `Expires ${new Date(ticket.expires_at).toLocaleDateString()}` : 
+           type === 'pending' ? 'Awaiting payment confirmation' :
+           `Expired ${new Date(ticket.expires_at).toLocaleDateString()}`}
+        </p>
+      </CardContent>
+    </Card>
   );
 }

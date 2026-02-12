@@ -1,1 +1,13 @@
 project_id = "dxijsbbdtwtbwdaajiyn"
+
+[functions.process-payment]
+verify_jwt = false
+
+[functions.validate-watch-code]
+verify_jwt = false
+
+[functions.seed-data]
+verify_jwt = false
+
+[functions.send-watch-email]
+verify_jwt = false
