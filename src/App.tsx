@@ -32,6 +32,8 @@ import XRManagement from "./pages/admin/xr/XRManagement";
 import WhiteLabel from "./pages/admin/settings/WhiteLabel";
 import PaymentGatewaySettings from "./pages/admin/PaymentGatewaySettings";
 import ProducerDashboard from "./pages/admin/ProducerDashboard";
+import FilmmakerPortal from "./pages/admin/filmmaker/FilmmakerPortal";
+import EmailSettings from "./pages/admin/settings/EmailSettings";
 
 // Virtual Cinema Funnel
 import BuyTicket from "./pages/BuyTicket";
@@ -81,6 +83,8 @@ const App = () => (
               <Route path="/admin/modules/xr-immersive" element={<XRManagement />} />
               <Route path="/admin/modules/developer-api" element={<DeveloperPlatform />} />
               <Route path="/admin/modules/white-label" element={<WhiteLabel />} />
+              <Route path="/admin/filmmaker" element={<FilmmakerPortal />} />
+              <Route path="/admin/settings/email" element={<EmailSettings />} />
               
               <Route path="*" element={<NotFound />} />
             </Routes>

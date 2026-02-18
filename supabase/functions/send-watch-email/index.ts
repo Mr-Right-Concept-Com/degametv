@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,16 +22,42 @@ if (import.meta.main) {
         );
       }
 
-      const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
+      // ── Read API key from database (allows test/live swap without rebuild) ──
+      const supabaseAdmin = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      );
 
-      if (!RESEND_API_KEY) {
-        // If no Resend key, log and return success (mock mode)
+      let RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
+      let fromName = 'DeGameTV';
+      let fromEmail = 'noreply@degametv.com';
+
+      // Try to load from platform_settings (admin-configurable, no rebuild needed)
+      const { data: settingRow } = await supabaseAdmin
+        .from('platform_settings')
+        .select('setting_value')
+        .eq('setting_key', 'email_provider')
+        .single();
+
+      if (settingRow?.setting_value) {
+        const cfg = settingRow.setting_value as Record<string, string>;
+        fromName = cfg.from_name || fromName;
+        fromEmail = cfg.from_email || fromEmail;
+        // Use the key for the configured mode (test or live)
+        const activeKey = cfg.mode === 'live' ? cfg.live_api_key : cfg.test_api_key;
+        if (activeKey && activeKey !== 're_test_placeholder') {
+          RESEND_API_KEY = activeKey;
+        }
+      }
+
+      if (!RESEND_API_KEY || RESEND_API_KEY === 're_test_placeholder') {
+        // Mock mode — log only
         console.log(`[MOCK EMAIL] To: ${email}, Movie: ${movieTitle}, Watch: ${watchUrl}`);
         return new Response(
           JSON.stringify({ 
             success: true, 
             mock: true, 
-            message: `Email would be sent to ${email}. Set RESEND_API_KEY secret to enable real emails.` 
+            message: `Email would be sent to ${email}. Add a valid Resend API key in Admin → Email Settings to enable real emails.` 
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
@@ -125,7 +152,7 @@ if (import.meta.main) {
           'Authorization': `Bearer ${RESEND_API_KEY}`,
         },
         body: JSON.stringify({
-          from: 'DeGameTV <noreply@degametv.com>',
+          from: `${fromName} <${fromEmail}>`,
           to: [email],
           subject: `🎬 Your ticket for "${movieTitle}" — Watch Now!`,
           html: htmlContent,

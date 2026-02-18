@@ -4,7 +4,8 @@ import {
   LayoutDashboard, Users, Building2, Package, Settings, 
   Film, Radio, Clapperboard, Tv, Smartphone, Ticket, 
   CreditCard, Store, Palette, BarChart3, Glasses, Code2,
-  ChevronDown, LogOut, Headphones, Database, GraduationCap, TrendingUp
+  ChevronDown, LogOut, Headphones, Database, GraduationCap, TrendingUp,
+  Upload, Mail
 } from 'lucide-react';
 import { useTenant } from '@/hooks/useTenant';
 import { useAuth } from '@/hooks/useAuth';
@@ -116,6 +117,10 @@ export function AdminSidebar() {
             item={{ label: 'Sales Dashboard', href: '/admin/sales', icon: TrendingUp }}
             isActive={location.pathname === '/admin/sales'}
           />
+          <NavLink
+            item={{ label: 'Filmmaker Portal', href: '/admin/filmmaker', icon: Upload }}
+            isActive={location.pathname.startsWith('/admin/filmmaker')}
+          />
         </div>
 
         {/* Settings */}
@@ -126,6 +131,10 @@ export function AdminSidebar() {
           <NavLink 
             item={{ label: 'White-Label', href: '/admin/modules/white-label', icon: Palette }}
             isActive={location.pathname === '/admin/modules/white-label'}
+          />
+          <NavLink
+            item={{ label: 'Email Settings', href: '/admin/settings/email', icon: Mail }}
+            isActive={location.pathname === '/admin/settings/email'}
           />
         </div>
       </nav>

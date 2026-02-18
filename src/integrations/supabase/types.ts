@@ -352,6 +352,96 @@ export type Database = {
           },
         ]
       }
+      filmmaker_submissions: {
+        Row: {
+          admin_notes: string | null
+          budget_range: string | null
+          company_name: string | null
+          content_id: string | null
+          created_at: string
+          description: string | null
+          distribution_rights: string | null
+          duration_minutes: number | null
+          genres: string[] | null
+          id: string
+          poster_url: string | null
+          project_title: string
+          project_type: string
+          release_year: number | null
+          screener_url: string | null
+          status: string
+          submitter_email: string
+          submitter_name: string
+          tenant_id: string | null
+          trailer_url: string | null
+          updated_at: string
+          video_url: string | null
+        }
+        Insert: {
+          admin_notes?: string | null
+          budget_range?: string | null
+          company_name?: string | null
+          content_id?: string | null
+          created_at?: string
+          description?: string | null
+          distribution_rights?: string | null
+          duration_minutes?: number | null
+          genres?: string[] | null
+          id?: string
+          poster_url?: string | null
+          project_title: string
+          project_type?: string
+          release_year?: number | null
+          screener_url?: string | null
+          status?: string
+          submitter_email: string
+          submitter_name: string
+          tenant_id?: string | null
+          trailer_url?: string | null
+          updated_at?: string
+          video_url?: string | null
+        }
+        Update: {
+          admin_notes?: string | null
+          budget_range?: string | null
+          company_name?: string | null
+          content_id?: string | null
+          created_at?: string
+          description?: string | null
+          distribution_rights?: string | null
+          duration_minutes?: number | null
+          genres?: string[] | null
+          id?: string
+          poster_url?: string | null
+          project_title?: string
+          project_type?: string
+          release_year?: number | null
+          screener_url?: string | null
+          status?: string
+          submitter_email?: string
+          submitter_name?: string
+          tenant_id?: string | null
+          trailer_url?: string | null
+          updated_at?: string
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "filmmaker_submissions_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "content"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "filmmaker_submissions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       live_streams: {
         Row: {
           actual_end: string | null
