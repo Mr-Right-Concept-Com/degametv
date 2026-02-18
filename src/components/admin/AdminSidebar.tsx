@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Building2, Package, Settings, 
   Film, Radio, Clapperboard, Tv, Smartphone, Ticket, 
   CreditCard, Store, Palette, BarChart3, Glasses, Code2,
-  ChevronDown, LogOut, Headphones, Database, GraduationCap
+  ChevronDown, LogOut, Headphones, Database, GraduationCap, TrendingUp
 } from 'lucide-react';
 import { useTenant } from '@/hooks/useTenant';
 import { useAuth } from '@/hooks/useAuth';
@@ -106,6 +106,17 @@ export function AdminSidebar() {
             ))}
           </CollapsibleContent>
         </Collapsible>
+
+        {/* Sales & Analytics */}
+        <div className="space-y-1">
+          <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Sales
+          </p>
+          <NavLink
+            item={{ label: 'Sales Dashboard', href: '/admin/sales', icon: TrendingUp }}
+            isActive={location.pathname === '/admin/sales'}
+          />
+        </div>
 
         {/* Settings */}
         <div className="space-y-1">
