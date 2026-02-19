@@ -5,7 +5,7 @@ import {
   Film, Radio, Clapperboard, Tv, Smartphone, Ticket, 
   CreditCard, Store, Palette, BarChart3, Glasses, Code2,
   ChevronDown, LogOut, Headphones, Database, GraduationCap, TrendingUp,
-  Upload, Mail
+  Upload, Mail, ExternalLink
 } from 'lucide-react';
 import { useTenant } from '@/hooks/useTenant';
 import { useAuth } from '@/hooks/useAuth';
@@ -118,8 +118,12 @@ export function AdminSidebar() {
             isActive={location.pathname === '/admin/sales'}
           />
           <NavLink
-            item={{ label: 'Filmmaker Portal', href: '/admin/filmmaker', icon: Upload }}
+            item={{ label: 'Filmmaker Admin', href: '/admin/filmmaker', icon: Upload }}
             isActive={location.pathname.startsWith('/admin/filmmaker')}
+          />
+          <NavLink
+            item={{ label: 'Filmmaker Portal ↗', href: '/filmmaker', icon: Film }}
+            isActive={false}
           />
         </div>
 
