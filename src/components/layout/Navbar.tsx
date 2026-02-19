@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Menu, X, Search, User, Ticket, LayoutDashboard, Film } from 'lucide-react';
+import { Menu, X, Search, User, Ticket, LayoutDashboard, Film, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
@@ -10,19 +10,24 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
+import { useTenant } from '@/hooks/useTenant';
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const { user, signOut } = useAuth();
+  const { isSuperAdmin, isPlatformAdmin } = useTenant();
   const navigate = useNavigate();
 
   const navLinks = [
     { label: 'Now Showing', href: '/' },
     { label: 'Upcoming', href: '/cinema' },
-    { label: 'My Tickets', href: '/tickets' },
+    { label: 'Submit Film', href: '/filmmaker' },
   ];
+
+  const isAdmin = isSuperAdmin || isPlatformAdmin;
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-lg border-b border-border">
@@ -87,21 +92,40 @@ export function Navbar() {
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
                       <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
+                        <span className="text-xs font-bold text-primary">
+                          {user.email?.charAt(0).toUpperCase()}
+                        </span>
                       </div>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44 sm:w-48 rounded-xl">
+                  <DropdownMenuContent align="end" className="w-52 rounded-xl">
+                    <DropdownMenuLabel className="text-xs text-muted-foreground font-normal truncate">
+                      {user.email}
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => navigate('/dashboard')} className="text-sm">
+                      <User className="w-4 h-4 mr-2" />
+                      My Dashboard
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate('/tickets')} className="text-sm">
                       <Ticket className="w-4 h-4 mr-2" />
                       My Tickets
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate('/admin')} className="text-sm">
-                      <LayoutDashboard className="w-4 h-4 mr-2" />
-                      Admin
+                    <DropdownMenuItem onClick={() => navigate('/filmmaker')} className="text-sm">
+                      <Upload className="w-4 h-4 mr-2" />
+                      Submit a Film
                     </DropdownMenuItem>
+                    {isAdmin && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => navigate('/admin')} className="text-sm">
+                          <LayoutDashboard className="w-4 h-4 mr-2" />
+                          Admin Dashboard
+                        </DropdownMenuItem>
+                      </>
+                    )}
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => signOut()} className="text-sm">
+                    <DropdownMenuItem onClick={() => signOut()} className="text-sm text-destructive focus:text-destructive">
                       Sign Out
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -158,6 +182,28 @@ export function Navbar() {
                 {link.label}
               </Link>
             ))}
+            {user && (
+              <>
+                <Link
+                  to="/dashboard"
+                  className="flex items-center gap-3 px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary rounded-xl"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <User className="w-4 h-4" />
+                  My Dashboard
+                </Link>
+                {isAdmin && (
+                  <Link
+                    to="/admin"
+                    className="flex items-center gap-3 px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary rounded-xl"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <LayoutDashboard className="w-4 h-4" />
+                    Admin Dashboard
+                  </Link>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>

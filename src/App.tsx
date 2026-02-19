@@ -39,6 +39,8 @@ import EmailSettings from "./pages/admin/settings/EmailSettings";
 import BuyTicket from "./pages/BuyTicket";
 import WatchMovie from "./pages/WatchMovie";
 import MyTickets from "./pages/MyTickets";
+import UserDashboard from "./pages/UserDashboard";
+import FilmmakerSubmit from "./pages/FilmmakerSubmit";
 
 const queryClient = new QueryClient();
 
@@ -62,6 +64,8 @@ const App = () => (
               <Route path="/buy/:slug" element={<BuyTicket />} />
               <Route path="/watch/:watchCode" element={<WatchMovie />} />
               <Route path="/tickets" element={<MyTickets />} />
+              <Route path="/dashboard" element={<UserDashboard />} />
+              <Route path="/filmmaker" element={<FilmmakerSubmit />} />
               
               {/* ============ PLATFORM ADMIN ============ */}
               <Route path="/admin" element={<Dashboard />} />
