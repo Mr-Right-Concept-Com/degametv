@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { MapPin, Mail, Zap, Check, ArrowLeft, Loader2, Clock, Calendar } from 'lucide-react';
+import { MapPin, Mail, Zap, Check, ArrowLeft, Loader2, Clock, Calendar, Tag } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -35,6 +35,10 @@ export default function BuyTicket() {
   const [screening, setScreening] = useState<Screening | null>(null);
   const [loadingScreening, setLoadingScreening] = useState(true);
   const [confirmation, setConfirmation] = useState<any>(null);
+  const [promoCode, setPromoCode] = useState('');
+  const [promoDiscount, setPromoDiscount] = useState<{ type: string; value: number } | null>(null);
+  const [promoError, setPromoError] = useState('');
+  const [validatingPromo, setValidatingPromo] = useState(false);
   const [addons, setAddons] = useState([
     { name: 'Popcorn & Drink Bundle', price: 500, selected: false },
     { name: 'Premium Candy Pack', price: 300, selected: false },
@@ -90,7 +94,34 @@ export default function BuyTicket() {
   const currency = location === 'nigeria' ? 'NGN' : 'USD';
   const symbol = location === 'nigeria' ? '₦' : '$';
   const addonsTotal = addons.filter(a => a.selected).reduce((sum, a) => sum + a.price, 0);
-  const total = basePrice + (location === 'nigeria' ? addonsTotal : 0);
+  const subtotal = basePrice + (location === 'nigeria' ? addonsTotal : 0);
+  const discount = promoDiscount
+    ? promoDiscount.type === 'percentage'
+      ? Math.round(subtotal * promoDiscount.value / 100)
+      : promoDiscount.value
+    : 0;
+  const total = Math.max(0, subtotal - discount);
+
+  const handleValidatePromo = async () => {
+    if (!promoCode.trim()) return;
+    setValidatingPromo(true);
+    setPromoError('');
+    setPromoDiscount(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('validate-promo-code', {
+        body: { code: promoCode, screeningId: screening.id },
+      });
+      if (error || !data?.valid) {
+        setPromoError(data?.error || 'Invalid promo code');
+      } else {
+        setPromoDiscount({ type: data.discount_type, value: data.discount_value });
+        toast.success(`Promo applied! ${data.discount_type === 'percentage' ? data.discount_value + '%' : symbol + data.discount_value} off`);
+      }
+    } catch {
+      setPromoError('Failed to validate');
+    }
+    setValidatingPromo(false);
+  };
 
   const paymentMethods = [
     { id: 'stripe', name: 'Credit/Debit Card', icon: '💳', available: true },
@@ -304,6 +335,25 @@ export default function BuyTicket() {
                   </div>
                 )}
 
+                {/* Promo Code */}
+                <div className="bg-secondary/30 p-3 rounded-xl">
+                  <p className="text-xs font-medium mb-2 flex items-center gap-1"><Tag className="w-3 h-3" /> Promo Code</p>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Enter code"
+                      value={promoCode}
+                      onChange={e => { setPromoCode(e.target.value.toUpperCase()); setPromoError(''); }}
+                      className="h-9 rounded-lg text-sm uppercase"
+                      maxLength={20}
+                    />
+                    <Button size="sm" variant="outline" className="rounded-lg h-9 text-xs" onClick={handleValidatePromo} disabled={validatingPromo || !promoCode.trim()}>
+                      {validatingPromo ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Apply'}
+                    </Button>
+                  </div>
+                  {promoError && <p className="text-[10px] text-destructive mt-1">{promoError}</p>}
+                  {promoDiscount && <p className="text-[10px] text-success mt-1">✓ Discount applied!</p>}
+                </div>
+
                 {/* Price */}
                 <div className="bg-secondary/30 p-3 rounded-xl space-y-1.5 text-sm">
                   <div className="flex justify-between">
@@ -314,6 +364,12 @@ export default function BuyTicket() {
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Add-ons</span>
                       <span>+₦{addonsTotal.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {discount > 0 && (
+                    <div className="flex justify-between text-success">
+                      <span>Promo Discount</span>
+                      <span>-{symbol}{discount.toLocaleString()}</span>
                     </div>
                   )}
                   <Separator />

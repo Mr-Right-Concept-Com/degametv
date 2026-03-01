@@ -14,7 +14,7 @@ import "./index.css";
     const isReserved = reserved.some(r => sub === r || sub.startsWith(r));
     if (!isReserved && window.location.pathname === '/') {
       // Redirect to the buy page for this movie slug
-      window.location.replace(`/buy/${sub}`);
+      window.location.replace(`/movie/${sub}`);
     }
   }
 })();

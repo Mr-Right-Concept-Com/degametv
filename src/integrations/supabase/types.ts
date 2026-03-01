@@ -719,6 +719,66 @@ export type Database = {
         }
         Relationships: []
       }
+      promo_codes: {
+        Row: {
+          code: string
+          created_at: string
+          current_uses: number
+          discount_type: string
+          discount_value: number
+          id: string
+          is_active: boolean
+          max_uses: number | null
+          screening_id: string | null
+          tenant_id: string | null
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          current_uses?: number
+          discount_type?: string
+          discount_value?: number
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          screening_id?: string | null
+          tenant_id?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          current_uses?: number
+          discount_type?: string
+          discount_value?: number
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          screening_id?: string | null
+          tenant_id?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promo_codes_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
+            referencedRelation: "screenings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promo_codes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       revenue_splits: {
         Row: {
           content_id: string | null
@@ -766,6 +826,70 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      screening_comments: {
+        Row: {
+          comment: string
+          created_at: string
+          email: string | null
+          id: string
+          nickname: string
+          screening_id: string
+        }
+        Insert: {
+          comment: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          nickname: string
+          screening_id: string
+        }
+        Update: {
+          comment?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          nickname?: string
+          screening_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "screening_comments_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
+            referencedRelation: "screenings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      screening_notifications: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          screening_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          screening_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          screening_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "screening_notifications_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
+            referencedRelation: "screenings"
             referencedColumns: ["id"]
           },
         ]
@@ -846,18 +970,23 @@ export type Database = {
       }
       screenings: {
         Row: {
+          age_rating: string | null
           banner_url: string | null
+          cast_crew: Json | null
           content_id: string
           created_at: string
           description: string | null
           duration: number | null
+          gallery_images: string[] | null
           id: string
           location_pricing: Json
           metadata: Json | null
           poster_url: string | null
           release_date: string | null
+          review_count: number | null
           screening_date: string | null
           slug: string
+          star_rating: number | null
           status: string
           tenant_id: string
           title: string
@@ -865,18 +994,23 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          age_rating?: string | null
           banner_url?: string | null
+          cast_crew?: Json | null
           content_id: string
           created_at?: string
           description?: string | null
           duration?: number | null
+          gallery_images?: string[] | null
           id?: string
           location_pricing?: Json
           metadata?: Json | null
           poster_url?: string | null
           release_date?: string | null
+          review_count?: number | null
           screening_date?: string | null
           slug: string
+          star_rating?: number | null
           status?: string
           tenant_id: string
           title: string
@@ -884,18 +1018,23 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          age_rating?: string | null
           banner_url?: string | null
+          cast_crew?: Json | null
           content_id?: string
           created_at?: string
           description?: string | null
           duration?: number | null
+          gallery_images?: string[] | null
           id?: string
           location_pricing?: Json
           metadata?: Json | null
           poster_url?: string | null
           release_date?: string | null
+          review_count?: number | null
           screening_date?: string | null
           slug?: string
+          star_rating?: number | null
           status?: string
           tenant_id?: string
           title?: string

@@ -6,13 +6,19 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { TenantProvider } from "@/hooks/useTenant";
 
-// End-user pages - Virtual Cinema focused
+// End-user pages
 import Index from "./pages/Index";
 import Cinema from "./pages/Cinema";
 import CinemaEvent from "./pages/CinemaEvent";
 import ContentDetail from "./pages/ContentDetail";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import MovieLanding from "./pages/MovieLanding";
+import RefundPolicy from "./pages/RefundPolicy";
+import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
+import FAQ from "./pages/FAQ";
+import Contact from "./pages/Contact";
 
 // Admin pages
 import Dashboard from "./pages/admin/Dashboard";
@@ -53,12 +59,20 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <Routes>
-              {/* ============ END-USER EXPERIENCE - Virtual Cinema ============ */}
+              {/* ============ END-USER EXPERIENCE ============ */}
               <Route path="/" element={<Index />} />
               <Route path="/cinema" element={<Cinema />} />
               <Route path="/cinema/:id" element={<CinemaEvent />} />
+              <Route path="/movie/:slug" element={<MovieLanding />} />
               <Route path="/content/:id" element={<ContentDetail />} />
               <Route path="/auth" element={<Auth />} />
+              
+              {/* Static Pages */}
+              <Route path="/refund-policy" element={<RefundPolicy />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/faq" element={<FAQ />} />
+              <Route path="/contact" element={<Contact />} />
               
               {/* ============ VIRTUAL CINEMA TICKET FUNNEL ============ */}
               <Route path="/buy/:slug" element={<BuyTicket />} />
