@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
@@ -96,7 +97,7 @@ export default function Auth() {
               <Play className="w-7 h-7 text-white fill-white" />
             </div>
             <span className="text-2xl font-display font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              AGE Media
+              DeGameTV
             </span>
           </div>
 
@@ -180,9 +181,33 @@ export default function Auth() {
               )}
             </div>
 
-            {isLogin && (
+          {isLogin && (
               <div className="text-right">
-                <Button variant="link" className="text-primary p-0 h-auto">
+                <Button
+                  type="button"
+                  variant="link"
+                  className="text-primary p-0 h-auto"
+                  onClick={async () => {
+                    if (!email) {
+                      toast.error('Please enter your email first');
+                      return;
+                    }
+                    const emailResult = emailSchema.safeParse(email);
+                    if (!emailResult.success) {
+                      toast.error('Please enter a valid email address');
+                      return;
+                    }
+                    try {
+                      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                        redirectTo: `${window.location.origin}/reset-password`,
+                      });
+                      if (error) throw error;
+                      toast.success('Password reset link sent! Check your email.');
+                    } catch (err: any) {
+                      toast.error(err.message || 'Failed to send reset email');
+                    }
+                  }}
+                >
                   Forgot password?
                 </Button>
               </div>
