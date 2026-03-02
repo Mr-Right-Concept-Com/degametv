@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { TenantProvider } from "@/hooks/useTenant";
+import { ProtectedAdminRoute } from "@/components/auth/ProtectedAdminRoute";
 
 // End-user pages
 import Index from "./pages/Index";
@@ -19,6 +20,7 @@ import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import FAQ from "./pages/FAQ";
 import Contact from "./pages/Contact";
+import ResetPassword from "./pages/ResetPassword";
 
 // Admin pages
 import Dashboard from "./pages/admin/Dashboard";
@@ -66,6 +68,7 @@ const App = () => (
               <Route path="/movie/:slug" element={<MovieLanding />} />
               <Route path="/content/:id" element={<ContentDetail />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               
               {/* Static Pages */}
               <Route path="/refund-policy" element={<RefundPolicy />} />
@@ -81,28 +84,28 @@ const App = () => (
               <Route path="/dashboard" element={<UserDashboard />} />
               <Route path="/filmmaker" element={<FilmmakerSubmit />} />
               
-              {/* ============ PLATFORM ADMIN ============ */}
-              <Route path="/admin" element={<Dashboard />} />
-              <Route path="/admin/tenants" element={<Tenants />} />
-              <Route path="/admin/users" element={<Users />} />
-              <Route path="/admin/modules" element={<Modules />} />
-              <Route path="/admin/settings/payment-gateways" element={<PaymentGatewaySettings />} />
-              <Route path="/admin/sales" element={<ProducerDashboard />} />
+              {/* ============ PLATFORM ADMIN (Protected) ============ */}
+              <Route path="/admin" element={<ProtectedAdminRoute><Dashboard /></ProtectedAdminRoute>} />
+              <Route path="/admin/tenants" element={<ProtectedAdminRoute><Tenants /></ProtectedAdminRoute>} />
+              <Route path="/admin/users" element={<ProtectedAdminRoute><Users /></ProtectedAdminRoute>} />
+              <Route path="/admin/modules" element={<ProtectedAdminRoute><Modules /></ProtectedAdminRoute>} />
+              <Route path="/admin/settings/payment-gateways" element={<ProtectedAdminRoute><PaymentGatewaySettings /></ProtectedAdminRoute>} />
+              <Route path="/admin/sales" element={<ProtectedAdminRoute><ProducerDashboard /></ProtectedAdminRoute>} />
               
               {/* Module Admin Pages */}
-              <Route path="/admin/modules/ott-vod" element={<ContentManagement />} />
-              <Route path="/admin/modules/ott-vod/analytics" element={<OTTAnalytics />} />
-              <Route path="/admin/modules/live-streaming" element={<StreamManagement />} />
-              <Route path="/admin/modules/virtual-cinema" element={<ScreeningManagement />} />
-              <Route path="/admin/modules/ticketing" element={<TicketManagement />} />
-              <Route path="/admin/modules/monetization" element={<BillingManagement />} />
-              <Route path="/admin/modules/marketplace" element={<MarketplaceManagement />} />
-              <Route path="/admin/modules/analytics" element={<AnalyticsDashboard />} />
-              <Route path="/admin/modules/xr-immersive" element={<XRManagement />} />
-              <Route path="/admin/modules/developer-api" element={<DeveloperPlatform />} />
-              <Route path="/admin/modules/white-label" element={<WhiteLabel />} />
-              <Route path="/admin/filmmaker" element={<FilmmakerPortal />} />
-              <Route path="/admin/settings/email" element={<EmailSettings />} />
+              <Route path="/admin/modules/ott-vod" element={<ProtectedAdminRoute><ContentManagement /></ProtectedAdminRoute>} />
+              <Route path="/admin/modules/ott-vod/analytics" element={<ProtectedAdminRoute><OTTAnalytics /></ProtectedAdminRoute>} />
+              <Route path="/admin/modules/live-streaming" element={<ProtectedAdminRoute><StreamManagement /></ProtectedAdminRoute>} />
+              <Route path="/admin/modules/virtual-cinema" element={<ProtectedAdminRoute><ScreeningManagement /></ProtectedAdminRoute>} />
+              <Route path="/admin/modules/ticketing" element={<ProtectedAdminRoute><TicketManagement /></ProtectedAdminRoute>} />
+              <Route path="/admin/modules/monetization" element={<ProtectedAdminRoute><BillingManagement /></ProtectedAdminRoute>} />
+              <Route path="/admin/modules/marketplace" element={<ProtectedAdminRoute><MarketplaceManagement /></ProtectedAdminRoute>} />
+              <Route path="/admin/modules/analytics" element={<ProtectedAdminRoute><AnalyticsDashboard /></ProtectedAdminRoute>} />
+              <Route path="/admin/modules/xr-immersive" element={<ProtectedAdminRoute><XRManagement /></ProtectedAdminRoute>} />
+              <Route path="/admin/modules/developer-api" element={<ProtectedAdminRoute><DeveloperPlatform /></ProtectedAdminRoute>} />
+              <Route path="/admin/modules/white-label" element={<ProtectedAdminRoute><WhiteLabel /></ProtectedAdminRoute>} />
+              <Route path="/admin/filmmaker" element={<ProtectedAdminRoute><FilmmakerPortal /></ProtectedAdminRoute>} />
+              <Route path="/admin/settings/email" element={<ProtectedAdminRoute><EmailSettings /></ProtectedAdminRoute>} />
               
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { StatCard } from '@/components/admin/StatCard';
 import { ModuleCard } from '@/components/admin/ModuleCard';
@@ -5,10 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTenant } from '@/hooks/useTenant';
 import { MODULE_DEFINITIONS, ModuleId } from '@/types/modules';
-import { mockAnalytics } from '@/data/mockData';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   Users, Building2, DollarSign, Activity, 
-  TrendingUp, Eye, Film, Radio, Plus 
+  TrendingUp, Eye, Film, Radio, Plus, Loader2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
@@ -21,28 +22,49 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-const revenueData = [
-  { name: 'Jan', revenue: 186000, subscribers: 12400 },
-  { name: 'Feb', revenue: 205000, subscribers: 13800 },
-  { name: 'Mar', revenue: 237000, subscribers: 15200 },
-  { name: 'Apr', revenue: 273000, subscribers: 17100 },
-  { name: 'May', revenue: 309000, subscribers: 18900 },
-  { name: 'Jun', revenue: 284000, subscribers: 18500 },
-];
+interface DashboardMetrics {
+  totalRevenue: number;
+  totalTickets: number;
+  totalScreenings: number;
+  completedTickets: number;
+}
 
 export default function AdminDashboard() {
   const { isSuperAdmin, tenant, isModuleEnabled, enableModule, disableModule } = useTenant();
+  const [metrics, setMetrics] = useState<DashboardMetrics>({ totalRevenue: 0, totalTickets: 0, totalScreenings: 0, completedTickets: 0 });
+  const [loading, setLoading] = useState(true);
 
-  const formatNumber = (num: number) => {
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-    return num.toString();
-  };
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const [ticketsRes, screeningsRes] = await Promise.all([
+          supabase.from('screening_tickets').select('price, payment_status'),
+          supabase.from('screenings').select('id', { count: 'exact', head: true }),
+        ]);
+
+        const tickets = ticketsRes.data || [];
+        const completedTickets = tickets.filter(t => t.payment_status === 'completed');
+        const totalRevenue = completedTickets.reduce((sum, t) => sum + (Number(t.price) || 0), 0);
+
+        setMetrics({
+          totalRevenue,
+          totalTickets: tickets.length,
+          totalScreenings: screeningsRes.count || 0,
+          completedTickets: completedTickets.length,
+        });
+      } catch (err) {
+        console.error('Failed to fetch dashboard metrics:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchMetrics();
+  }, []);
 
   const formatCurrency = (num: number) => {
-    if (num >= 1000000) return `$${(num / 1000000).toFixed(2)}M`;
-    if (num >= 1000) return `$${(num / 1000).toFixed(0)}K`;
-    return `$${num}`;
+    if (num >= 1000000) return `₦${(num / 1000000).toFixed(2)}M`;
+    if (num >= 1000) return `₦${(num / 1000).toFixed(0)}K`;
+    return `₦${num.toLocaleString()}`;
   };
 
   const handleModuleToggle = (moduleId: ModuleId, enabled: boolean) => {
@@ -70,32 +92,24 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
           title="Total Revenue"
-          value={formatCurrency(mockAnalytics.totalRevenue)}
-          change={23.5}
-          changeLabel="vs last month"
+          value={loading ? '...' : formatCurrency(metrics.totalRevenue)}
           icon={<DollarSign className="h-5 w-5" />}
           variant="primary"
         />
         <StatCard
-          title="Active Subscribers"
-          value={formatNumber(mockAnalytics.activeSubscribers)}
-          change={12.3}
-          changeLabel="vs last month"
+          title="Tickets Sold"
+          value={loading ? '...' : metrics.completedTickets.toString()}
           icon={<Users className="h-5 w-5" />}
           variant="success"
         />
         <StatCard
-          title="Total Views"
-          value={formatNumber(mockAnalytics.totalViews)}
-          change={8.7}
-          changeLabel="vs last month"
-          icon={<Eye className="h-5 w-5" />}
+          title="Total Screenings"
+          value={loading ? '...' : metrics.totalScreenings.toString()}
+          icon={<Film className="h-5 w-5" />}
         />
         <StatCard
-          title="Live Viewers"
-          value={formatNumber(mockAnalytics.liveViewers)}
-          change={-2.4}
-          changeLabel="vs last hour"
+          title="Pending Tickets"
+          value={loading ? '...' : (metrics.totalTickets - metrics.completedTickets).toString()}
           icon={<Activity className="h-5 w-5" />}
           variant="warning"
         />
@@ -106,76 +120,48 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <StatCard
             title="Active Tenants"
-            value="24"
-            change={4}
-            changeLabel="this month"
+            value="1"
             icon={<Building2 className="h-5 w-5" />}
           />
           <StatCard
-            title="Content Items"
-            value={formatNumber(mockAnalytics.contentCount)}
+            title="Screenings"
+            value={loading ? '...' : metrics.totalScreenings.toString()}
             icon={<Film className="h-5 w-5" />}
           />
           <StatCard
             title="Live Streams"
-            value="18"
+            value="0"
             icon={<Radio className="h-5 w-5" />}
           />
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Revenue Chart */}
+        {/* Revenue Info */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-primary" />
               Revenue Overview
             </CardTitle>
-            <CardDescription>Monthly revenue and subscriber growth</CardDescription>
+            <CardDescription>Real-time ticket sales data</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={revenueData}>
-                  <defs>
-                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="colorSubscribers" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis 
-                    dataKey="name" 
-                    stroke="hsl(var(--muted-foreground))"
-                    fontSize={12}
-                  />
-                  <YAxis 
-                    stroke="hsl(var(--muted-foreground))"
-                    fontSize={12}
-                    tickFormatter={(value) => `$${value / 1000}k`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                    }}
-                    labelStyle={{ color: 'hsl(var(--foreground))' }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="revenue"
-                    stroke="hsl(var(--primary))"
-                    fillOpacity={1}
-                    fill="url(#colorRevenue)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+            <div className="h-80 flex items-center justify-center text-muted-foreground">
+              {loading ? (
+                <Loader2 className="w-6 h-6 animate-spin" />
+              ) : metrics.totalRevenue === 0 ? (
+                <div className="text-center">
+                  <Film className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
+                  <p className="font-medium">No sales data yet</p>
+                  <p className="text-sm">Revenue charts will appear once tickets are sold</p>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <p className="text-4xl font-bold text-primary">{formatCurrency(metrics.totalRevenue)}</p>
+                  <p className="text-sm mt-2">Total revenue from {metrics.completedTickets} ticket(s)</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -188,13 +174,13 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent className="space-y-3">
             <Button variant="outline" className="w-full justify-start" asChild>
-              <Link to="/admin/content/movies">
+              <Link to="/admin/modules/ott-vod">
                 <Film className="h-4 w-4 mr-2" />
                 Manage Content
               </Link>
             </Button>
             <Button variant="outline" className="w-full justify-start" asChild>
-              <Link to="/admin/content/live">
+              <Link to="/admin/modules/live-streaming">
                 <Radio className="h-4 w-4 mr-2" />
                 Live Events
               </Link>
