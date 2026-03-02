@@ -1,158 +1,126 @@
 
 
-# Spixie vs DeGameTV: Gap Analysis and Implementation Plan
+# Comprehensive E2E Audit, QA & Fix Plan
 
-## What Spixie Has That DeGameTV is Missing
+## Critical Bugs Found
 
-Based on analyzing Spixie's movie subdomain pages (e.g., adanne.spixie.net), the Spixie.co platform page, and comparing with our current codebase, here are the **critical gaps**:
+### 1. HOMEPAGE BROKEN - Subdomain Routing Hijack (P0)
+The homepage (`/`) shows "Movie Not Found" instead of the actual homepage. The subdomain routing code in `main.tsx` fires on the Lovable preview domain (`3b6cff5a-cd3d-4328-b5eb-c06e0a4fdce3.lovableproject.com`) because it has 3+ dot-separated parts. It redirects `/` to `/movie/3b6cff5a-cd3d-4328-b5eb-c06e0a4fdce3` which doesn't exist.
 
-### 1. Dedicated Movie Landing Page (Subdomain Experience)
-**Spixie has**: Each movie gets its own cinematic landing page at `movie.spixie.net` with:
-- Full-screen banner hero with poster overlay
-- Movie metadata (length, genre, premiere date, rating with stars, age rating badge)
-- Synopsis section
-- Cast and Crew carousel with photos and character names
-- Image Gallery carousel
-- Trailer video modal (inline "Watch Trailer" button)
-- Comments/reviews section
-- "Purchase Tickets" and "Watch Now" CTAs
+**Fix**: Add `lovableproject`, `lovable`, `vercel`, `netlify`, `supabase` to the reserved list AND check that the subdomain doesn't look like a UUID. Also only trigger on production-like domains.
 
-**DeGameTV has**: Only a basic `BuyTicket.tsx` purchase funnel and a mock-data `CinemaEvent.tsx` page. No dedicated movie landing page with all Spixie features.
+### 2. Auth Page Branding Mismatch (P1)
+The Auth page (`/auth`) shows "AGE Media" branding instead of "DeGameTV". The platform is DeGameTV but the login page references the old branding.
 
-### 2. Star Ratings and Age Rating
-**Spixie has**: 5-star visual rating with review count (e.g., 4.5 stars, 103 reviews), PG-13 badge
-**DeGameTV has**: None on buy/screening pages
+**Fix**: Update Auth.tsx to use "DeGameTV" logo and branding.
 
-### 3. Cast and Crew Section
-**Spixie has**: Horizontal carousel of cast members with character name and actor name
-**DeGameTV has**: CinemaEvent has a basic "starring" list from mock data but no photos or character mapping. BuyTicket and the screening DB schema have no cast/crew support.
+### 3. Admin Dashboard Shows Only Mock Data (P1)
+The admin dashboard (`/admin`) displays hardcoded mock analytics (`$4.84M revenue`, `385K subscribers`, etc.) that are completely fabricated. The Sales Dashboard (`/admin/sales`) correctly uses real data showing `N0` revenue and `0` tickets.
 
-### 4. Image Gallery
-**Spixie has**: Horizontal carousel of movie stills/behind-the-scenes photos
-**DeGameTV has**: Nothing
+**Fix**: Wire the main admin dashboard to real Supabase data (screening_tickets, screenings counts) instead of mockAnalytics.
 
-### 5. Trailer Video Modal
-**Spixie has**: "Watch Trailer" button that opens an embedded video player
-**DeGameTV has**: The screenings table has `trailer_url` but it's never displayed in a player
+### 4. Admin Quick Actions Link to Non-Existent Routes (P1)
+The admin dashboard has "Manage Content" linking to `/admin/content/movies` and "Live Events" linking to `/admin/content/live` - neither route exists. These should link to actual module pages.
 
-### 6. Comments/Reviews Section
-**Spixie has**: Community comments powered by Cusdis with nickname, email, captcha
-**DeGameTV has**: Nothing
+**Fix**: Update links to `/admin/modules/ott-vod` and `/admin/modules/live-streaming`.
 
-### 7. "Notify Me" for Upcoming Movies
-**Spixie has**: For movies not yet released, a "Notify Me" email subscription form
-**DeGameTV has**: Nothing -- no email collection for upcoming screenings
+### 5. Seed Data Missing Cast/Crew, Gallery, Ratings (P2)
+Screenings in the database have empty `cast_crew: []`, `gallery_images: []`, `star_rating: 0`, and `age_rating: null`. The movie landing page supports these features but they never render because the seed data is empty.
 
-### 8. Promo Codes / Discounts
-**Spixie.co mentions**: Promotions and promo codes as a feature
-**DeGameTV has**: No promo code system
+**Fix**: Update the seed-data edge function to include sample cast/crew, gallery images, star ratings, and age ratings for all screenings.
 
-### 9. Refund Policy
-**Spixie.co mentions**: Configurable refund policies
-**DeGameTV has**: Footer links to "#" for refund policy -- no actual page or system
+### 6. process-payment Edge Function Reads Body Twice (P1)
+The `process-payment` function calls `await req.json()` once for the `method`, then each handler function tries to call `await req.json()` again. In Deno, a request body can only be read once - the second read will fail.
 
-### 10. Geo-blocking Controls
-**Spixie.co mentions**: Geo-restriction tools
-**DeGameTV has**: Location-based pricing but no ability to block specific regions
+**Fix**: Parse the body once at the top level and pass the parsed data to handler functions.
 
-### 11. Cinema Page Uses Mock Data
-**DeGameTV**: `Cinema.tsx` still uses `mockCinemaEvents` instead of real Supabase data
+### 7. validate-watch-code Uses ANON Key Instead of Service Role (P2)
+The `validate-watch-code` function uses `SUPABASE_ANON_KEY` to query `screening_tickets`, but the RLS policies require either `super_admin` role or matching `user_id`/`email`. An anonymous call from an edge function won't match either, so ticket lookups may fail for unauthenticated watch flows.
 
----
+**Fix**: Use `SUPABASE_SERVICE_ROLE_KEY` since this is a server-side validation function.
 
-## Implementation Plan
+### 8. No Admin Route Protection (P2)
+All admin routes (`/admin/*`) are accessible without authentication or role checks. Any visitor can access the admin dashboard, sales data, and module management.
 
-### Task 1: Build the Dedicated Movie Landing Page (`/movie/:slug`)
-Create a cinematic, Spixie-style landing page that serves as both the subdomain destination and the movie detail page.
+**Fix**: Add a `ProtectedRoute` wrapper that checks for authentication and admin role before rendering admin pages.
 
-**Features:**
-- Full-width banner hero with gradient overlay, poster image sidebar
-- Movie metadata bar: length, genre, premiere date, star rating, age rating badge
-- Synopsis section
-- Cast and Crew horizontal carousel (photos, character name, actor name)
-- Image Gallery carousel (movie stills)
-- Embedded Trailer modal (uses `trailer_url` from screenings)
-- "Purchase Tickets" CTA linking to `/buy/:slug`
-- "Watch Now" CTA (for ticket holders)
-- Comments section (simple DB-backed, nickname + comment)
-- "Notify Me" email capture for upcoming/not-yet-released screenings
-- Subdomain redirect updated: `movie.degametv.net` now goes to `/movie/:slug` instead of `/buy/:slug`
+### 9. Navbar "Now Showing" Link Goes to `/` Which is Broken (P1)
+The navbar has "Now Showing" linking to `/` which triggers the subdomain redirect bug. Should link to the home page properly.
 
-### Task 2: Database Schema Updates
-Add new tables and columns via migration:
+**Fix**: This is fixed by fixing bug #1.
 
-- Add columns to `screenings`: `cast_crew` (jsonb array), `gallery_images` (text array), `age_rating` (text), `star_rating` (numeric), `review_count` (integer)
-- Create `screening_comments` table: id, screening_id, nickname, email, comment, created_at (with RLS allowing public insert and public read)
-- Create `screening_notifications` table: id, screening_id, email, created_at (with RLS allowing public insert)
-- Create `promo_codes` table: id, tenant_id, code, discount_type (percentage/fixed), discount_value, max_uses, current_uses, valid_from, valid_until, screening_id (nullable for global), created_at
+### 10. Index Page Still Imports Mock Data as Fallback (P2)
+`Index.tsx` imports `mockMovies` and `mockCinemaEvents` from mock data and falls back to them when there's no DB data. Since we have real data, the mock fallback creates confusion and inconsistency.
 
-### Task 3: Promo Code Support in Purchase Flow
-- Add promo code input field on the payment step of `BuyTicket.tsx`
-- Validate promo code via edge function
-- Apply discount to total before payment
-- Create `validate-promo-code` edge function
+**Fix**: Remove mock data fallback from Index.tsx - show empty states or real data only.
 
-### Task 4: Fix Cinema Page to Use Real Data
-- Update `Cinema.tsx` to fetch from Supabase `screenings` table instead of mock data
-- Link cinema cards to `/movie/:slug` (the new landing page) instead of `/cinema/:id`
+### 11. Missing "Email Settings" in Admin Sidebar Scroll (Minor)
+The Email Settings link is present but the sidebar needs scrolling to see it. The sidebar settings section should be fully visible.
 
-### Task 5: Notify Me + Email Reminder System
-- "Notify Me" button on movie landing page for upcoming screenings
-- Store email in `screening_notifications` table
-- Admin can see notification subscribers count in screening management
+### 12. Forgot Password Not Functional (P2)
+The "Forgot password?" button on the Auth page is a non-functional `Button variant="link"` that does nothing. No password reset flow exists.
 
-### Task 6: Static Pages (Refund Policy, Terms, Privacy, FAQ, Contact)
-- Create actual content pages for the footer links that currently point to "#"
-- `/refund-policy`, `/terms`, `/privacy`, `/faq`, `/contact`
+**Fix**: Implement password reset flow with `supabase.auth.resetPasswordForEmail()` and a `/reset-password` page.
 
-### Task 7: Update Subdomain Routing
-- Change `main.tsx` redirect from `/buy/:slug` to `/movie/:slug` so subdomain visitors see the full movie experience first, with CTA to purchase
+### 13. Google/GitHub OAuth Buttons Disabled (Minor)
+Social login buttons exist but are disabled. They should either be enabled or removed to avoid confusion.
 
 ---
 
-## Technical Details
+## Implementation Plan (Priority Order)
 
-### Movie Landing Page Component Structure
-```text
-MovieLandingPage
-  +-- HeroBanner (full-width bg image + poster + metadata)
-  +-- SynopsisSection (text + rating stars + age badge)
-  +-- CastCrewCarousel (horizontal scroll, photos)
-  +-- GalleryCarousel (horizontal scroll, stills)
-  +-- TrailerModal (dialog with VideoPlayer)
-  +-- CommentsSection (list + form)
-  +-- NotifyMeSection (email input, shown when status != 'published' or before screening_date)
-  +-- StickyBuyCTA (fixed bottom bar on mobile)
-```
+### Task 1: Fix Subdomain Routing (P0 - Homepage is broken)
+Update `src/main.tsx` to properly detect only real movie subdomains on production domains (degametv.net, etc.), excluding Lovable preview domains, UUIDs, and other hosting subdomains.
 
-### New DB Migration SQL (key parts)
-- ALTER screenings ADD cast_crew, gallery_images, age_rating, star_rating, review_count
-- CREATE TABLE screening_comments with public read/insert RLS
-- CREATE TABLE screening_notifications with public insert RLS
-- CREATE TABLE promo_codes with admin-only management RLS
+### Task 2: Fix process-payment Double Body Read (P1)
+Refactor `supabase/functions/process-payment/index.ts` to parse `req.json()` once and pass the parsed body object to each payment handler instead of having them re-read the request body.
 
-### Edge Functions
-- `validate-promo-code`: Validates code, checks expiry/max uses, returns discount
-- Update `process-payment` to accept and apply promo codes
-- Update `seed-data` to include cast/crew, gallery, and sample promo codes
+### Task 3: Fix validate-watch-code Auth Key (P2)
+Change `SUPABASE_ANON_KEY` to `SUPABASE_SERVICE_ROLE_KEY` in `supabase/functions/validate-watch-code/index.ts`.
 
-### Route Changes
-- Add `/movie/:slug` route for MovieLandingPage
-- Keep `/buy/:slug` for the purchase funnel
-- Update subdomain redirect to `/movie/:slug`
-- Add static page routes
+### Task 4: Fix Auth Page Branding (P1)
+Update `src/pages/Auth.tsx` to show "DeGameTV" instead of "AGE Media".
 
-### Files to Create
-- `src/pages/MovieLanding.tsx` (the main Spixie-style page)
-- `src/pages/RefundPolicy.tsx`, `Terms.tsx`, `Privacy.tsx`, `FAQ.tsx`, `Contact.tsx`
-- `supabase/functions/validate-promo-code/index.ts`
+### Task 5: Wire Admin Dashboard to Real Data (P1)
+Refactor `src/pages/admin/Dashboard.tsx` to fetch real metrics from Supabase (screening count, ticket count, revenue totals) instead of using `mockAnalytics`. Fix Quick Actions links to point to existing routes.
 
-### Files to Modify
-- `src/App.tsx` (new routes)
-- `src/main.tsx` (subdomain redirect target)
-- `src/pages/BuyTicket.tsx` (promo code field)
-- `src/pages/Cinema.tsx` (real data)
-- `src/components/layout/Footer.tsx` (real links)
-- `supabase/functions/process-payment/index.ts` (promo support)
-- `supabase/functions/seed-data/index.ts` (richer seed data)
+### Task 6: Enrich Seed Data (P2)
+Update `supabase/functions/seed-data/index.ts` to include:
+- `cast_crew` JSONB with sample Nollywood actor names and character names
+- `gallery_images` with sample Unsplash URLs
+- `star_rating` (4.0-4.9) and `age_rating` ("PG-13", "18+", etc.)
+- Sample promo codes in the `promo_codes` table
+
+### Task 7: Add Admin Route Protection (P2)
+Create a `ProtectedAdminRoute` component that checks `useAuth()` for authentication and `useTenant()` for admin roles. Wrap all `/admin/*` routes with this component.
+
+### Task 8: Remove Mock Data Fallbacks (P2)
+Clean up `src/pages/Index.tsx` to remove `mockMovies` and `mockCinemaEvents` imports and show only real Supabase data with proper empty states.
+
+### Task 9: Add Forgot Password Flow (P2)
+- Add forgot password form component with `resetPasswordForEmail()`
+- Create `/reset-password` page with `updateUser({ password })`
+- Add route in `App.tsx`
+
+---
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/main.tsx` | Fix subdomain routing to not trigger on preview/staging domains |
+| `src/pages/Auth.tsx` | Update branding from "AGE Media" to "DeGameTV" |
+| `src/pages/admin/Dashboard.tsx` | Wire to real Supabase data, fix Quick Action links |
+| `src/pages/Index.tsx` | Remove mock data fallback |
+| `supabase/functions/process-payment/index.ts` | Fix double body read bug |
+| `supabase/functions/validate-watch-code/index.ts` | Use SERVICE_ROLE_KEY |
+| `supabase/functions/seed-data/index.ts` | Add cast/crew, gallery, ratings, promo codes |
+| `src/App.tsx` | Add ProtectedAdminRoute wrapper, add /reset-password route |
+
+## Files to Create
+
+| File | Purpose |
+|------|---------|
+| `src/components/auth/ProtectedAdminRoute.tsx` | Admin route guard component |
+| `src/pages/ResetPassword.tsx` | Password reset page |
 
