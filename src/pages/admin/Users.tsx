@@ -1,102 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Plus, Search, MoreHorizontal, Edit, Trash2, Shield, Ban, Mail } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { supabase } from '@/integrations/supabase/client';
+import { Search, Loader2, Users as UsersIcon } from 'lucide-react';
 
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  avatar?: string;
-  role: 'super_admin' | 'platform_admin' | 'licensee_admin' | 'creator' | 'moderator' | 'viewer';
-  status: 'active' | 'suspended' | 'pending';
-  tenant?: string;
-  lastActive: string;
-  createdAt: string;
+interface UserRow {
+  user_id: string;
+  email: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  created_at: string;
+  role: string | null;
 }
 
-const mockUsers: User[] = [
-  {
-    id: '1',
-    email: 'admin@agemedia.com',
-    name: 'System Admin',
-    role: 'super_admin',
-    status: 'active',
-    lastActive: '2024-03-15T14:30:00Z',
-    createdAt: '2023-01-01',
-  },
-  {
-    id: '2',
-    email: 'john@streamflix.com',
-    name: 'John Smith',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop',
-    role: 'licensee_admin',
-    status: 'active',
-    tenant: 'StreamFlix',
-    lastActive: '2024-03-15T12:00:00Z',
-    createdAt: '2024-01-15',
-  },
-  {
-    id: '3',
-    email: 'sarah@filmhub.com',
-    name: 'Sarah Johnson',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop',
-    role: 'creator',
-    status: 'active',
-    tenant: 'FilmHub Africa',
-    lastActive: '2024-03-14T18:45:00Z',
-    createdAt: '2024-02-20',
-  },
-  {
-    id: '4',
-    email: 'mike@example.com',
-    name: 'Mike Wilson',
-    role: 'viewer',
-    status: 'suspended',
-    lastActive: '2024-03-10T09:15:00Z',
-    createdAt: '2024-03-01',
-  },
-  {
-    id: '5',
-    email: 'emma@livesports.com',
-    name: 'Emma Davis',
-    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop',
-    role: 'moderator',
-    status: 'active',
-    tenant: 'LiveSports Pro',
-    lastActive: '2024-03-15T10:30:00Z',
-    createdAt: '2024-03-05',
-  },
-];
-
-const roleColors: Record<User['role'], string> = {
-  super_admin: 'bg-age-gold/20 text-age-gold',
-  platform_admin: 'bg-age-violet/20 text-age-violet',
-  licensee_admin: 'bg-age-blue/20 text-age-blue',
-  creator: 'bg-age-pink/20 text-age-pink',
-  moderator: 'bg-age-cyan/20 text-age-cyan',
+const roleColors: Record<string, string> = {
+  super_admin: 'bg-amber-500/20 text-amber-400',
+  platform_admin: 'bg-violet-500/20 text-violet-400',
+  licensee_admin: 'bg-blue-500/20 text-blue-400',
+  creator: 'bg-pink-500/20 text-pink-400',
+  moderator: 'bg-cyan-500/20 text-cyan-400',
   viewer: 'bg-muted text-muted-foreground',
 };
 
-const roleLabels: Record<User['role'], string> = {
+const roleLabels: Record<string, string> = {
   super_admin: 'Super Admin',
   platform_admin: 'Platform Admin',
   licensee_admin: 'Tenant Admin',
@@ -105,146 +34,107 @@ const roleLabels: Record<User['role'], string> = {
   viewer: 'Viewer',
 };
 
-const statusColors = {
-  active: 'bg-success/20 text-success',
-  suspended: 'bg-destructive/20 text-destructive',
-  pending: 'bg-warning/20 text-warning',
-};
-
 export default function UsersPage() {
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [users] = useState<User[]>(mockUsers);
 
-  const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchQuery.toLowerCase())
+  useEffect(() => {
+    const fetchUsers = async () => {
+      setLoading(true);
+      const { data: profiles, error: pErr } = await supabase
+        .from('profiles')
+        .select('user_id, email, full_name, avatar_url, created_at')
+        .order('created_at', { ascending: false });
+
+      if (pErr) {
+        console.error('Failed to fetch profiles:', pErr);
+        setLoading(false);
+        return;
+      }
+
+      const { data: roles } = await supabase
+        .from('user_roles')
+        .select('user_id, role');
+
+      const roleMap = new Map<string, string>();
+      (roles || []).forEach(r => roleMap.set(r.user_id, r.role));
+
+      const merged: UserRow[] = (profiles || []).map(p => ({
+        ...p,
+        role: roleMap.get(p.user_id) || 'viewer',
+      }));
+
+      setUsers(merged);
+      setLoading(false);
+    };
+    fetchUsers();
+  }, []);
+
+  const filtered = users.filter(u =>
+    !searchQuery ||
+    (u.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (u.full_name || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
   return (
-    <AdminLayout
-      title="Users"
-      description="Manage platform users and their roles"
-      actions={
-        <Button className="gradient-primary">
-          <Plus className="h-4 w-4 mr-2" />
-          Invite User
-        </Button>
-      }
-    >
-      {/* Filters */}
+    <AdminLayout title="Users" description={`${users.length} registered users`}>
       <div className="flex items-center gap-4 mb-6">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search users..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
+          <Input placeholder="Search users..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9" />
         </div>
       </div>
 
-      {/* Table */}
       <div className="rounded-xl border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead>User</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Tenant</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Last Active</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredUsers.map((user) => (
-              <TableRow key={user.id}>
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-9 w-9">
-                      <AvatarImage src={user.avatar} />
-                      <AvatarFallback className="bg-primary/10 text-primary">
-                        {user.name.split(' ').map(n => n[0]).join('')}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{user.name}</p>
-                      <p className="text-sm text-muted-foreground">{user.email}</p>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge className={roleColors[user.role]}>
-                    {roleLabels[user.role]}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <span className="text-muted-foreground">
-                    {user.tenant || '—'}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <Badge className={statusColors[user.status]}>
-                    {user.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {formatDate(user.lastActive)}
-                </TableCell>
-                <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
-                        <Edit className="h-4 w-4 mr-2" />
-                        Edit User
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Shield className="h-4 w-4 mr-2" />
-                        Change Role
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Mail className="h-4 w-4 mr-2" />
-                        Send Email
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      {user.status === 'active' ? (
-                        <DropdownMenuItem className="text-warning">
-                          <Ban className="h-4 w-4 mr-2" />
-                          Suspend
-                        </DropdownMenuItem>
-                      ) : (
-                        <DropdownMenuItem className="text-success">
-                          <Shield className="h-4 w-4 mr-2" />
-                          Activate
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem className="text-destructive">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
+        {loading ? (
+          <div className="flex items-center justify-center h-48">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-16 text-muted-foreground">
+            <UsersIcon className="w-12 h-12 mx-auto mb-3 opacity-30" />
+            <p className="text-sm">No users found</p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>User</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Joined</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {filtered.map(u => (
+                <TableRow key={u.user_id}>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-9 w-9">
+                        <AvatarImage src={u.avatar_url || undefined} />
+                        <AvatarFallback className="bg-primary/10 text-primary">
+                          {(u.full_name || u.email || 'U').charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium">{u.full_name || 'No name'}</p>
+                        <p className="text-sm text-muted-foreground">{u.email}</p>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge className={roleColors[u.role || 'viewer'] || roleColors.viewer}>
+                      {roleLabels[u.role || 'viewer'] || u.role}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm">
+                    {new Date(u.created_at).toLocaleDateString()}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </div>
     </AdminLayout>
   );
