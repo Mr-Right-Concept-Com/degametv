@@ -82,6 +82,13 @@ const App = () => (
               <Route path="/dashboard" element={<UserDashboard />} />
               <Route path="/filmmaker" element={<FilmmakerSubmit />} />
               
+              {/* ============ STUDIO (Protected - Filmmakers) ============ */}
+              <Route path="/studio" element={<ProtectedRoute><StudioDashboard /></ProtectedRoute>} />
+              <Route path="/studio/movies" element={<ProtectedRoute><StudioMovies /></ProtectedRoute>} />
+              <Route path="/studio/submit" element={<ProtectedRoute><StudioSubmit /></ProtectedRoute>} />
+              <Route path="/studio/screenings" element={<ProtectedRoute><StudioScreenings /></ProtectedRoute>} />
+              <Route path="/studio/earnings" element={<ProtectedRoute><StudioEarnings /></ProtectedRoute>} />
+              
               {/* ============ ADMIN (Protected) ============ */}
               <Route path="/admin" element={<ProtectedAdminRoute><Dashboard /></ProtectedAdminRoute>} />
               <Route path="/admin/users" element={<ProtectedAdminRoute><Users /></ProtectedAdminRoute>} />
