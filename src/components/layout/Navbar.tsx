@@ -115,6 +115,10 @@ export function Navbar() {
                       <Upload className="w-4 h-4 mr-2" />
                       Submit a Film
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate('/studio')} className="text-sm">
+                      <Clapperboard className="w-4 h-4 mr-2" />
+                      Studio Dashboard
+                    </DropdownMenuItem>
                     {isAdmin && (
                       <>
                         <DropdownMenuSeparator />
