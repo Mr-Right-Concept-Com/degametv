@@ -40,6 +40,14 @@ import MyTickets from "./pages/MyTickets";
 import UserDashboard from "./pages/UserDashboard";
 import FilmmakerSubmit from "./pages/FilmmakerSubmit";
 
+// Studio pages
+import StudioDashboard from "./pages/studio/StudioDashboard";
+import StudioMovies from "./pages/studio/StudioMovies";
+import StudioSubmit from "./pages/studio/StudioSubmit";
+import StudioScreenings from "./pages/studio/StudioScreenings";
+import StudioEarnings from "./pages/studio/StudioEarnings";
+import { ProtectedRoute } from "./components/auth/ProtectedRoute";
+
 const queryClient = new QueryClient();
 
 const App = () => (
