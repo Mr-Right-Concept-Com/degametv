@@ -40,6 +40,14 @@ import MyTickets from "./pages/MyTickets";
 import UserDashboard from "./pages/UserDashboard";
 import FilmmakerSubmit from "./pages/FilmmakerSubmit";
 
+// Studio pages
+import StudioDashboard from "./pages/studio/StudioDashboard";
+import StudioMovies from "./pages/studio/StudioMovies";
+import StudioSubmit from "./pages/studio/StudioSubmit";
+import StudioScreenings from "./pages/studio/StudioScreenings";
+import StudioEarnings from "./pages/studio/StudioEarnings";
+import { ProtectedRoute } from "./components/auth/ProtectedRoute";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -73,6 +81,13 @@ const App = () => (
               <Route path="/tickets" element={<MyTickets />} />
               <Route path="/dashboard" element={<UserDashboard />} />
               <Route path="/filmmaker" element={<FilmmakerSubmit />} />
+              
+              {/* ============ STUDIO (Protected - Filmmakers) ============ */}
+              <Route path="/studio" element={<ProtectedRoute><StudioDashboard /></ProtectedRoute>} />
+              <Route path="/studio/movies" element={<ProtectedRoute><StudioMovies /></ProtectedRoute>} />
+              <Route path="/studio/submit" element={<ProtectedRoute><StudioSubmit /></ProtectedRoute>} />
+              <Route path="/studio/screenings" element={<ProtectedRoute><StudioScreenings /></ProtectedRoute>} />
+              <Route path="/studio/earnings" element={<ProtectedRoute><StudioEarnings /></ProtectedRoute>} />
               
               {/* ============ ADMIN (Protected) ============ */}
               <Route path="/admin" element={<ProtectedAdminRoute><Dashboard /></ProtectedAdminRoute>} />

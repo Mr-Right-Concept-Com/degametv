@@ -4,8 +4,10 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { Search, Loader2, Users as UsersIcon } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface UserRow {
   user_id: string;
@@ -34,10 +36,13 @@ const roleLabels: Record<string, string> = {
   viewer: 'Viewer',
 };
 
+const assignableRoles = ['viewer', 'creator', 'moderator', 'platform_admin'] as const;
+
 export default function UsersPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [updatingRole, setUpdatingRole] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -70,6 +75,22 @@ export default function UsersPage() {
     };
     fetchUsers();
   }, []);
+
+  const handleRoleChange = async (userId: string, newRole: string) => {
+    setUpdatingRole(userId);
+    // Upsert the role
+    const { error } = await supabase
+      .from('user_roles')
+      .upsert({ user_id: userId, role: newRole as any }, { onConflict: 'user_id' });
+
+    if (error) {
+      toast.error('Failed to update role: ' + error.message);
+    } else {
+      setUsers(prev => prev.map(u => u.user_id === userId ? { ...u, role: newRole } : u));
+      toast.success(`Role updated to ${roleLabels[newRole] || newRole}`);
+    }
+    setUpdatingRole(null);
+  };
 
   const filtered = users.filter(u =>
     !searchQuery ||
@@ -123,9 +144,26 @@ export default function UsersPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge className={roleColors[u.role || 'viewer'] || roleColors.viewer}>
-                      {roleLabels[u.role || 'viewer'] || u.role}
-                    </Badge>
+                    <Select
+                      value={u.role || 'viewer'}
+                      onValueChange={(val) => handleRoleChange(u.user_id, val)}
+                      disabled={updatingRole === u.user_id || u.role === 'super_admin'}
+                    >
+                      <SelectTrigger className="w-40 h-8 text-xs">
+                        <SelectValue>
+                          <Badge className={roleColors[u.role || 'viewer'] || roleColors.viewer}>
+                            {roleLabels[u.role || 'viewer'] || u.role}
+                          </Badge>
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {assignableRoles.map(r => (
+                          <SelectItem key={r} value={r}>
+                            <Badge className={roleColors[r]}>{roleLabels[r]}</Badge>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">
                     {new Date(u.created_at).toLocaleDateString()}

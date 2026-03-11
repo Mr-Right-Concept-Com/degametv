@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Menu, X, Search, User, Ticket, LayoutDashboard, Film, Upload } from 'lucide-react';
+import { Menu, X, Search, User, Ticket, LayoutDashboard, Film, Upload, Clapperboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
@@ -114,6 +114,10 @@ export function Navbar() {
                     <DropdownMenuItem onClick={() => navigate('/filmmaker')} className="text-sm">
                       <Upload className="w-4 h-4 mr-2" />
                       Submit a Film
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate('/studio')} className="text-sm">
+                      <Clapperboard className="w-4 h-4 mr-2" />
+                      Studio Dashboard
                     </DropdownMenuItem>
                     {isAdmin && (
                       <>
