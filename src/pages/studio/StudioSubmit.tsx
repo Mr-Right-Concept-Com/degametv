@@ -14,10 +14,26 @@ import {
   Image as ImageIcon, Link2, ArrowRight, Users
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { z } from 'zod';
 
 const GENRES = ['Action', 'Comedy', 'Drama', 'Horror', 'Thriller', 'Romance', 'Documentary', 'Animation', 'Sci-Fi', 'Fantasy', 'Crime', 'Biography', 'Musical', 'Nollywood', 'African Cinema'];
 const BUDGET_RANGES = ['Under $10K', '$10K – $50K', '$50K – $250K', '$250K – $1M', '$1M – $5M', 'Over $5M'];
 const RIGHTS = ['World rights available', 'African distribution only', 'Nigeria only', 'Digital/VOD only', 'Festival rights only', 'Revenue share open'];
+
+const step1Schema = z.object({
+  submitter_name: z.string().trim().min(2, 'Name must be at least 2 characters').max(100),
+});
+
+const step2Schema = z.object({
+  project_title: z.string().trim().min(1, 'Title is required').max(200),
+  duration_minutes: z.string().optional().refine(v => !v || (parseInt(v) > 0 && parseInt(v) < 1000), 'Invalid duration'),
+  release_year: z.string().optional().refine(v => !v || (parseInt(v) >= 1900 && parseInt(v) <= new Date().getFullYear() + 5), 'Invalid year'),
+});
+
+const step3Schema = z.object({
+  trailer_url: z.string().url('Invalid URL').optional().or(z.literal('')),
+  screener_url: z.string().url('Invalid URL').optional().or(z.literal('')),
+});
 
 export default function StudioSubmit() {
   const { user } = useAuth();
@@ -26,6 +42,7 @@ export default function StudioSubmit() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [uploadingPoster, setUploadingPoster] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [form, setForm] = useState({
     submitter_name: '',
@@ -45,12 +62,46 @@ export default function StudioSubmit() {
     distribution_rights: '',
   });
 
+  const validateStep1 = () => {
+    const result = step1Schema.safeParse({ submitter_name: form.submitter_name });
+    if (!result.success) {
+      const errs: Record<string, string> = {};
+      result.error.errors.forEach(e => { errs[e.path[0] as string] = e.message; });
+      setErrors(errs);
+      return false;
+    }
+    setErrors({});
+    return true;
+  };
+
+  const validateStep2 = () => {
+    const result = step2Schema.safeParse({ project_title: form.project_title, duration_minutes: form.duration_minutes, release_year: form.release_year });
+    if (!result.success) {
+      const errs: Record<string, string> = {};
+      result.error.errors.forEach(e => { errs[e.path[0] as string] = e.message; });
+      setErrors(errs);
+      return false;
+    }
+    setErrors({});
+    return true;
+  };
+
+  const validateStep3 = () => {
+    const result = step3Schema.safeParse({ trailer_url: form.trailer_url, screener_url: form.screener_url });
+    if (!result.success) {
+      const errs: Record<string, string> = {};
+      result.error.errors.forEach(e => { errs[e.path[0] as string] = e.message; });
+      setErrors(errs);
+      return false;
+    }
+    setErrors({});
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.submitter_name || !form.project_title) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
+    if (!validateStep3()) return;
+
     setSubmitting(true);
     const { error } = await supabase.from('filmmaker_submissions').insert({
       submitter_name: form.submitter_name,
@@ -100,8 +151,8 @@ export default function StudioSubmit() {
     return (
       <StudioLayout title="Submission Complete">
         <div className="max-w-lg mx-auto py-12 text-center">
-          <div className="w-20 h-20 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="w-10 h-10 text-success" />
+          <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6">
+            <CheckCircle className="w-10 h-10 text-green-500" />
           </div>
           <h2 className="text-2xl font-bold mb-3">Submission Received!</h2>
           <p className="text-muted-foreground mb-6">
@@ -148,6 +199,7 @@ export default function StudioSubmit() {
                   <div className="space-y-2">
                     <Label>Full Name <span className="text-destructive">*</span></Label>
                     <Input value={form.submitter_name} onChange={e => setForm(f => ({ ...f, submitter_name: e.target.value }))} placeholder="e.g. Kemi Adeyemi" />
+                    {errors.submitter_name && <p className="text-xs text-destructive">{errors.submitter_name}</p>}
                   </div>
                   <div className="space-y-2">
                     <Label>Email</Label>
@@ -158,7 +210,7 @@ export default function StudioSubmit() {
                   <Label>Company / Studio</Label>
                   <Input value={form.company_name} onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))} placeholder="e.g. Nile Pictures" />
                 </div>
-                <Button type="button" className="w-full rounded-full" onClick={() => { if (!form.submitter_name) { toast.error('Name is required'); return; } setStep(2); }}>
+                <Button type="button" className="w-full rounded-full" onClick={() => { if (validateStep1()) setStep(2); }}>
                   Next: Project Details <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </CardContent>
@@ -175,6 +227,7 @@ export default function StudioSubmit() {
                   <div className="space-y-2">
                     <Label>Title <span className="text-destructive">*</span></Label>
                     <Input value={form.project_title} onChange={e => setForm(f => ({ ...f, project_title: e.target.value }))} />
+                    {errors.project_title && <p className="text-xs text-destructive">{errors.project_title}</p>}
                   </div>
                   <div className="space-y-2">
                     <Label>Type</Label>
@@ -197,10 +250,12 @@ export default function StudioSubmit() {
                   <div className="space-y-2">
                     <Label>Duration (mins)</Label>
                     <Input type="number" value={form.duration_minutes} onChange={e => setForm(f => ({ ...f, duration_minutes: e.target.value }))} />
+                    {errors.duration_minutes && <p className="text-xs text-destructive">{errors.duration_minutes}</p>}
                   </div>
                   <div className="space-y-2">
                     <Label>Release Year</Label>
                     <Input type="number" value={form.release_year} onChange={e => setForm(f => ({ ...f, release_year: e.target.value }))} />
+                    {errors.release_year && <p className="text-xs text-destructive">{errors.release_year}</p>}
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -215,7 +270,7 @@ export default function StudioSubmit() {
                 </div>
                 <div className="flex gap-3">
                   <Button type="button" variant="outline" className="flex-1 rounded-full" onClick={() => setStep(1)}>Back</Button>
-                  <Button type="button" className="flex-1 rounded-full" onClick={() => { if (!form.project_title) { toast.error('Title is required'); return; } setStep(3); }}>
+                  <Button type="button" className="flex-1 rounded-full" onClick={() => { if (validateStep2()) setStep(3); }}>
                     Next <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                 </div>
@@ -253,10 +308,12 @@ export default function StudioSubmit() {
                 <div className="space-y-2">
                   <Label>Trailer URL</Label>
                   <Input value={form.trailer_url} onChange={e => setForm(f => ({ ...f, trailer_url: e.target.value }))} placeholder="https://youtu.be/..." />
+                  {errors.trailer_url && <p className="text-xs text-destructive">{errors.trailer_url}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label>Screener URL</Label>
                   <Input value={form.screener_url} onChange={e => setForm(f => ({ ...f, screener_url: e.target.value }))} placeholder="https://vimeo.com/..." />
+                  {errors.screener_url && <p className="text-xs text-destructive">{errors.screener_url}</p>}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
