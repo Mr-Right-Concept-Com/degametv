@@ -16,6 +16,7 @@ interface UserRow {
   avatar_url: string | null;
   created_at: string;
   role: string | null;
+  role_id: string | null;
 }
 
 const roleColors: Record<string, string> = {
@@ -60,14 +61,15 @@ export default function UsersPage() {
 
       const { data: roles } = await supabase
         .from('user_roles')
-        .select('user_id, role');
+        .select('id, user_id, role');
 
-      const roleMap = new Map<string, string>();
-      (roles || []).forEach(r => roleMap.set(r.user_id, r.role));
+      const roleMap = new Map<string, { role: string; id: string }>();
+      (roles || []).forEach(r => roleMap.set(r.user_id, { role: r.role, id: r.id }));
 
       const merged: UserRow[] = (profiles || []).map(p => ({
         ...p,
-        role: roleMap.get(p.user_id) || 'viewer',
+        role: roleMap.get(p.user_id)?.role || 'viewer',
+        role_id: roleMap.get(p.user_id)?.id || null,
       }));
 
       setUsers(merged);
@@ -78,16 +80,35 @@ export default function UsersPage() {
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     setUpdatingRole(userId);
-    // Upsert the role
-    const { error } = await supabase
-      .from('user_roles')
-      .upsert({ user_id: userId, role: newRole as any }, { onConflict: 'user_id' });
+    const existing = users.find(u => u.user_id === userId);
+    
+    if (existing?.role_id) {
+      // Update existing role record
+      const { error } = await supabase
+        .from('user_roles')
+        .update({ role: newRole as any })
+        .eq('id', existing.role_id);
 
-    if (error) {
-      toast.error('Failed to update role: ' + error.message);
+      if (error) {
+        toast.error('Failed to update role: ' + error.message);
+      } else {
+        setUsers(prev => prev.map(u => u.user_id === userId ? { ...u, role: newRole } : u));
+        toast.success(`Role updated to ${roleLabels[newRole] || newRole}`);
+      }
     } else {
-      setUsers(prev => prev.map(u => u.user_id === userId ? { ...u, role: newRole } : u));
-      toast.success(`Role updated to ${roleLabels[newRole] || newRole}`);
+      // Insert new role record
+      const { data, error } = await supabase
+        .from('user_roles')
+        .insert({ user_id: userId, role: newRole as any })
+        .select('id')
+        .single();
+
+      if (error) {
+        toast.error('Failed to assign role: ' + error.message);
+      } else {
+        setUsers(prev => prev.map(u => u.user_id === userId ? { ...u, role: newRole, role_id: data.id } : u));
+        toast.success(`Role assigned: ${roleLabels[newRole] || newRole}`);
+      }
     }
     setUpdatingRole(null);
   };
@@ -107,7 +128,7 @@ export default function UsersPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border bg-card">
+      <div className="rounded-xl border bg-card overflow-x-auto">
         {loading ? (
           <div className="flex items-center justify-center h-48">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -123,7 +144,7 @@ export default function UsersPage() {
               <TableRow className="hover:bg-transparent">
                 <TableHead>User</TableHead>
                 <TableHead>Role</TableHead>
-                <TableHead>Joined</TableHead>
+                <TableHead className="hidden sm:table-cell">Joined</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -137,9 +158,9 @@ export default function UsersPage() {
                           {(u.full_name || u.email || 'U').charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-                      <div>
-                        <p className="font-medium">{u.full_name || 'No name'}</p>
-                        <p className="text-sm text-muted-foreground">{u.email}</p>
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{u.full_name || 'No name'}</p>
+                        <p className="text-sm text-muted-foreground truncate">{u.email}</p>
                       </div>
                     </div>
                   </TableCell>
@@ -149,7 +170,7 @@ export default function UsersPage() {
                       onValueChange={(val) => handleRoleChange(u.user_id, val)}
                       disabled={updatingRole === u.user_id || u.role === 'super_admin'}
                     >
-                      <SelectTrigger className="w-40 h-8 text-xs">
+                      <SelectTrigger className="w-36 h-8 text-xs">
                         <SelectValue>
                           <Badge className={roleColors[u.role || 'viewer'] || roleColors.viewer}>
                             {roleLabels[u.role || 'viewer'] || u.role}
@@ -165,7 +186,7 @@ export default function UsersPage() {
                       </SelectContent>
                     </Select>
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
+                  <TableCell className="text-muted-foreground text-sm hidden sm:table-cell">
                     {new Date(u.created_at).toLocaleDateString()}
                   </TableCell>
                 </TableRow>

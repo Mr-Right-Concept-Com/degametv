@@ -10,12 +10,15 @@ const navItems = [
   { label: 'Earnings', href: '/studio/earnings', icon: DollarSign },
 ];
 
-export function StudioSidebar() {
+interface StudioSidebarProps {
+  onNavigate?: () => void;
+}
+
+export function StudioSidebar({ onNavigate }: StudioSidebarProps) {
   const { pathname } = useLocation();
 
   return (
     <aside className="fixed left-0 top-0 bottom-0 w-64 bg-card border-r border-border z-40 flex flex-col">
-      {/* Logo */}
       <div className="h-16 flex items-center gap-2.5 px-5 border-b border-border">
         <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
           <Clapperboard className="w-5 h-5 text-primary-foreground" />
@@ -26,7 +29,6 @@ export function StudioSidebar() {
         </div>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 py-4 px-3 space-y-1">
         <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-2">Studio</p>
         {navItems.map((item) => {
@@ -35,6 +37,7 @@ export function StudioSidebar() {
             <Link
               key={item.href}
               to={item.href}
+              onClick={onNavigate}
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
                 isActive
@@ -49,10 +52,10 @@ export function StudioSidebar() {
         })}
       </nav>
 
-      {/* Footer links */}
       <div className="p-3 border-t border-border space-y-1">
         <Link
           to="/"
+          onClick={onNavigate}
           className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
         >
           <ExternalLink className="w-3.5 h-3.5" />

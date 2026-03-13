@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,115 +7,106 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { AlertCircle, Copy, Eye, EyeOff, Save, TestTube, Zap } from 'lucide-react';
+import { AlertCircle, Copy, Eye, EyeOff, Save, TestTube, Zap, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { useTenant } from '@/hooks/useTenant';
 
-interface Gateway {
+interface GatewayRow {
   id: string;
-  name: string;
-  icon: string;
-  isLive: boolean;
-  isEnabled: boolean;
-  testKeys: { publicKey: string; secretKey: string };
-  liveKeys: { publicKey: string; secretKey: string };
-  configuredAt: string;
+  gateway_name: string;
+  is_enabled: boolean;
+  is_live: boolean;
+  test_public_key: string | null;
+  test_secret_key: string | null;
+  live_public_key: string | null;
+  live_secret_key: string | null;
+  webhook_secret: string | null;
 }
 
-export default function PaymentGatewaySettings() {
-  const [gateways, setGateways] = useState<Gateway[]>([
-    {
-      id: 'stripe',
-      name: 'Stripe',
-      icon: '💳',
-      isLive: false,
-      isEnabled: true,
-      testKeys: {
-        publicKey: 'pk_test_51234567890',
-        secretKey: 'sk_test_****************************abcd',
-      },
-      liveKeys: { publicKey: '', secretKey: '' },
-      configuredAt: '2025-02-10',
-    },
-    {
-      id: 'paystack',
-      name: 'Paystack',
-      icon: '🔗',
-      isLive: false,
-      isEnabled: true,
-      testKeys: {
-        publicKey: 'pk_test_paystack_key',
-        secretKey: 'sk_test_****************************efgh',
-      },
-      liveKeys: { publicKey: '', secretKey: '' },
-      configuredAt: '2025-02-10',
-    },
-    {
-      id: 'flutterwave',
-      name: 'Flutterwave',
-      icon: '⚡',
-      isLive: false,
-      isEnabled: true,
-      testKeys: {
-        publicKey: 'FLWPUBK_TEST_1234567890',
-        secretKey: 'sk_test_****************************ijkl',
-      },
-      liveKeys: { publicKey: '', secretKey: '' },
-      configuredAt: '2025-02-10',
-    },
-  ]);
+const GATEWAY_ICONS: Record<string, string> = { stripe: '💳', paystack: '🔗', flutterwave: '⚡' };
+const GATEWAY_NAMES = ['stripe', 'paystack', 'flutterwave'];
 
+export default function PaymentGatewaySettings() {
+  const [gateways, setGateways] = useState<GatewayRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedGateway, setSelectedGateway] = useState<string | null>(null);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
-  const [editingLiveKeys, setEditingLiveKeys] = useState<Record<string, { publicKey: string; secretKey: string }>>({});
+  const [saving, setSaving] = useState(false);
+  const [editKeys, setEditKeys] = useState<Record<string, { test_public_key: string; test_secret_key: string; live_public_key: string; live_secret_key: string }>>({});
+  const { tenant } = useTenant();
 
-  const currentGateway = gateways.find(g => g.id === selectedGateway);
+  useEffect(() => {
+    const fetchGateways = async () => {
+      setLoading(true);
+      const { data } = await supabase.from('payment_gateways').select('*');
+      if (data && data.length > 0) {
+        setGateways(data as GatewayRow[]);
+      } else {
+        // Initialize default gateways if none exist
+        setGateways(GATEWAY_NAMES.map(name => ({
+          id: '', gateway_name: name, is_enabled: false, is_live: false,
+          test_public_key: null, test_secret_key: null, live_public_key: null, live_secret_key: null, webhook_secret: null,
+        })));
+      }
+      setLoading(false);
+    };
+    fetchGateways();
+  }, []);
 
-  const toggleGateway = (id: string) => {
-    setGateways(prev =>
-      prev.map(g =>
-        g.id === id ? { ...g, isEnabled: !g.isEnabled } : g
-      )
-    );
-  };
+  const currentGateway = gateways.find(g => g.gateway_name === selectedGateway);
 
-  const switchToLiveMode = (id: string, publicKey: string, secretKey: string) => {
-    if (!publicKey || !secretKey) {
-      alert('Please provide both public and secret keys');
-      return;
+  const saveGateway = async (gw: GatewayRow, updates: Partial<GatewayRow>) => {
+    setSaving(true);
+    const tenantId = tenant?.id !== 'default' ? tenant?.id : '00000000-0000-0000-0000-000000000000';
+    
+    if (gw.id) {
+      const { error } = await supabase.from('payment_gateways').update(updates).eq('id', gw.id);
+      if (error) { toast.error('Save failed: ' + error.message); setSaving(false); return; }
+    } else {
+      const { data, error } = await supabase.from('payment_gateways')
+        .insert({ gateway_name: gw.gateway_name, tenant_id: tenantId, ...updates })
+        .select('id').single();
+      if (error) { toast.error('Save failed: ' + error.message); setSaving(false); return; }
+      gw.id = data.id;
     }
-    setGateways(prev =>
-      prev.map(g =>
-        g.id === id
-          ? {
-              ...g,
-              isLive: true,
-              liveKeys: { publicKey, secretKey },
-            }
-          : g
-      )
-    );
-    setEditingLiveKeys(prev => ({ ...prev, [id]: { publicKey: '', secretKey: '' } }));
+
+    setGateways(prev => prev.map(g => g.gateway_name === gw.gateway_name ? { ...g, ...updates, id: gw.id } : g));
+    toast.success('Settings saved');
+    setSaving(false);
   };
 
-  const switchBackToTest = (id: string) => {
-    setGateways(prev =>
-      prev.map(g =>
-        g.id === id ? { ...g, isLive: false } : g
-      )
-    );
+  const toggleEnabled = (gw: GatewayRow) => saveGateway(gw, { is_enabled: !gw.is_enabled });
+
+  const saveKeys = (gw: GatewayRow) => {
+    const keys = editKeys[gw.gateway_name];
+    if (!keys) return;
+    saveGateway(gw, {
+      test_public_key: keys.test_public_key || gw.test_public_key,
+      test_secret_key: keys.test_secret_key || gw.test_secret_key,
+      live_public_key: keys.live_public_key || gw.live_public_key,
+      live_secret_key: keys.live_secret_key || gw.live_secret_key,
+    });
   };
+
+  const switchMode = (gw: GatewayRow, goLive: boolean) => saveGateway(gw, { is_live: goLive });
+
+  if (loading) {
+    return (
+      <AdminLayout title="Payment Gateway Settings" description="Configure payment processors">
+        <div className="flex items-center justify-center h-64"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+      </AdminLayout>
+    );
+  }
 
   return (
-    <AdminLayout
-      title="Payment Gateway Settings"
-      description="Configure and manage payment processors (Stripe, Paystack, Flutterwave)"
-    >
+    <AdminLayout title="Payment Gateway Settings" description="Configure and manage payment processors">
       <div className="space-y-6">
-        {/* Warning Alert */}
         <Alert className="border-amber-500/50 bg-amber-500/10">
           <TestTube className="h-4 w-4 text-amber-600" />
           <AlertDescription>
-            <strong>Test Mode Active:</strong> All payment gateways are running in test/sandbox mode. Switch to live mode only when you're ready to process real payments. No rebuild required.
+            <strong>Test Mode Active:</strong> Switch to live mode only when you're ready to process real payments.
           </AlertDescription>
         </Alert>
 
@@ -123,285 +114,117 @@ export default function PaymentGatewaySettings() {
           <TabsList className="bg-secondary/50">
             <TabsTrigger value="overview">All Gateways</TabsTrigger>
             <TabsTrigger value="configure">Configure</TabsTrigger>
-            <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
           </TabsList>
 
-          {/* Overview */}
           <TabsContent value="overview" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {gateways.map(gateway => (
-                <Card
-                  key={gateway.id}
-                  className={`bg-card/50 border-border/50 cursor-pointer transition hover:border-primary/50 ${
-                    selectedGateway === gateway.id ? 'border-primary ring-2 ring-primary/20' : ''
-                  }`}
-                  onClick={() => setSelectedGateway(gateway.id)}
-                >
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {gateways.map(gw => (
+                <Card key={gw.gateway_name} className={`bg-card/50 border-border/50 cursor-pointer transition hover:border-primary/50 ${selectedGateway === gw.gateway_name ? 'border-primary ring-2 ring-primary/20' : ''}`}
+                  onClick={() => setSelectedGateway(gw.gateway_name)}>
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-3">
-                        <span className="text-3xl">{gateway.icon}</span>
+                        <span className="text-3xl">{GATEWAY_ICONS[gw.gateway_name] || '💳'}</span>
                         <div>
-                          <h3 className="font-bold">{gateway.name}</h3>
+                          <h3 className="font-bold capitalize">{gw.gateway_name}</h3>
                           <p className="text-xs text-muted-foreground">Payment Processor</p>
                         </div>
                       </div>
-                      <Switch
-                        checked={gateway.isEnabled}
-                        onCheckedChange={() => toggleGateway(gateway.id)}
-                      />
+                      <Switch checked={gw.is_enabled} onCheckedChange={() => toggleEnabled(gw)} />
                     </div>
-
-                    <div className="space-y-2 text-sm mb-4">
+                    <div className="space-y-2 text-sm">
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">Mode:</span>
-                        <Badge variant={gateway.isLive ? 'destructive' : 'secondary'}>
-                          {gateway.isLive ? 'LIVE' : 'TEST'}
-                        </Badge>
+                        <Badge variant={gw.is_live ? 'destructive' : 'secondary'}>{gw.is_live ? 'LIVE' : 'TEST'}</Badge>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">Status:</span>
-                        <Badge variant={gateway.isEnabled ? 'default' : 'secondary'}>
-                          {gateway.isEnabled ? 'Enabled' : 'Disabled'}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Configured:</span>
-                        <span className="text-xs">{gateway.configuredAt}</span>
+                        <Badge variant={gw.is_enabled ? 'default' : 'secondary'}>{gw.is_enabled ? 'Enabled' : 'Disabled'}</Badge>
                       </div>
                     </div>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedGateway(gateway.id);
-                      }}
-                    >
-                      Configure
-                    </Button>
                   </CardContent>
                 </Card>
               ))}
             </div>
           </TabsContent>
 
-          {/* Configure Gateways */}
           <TabsContent value="configure" className="space-y-6">
-            {selectedGateway ? (
-              currentGateway && (
-                <Card className="bg-card/50 border-border/50">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <span className="text-3xl">{currentGateway.icon}</span>
-                      {currentGateway.name} Configuration
-                    </CardTitle>
-                    <CardDescription>
-                      {currentGateway.isLive ? 'Live mode - Real transactions' : 'Test mode - No real charges'}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-8">
-                    {/* Test Mode Keys */}
-                    {!currentGateway.isLive && (
-                      <div className="space-y-4 p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
-                        <h3 className="font-bold flex items-center gap-2">
-                          <TestTube className="w-4 h-4" />
-                          Test Mode Keys (Pre-configured)
-                        </h3>
-                        <div className="space-y-4">
-                          <div>
-                            <Label className="mb-2 block text-sm">Public Key</Label>
-                            <div className="flex gap-2">
-                              <code className="flex-1 bg-secondary/50 p-3 rounded text-xs font-mono break-all">
-                                {currentGateway.testKeys.publicKey}
-                              </code>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => navigator.clipboard.writeText(currentGateway.testKeys.publicKey)}
-                              >
-                                <Copy className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </div>
-                          <div>
-                            <Label className="mb-2 block text-sm">Secret Key</Label>
-                            <div className="flex gap-2">
-                              <code className="flex-1 bg-secondary/50 p-3 rounded text-xs font-mono break-all">
-                                {showSecrets[`${currentGateway.id}_test`]
-                                  ? currentGateway.testKeys.secretKey.replace(/\*/g, '*')
-                                  : '••••••••••••••••••••••••••••••••'}
-                              </code>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setShowSecrets(prev => ({
-                                  ...prev,
-                                  [`${currentGateway.id}_test`]: !prev[`${currentGateway.id}_test`]
-                                }))}
-                              >
-                                {showSecrets[`${currentGateway.id}_test`] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => navigator.clipboard.writeText(currentGateway.testKeys.secretKey)}
-                              >
-                                <Copy className="w-4 h-4" />
-                              </Button>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-2">
-                              Use these keys to test payments. No real charges will be made.
-                            </p>
-                          </div>
-                        </div>
+            {currentGateway ? (
+              <Card className="bg-card/50 border-border/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <span className="text-3xl">{GATEWAY_ICONS[currentGateway.gateway_name] || '💳'}</span>
+                    <span className="capitalize">{currentGateway.gateway_name}</span> Configuration
+                  </CardTitle>
+                  <CardDescription>{currentGateway.is_live ? 'Live mode - Real transactions' : 'Test mode - No real charges'}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Test Keys */}
+                  <div className="space-y-4 p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                    <h3 className="font-bold flex items-center gap-2"><TestTube className="w-4 h-4" /> Test Keys</h3>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Test Public Key</Label>
+                        <Input
+                          value={editKeys[currentGateway.gateway_name]?.test_public_key ?? currentGateway.test_public_key ?? ''}
+                          onChange={e => setEditKeys(prev => ({ ...prev, [currentGateway.gateway_name]: { ...(prev[currentGateway.gateway_name] || { test_public_key: '', test_secret_key: '', live_public_key: '', live_secret_key: '' }), test_public_key: e.target.value } }))}
+                          placeholder="pk_test_..."
+                        />
                       </div>
-                    )}
-
-                    {/* Switch to Live Mode */}
-                    {!currentGateway.isLive && (
-                      <div className="space-y-4 p-4 bg-amber-500/10 rounded-lg border border-amber-500/20">
-                        <h3 className="font-bold flex items-center gap-2">
-                          <Zap className="w-4 h-4" />
-                          Switch to Live Mode
-                        </h3>
-                        <p className="text-sm text-muted-foreground">
-                          Paste your live API keys below to enable real payment processing. No code rebuild needed.
-                        </p>
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="live_public" className="mb-2 block text-sm">
-                              Live Public Key
-                            </Label>
-                            <Input
-                              id="live_public"
-                              placeholder="Paste your live public key"
-                              value={editingLiveKeys[currentGateway.id]?.publicKey || ''}
-                              onChange={(e) =>
-                                setEditingLiveKeys(prev => ({
-                                  ...prev,
-                                  [currentGateway.id]: {
-                                    ...(prev[currentGateway.id] || { publicKey: '', secretKey: '' }),
-                                    publicKey: e.target.value,
-                                  },
-                                }))
-                              }
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="live_secret" className="mb-2 block text-sm">
-                              Live Secret Key
-                            </Label>
-                            <Input
-                              id="live_secret"
-                              type="password"
-                              placeholder="Paste your live secret key"
-                              value={editingLiveKeys[currentGateway.id]?.secretKey || ''}
-                              onChange={(e) =>
-                                setEditingLiveKeys(prev => ({
-                                  ...prev,
-                                  [currentGateway.id]: {
-                                    ...(prev[currentGateway.id] || { publicKey: '', secretKey: '' }),
-                                    secretKey: e.target.value,
-                                  },
-                                }))
-                              }
-                            />
-                          </div>
-                          <Alert>
-                            <AlertCircle className="h-4 w-4" />
-                            <AlertDescription>
-                              Your live keys are encrypted and stored securely. They won't be displayed after saving.
-                            </AlertDescription>
-                          </Alert>
-                          <Button
-                            className="w-full"
-                            onClick={() =>
-                              switchToLiveMode(
-                                currentGateway.id,
-                                editingLiveKeys[currentGateway.id]?.publicKey || '',
-                                editingLiveKeys[currentGateway.id]?.secretKey || ''
-                              )
-                            }
-                          >
-                            <Save className="w-4 h-4 mr-2" />
-                            Activate Live Mode
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Live Mode Active */}
-                    {currentGateway.isLive && (
-                      <div className="space-y-4 p-4 bg-red-500/10 rounded-lg border border-red-500/20">
-                        <h3 className="font-bold flex items-center gap-2 text-red-600">
-                          <Zap className="w-4 h-4" />
-                          Live Mode Active
-                        </h3>
-                        <p className="text-sm text-red-600/80">
-                          Real payments are being processed. Be careful with changes.
-                        </p>
-                        <Button
-                          variant="outline"
-                          className="w-full"
-                          onClick={() => switchBackToTest(currentGateway.id)}
-                        >
-                          Switch Back to Test Mode
+                      <div className="space-y-2">
+                        <Label>Test Secret Key</Label>
+                        <Input
+                          type={showSecrets[`${currentGateway.gateway_name}_test`] ? 'text' : 'password'}
+                          value={editKeys[currentGateway.gateway_name]?.test_secret_key ?? currentGateway.test_secret_key ?? ''}
+                          onChange={e => setEditKeys(prev => ({ ...prev, [currentGateway.gateway_name]: { ...(prev[currentGateway.gateway_name] || { test_public_key: '', test_secret_key: '', live_public_key: '', live_secret_key: '' }), test_secret_key: e.target.value } }))}
+                          placeholder="sk_test_..."
+                        />
+                        <Button variant="ghost" size="sm" onClick={() => setShowSecrets(prev => ({ ...prev, [`${currentGateway.gateway_name}_test`]: !prev[`${currentGateway.gateway_name}_test`] }))}>
+                          {showSecrets[`${currentGateway.gateway_name}_test`] ? <EyeOff className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
+                          {showSecrets[`${currentGateway.gateway_name}_test`] ? 'Hide' : 'Show'}
                         </Button>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )
-            ) : (
-              <Card className="bg-card/50 border-border/50">
-                <CardContent className="p-12 text-center">
-                  <p className="text-muted-foreground">Select a gateway from the overview tab to configure</p>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          {/* Webhooks */}
-          <TabsContent value="webhooks" className="space-y-4">
-            <Card className="bg-card/50 border-border/50">
-              <CardHeader>
-                <CardTitle>Webhook Configuration</CardTitle>
-                <CardDescription>Set up webhooks to receive payment events in real-time</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {gateways.map(gateway => (
-                  <div key={gateway.id} className="p-4 border border-border rounded-lg">
-                    <h3 className="font-bold mb-3 flex items-center gap-2">
-                      <span>{gateway.icon}</span>
-                      {gateway.name}
-                    </h3>
-                    <div className="space-y-3">
-                      <div>
-                        <Label className="text-sm text-muted-foreground mb-1 block">Webhook URL</Label>
-                        <div className="flex gap-2">
-                          <code className="flex-1 bg-secondary/50 p-3 rounded text-xs font-mono break-all">
-                            https://your-domain.com/api/webhooks/{gateway.id}
-                          </code>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => navigator.clipboard.writeText(`https://your-domain.com/api/webhooks/${gateway.id}`)}
-                          >
-                            <Copy className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Add this URL to your {gateway.name} dashboard to receive payment notifications
-                      </p>
                     </div>
                   </div>
-                ))}
-              </CardContent>
-            </Card>
+
+                  {/* Live Keys */}
+                  <div className="space-y-4 p-4 bg-amber-500/10 rounded-lg border border-amber-500/20">
+                    <h3 className="font-bold flex items-center gap-2"><Zap className="w-4 h-4" /> Live Keys</h3>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Live Public Key</Label>
+                        <Input
+                          value={editKeys[currentGateway.gateway_name]?.live_public_key ?? currentGateway.live_public_key ?? ''}
+                          onChange={e => setEditKeys(prev => ({ ...prev, [currentGateway.gateway_name]: { ...(prev[currentGateway.gateway_name] || { test_public_key: '', test_secret_key: '', live_public_key: '', live_secret_key: '' }), live_public_key: e.target.value } }))}
+                          placeholder="pk_live_..."
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Live Secret Key</Label>
+                        <Input
+                          type={showSecrets[`${currentGateway.gateway_name}_live`] ? 'text' : 'password'}
+                          value={editKeys[currentGateway.gateway_name]?.live_secret_key ?? currentGateway.live_secret_key ?? ''}
+                          onChange={e => setEditKeys(prev => ({ ...prev, [currentGateway.gateway_name]: { ...(prev[currentGateway.gateway_name] || { test_public_key: '', test_secret_key: '', live_public_key: '', live_secret_key: '' }), live_secret_key: e.target.value } }))}
+                          placeholder="sk_live_..."
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Button onClick={() => saveKeys(currentGateway)} disabled={saving} className="flex-1">
+                      {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                      Save Keys
+                    </Button>
+                    <Button variant={currentGateway.is_live ? 'outline' : 'destructive'} onClick={() => switchMode(currentGateway, !currentGateway.is_live)} className="flex-1">
+                      {currentGateway.is_live ? 'Switch to Test Mode' : 'Activate Live Mode'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="bg-card/50"><CardContent className="p-12 text-center"><p className="text-muted-foreground">Select a gateway from the overview tab</p></CardContent></Card>
+            )}
           </TabsContent>
         </Tabs>
       </div>
