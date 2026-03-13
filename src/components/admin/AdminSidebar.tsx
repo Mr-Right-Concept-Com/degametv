@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { 
   LayoutDashboard, Users, Film, Tag, TrendingUp, CreditCard,
-  Palette, Mail, Upload, ExternalLink, LogOut, ChevronRight
+  Palette, Mail, Upload, ExternalLink, LogOut
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -45,7 +45,7 @@ const sections: { title: string; items: NavItem[] }[] = [
   {
     title: 'Settings',
     items: [
-      { label: 'Branding', href: '/admin/modules/white-label', icon: Palette },
+      { label: 'Branding', href: '/admin/settings/branding', icon: Palette },
       { label: 'Email Settings', href: '/admin/settings/email', icon: Mail },
     ],
   },
@@ -58,7 +58,11 @@ const sections: { title: string; items: NavItem[] }[] = [
   },
 ];
 
-export function AdminSidebar() {
+interface AdminSidebarProps {
+  onNavigate?: () => void;
+}
+
+export function AdminSidebar({ onNavigate }: AdminSidebarProps) {
   const location = useLocation();
   const { signOut, user } = useAuth();
 
@@ -88,7 +92,7 @@ export function AdminSidebar() {
               {section.title}
             </p>
             {section.items.map((item) => (
-              <NavLink key={item.href} item={item} active={isActive(item.href)} />
+              <NavLink key={item.href} item={item} active={isActive(item.href)} onNavigate={onNavigate} />
             ))}
           </div>
         ))}
@@ -121,27 +125,27 @@ export function AdminSidebar() {
   );
 }
 
-function NavLink({ item, active }: { item: NavItem; active: boolean }) {
+function NavLink({ item, active, onNavigate }: { item: NavItem; active: boolean; onNavigate?: () => void }) {
   const Icon = item.icon;
 
   if (item.external) {
     return (
-      <a
-        href={item.href}
-        target="_blank"
-        rel="noopener noreferrer"
+      <Link
+        to={item.href}
+        onClick={onNavigate}
         className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-all"
       >
         <Icon className="h-4 w-4 shrink-0" />
         <span className="flex-1">{item.label}</span>
         <ExternalLink className="h-3 w-3" />
-      </a>
+      </Link>
     );
   }
 
   return (
     <Link
       to={item.href}
+      onClick={onNavigate}
       className={cn(
         "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all",
         active

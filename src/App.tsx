@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { TenantProvider } from "@/hooks/useTenant";
 import { ProtectedAdminRoute } from "@/components/auth/ProtectedAdminRoute";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 
 // End-user pages
 import Index from "./pages/Index";
@@ -46,7 +47,6 @@ import StudioMovies from "./pages/studio/StudioMovies";
 import StudioSubmit from "./pages/studio/StudioSubmit";
 import StudioScreenings from "./pages/studio/StudioScreenings";
 import StudioEarnings from "./pages/studio/StudioEarnings";
-import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -78,8 +78,8 @@ const App = () => (
               {/* ============ VIRTUAL CINEMA TICKET FUNNEL ============ */}
               <Route path="/buy/:slug" element={<BuyTicket />} />
               <Route path="/watch/:watchCode" element={<WatchMovie />} />
-              <Route path="/tickets" element={<MyTickets />} />
-              <Route path="/dashboard" element={<UserDashboard />} />
+              <Route path="/tickets" element={<ProtectedRoute><MyTickets /></ProtectedRoute>} />
+              <Route path="/dashboard" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
               <Route path="/filmmaker" element={<FilmmakerSubmit />} />
               
               {/* ============ STUDIO (Protected - Filmmakers) ============ */}
@@ -98,7 +98,7 @@ const App = () => (
               <Route path="/admin/filmmaker" element={<ProtectedAdminRoute><FilmmakerPortal /></ProtectedAdminRoute>} />
               <Route path="/admin/settings/payment-gateways" element={<ProtectedAdminRoute><PaymentGatewaySettings /></ProtectedAdminRoute>} />
               <Route path="/admin/settings/email" element={<ProtectedAdminRoute><EmailSettings /></ProtectedAdminRoute>} />
-              <Route path="/admin/modules/white-label" element={<ProtectedAdminRoute><WhiteLabel /></ProtectedAdminRoute>} />
+              <Route path="/admin/settings/branding" element={<ProtectedAdminRoute><WhiteLabel /></ProtectedAdminRoute>} />
               
               <Route path="*" element={<NotFound />} />
             </Routes>
