@@ -16,6 +16,7 @@ interface ScreeningRow {
 }
 
 export default function StudioScreenings() {
+  usePageTitle('Studio: Screenings');
   const { user } = useAuth();
   const [screenings, setScreenings] = useState<ScreeningRow[]>([]);
   const [loading, setLoading] = useState(true);

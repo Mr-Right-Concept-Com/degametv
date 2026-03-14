@@ -7,6 +7,7 @@ import { DollarSign, Ticket, TrendingUp, Loader2 } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 export default function StudioEarnings() {
+  usePageTitle('Studio: Earnings');
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [earnings, setEarnings] = useState({ totalRevenue: 0, ticketsSold: 0, screeningCount: 0 });

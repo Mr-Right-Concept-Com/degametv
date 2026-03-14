@@ -13,6 +13,7 @@ import { Link } from 'react-router-dom';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 export default function AdminDashboard() {
+  usePageTitle('Admin: Dashboard');
   const [metrics, setMetrics] = useState({ totalRevenue: 0, totalTickets: 0, totalScreenings: 0, completedTickets: 0 });
   const [recentTickets, setRecentTickets] = useState<any[]>([]);
   const [recentSubmissions, setRecentSubmissions] = useState<any[]>([]);

@@ -23,6 +23,7 @@ interface Submission {
 }
 
 export default function StudioMovies() {
+  usePageTitle('Studio: My Movies');
   const { user } = useAuth();
   const [movies, setMovies] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);

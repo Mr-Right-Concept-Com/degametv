@@ -18,6 +18,7 @@ interface Submission {
 }
 
 export default function StudioDashboard() {
+  usePageTitle('Studio: Dashboard');
   const { user } = useAuth();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
