@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Menu, X, Search, User, Ticket, LayoutDashboard, Film, Upload, Clapperboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
