@@ -39,7 +39,6 @@ export default function BuyTicket() {
   const [screening, setScreening] = useState<Screening | null>(null);
   const [loadingScreening, setLoadingScreening] = useState(true);
   usePageTitle(screening?.title ? `Buy Ticket — ${screening.title}` : 'Buy Ticket');
-  const [loadingScreening, setLoadingScreening] = useState(true);
   const [confirmation, setConfirmation] = useState<any>(null);
   const [promoCode, setPromoCode] = useState('');
   const [promoDiscount, setPromoDiscount] = useState<{ type: string; value: number } | null>(null);
