@@ -12,6 +12,7 @@ import {
   Star, Clock, Calendar, Play, Ticket, Bell, Send,
   ChevronLeft, ChevronRight, Loader2, MessageCircle, Shield
 } from 'lucide-react';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface CastMember {
   name: string;
