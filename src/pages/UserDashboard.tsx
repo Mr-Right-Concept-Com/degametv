@@ -15,6 +15,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { z } from 'zod';
+import { usePageTitle } from '@/hooks/usePageTitle';
+
+const displayNameSchema = z.string().trim().min(2, 'Name must be at least 2 characters').max(50, 'Name must be under 50 characters');
 
 export default function UserDashboard() {
   const { user, signOut } = useAuth();
