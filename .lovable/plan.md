@@ -1,130 +1,130 @@
+# Admin Redesign & Filmmaker Portal Cleanup Plan
+
+## Problem Summary
+
+The admin panel is cluttered with "Modules" terminology and 17-module JUVUKO architecture abstractions that don't serve the actual app management needs. The sidebar has a "Modules" collapsible section listing 17 abstract modules. The Dashboard shows "Platform Modules" toggles. The Users page uses mock data. The Filmmaker Portal at `/admin/filmmaker` duplicates the public submission form. The user wants a clean, practical admin for managing the real app: screenings, tickets, users, filmmakers, payments, and settings.
+
+## What Changes
+
+### 1. Redesign Admin Sidebar (`AdminSidebar.tsx`)
+
+Remove all "Modules" references. Replace with direct, clear navigation:
+
+**Navigation Structure:**
+
+- **Overview**: Dashboard
+- **Content**: Screenings, Promo Codes
+- **People**: Users, Filmmakers (submissions review)
+- **Revenue**: Sales & Tickets, Payment Gateways
+- **Settings**: Branding, Email Settings
+- **Links**: Filmmaker Portal (external link to `/filmmaker`)
+
+No collapsible "Modules" section. No module IDs. No badge system for beta/coming-soon.
+
+### 2. Redesign Admin Dashboard (`Dashboard.tsx`)
+
+Remove the "Platform Modules" section with ModuleCard toggles at the bottom. Keep the real metrics (revenue, tickets, screenings). Improve Quick Actions to link to the new direct routes. Add a "Recent Tickets" table showing latest ticket purchases from real data. Add a "Recent Submissions" section showing latest filmmaker submissions.
+
+### 3. Redesign Filmmaker Portal so filmmaker/studio can sign up and start uploading/ premiering their movies etc full portal upload and detail sysyem (`FilmmakerPortal.tsx`)
+
+Remove the "Submit Project" tab — that's the public form at `/filmmaker`. The admin page should be **review-only**: list submissions, view details, approve/reject. Keep the existing submissions table, stats, and review dialog. Remove the duplicated submit form and guidelines tab.
+
+### 4. Wire Users Page to Real Data (`Users.tsx`)
+
+Replace `mockUsers` with real Supabase queries joining `profiles` and `user_roles` tables. Show actual registered users with their roles, emails, and registration dates.
+
+### 5. Create Screenings Management Page (`/admin/screenings`)
+
+A proper admin page to view/manage all screenings from the `screenings` table (not the mock-data ScreeningManagement). Show title, status, date, ticket count, revenue per screening.
+
+### 6. Create Promo Codes Management Page (`/admin/promo-codes`)
+
+Admin page to view, create, and manage promo codes from the `promo_codes` table.
+
+### 7. Update Routes (`App.tsx`)
+
+- Add `/admin/screenings` route
+- Add `/admin/promo-codes` route
+- Remove `/admin/modules` and all `/admin/modules/*` routes (the individual module admin pages)
+- Keep `/admin/filmmaker` for submission review
+- Keep `/admin/sales` for the ProducerDashboard
+- Keep `/admin/settings/email` and `/admin/settings/payment-gateways`
+
+### 8. Remove Modules Page (`Modules.tsx`)
+
+Delete the modules toggle page entirely — it's not needed for app management.
+
+## Files to Create
 
 
-# Launch Readiness Audit & Comprehensive Fix Plan
+| File                             | Purpose                                      |
+| -------------------------------- | -------------------------------------------- |
+| `src/pages/admin/Screenings.tsx` | Real screening management with Supabase data |
+| `src/pages/admin/PromoCodes.tsx` | Promo code management CRUD                   |
 
-## Audit Summary
 
-After deep inspection of every page, dashboard, route, and data flow, here is the complete findings and fix plan.
+## Files to Modify
 
-## Issues Found
 
-### A. Missing Features
-1. **No AI Concierge exists** -- The user mentioned an AI Concierge as a USP/data moat. There is zero implementation of any chatbot, AI assistant, or concierge feature anywhere in the codebase.
-2. **No page titles (SEO)** -- Zero `document.title` usage across all pages. Every page shows the default "Vite + React" title.
-3. **Navbar search is non-functional** -- The search input doesn't filter, navigate, or do anything.
+| File                                            | Changes                                  |
+| ----------------------------------------------- | ---------------------------------------- |
+| `src/components/admin/AdminSidebar.tsx`         | Remove modules, clean navigation         |
+| `src/pages/admin/Dashboard.tsx`                 | Remove module cards, add recent activity |
+| `src/pages/admin/filmmaker/FilmmakerPortal.tsx` | Remove submit form tab, review-only      |
+| `src/pages/admin/Users.tsx`                     | Wire to real Supabase data               |
+| `src/App.tsx`                                   | Update admin routes                      |
 
-### B. Broken/Unwired UI
-4. **Admin Sidebar "Branding" link** -- Now correctly routes to `/admin/settings/branding` (confirmed fixed).
-5. **Navbar search on mobile** -- Opens a search input that does nothing on submit or typing.
 
-### C. Data & Backend Gaps
-6. **Studio Earnings shows ₦0 always** -- The query chain (submissions → screenings → tickets) works but the `content_id` on `filmmaker_submissions` is always `null` because it's never set when admin approves. The approval flow in `FilmmakerPortal.tsx` only updates `status` -- it doesn't create a `content` record or set `content_id`.
-7. **Studio Screenings always empty** -- Same root cause: `content_id` is never populated on approved submissions.
+## Files to Remove (from routes, not delete)
 
-### D. Missing Validation & Polish
-8. **No Zod on BuyTicket form** -- The email step has inline validation only, no schema.
-9. **No Zod on Contact page** -- Likely inline validation.
-10. **Profile save on UserDashboard** -- No validation on display name length.
+All `/admin/modules/*` routes removed from App.tsx. The page files can stay but won't be routed.
 
-### E. Minor Issues
-11. **Modules.tsx, Tenants.tsx** still exist as files but are not routed -- harmless but dead code.
-12. **`data/mockData.ts`** -- Large mock data file still present, only used by dead module pages.
+## Technical Details
 
----
+### Users Page Real Data Query
 
-## Fix Plan
+```sql
+-- Join profiles + user_roles
+SELECT p.user_id, p.email, p.full_name, p.avatar_url, p.created_at,
+       ur.role
+FROM profiles p
+LEFT JOIN user_roles ur ON ur.user_id = p.user_id
+ORDER BY p.created_at DESC
+```
 
-### Phase 1: AI Concierge (USP Feature)
-Create a floating AI chat widget that appears on all public pages. This will be the platform's differentiator.
+### Screenings Admin Query
 
-**Implementation:**
-- Create `src/components/ai/AIConcierge.tsx` -- A floating chat bubble (bottom-right) that opens a chat panel
-- Create a Supabase Edge Function `ai-concierge` that uses the Lovable AI integration or OpenAI to answer questions about screenings, ticket prices, showtimes, and filmmaker submissions
-- The concierge will be context-aware: query `screenings` table to answer "what's showing?", "how much is [movie]?", "when is the next premiere?"
-- Add the component to `MainLayout.tsx` so it appears on all public pages
-- Store conversation in local state (no persistence needed for MVP)
+```sql
+SELECT s.*, 
+  (SELECT count(*) FROM screening_tickets st WHERE st.screening_id = s.id) as ticket_count,
+  (SELECT coalesce(sum(price), 0) FROM screening_tickets st WHERE st.screening_id = s.id AND st.payment_status = 'completed') as revenue
+FROM screenings s
+ORDER BY s.created_at DESC
+```
 
-**Files to create:**
-- `src/components/ai/AIConcierge.tsx`
-- `supabase/functions/ai-concierge/index.ts`
+### Sidebar Structure (Final)
 
-**Files to modify:**
-- `src/components/layout/MainLayout.tsx` (add `<AIConcierge />`)
-- `supabase/config.toml` (add function config)
+```text
+OVERVIEW
+  Dashboard
 
-### Phase 2: SEO Page Titles
-Add `document.title` to every page using a `useEffect` hook.
+CONTENT
+  Screenings
+  Promo Codes
 
-**Files to modify (all pages):**
-- `Index.tsx` → "DeGameTV — Virtual Cinema Premieres"
-- `Cinema.tsx` → "Now Showing — DeGameTV"
-- `MovieLanding.tsx` → "{movie.title} — DeGameTV"
-- `BuyTicket.tsx` → "Buy Ticket — {movie.title}"
-- `WatchMovie.tsx` → "Watch — DeGameTV"
-- `Auth.tsx` → "Sign In — DeGameTV"
-- `UserDashboard.tsx` → "My Dashboard — DeGameTV"
-- `MyTickets.tsx` → "My Tickets — DeGameTV"
-- `FilmmakerSubmit.tsx` → "Filmmaker Portal — DeGameTV"
-- All admin pages → "Admin: {page} — DeGameTV"
-- All studio pages → "Studio: {page} — DeGameTV"
-- Static pages (FAQ, Contact, Terms, Privacy, Refund) → "{Page Name} — DeGameTV"
-- `NotFound.tsx` → "Page Not Found — DeGameTV"
-- `ResetPassword.tsx` → "Reset Password — DeGameTV"
+PEOPLE
+  Users
+  Filmmaker Submissions
 
-Create a helper: `src/hooks/usePageTitle.ts`
+REVENUE
+  Sales Dashboard
+  Payment Gateways
 
-### Phase 3: Wire Navbar Search
-Make the search input functional: filter screenings by title, navigate to `/cinema?q=search_term`.
+SETTINGS
+  Branding
+  Email Settings
 
-**Files to modify:**
-- `src/components/layout/Navbar.tsx` — Add `onSubmit` handler that navigates to `/cinema?q={query}`
-- `src/pages/Cinema.tsx` — Read `?q=` param from URL, pre-fill search and filter results
-
-### Phase 4: Fix Studio Data Pipeline (content_id)
-When admin approves a filmmaker submission, auto-create a `content` record and set `content_id` on the submission. This unblocks Studio Screenings and Earnings.
-
-**Files to modify:**
-- `src/pages/admin/filmmaker/FilmmakerPortal.tsx` — In `updateStatus()`, when status is `approved`:
-  1. Create a `content` record from submission data (title, description, poster_url, etc.)
-  2. Update `filmmaker_submissions.content_id` with the new content ID
-  3. Optionally auto-create a draft `screening` record linked to the content
-
-### Phase 5: Form Validation Polish
-Add Zod validation to remaining forms:
-
-- `src/pages/BuyTicket.tsx` — Email validation with Zod schema
-- `src/pages/Contact.tsx` — Name/email/message validation
-- `src/pages/UserDashboard.tsx` — Display name validation (2-50 chars)
-
-### Phase 6: Cleanup Dead Code
-Remove unused files from routes and imports:
-- Remove references to `src/pages/admin/Modules.tsx`, `src/pages/admin/Tenants.tsx`
-- Clean up `src/data/mockData.ts` if no page imports it
-
----
-
-## Files Summary
-
-| Action | File | Purpose |
-|--------|------|---------|
-| Create | `src/components/ai/AIConcierge.tsx` | Floating AI chat widget |
-| Create | `supabase/functions/ai-concierge/index.ts` | AI-powered Q&A edge function |
-| Create | `src/hooks/usePageTitle.ts` | SEO page title helper |
-| Modify | `src/components/layout/MainLayout.tsx` | Add AIConcierge component |
-| Modify | `src/components/layout/Navbar.tsx` | Wire search to navigate |
-| Modify | `src/pages/Cinema.tsx` | Read search query param |
-| Modify | `src/pages/admin/filmmaker/FilmmakerPortal.tsx` | Auto-create content on approve |
-| Modify | 20+ page files | Add `usePageTitle()` calls |
-| Modify | `src/pages/BuyTicket.tsx` | Zod email validation |
-| Modify | `src/pages/Contact.tsx` | Zod form validation |
-| Modify | `src/pages/UserDashboard.tsx` | Zod display name validation |
-| Modify | `supabase/config.toml` | Add ai-concierge function config |
-
-## Priority Order
-1. **Phase 4** (Fix data pipeline) — Unblocks studio dashboard from showing real data
-2. **Phase 2** (SEO titles) — Quick win, every page
-3. **Phase 3** (Search) — Wire navbar search
-4. **Phase 1** (AI Concierge) — The USP feature
-5. **Phase 5** (Validation polish) — Launch hardening
-6. **Phase 6** (Cleanup) — Optional
-
+LINKS
+  Filmmaker Portal ↗ (external)
+  View Site ↗ (external)
+```

@@ -10,6 +10,10 @@ import { Separator } from '@/components/ui/separator';
 import { MapPin, Mail, Zap, Check, ArrowLeft, Loader2, Clock, Calendar, Tag } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { z } from 'zod';
+import { usePageTitle } from '@/hooks/usePageTitle';
+
+const emailSchema = z.string().trim().email('Please enter a valid email');
 
 interface Screening {
   id: string;
@@ -34,6 +38,7 @@ export default function BuyTicket() {
   const [processing, setProcessing] = useState(false);
   const [screening, setScreening] = useState<Screening | null>(null);
   const [loadingScreening, setLoadingScreening] = useState(true);
+  usePageTitle(screening?.title ? `Buy Ticket — ${screening.title}` : 'Buy Ticket');
   const [confirmation, setConfirmation] = useState<any>(null);
   const [promoCode, setPromoCode] = useState('');
   const [promoDiscount, setPromoDiscount] = useState<{ type: string; value: number } | null>(null);

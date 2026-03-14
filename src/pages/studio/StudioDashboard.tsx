@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Film, Upload, Clock, CheckCircle, DollarSign, Loader2 } from 'lucide-react';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface Submission {
   id: string;
@@ -17,6 +18,7 @@ interface Submission {
 }
 
 export default function StudioDashboard() {
+  usePageTitle('Studio: Dashboard');
   const { user } = useAuth();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);

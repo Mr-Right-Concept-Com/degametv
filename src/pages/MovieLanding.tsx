@@ -12,6 +12,7 @@ import {
   Star, Clock, Calendar, Play, Ticket, Bell, Send,
   ChevronLeft, ChevronRight, Loader2, MessageCircle, Shield
 } from 'lucide-react';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface CastMember {
   name: string;
@@ -50,6 +51,7 @@ export default function MovieLanding() {
   const { slug } = useParams<{ slug: string }>();
   const [screening, setScreening] = useState<Screening | null>(null);
   const [loading, setLoading] = useState(true);
+  usePageTitle(screening?.title || 'Movie');
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState({ nickname: '', comment: '' });
   const [notifyEmail, setNotifyEmail] = useState('');

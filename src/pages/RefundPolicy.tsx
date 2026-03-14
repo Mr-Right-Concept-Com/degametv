@@ -1,6 +1,8 @@
 import { MainLayout } from '@/components/layout/MainLayout';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export default function RefundPolicy() {
+  usePageTitle('Refund Policy');
   return (
     <MainLayout>
       <div className="container mx-auto px-4 py-10 max-w-3xl">

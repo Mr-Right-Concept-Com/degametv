@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Calendar, Loader2, Film } from 'lucide-react';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface ScreeningRow {
   id: string;
@@ -15,6 +16,7 @@ interface ScreeningRow {
 }
 
 export default function StudioScreenings() {
+  usePageTitle('Studio: Screenings');
   const { user } = useAuth();
   const [screenings, setScreenings] = useState<ScreeningRow[]>([]);
   const [loading, setLoading] = useState(true);

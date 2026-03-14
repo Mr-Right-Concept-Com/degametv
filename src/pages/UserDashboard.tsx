@@ -15,10 +15,15 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { z } from 'zod';
+import { usePageTitle } from '@/hooks/usePageTitle';
+
+const displayNameSchema = z.string().trim().min(2, 'Name must be at least 2 characters').max(50, 'Name must be under 50 characters');
 
 export default function UserDashboard() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  usePageTitle('My Dashboard');
   const [tickets, setTickets] = useState<any[]>([]);
   const [watchHistory, setWatchHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,9 +64,14 @@ export default function UserDashboard() {
   };
 
   const saveProfile = async () => {
+    const result = displayNameSchema.safeParse(displayName);
+    if (!result.success) {
+      toast.error(result.error.errors[0].message);
+      return;
+    }
     setSavingProfile(true);
     const { error } = await supabase.from('profiles')
-      .update({ display_name: displayName, updated_at: new Date().toISOString() })
+      .update({ display_name: result.data, updated_at: new Date().toISOString() })
       .eq('user_id', user!.id);
     if (error) toast.error('Failed to save');
     else toast.success('Profile updated!');

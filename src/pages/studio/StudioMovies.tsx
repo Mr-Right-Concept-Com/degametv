@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Film, Upload, Loader2, ExternalLink } from 'lucide-react';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface Submission {
   id: string;
@@ -22,6 +23,7 @@ interface Submission {
 }
 
 export default function StudioMovies() {
+  usePageTitle('Studio: My Movies');
   const { user } = useAuth();
   const [movies, setMovies] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);

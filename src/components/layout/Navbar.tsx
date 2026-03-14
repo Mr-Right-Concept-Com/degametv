@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Menu, X, Search, User, Ticket, LayoutDashboard, Film, Upload, Clapperboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -17,9 +17,19 @@ import { useTenant } from '@/hooks/useTenant';
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const { user, signOut } = useAuth();
   const { isSuperAdmin, isPlatformAdmin } = useTenant();
   const navigate = useNavigate();
+
+  const handleSearch = (e: FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/cinema?q=${encodeURIComponent(searchQuery.trim())}`);
+      setSearchQuery('');
+      setIsSearchOpen(false);
+    }
+  };
 
   const navLinks = [
     { label: 'Now Showing', href: '/' },
@@ -59,15 +69,17 @@ export function Navbar() {
           {/* Right Section */}
           <div className="flex items-center gap-1.5 sm:gap-2">
             {/* Desktop search */}
-            <div className="hidden md:flex items-center">
+            <form onSubmit={handleSearch} className="hidden md:flex items-center">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search..."
+                  placeholder="Search screenings..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
                   className="w-44 lg:w-56 pl-9 rounded-full bg-secondary border-0 focus-visible:ring-primary/30 h-9"
                 />
               </div>
-            </div>
+            </form>
 
             {/* Mobile search toggle */}
             <Button
@@ -161,16 +173,18 @@ export function Navbar() {
 
         {/* Mobile Search */}
         {isSearchOpen && (
-          <div className="md:hidden pb-3">
+          <form onSubmit={handleSearch} className="md:hidden pb-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Search screenings..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
                 className="pl-9 rounded-full bg-secondary border-0 focus-visible:ring-primary/30 h-10"
                 autoFocus
               />
             </div>
-          </div>
+          </form>
         )}
 
         {/* Mobile Menu */}

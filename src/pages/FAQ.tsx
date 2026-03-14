@@ -1,5 +1,6 @@
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 const faqs = [
   { q: 'How does virtual cinema work?', a: 'Purchase a ticket for a screening, and you\'ll receive a unique watch link via email. Click the link to watch the movie during the screening window.' },
@@ -13,6 +14,7 @@ const faqs = [
 ];
 
 export default function FAQ() {
+  usePageTitle('FAQ');
   return (
     <MainLayout>
       <div className="container mx-auto px-4 py-10 max-w-3xl">

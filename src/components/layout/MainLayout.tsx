@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { Navbar } from './Navbar';
 import { Footer } from './Footer';
+import { AIConcierge } from '@/components/ai/AIConcierge';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -15,6 +16,7 @@ export function MainLayout({ children, showFooter = true }: MainLayoutProps) {
         {children}
       </main>
       {showFooter && <Footer />}
+      <AIConcierge />
     </div>
   );
 }

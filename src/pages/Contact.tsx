@@ -5,12 +5,30 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Mail, MapPin, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { z } from 'zod';
+import { usePageTitle } from '@/hooks/usePageTitle';
+
+const contactSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required').max(100),
+  email: z.string().trim().email('Invalid email address').max(255),
+  message: z.string().trim().min(1, 'Message is required').max(1000),
+});
 
 export default function Contact() {
   const [form, setForm] = useState({ name: '', email: '', message: '' });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  usePageTitle('Contact Us');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const result = contactSchema.safeParse(form);
+    if (!result.success) {
+      const fieldErrors: Record<string, string> = {};
+      result.error.errors.forEach(err => { fieldErrors[err.path[0] as string] = err.message; });
+      setErrors(fieldErrors);
+      return;
+    }
+    setErrors({});
     toast.success('Message sent! We\'ll get back to you soon.');
     setForm({ name: '', email: '', message: '' });
   };
@@ -49,11 +67,13 @@ export default function Contact() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label htmlFor="name" className="text-xs">Name</Label>
-              <Input id="name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required className="rounded-xl" maxLength={100} />
+              <Input id="name" value={form.name} onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setErrors(p => ({ ...p, name: '' })); }} required className={`rounded-xl ${errors.name ? 'border-destructive' : ''}`} maxLength={100} />
+              {errors.name && <p className="text-[10px] text-destructive mt-0.5">{errors.name}</p>}
             </div>
             <div>
               <Label htmlFor="email" className="text-xs">Email</Label>
-              <Input id="email" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required className="rounded-xl" maxLength={255} />
+              <Input id="email" type="email" value={form.email} onChange={e => { setForm(f => ({ ...f, email: e.target.value })); setErrors(p => ({ ...p, email: '' })); }} required className={`rounded-xl ${errors.email ? 'border-destructive' : ''}`} maxLength={255} />
+              {errors.email && <p className="text-[10px] text-destructive mt-0.5">{errors.email}</p>}
             </div>
             <div>
               <Label htmlFor="message" className="text-xs">Message</Label>

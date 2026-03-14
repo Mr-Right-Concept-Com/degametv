@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Play, Ticket, Clock, Calendar, Star, ArrowRight, Loader2, Film } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface Screening {
   id: string;
@@ -20,6 +21,7 @@ interface Screening {
 }
 
 export default function Index() {
+  usePageTitle('Virtual Cinema Premieres');
   const [countdown, setCountdown] = useState({ days: 0, hours: 0, mins: 0, secs: 0 });
   const [screenings, setScreenings] = useState<Screening[]>([]);
   const [loading, setLoading] = useState(true);

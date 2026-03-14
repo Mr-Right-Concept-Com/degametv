@@ -60,15 +60,71 @@ export default function FilmmakerPortal() {
 
   const updateStatus = async (id: string, status: string) => {
     setUpdating(true);
-    const { error } = await supabase
-      .from('filmmaker_submissions')
-      .update({ status, admin_notes: adminNote || undefined })
-      .eq('id', id);
-    if (error) toast.error('Update failed');
-    else {
+    try {
+      // Update submission status
+      const { error } = await supabase
+        .from('filmmaker_submissions')
+        .update({ status, admin_notes: adminNote || undefined })
+        .eq('id', id);
+      if (error) { toast.error('Update failed'); setUpdating(false); return; }
+
+      // If approved, create a content record and link it
+      if (status === 'approved' && selected) {
+        // Get tenant_id from admin's user_roles
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        const { data: roleData } = await supabase
+          .from('user_roles')
+          .select('tenant_id')
+          .eq('user_id', currentUser!.id)
+          .maybeSingle();
+
+        const tenantId = roleData?.tenant_id;
+        if (tenantId) {
+          const slug = selected.project_title
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '') + '-' + Date.now().toString(36);
+
+          const { data: contentData, error: contentError } = await supabase
+            .from('content')
+            .insert({
+              tenant_id: tenantId,
+              title: selected.project_title,
+              slug,
+              description: selected.description || '',
+              type: (selected.project_type === 'series' ? 'series' : 'movie') as any,
+              status: 'draft' as any,
+              poster_url: selected.poster_url,
+              trailer_url: selected.trailer_url,
+              video_url: selected.video_url,
+              duration: selected.duration_minutes ? selected.duration_minutes * 60 : null,
+              genres: selected.genres,
+              release_date: selected.release_year ? `${selected.release_year}-01-01` : null,
+            })
+            .select('id')
+            .single();
+
+          if (contentData && !contentError) {
+            // Link content_id back to submission
+            await supabase
+              .from('filmmaker_submissions')
+              .update({ content_id: contentData.id })
+              .eq('id', id);
+
+            toast.success('Content record created & linked!');
+          } else if (contentError) {
+            console.error('Failed to create content:', contentError);
+            toast.warning('Approved but failed to create content record');
+          }
+        }
+      }
+
       toast.success(`Submission ${status}`);
       setSelected(null);
       fetchSubmissions();
+    } catch (err) {
+      console.error('Update error:', err);
+      toast.error('Something went wrong');
     }
     setUpdating(false);
   };

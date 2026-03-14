@@ -4,10 +4,12 @@ import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Film, Globe, Star, Users, ArrowRight, Clapperboard } from 'lucide-react';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export default function FilmmakerSubmit() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  usePageTitle('Filmmaker Portal');
 
   return (
     <MainLayout>
