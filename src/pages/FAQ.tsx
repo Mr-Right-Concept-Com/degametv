@@ -1,5 +1,6 @@
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 const faqs = [
   { q: 'How does virtual cinema work?', a: 'Purchase a ticket for a screening, and you\'ll receive a unique watch link via email. Click the link to watch the movie during the screening window.' },
