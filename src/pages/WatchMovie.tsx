@@ -7,6 +7,7 @@ import { AlertCircle, Lock, Share2, Home, Clock, Mail, Shield } from 'lucide-rea
 import { VideoPlayer } from '@/components/video/VideoPlayer';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export default function WatchMovie() {
   const { watchCode } = useParams();
