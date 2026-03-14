@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Calendar, Loader2, Film } from 'lucide-react';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface ScreeningRow {
   id: string;
