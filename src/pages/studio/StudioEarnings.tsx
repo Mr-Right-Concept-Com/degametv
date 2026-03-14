@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { DollarSign, Ticket, TrendingUp, Loader2 } from 'lucide-react';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export default function StudioEarnings() {
   const { user } = useAuth();
