@@ -23,6 +23,7 @@ const displayNameSchema = z.string().trim().min(2, 'Name must be at least 2 char
 export default function UserDashboard() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  usePageTitle('My Dashboard');
   const [tickets, setTickets] = useState<any[]>([]);
   const [watchHistory, setWatchHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
