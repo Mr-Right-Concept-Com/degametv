@@ -29,6 +29,7 @@ interface Screening {
 }
 
 export default function BuyTicket() {
+  usePageTitle(screening?.title ? `Buy Ticket — ${screening.title}` : 'Buy Ticket');
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const [step, setStep] = useState<'location' | 'email' | 'payment' | 'confirmation'>('location');
