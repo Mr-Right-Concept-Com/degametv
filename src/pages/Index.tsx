@@ -21,6 +21,7 @@ interface Screening {
 }
 
 export default function Index() {
+  usePageTitle('Virtual Cinema Premieres');
   const [countdown, setCountdown] = useState({ days: 0, hours: 0, mins: 0, secs: 0 });
   const [screenings, setScreenings] = useState<Screening[]>([]);
   const [loading, setLoading] = useState(true);

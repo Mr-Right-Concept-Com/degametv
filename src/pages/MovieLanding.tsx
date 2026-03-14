@@ -48,6 +48,7 @@ interface Comment {
 }
 
 export default function MovieLanding() {
+  usePageTitle(screening?.title || 'Movie');
   const { slug } = useParams<{ slug: string }>();
   const [screening, setScreening] = useState<Screening | null>(null);
   const [loading, setLoading] = useState(true);

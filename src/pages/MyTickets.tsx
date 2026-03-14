@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 export default function MyTickets() {
+  usePageTitle('My Tickets');
   const { user } = useAuth();
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

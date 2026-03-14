@@ -14,6 +14,7 @@ const faqs = [
 ];
 
 export default function FAQ() {
+  usePageTitle('FAQ');
   return (
     <MainLayout>
       <div className="container mx-auto px-4 py-10 max-w-3xl">

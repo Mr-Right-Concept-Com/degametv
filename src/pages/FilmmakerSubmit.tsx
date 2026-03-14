@@ -9,6 +9,7 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 export default function FilmmakerSubmit() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  usePageTitle('Filmmaker Portal');
 
   return (
     <MainLayout>
