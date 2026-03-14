@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Play, Ticket, Clock, Calendar, Star, ArrowRight, Loader2, Film } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface Screening {
   id: string;
