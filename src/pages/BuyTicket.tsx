@@ -29,7 +29,6 @@ interface Screening {
 }
 
 export default function BuyTicket() {
-  usePageTitle(screening?.title ? `Buy Ticket — ${screening.title}` : 'Buy Ticket');
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const [step, setStep] = useState<'location' | 'email' | 'payment' | 'confirmation'>('location');
@@ -38,6 +37,8 @@ export default function BuyTicket() {
   const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [screening, setScreening] = useState<Screening | null>(null);
+  const [loadingScreening, setLoadingScreening] = useState(true);
+  usePageTitle(screening?.title ? `Buy Ticket — ${screening.title}` : 'Buy Ticket');
   const [loadingScreening, setLoadingScreening] = useState(true);
   const [confirmation, setConfirmation] = useState<any>(null);
   const [promoCode, setPromoCode] = useState('');
