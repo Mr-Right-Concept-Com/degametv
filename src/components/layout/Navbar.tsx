@@ -69,15 +69,17 @@ export function Navbar() {
           {/* Right Section */}
           <div className="flex items-center gap-1.5 sm:gap-2">
             {/* Desktop search */}
-            <div className="hidden md:flex items-center">
+            <form onSubmit={handleSearch} className="hidden md:flex items-center">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search..."
+                  placeholder="Search screenings..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
                   className="w-44 lg:w-56 pl-9 rounded-full bg-secondary border-0 focus-visible:ring-primary/30 h-9"
                 />
               </div>
-            </div>
+            </form>
 
             {/* Mobile search toggle */}
             <Button
