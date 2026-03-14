@@ -25,9 +25,11 @@ interface ScreeningRow {
 }
 
 export default function Cinema() {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [screenings, setScreenings] = useState<ScreeningRow[]>([]);
   const [loading, setLoading] = useState(true);
+  usePageTitle('Virtual Cinema');
 
   useEffect(() => {
     const fetchScreenings = async () => {

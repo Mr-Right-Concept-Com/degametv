@@ -64,9 +64,14 @@ export default function UserDashboard() {
   };
 
   const saveProfile = async () => {
+    const result = displayNameSchema.safeParse(displayName);
+    if (!result.success) {
+      toast.error(result.error.errors[0].message);
+      return;
+    }
     setSavingProfile(true);
     const { error } = await supabase.from('profiles')
-      .update({ display_name: displayName, updated_at: new Date().toISOString() })
+      .update({ display_name: result.data, updated_at: new Date().toISOString() })
       .eq('user_id', user!.id);
     if (error) toast.error('Failed to save');
     else toast.success('Profile updated!');

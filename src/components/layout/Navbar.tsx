@@ -173,16 +173,18 @@ export function Navbar() {
 
         {/* Mobile Search */}
         {isSearchOpen && (
-          <div className="md:hidden pb-3">
+          <form onSubmit={handleSearch} className="md:hidden pb-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Search screenings..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
                 className="pl-9 rounded-full bg-secondary border-0 focus-visible:ring-primary/30 h-10"
                 autoFocus
               />
             </div>
-          </div>
+          </form>
         )}
 
         {/* Mobile Menu */}

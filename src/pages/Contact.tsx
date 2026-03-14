@@ -67,11 +67,13 @@ export default function Contact() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label htmlFor="name" className="text-xs">Name</Label>
-              <Input id="name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required className="rounded-xl" maxLength={100} />
+              <Input id="name" value={form.name} onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setErrors(p => ({ ...p, name: '' })); }} required className={`rounded-xl ${errors.name ? 'border-destructive' : ''}`} maxLength={100} />
+              {errors.name && <p className="text-[10px] text-destructive mt-0.5">{errors.name}</p>}
             </div>
             <div>
               <Label htmlFor="email" className="text-xs">Email</Label>
-              <Input id="email" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required className="rounded-xl" maxLength={255} />
+              <Input id="email" type="email" value={form.email} onChange={e => { setForm(f => ({ ...f, email: e.target.value })); setErrors(p => ({ ...p, email: '' })); }} required className={`rounded-xl ${errors.email ? 'border-destructive' : ''}`} maxLength={255} />
+              {errors.email && <p className="text-[10px] text-destructive mt-0.5">{errors.email}</p>}
             </div>
             <div>
               <Label htmlFor="message" className="text-xs">Message</Label>
