@@ -10,6 +10,7 @@ import {
   Users, DollarSign, Activity, TrendingUp, Film, Loader2, Ticket, Upload
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export default function AdminDashboard() {
   const [metrics, setMetrics] = useState({ totalRevenue: 0, totalTickets: 0, totalScreenings: 0, completedTickets: 0 });
