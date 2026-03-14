@@ -3,10 +3,11 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Calendar, Clock, Search, Ticket, Film, Star } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Loader2 } from 'lucide-react';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface ScreeningRow {
   id: string;
