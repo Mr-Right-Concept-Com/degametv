@@ -1,130 +1,83 @@
-# Admin Redesign & Filmmaker Portal Cleanup Plan
+# Spixie Feature Parity Plan
 
-## Problem Summary
+Spixie.co markets six pillars: **Global Access, eTicketing, Streaming, Analytics, Security, Viewer Engagement**. DeGameTV already covers tickets, payment gateways, watch codes, promo codes, and an AI Concierge. The gaps below are what's missing for parity.
 
-The admin panel is cluttered with "Modules" terminology and 17-module JUVUKO architecture abstractions that don't serve the actual app management needs. The sidebar has a "Modules" collapsible section listing 17 abstract modules. The Dashboard shows "Platform Modules" toggles. The Users page uses mock data. The Filmmaker Portal at `/admin/filmmaker` duplicates the public submission form. The user wants a clean, practical admin for managing the real app: screenings, tickets, users, filmmakers, payments, and settings.
-
-## What Changes
-
-### 1. Redesign Admin Sidebar (`AdminSidebar.tsx`)
-
-Remove all "Modules" references. Replace with direct, clear navigation:
-
-**Navigation Structure:**
-
-- **Overview**: Dashboard
-- **Content**: Screenings, Promo Codes
-- **People**: Users, Filmmakers (submissions review)
-- **Revenue**: Sales & Tickets, Payment Gateways
-- **Settings**: Branding, Email Settings
-- **Links**: Filmmaker Portal (external link to `/filmmaker`)
-
-No collapsible "Modules" section. No module IDs. No badge system for beta/coming-soon.
-
-### 2. Redesign Admin Dashboard (`Dashboard.tsx`)
-
-Remove the "Platform Modules" section with ModuleCard toggles at the bottom. Keep the real metrics (revenue, tickets, screenings). Improve Quick Actions to link to the new direct routes. Add a "Recent Tickets" table showing latest ticket purchases from real data. Add a "Recent Submissions" section showing latest filmmaker submissions.
-
-### 3. Redesign Filmmaker Portal so filmmaker/studio can sign up and start uploading/ premiering their movies etc full portal upload and detail sysyem (`FilmmakerPortal.tsx`)
-
-Remove the "Submit Project" tab — that's the public form at `/filmmaker`. The admin page should be **review-only**: list submissions, view details, approve/reject. Keep the existing submissions table, stats, and review dialog. Remove the duplicated submit form and guidelines tab.
-
-### 4. Wire Users Page to Real Data (`Users.tsx`)
-
-Replace `mockUsers` with real Supabase queries joining `profiles` and `user_roles` tables. Show actual registered users with their roles, emails, and registration dates.
-
-### 5. Create Screenings Management Page (`/admin/screenings`)
-
-A proper admin page to view/manage all screenings from the `screenings` table (not the mock-data ScreeningManagement). Show title, status, date, ticket count, revenue per screening.
-
-### 6. Create Promo Codes Management Page (`/admin/promo-codes`)
-
-Admin page to view, create, and manage promo codes from the `promo_codes` table.
-
-### 7. Update Routes (`App.tsx`)
-
-- Add `/admin/screenings` route
-- Add `/admin/promo-codes` route
-- Remove `/admin/modules` and all `/admin/modules/*` routes (the individual module admin pages)
-- Keep `/admin/filmmaker` for submission review
-- Keep `/admin/sales` for the ProducerDashboard
-- Keep `/admin/settings/email` and `/admin/settings/payment-gateways`
-
-### 8. Remove Modules Page (`Modules.tsx`)
-
-Delete the modules toggle page entirely — it's not needed for app management.
-
-## Files to Create
+## Gap Analysis
 
 
-| File                             | Purpose                                      |
-| -------------------------------- | -------------------------------------------- |
-| `src/pages/admin/Screenings.tsx` | Real screening management with Supabase data |
-| `src/pages/admin/PromoCodes.tsx` | Promo code management CRUD                   |
+| Pillar        | Spixie capability                                                                                              | DeGameTV today                                                                  | Action                                                                                                                                                                                    |
+| ------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Global Access | Worldwide reach + **geo-blocking** (allow/deny countries)                                                      | Location pricing only (NG vs Intl)                                              | Add `allowed_countries` / `blocked_countries` to `screenings`; enforce in `process-payment` + `validate-watch-code` via Cloudflare `cf-ipcountry` header                                  |
+| eTicketing    | Global payments, **refunds**, **abuse prevention** (max streams, simultaneous streams, ticket validity window) | Stripe/Paystack/Flutterwave/Bank, 90-day expiry, no stream caps, no refund flow | Add `max_streams`, `max_concurrent_streams`, `stream_count`, `active_sessions` to `screening_tickets`; refund admin action + `process-refund` edge function                               |
+| Streaming     | HLS + **adaptive bitrate**, high-throughput CDN                                                                | `VideoPlayer.tsx` is mostly a placeholder                                       | Wire hls.js with quality selector + ABR; signed playback URLs from edge function                                                                                                          |
+| Analytics     | Viewer metrics (**top cities**, avg view time), revenue breakdown                                              | `analytics_events`, `watch_history` exist but no dashboard depth                | Add country/city + duration capture on heartbeat; new `/studio/analytics/:screeningId` page with top-cities chart, avg watch time, revenue split                                          |
+| Security      | DRM, download/embed blocking                                                                                   | None                                                                            | Tokenized short-lived (5 min) signed playback URL per request; HLS key URL behind edge function; `Content-Disposition` headers + right-click/devtools deterrents; document DRM as roadmap |
+| Engagement    | **Automated reminders**, promo codes, swag                                                                     | `screening_notifications` table only; promo codes wired                         | `send-screening-reminders` scheduled edge function (24h + 1h before premiere) using Resend; "Promotions" tab in Studio dashboard                                                          |
 
 
-## Files to Modify
+## Additional alignment items
+
+- **Per-premiere subdomains** — Spixie uses `agabaidu.spixie.net`. Memory already notes subdomain routing; verify `MovieLanding` resolves a movie via subdomain host and add a sample mapping doc.
+- **Producer landing/signup CTA** — surface a public `/producers` page mirroring Spixie's pitch (no contracts, no monthly billing, no minimums) that funnels to existing `/filmmaker` submission.
+- **Refund policy per screening** — `screenings.refund_policy` text shown on `BuyTicket` step 1.
+
+## Implementation Phases
+
+### Phase 1 — Database (one migration)
+
+- Add to `screenings`: `allowed_countries text[]`, `blocked_countries text[]`, `refund_policy text`, `max_streams_per_ticket int default 3`, `max_concurrent_streams int default 1`.
+- Add to `screening_tickets`: `stream_count int default 0`, `active_session_token text`, `last_ip text`, `last_country text`, `refunded_at timestamptz`, `refund_reason text`.
+- Add to `watch_history`: `country text`, `city text`, `watch_duration_seconds int`, `session_id text`.
+- RLS + GRANTs preserved/added per project rules.
+
+### Phase 2 — Edge functions
+
+- `**process-refund**` — admin-only; reverses Stripe/Paystack/Flutterwave charge, marks ticket refunded.
+- `**send-screening-reminders**` — cron (hourly) — sends 24h + 1h email reminders via Resend, idempotent on `screening_notifications`.
+- `**get-playback-url**` — issues a 5-minute signed HLS URL, increments `stream_count`, rejects when caps exceeded or country blocked.
+- `**validate-watch-code**` — extend to read `cf-ipcountry`, enforce geo + concurrency + stream cap, record country/ip.
+- `**record-watch-heartbeat**` — accumulates `watch_duration_seconds` and city (from IP) into `watch_history`.
+
+### Phase 3 — Frontend
+
+- `**VideoPlayer.tsx**` — real `hls.js` integration with quality selector, ABR, heartbeat every 15s, anti-download attributes.
+- `**/admin/screenings**` — add geo-restriction multi-select, stream caps, refund policy fields.
+- `**/admin/tickets**` — refund button → `process-refund`.
+- `**BuyTicket.tsx**` — show refund policy + promo code input (verify already wired) + country check before payment.
+- `**/studio/analytics/[screeningId]**` new page — recharts bar of top cities, KPI cards (avg watch time, total minutes, completion rate, revenue), revenue split table.
+- `**/producers**` new public landing page mirroring Spixie pitch → CTA to `/filmmaker`.
+- `**MovieLanding**` — surface subdomain support (read `window.location.host` to auto-resolve slug).
+
+### Phase 4 — Cron config
+
+- Register `send-screening-reminders` in `supabase/config.toml` with hourly schedule.
+
+## Files to add / modify
 
 
-| File                                            | Changes                                  |
-| ----------------------------------------------- | ---------------------------------------- |
-| `src/components/admin/AdminSidebar.tsx`         | Remove modules, clean navigation         |
-| `src/pages/admin/Dashboard.tsx`                 | Remove module cards, add recent activity |
-| `src/pages/admin/filmmaker/FilmmakerPortal.tsx` | Remove submit form tab, review-only      |
-| `src/pages/admin/Users.tsx`                     | Wire to real Supabase data               |
-| `src/App.tsx`                                   | Update admin routes                      |
+| Action        | Path                                                            |
+| ------------- | --------------------------------------------------------------- |
+| New migration | `supabase/migrations/<ts>_spixie_parity.sql`                    |
+| New edge fn   | `supabase/functions/process-refund/index.ts`                    |
+| New edge fn   | `supabase/functions/send-screening-reminders/index.ts`          |
+| New edge fn   | `supabase/functions/get-playback-url/index.ts`                  |
+| New edge fn   | `supabase/functions/record-watch-heartbeat/index.ts`            |
+| Edit edge fn  | `supabase/functions/validate-watch-code/index.ts`               |
+| Edit          | `supabase/config.toml`                                          |
+| Edit          | `src/components/video/VideoPlayer.tsx`                          |
+| Edit          | `src/pages/admin/Screenings.tsx`                                |
+| Edit          | `src/pages/admin/ticketing/TicketManagement.tsx`                |
+| Edit          | `src/pages/BuyTicket.tsx`                                       |
+| Edit          | `src/pages/WatchMovie.tsx`                                      |
+| Edit          | `src/pages/MovieLanding.tsx`                                    |
+| New page      | `src/pages/studio/StudioAnalytics.tsx` (+ route + sidebar link) |
+| New page      | `src/pages/Producers.tsx` (+ route + footer/nav link)           |
+| Edit          | `src/App.tsx` (2 new routes)                                    |
+| Dep           | `bun add hls.js`                                                |
 
 
-## Files to Remove (from routes, not delete)
+##  build ui and ux 
 
-All `/admin/modules/*` routes removed from App.tsx. The page files can stay but won't be routed.
-
-## Technical Details
-
-### Users Page Real Data Query
-
-```sql
--- Join profiles + user_roles
-SELECT p.user_id, p.email, p.full_name, p.avatar_url, p.created_at,
-       ur.role
-FROM profiles p
-LEFT JOIN user_roles ur ON ur.user_id = p.user_id
-ORDER BY p.created_at DESC
-```
-
-### Screenings Admin Query
-
-```sql
-SELECT s.*, 
-  (SELECT count(*) FROM screening_tickets st WHERE st.screening_id = s.id) as ticket_count,
-  (SELECT coalesce(sum(price), 0) FROM screening_tickets st WHERE st.screening_id = s.id AND st.payment_status = 'completed') as revenue
-FROM screenings s
-ORDER BY s.created_at DESC
-```
-
-### Sidebar Structure (Final)
-
-```text
-OVERVIEW
-  Dashboard
-
-CONTENT
-  Screenings
-  Promo Codes
-
-PEOPLE
-  Users
-  Filmmaker Submissions
-
-REVENUE
-  Sales Dashboard
-  Payment Gateways
-
-SETTINGS
-  Branding
-  Email Settings
-
-LINKS
-  Filmmaker Portal ↗ (external)
-  View Site ↗ (external)
-```
+- &nbsp;
+  True studio-grade DRM (Widevine/FairPlay) — requires a paid DRM provider; we ship signed-URL + obfuscation now and flag DRM as roadmap.
+- Cloudflare Workers for geo header — relies on Supabase Edge runtime headers; documented fallback to MaxMind if needed later. Fix all in parallel 

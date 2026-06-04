@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Film, LayoutDashboard, Upload, Calendar, DollarSign, ExternalLink, Clapperboard } from 'lucide-react';
+import { Film, LayoutDashboard, Upload, Calendar, DollarSign, ExternalLink, Clapperboard, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -7,6 +7,7 @@ const navItems = [
   { label: 'My Movies', href: '/studio/movies', icon: Film },
   { label: 'Submit Film', href: '/studio/submit', icon: Upload },
   { label: 'My Screenings', href: '/studio/screenings', icon: Calendar },
+  { label: 'Analytics', href: '/studio/analytics', icon: BarChart3 },
   { label: 'Earnings', href: '/studio/earnings', icon: DollarSign },
 ];
 

@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { 
   LayoutDashboard, Users, Film, Tag, TrendingUp, CreditCard,
-  Palette, Mail, Upload, ExternalLink, LogOut
+  Palette, Mail, Upload, ExternalLink, LogOut, Ticket
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,7 @@ const sections: { title: string; items: NavItem[] }[] = [
     title: 'Content',
     items: [
       { label: 'Screenings', href: '/admin/screenings', icon: Film },
+      { label: 'Tickets', href: '/admin/tickets', icon: Ticket },
       { label: 'Promo Codes', href: '/admin/promo-codes', icon: Tag },
     ],
   },

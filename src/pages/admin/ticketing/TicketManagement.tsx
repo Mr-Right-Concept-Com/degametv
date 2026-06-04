@@ -4,191 +4,224 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Search, Download, QrCode, Mail, Filter, MoreHorizontal, Eye, Trash2 } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { useState } from 'react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Search, Download, Loader2, Mail, RotateCcw, Ticket } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
-const mockTickets = [
-  { id: '1', code: 'TKT-001-LIVE', type: 'live', event: 'Concert 2024', buyer: 'John Doe', email: 'john@example.com', price: 49.99, status: 'valid', purchasedAt: '2024-01-15', expiresAt: '2024-02-01' },
-  { id: '2', code: 'TKT-002-VOD', type: 'vod', event: 'Premium Movie', buyer: 'Jane Smith', email: 'jane@example.com', price: 12.99, status: 'used', purchasedAt: '2024-01-14', expiresAt: '2024-01-21' },
-  { id: '3', code: 'TKT-003-RPL', type: 'replay', event: 'Film Festival', buyer: 'Bob Wilson', email: 'bob@example.com', price: 24.99, status: 'expired', purchasedAt: '2024-01-10', expiresAt: '2024-01-12' },
-  { id: '4', code: 'TKT-004-EDU', type: 'elearning', event: 'React Course', buyer: 'Alice Brown', email: 'alice@example.com', price: 99.99, status: 'valid', purchasedAt: '2024-01-16', expiresAt: '2024-04-16' },
-];
-
-const stats = [
-  { label: 'Total Tickets', value: '12,458', change: '+12%' },
-  { label: 'Revenue', value: '$245,890', change: '+18%' },
-  { label: 'Valid Tickets', value: '8,234', change: '+5%' },
-  { label: 'Used Today', value: '456', change: '+23%' },
-];
+interface TicketRow {
+  id: string;
+  ticket_code: string;
+  watch_code: string;
+  email: string;
+  location: string;
+  price: number;
+  currency: string;
+  payment_status: string;
+  payment_method: string;
+  created_at: string;
+  expires_at: string;
+  refunded_at: string | null;
+  refund_reason: string | null;
+  stream_count: number;
+  screening: { title: string; slug: string } | null;
+}
 
 export default function TicketManagement() {
-  const [searchQuery, setSearchQuery] = useState('');
+  usePageTitle('Tickets — Admin');
+  const [tickets, setTickets] = useState<TicketRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [refundReason, setRefundReason] = useState('');
+  const [refundingId, setRefundingId] = useState<string | null>(null);
 
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-      valid: 'default',
-      used: 'secondary',
-      expired: 'destructive',
-      refunded: 'outline'
-    };
-    return <Badge variant={variants[status] || 'outline'}>{status}</Badge>;
+  const fetchTickets = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('screening_tickets')
+      .select('id, ticket_code, watch_code, email, location, price, currency, payment_status, payment_method, created_at, expires_at, refunded_at, refund_reason, stream_count, screening:screenings(title, slug)')
+      .order('created_at', { ascending: false })
+      .limit(500);
+    setTickets((data as unknown as TicketRow[]) || []);
+    setLoading(false);
   };
 
-  const getTypeBadge = (type: string) => {
-    const labels: Record<string, string> = {
-      live: 'Live Event',
-      vod: 'VOD Access',
-      replay: 'Replay',
-      elearning: 'eLearning',
-      screening: 'Screening'
-    };
-    return <Badge variant="outline" className="text-xs">{labels[type] || type}</Badge>;
+  useEffect(() => { fetchTickets(); }, []);
+
+  const handleRefund = async (id: string) => {
+    setRefundingId(id);
+    const { data, error } = await supabase.functions.invoke('process-refund', {
+      body: { ticketId: id, reason: refundReason || 'Admin refund' },
+    });
+    if (error || !data?.success) {
+      toast.error(data?.error || error?.message || 'Refund failed');
+    } else {
+      toast.success('Ticket refunded');
+      setRefundReason('');
+      fetchTickets();
+    }
+    setRefundingId(null);
+  };
+
+  const exportCSV = () => {
+    const headers = ['Ticket', 'Movie', 'Email', 'Location', 'Amount', 'Status', 'Streams', 'Created'];
+    const rows = filtered.map(t => [
+      t.ticket_code,
+      t.screening?.title || '—',
+      t.email,
+      t.location || '',
+      `${t.currency === 'USD' ? '$' : '₦'}${t.price}`,
+      t.refunded_at ? 'refunded' : t.payment_status,
+      t.stream_count,
+      new Date(t.created_at).toISOString(),
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `tickets-${Date.now()}.csv`;
+    a.click();
+  };
+
+  const filtered = tickets.filter(t =>
+    !search ||
+    t.email.toLowerCase().includes(search.toLowerCase()) ||
+    t.ticket_code.toLowerCase().includes(search.toLowerCase()) ||
+    t.screening?.title.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const totalRevenue = tickets.filter(t => t.payment_status === 'completed' && !t.refunded_at).reduce((s, t) => s + Number(t.price || 0), 0);
+  const refundedCount = tickets.filter(t => t.refunded_at).length;
+
+  const statusBadge = (t: TicketRow) => {
+    if (t.refunded_at) return <Badge variant="destructive">Refunded</Badge>;
+    if (t.payment_status === 'completed') return <Badge>Valid</Badge>;
+    if (t.payment_status === 'pending') return <Badge variant="secondary">Pending</Badge>;
+    return <Badge variant="outline">{t.payment_status}</Badge>;
   };
 
   return (
-    <AdminLayout
-      title="Ticketing & Access"
-      description="Manage tickets for live events, VOD, replays, and eLearning"
-    >
+    <AdminLayout title="Ticketing & Access" description={`${tickets.length} tickets · ₦${totalRevenue.toLocaleString()} net revenue · ${refundedCount} refunded`}>
       <div className="space-y-6">
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {stats.map((stat) => (
-            <Card key={stat.label} className="bg-card/50 border-border/50">
-              <CardContent className="p-4">
-                <p className="text-sm text-muted-foreground">{stat.label}</p>
-                <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-2xl font-bold">{stat.value}</span>
-                  <span className="text-xs text-green-500">{stat.change}</span>
-                </div>
-              </CardContent>
-            </Card>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { label: 'Total Tickets', value: tickets.length },
+            { label: 'Valid', value: tickets.filter(t => t.payment_status === 'completed' && !t.refunded_at).length },
+            { label: 'Pending', value: tickets.filter(t => t.payment_status === 'pending').length },
+            { label: 'Refunded', value: refundedCount },
+          ].map(s => (
+            <Card key={s.label}><CardContent className="p-4">
+              <p className="text-xs text-muted-foreground">{s.label}</p>
+              <p className="text-2xl font-bold mt-1">{s.value}</p>
+            </CardContent></Card>
           ))}
         </div>
 
-        {/* Actions */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-between">
-          <div className="flex gap-2">
-            <div className="relative flex-1 sm:w-80">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search tickets, codes, or emails..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Button variant="outline" size="icon">
-              <Filter className="h-4 w-4" />
-            </Button>
+        <div className="flex flex-col sm:flex-row gap-3 justify-between">
+          <div className="relative flex-1 sm:max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search by email, code, or movie..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline">
-              <Download className="h-4 w-4 mr-2" />
-              Export
-            </Button>
-            <Button variant="outline">
-              <QrCode className="h-4 w-4 mr-2" />
-              Scan Ticket
-            </Button>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Ticket
-            </Button>
-          </div>
+          <Button variant="outline" onClick={exportCSV} disabled={!tickets.length}>
+            <Download className="h-4 w-4 mr-2" /> Export CSV
+          </Button>
         </div>
 
-        {/* Tabs */}
-        <Tabs defaultValue="all" className="space-y-4">
-          <TabsList className="bg-secondary/50">
-            <TabsTrigger value="all">All Tickets</TabsTrigger>
-            <TabsTrigger value="live">Live Events</TabsTrigger>
-            <TabsTrigger value="vod">VOD Access</TabsTrigger>
-            <TabsTrigger value="replay">Replays</TabsTrigger>
-            <TabsTrigger value="elearning">eLearning</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="all">
-            <Card className="bg-card/50 border-border/50">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg">All Tickets</CardTitle>
-              </CardHeader>
-              <CardContent>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base">All Tickets</CardTitle></CardHeader>
+          <CardContent className="p-0">
+            {loading ? (
+              <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+            ) : filtered.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground">
+                <Ticket className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                <p className="text-sm">No tickets found</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Code</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Event/Content</TableHead>
+                      <TableHead>Movie</TableHead>
                       <TableHead>Buyer</TableHead>
-                      <TableHead>Price</TableHead>
+                      <TableHead>Amount</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Expires</TableHead>
+                      <TableHead className="hidden sm:table-cell">Streams</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockTickets.map((ticket) => (
-                      <TableRow key={ticket.id}>
-                        <TableCell className="font-mono text-sm">{ticket.code}</TableCell>
-                        <TableCell>{getTypeBadge(ticket.type)}</TableCell>
-                        <TableCell>{ticket.event}</TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{ticket.buyer}</p>
-                            <p className="text-xs text-muted-foreground">{ticket.email}</p>
-                          </div>
+                    {filtered.map(t => (
+                      <TableRow key={t.id}>
+                        <TableCell className="font-mono text-xs">{t.ticket_code}</TableCell>
+                        <TableCell className="text-sm">{t.screening?.title || '—'}</TableCell>
+                        <TableCell className="text-sm">
+                          <p>{t.email}</p>
+                          <p className="text-[10px] text-muted-foreground">{new Date(t.created_at).toLocaleDateString()}</p>
                         </TableCell>
-                        <TableCell>${ticket.price.toFixed(2)}</TableCell>
-                        <TableCell>{getStatusBadge(ticket.status)}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{ticket.expiresAt}</TableCell>
+                        <TableCell className="text-sm font-medium">{t.currency === 'USD' ? '$' : '₦'}{Number(t.price).toLocaleString()}</TableCell>
+                        <TableCell>{statusBadge(t)}</TableCell>
+                        <TableCell className="text-sm hidden sm:table-cell">{t.stream_count || 0}</TableCell>
                         <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
-                                <Eye className="h-4 w-4 mr-2" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Mail className="h-4 w-4 mr-2" />
-                                Resend Email
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <QrCode className="h-4 w-4 mr-2" />
-                                Show QR Code
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="text-destructive">
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Revoke Ticket
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              title="Resend watch email"
+                              onClick={async () => {
+                                const watchUrl = `${window.location.origin}/watch/${t.watch_code}?email=${encodeURIComponent(t.email)}`;
+                                await supabase.functions.invoke('send-watch-email', {
+                                  body: { email: t.email, movieTitle: t.screening?.title, watchUrl, ticketCode: t.ticket_code, expiresAt: t.expires_at, location: t.location, price: t.price, currency: t.currency },
+                                });
+                                toast.success('Watch link resent');
+                              }}
+                            >
+                              <Mail className="w-3.5 h-3.5" />
+                            </Button>
+                            {!t.refunded_at && t.payment_status === 'completed' && (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" title="Refund">
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Refund this ticket?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      {t.email} · {t.currency === 'USD' ? '$' : '₦'}{Number(t.price).toLocaleString()}. Access will be revoked immediately.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <div className="space-y-2">
+                                    <Label className="text-xs">Reason (optional)</Label>
+                                    <Textarea value={refundReason} onChange={e => setRefundReason(e.target.value)} rows={2} placeholder="Customer request..." />
+                                  </div>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleRefund(t.id)} disabled={refundingId === t.id}>
+                                      {refundingId === t.id ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                                      Refund
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {['live', 'vod', 'replay', 'elearning'].map((type) => (
-            <TabsContent key={type} value={type}>
-              <Card className="bg-card/50 border-border/50">
-                <CardContent className="p-8 text-center text-muted-foreground">
-                  Filtered view for {type} tickets coming soon
-                </CardContent>
-              </Card>
-            </TabsContent>
-          ))}
-        </Tabs>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </AdminLayout>
   );
