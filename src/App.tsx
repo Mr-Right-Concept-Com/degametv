@@ -22,6 +22,7 @@ import Privacy from "./pages/Privacy";
 import FAQ from "./pages/FAQ";
 import Contact from "./pages/Contact";
 import ResetPassword from "./pages/ResetPassword";
+import Producers from "./pages/Producers";
 
 // Admin pages
 import Dashboard from "./pages/admin/Dashboard";
@@ -47,6 +48,7 @@ import StudioMovies from "./pages/studio/StudioMovies";
 import StudioSubmit from "./pages/studio/StudioSubmit";
 import StudioScreenings from "./pages/studio/StudioScreenings";
 import StudioEarnings from "./pages/studio/StudioEarnings";
+import StudioAnalytics from "./pages/studio/StudioAnalytics";
 
 const queryClient = new QueryClient();
 
@@ -74,6 +76,8 @@ const App = () => (
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/faq" element={<FAQ />} />
               <Route path="/contact" element={<Contact />} />
+              <Route path="/producers" element={<Producers />} />
+              
               
               {/* ============ VIRTUAL CINEMA TICKET FUNNEL ============ */}
               <Route path="/buy/:slug" element={<BuyTicket />} />
@@ -88,6 +92,8 @@ const App = () => (
               <Route path="/studio/submit" element={<ProtectedRoute><StudioSubmit /></ProtectedRoute>} />
               <Route path="/studio/screenings" element={<ProtectedRoute><StudioScreenings /></ProtectedRoute>} />
               <Route path="/studio/earnings" element={<ProtectedRoute><StudioEarnings /></ProtectedRoute>} />
+              <Route path="/studio/analytics" element={<ProtectedRoute><StudioScreenings /></ProtectedRoute>} />
+              <Route path="/studio/analytics/:screeningId" element={<ProtectedRoute><StudioAnalytics /></ProtectedRoute>} />
               
               {/* ============ ADMIN (Protected) ============ */}
               <Route path="/admin" element={<ProtectedAdminRoute><Dashboard /></ProtectedAdminRoute>} />

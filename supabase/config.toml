@@ -17,3 +17,15 @@ verify_jwt = false
 
 [functions.ai-concierge]
 verify_jwt = false
+
+[functions.get-playback-url]
+verify_jwt = false
+
+[functions.record-watch-heartbeat]
+verify_jwt = false
+
+[functions.send-screening-reminders]
+verify_jwt = false
+
+[functions.process-refund]
+verify_jwt = true
