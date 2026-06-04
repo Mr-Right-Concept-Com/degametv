@@ -23,6 +23,11 @@ const screeningSchema = z.object({
   poster_url: z.string().url().optional().or(z.literal('')),
   screening_date: z.string().optional(),
   status: z.enum(['draft', 'published']),
+  refund_policy: z.string().max(1000).optional(),
+  allowed_countries: z.string().optional(),
+  blocked_countries: z.string().optional(),
+  max_streams_per_ticket: z.coerce.number().int().min(1).max(50).default(5),
+  max_concurrent_streams: z.coerce.number().int().min(1).max(10).default(1),
 });
 
 interface ScreeningRow {
@@ -47,7 +52,10 @@ export default function ScreeningsPage() {
   const { tenant } = useTenant();
 
   const [form, setForm] = useState({
-    title: '', slug: '', description: '', poster_url: '', screening_date: '', status: 'draft' as 'draft' | 'published',
+    title: '', slug: '', description: '', poster_url: '', screening_date: '',
+    status: 'draft' as 'draft' | 'published',
+    refund_policy: '', allowed_countries: '', blocked_countries: '',
+    max_streams_per_ticket: 5, max_concurrent_streams: 1,
   });
 
   const fetchScreenings = async () => {
@@ -107,6 +115,7 @@ export default function ScreeningsPage() {
       return;
     }
 
+    const parseList = (s: string) => s.split(',').map(x => x.trim().toUpperCase()).filter(Boolean);
     const { error } = await supabase.from('screenings').insert({
       title: parsed.data.title,
       slug: parsed.data.slug,
@@ -114,6 +123,11 @@ export default function ScreeningsPage() {
       poster_url: parsed.data.poster_url || null,
       screening_date: parsed.data.screening_date || null,
       status: parsed.data.status,
+      refund_policy: parsed.data.refund_policy || null,
+      allowed_countries: parsed.data.allowed_countries ? parseList(parsed.data.allowed_countries) : null,
+      blocked_countries: parsed.data.blocked_countries ? parseList(parsed.data.blocked_countries) : null,
+      max_streams_per_ticket: parsed.data.max_streams_per_ticket,
+      max_concurrent_streams: parsed.data.max_concurrent_streams,
       content_id: contentData.id,
       tenant_id: tenantId || '00000000-0000-0000-0000-000000000000',
     });
@@ -122,7 +136,7 @@ export default function ScreeningsPage() {
     else {
       toast.success('Screening created');
       setDialogOpen(false);
-      setForm({ title: '', slug: '', description: '', poster_url: '', screening_date: '', status: 'draft' });
+      setForm({ title: '', slug: '', description: '', poster_url: '', screening_date: '', status: 'draft', refund_policy: '', allowed_countries: '', blocked_countries: '', max_streams_per_ticket: 5, max_concurrent_streams: 1 });
       fetchScreenings();
     }
     setSaving(false);
@@ -204,6 +218,34 @@ export default function ScreeningsPage() {
               <div className="space-y-2">
                 <Label>Poster URL</Label>
                 <Input value={form.poster_url} onChange={e => setForm(f => ({ ...f, poster_url: e.target.value }))} placeholder="https://..." />
+              </div>
+
+              <div className="border-t border-border pt-4 space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Geo & Access Controls</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Allowed Countries</Label>
+                    <Input value={form.allowed_countries} onChange={e => setForm(f => ({ ...f, allowed_countries: e.target.value }))} placeholder="NG, US, GB (blank = all)" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Blocked Countries</Label>
+                    <Input value={form.blocked_countries} onChange={e => setForm(f => ({ ...f, blocked_countries: e.target.value }))} placeholder="ISO codes, comma-sep" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Max Streams / Ticket</Label>
+                    <Input type="number" min={1} max={50} value={form.max_streams_per_ticket} onChange={e => setForm(f => ({ ...f, max_streams_per_ticket: Number(e.target.value) }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Max Concurrent Streams</Label>
+                    <Input type="number" min={1} max={10} value={form.max_concurrent_streams} onChange={e => setForm(f => ({ ...f, max_concurrent_streams: Number(e.target.value) }))} />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Refund Policy</Label>
+                  <Textarea value={form.refund_policy} onChange={e => setForm(f => ({ ...f, refund_policy: e.target.value }))} rows={2} placeholder="e.g. Refunds available up to 24 hours before premiere." />
+                </div>
               </div>
             </div>
             <DialogFooter>
