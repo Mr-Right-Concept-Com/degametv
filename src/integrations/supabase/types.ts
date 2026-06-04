@@ -896,6 +896,8 @@ export type Database = {
       }
       screening_tickets: {
         Row: {
+          active_session_started_at: string | null
+          active_session_token: string | null
           addons: Json | null
           created_at: string
           currency: string | null
@@ -903,12 +905,19 @@ export type Database = {
           expires_at: string
           id: string
           is_used: boolean | null
+          last_country: string | null
+          last_ip: string | null
           location: string
           payment_method: string | null
           payment_reference: string | null
           payment_status: string
           price: number
+          refund_reason: string | null
+          refunded_at: string | null
+          reminder_1h_sent_at: string | null
+          reminder_24h_sent_at: string | null
           screening_id: string
+          stream_count: number
           tenant_id: string
           ticket_code: string
           used_at: string | null
@@ -917,6 +926,8 @@ export type Database = {
           watch_url: string | null
         }
         Insert: {
+          active_session_started_at?: string | null
+          active_session_token?: string | null
           addons?: Json | null
           created_at?: string
           currency?: string | null
@@ -924,12 +935,19 @@ export type Database = {
           expires_at?: string
           id?: string
           is_used?: boolean | null
+          last_country?: string | null
+          last_ip?: string | null
           location: string
           payment_method?: string | null
           payment_reference?: string | null
           payment_status?: string
           price: number
+          refund_reason?: string | null
+          refunded_at?: string | null
+          reminder_1h_sent_at?: string | null
+          reminder_24h_sent_at?: string | null
           screening_id: string
+          stream_count?: number
           tenant_id: string
           ticket_code: string
           used_at?: string | null
@@ -938,6 +956,8 @@ export type Database = {
           watch_url?: string | null
         }
         Update: {
+          active_session_started_at?: string | null
+          active_session_token?: string | null
           addons?: Json | null
           created_at?: string
           currency?: string | null
@@ -945,12 +965,19 @@ export type Database = {
           expires_at?: string
           id?: string
           is_used?: boolean | null
+          last_country?: string | null
+          last_ip?: string | null
           location?: string
           payment_method?: string | null
           payment_reference?: string | null
           payment_status?: string
           price?: number
+          refund_reason?: string | null
+          refunded_at?: string | null
+          reminder_1h_sent_at?: string | null
+          reminder_24h_sent_at?: string | null
           screening_id?: string
+          stream_count?: number
           tenant_id?: string
           ticket_code?: string
           used_at?: string | null
@@ -971,7 +998,9 @@ export type Database = {
       screenings: {
         Row: {
           age_rating: string | null
+          allowed_countries: string[] | null
           banner_url: string | null
+          blocked_countries: string[] | null
           cast_crew: Json | null
           content_id: string
           created_at: string
@@ -980,8 +1009,11 @@ export type Database = {
           gallery_images: string[] | null
           id: string
           location_pricing: Json
+          max_concurrent_streams: number
+          max_streams_per_ticket: number
           metadata: Json | null
           poster_url: string | null
+          refund_policy: string | null
           release_date: string | null
           review_count: number | null
           screening_date: string | null
@@ -995,7 +1027,9 @@ export type Database = {
         }
         Insert: {
           age_rating?: string | null
+          allowed_countries?: string[] | null
           banner_url?: string | null
+          blocked_countries?: string[] | null
           cast_crew?: Json | null
           content_id: string
           created_at?: string
@@ -1004,8 +1038,11 @@ export type Database = {
           gallery_images?: string[] | null
           id?: string
           location_pricing?: Json
+          max_concurrent_streams?: number
+          max_streams_per_ticket?: number
           metadata?: Json | null
           poster_url?: string | null
+          refund_policy?: string | null
           release_date?: string | null
           review_count?: number | null
           screening_date?: string | null
@@ -1019,7 +1056,9 @@ export type Database = {
         }
         Update: {
           age_rating?: string | null
+          allowed_countries?: string[] | null
           banner_url?: string | null
+          blocked_countries?: string[] | null
           cast_crew?: Json | null
           content_id?: string
           created_at?: string
@@ -1028,8 +1067,11 @@ export type Database = {
           gallery_images?: string[] | null
           id?: string
           location_pricing?: Json
+          max_concurrent_streams?: number
+          max_streams_per_ticket?: number
           metadata?: Json | null
           poster_url?: string | null
+          refund_policy?: string | null
           release_date?: string | null
           review_count?: number | null
           screening_date?: string | null
@@ -1327,36 +1369,51 @@ export type Database = {
       }
       watch_history: {
         Row: {
+          city: string | null
           completed: boolean | null
           content_id: string
+          country: string | null
           created_at: string
           id: string
           last_watched_at: string
+          screening_id: string | null
+          session_id: string | null
           tenant_id: string | null
           user_id: string
           watch_duration: number | null
+          watch_duration_seconds: number
           watch_position: number | null
         }
         Insert: {
+          city?: string | null
           completed?: boolean | null
           content_id: string
+          country?: string | null
           created_at?: string
           id?: string
           last_watched_at?: string
+          screening_id?: string | null
+          session_id?: string | null
           tenant_id?: string | null
           user_id: string
           watch_duration?: number | null
+          watch_duration_seconds?: number
           watch_position?: number | null
         }
         Update: {
+          city?: string | null
           completed?: boolean | null
           content_id?: string
+          country?: string | null
           created_at?: string
           id?: string
           last_watched_at?: string
+          screening_id?: string | null
+          session_id?: string | null
           tenant_id?: string | null
           user_id?: string
           watch_duration?: number | null
+          watch_duration_seconds?: number
           watch_position?: number | null
         }
         Relationships: [
