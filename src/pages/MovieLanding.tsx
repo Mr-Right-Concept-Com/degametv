@@ -61,11 +61,19 @@ export default function MovieLanding() {
 
   useEffect(() => {
     const fetch = async () => {
-      if (!slug) return;
+      // Subdomain resolution: e.g. `agabaidu.degametv.com` resolves to slug "agabaidu"
+      let resolvedSlug = slug;
+      if (!resolvedSlug && typeof window !== 'undefined') {
+        const host = window.location.hostname;
+        const parts = host.split('.');
+        const reserved = ['www', 'app', 'admin', 'studio', 'api', 'localhost', 'preview', 'lovable'];
+        if (parts.length >= 3 && !reserved.includes(parts[0])) resolvedSlug = parts[0];
+      }
+      if (!resolvedSlug) { setLoading(false); return; }
       const { data } = await supabase
         .from('screenings')
         .select('*')
-        .eq('slug', slug)
+        .eq('slug', resolvedSlug)
         .maybeSingle();
 
       if (data) {

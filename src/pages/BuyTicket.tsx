@@ -266,6 +266,12 @@ export default function BuyTicket() {
                     </span>
                   </button>
                 ))}
+                {(screening as any).refund_policy && (
+                  <div className="rounded-xl bg-secondary/40 border border-border/50 p-3 text-[11px] text-muted-foreground">
+                    <p className="font-medium text-foreground mb-1 text-xs">Refund Policy</p>
+                    {(screening as any).refund_policy}
+                  </div>
+                )}
                 <Button className="w-full rounded-full mt-4 h-11" onClick={() => setStep('email')}>
                   Continue
                 </Button>
