@@ -1371,7 +1371,7 @@ export type Database = {
         Row: {
           city: string | null
           completed: boolean | null
-          content_id: string
+          content_id: string | null
           country: string | null
           created_at: string
           id: string
@@ -1379,7 +1379,7 @@ export type Database = {
           screening_id: string | null
           session_id: string | null
           tenant_id: string | null
-          user_id: string
+          user_id: string | null
           watch_duration: number | null
           watch_duration_seconds: number
           watch_position: number | null
@@ -1387,7 +1387,7 @@ export type Database = {
         Insert: {
           city?: string | null
           completed?: boolean | null
-          content_id: string
+          content_id?: string | null
           country?: string | null
           created_at?: string
           id?: string
@@ -1395,7 +1395,7 @@ export type Database = {
           screening_id?: string | null
           session_id?: string | null
           tenant_id?: string | null
-          user_id: string
+          user_id?: string | null
           watch_duration?: number | null
           watch_duration_seconds?: number
           watch_position?: number | null
@@ -1403,7 +1403,7 @@ export type Database = {
         Update: {
           city?: string | null
           completed?: boolean | null
-          content_id?: string
+          content_id?: string | null
           country?: string | null
           created_at?: string
           id?: string
@@ -1411,7 +1411,7 @@ export type Database = {
           screening_id?: string | null
           session_id?: string | null
           tenant_id?: string | null
-          user_id?: string
+          user_id?: string | null
           watch_duration?: number | null
           watch_duration_seconds?: number
           watch_position?: number | null
