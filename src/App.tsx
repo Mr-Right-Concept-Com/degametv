@@ -34,6 +34,7 @@ import ProducerDashboard from "./pages/admin/ProducerDashboard";
 import FilmmakerPortal from "./pages/admin/filmmaker/FilmmakerPortal";
 import EmailSettings from "./pages/admin/settings/EmailSettings";
 import WhiteLabel from "./pages/admin/settings/WhiteLabel";
+import TicketManagement from "./pages/admin/ticketing/TicketManagement";
 
 // Virtual Cinema Funnel
 import BuyTicket from "./pages/BuyTicket";
@@ -99,6 +100,7 @@ const App = () => (
               <Route path="/admin" element={<ProtectedAdminRoute><Dashboard /></ProtectedAdminRoute>} />
               <Route path="/admin/users" element={<ProtectedAdminRoute><Users /></ProtectedAdminRoute>} />
               <Route path="/admin/screenings" element={<ProtectedAdminRoute><Screenings /></ProtectedAdminRoute>} />
+              <Route path="/admin/tickets" element={<ProtectedAdminRoute><TicketManagement /></ProtectedAdminRoute>} />
               <Route path="/admin/promo-codes" element={<ProtectedAdminRoute><PromoCodes /></ProtectedAdminRoute>} />
               <Route path="/admin/sales" element={<ProtectedAdminRoute><ProducerDashboard /></ProtectedAdminRoute>} />
               <Route path="/admin/filmmaker" element={<ProtectedAdminRoute><FilmmakerPortal /></ProtectedAdminRoute>} />
