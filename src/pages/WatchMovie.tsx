@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { AlertCircle, Lock, Share2, Home, Clock, Mail, Shield } from 'lucide-react';
+import { AlertCircle, Share2, Home, Clock, Mail, Shield, Globe, Tv2 } from 'lucide-react';
 import { VideoPlayer } from '@/components/video/VideoPlayer';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -16,12 +15,15 @@ export default function WatchMovie() {
   const [loading, setLoading] = useState(true);
   const [ticket, setTicket] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const sessionIdRef = useRef<string>(crypto.randomUUID());
+  const lastBeatRef = useRef<number>(Date.now());
 
   useEffect(() => {
     const validateTicket = async () => {
       try {
+        const email = searchParams.get('email');
         const { data, error: fnError } = await supabase.functions.invoke('validate-watch-code', {
-          body: { watchCode, email: searchParams.get('email') },
+          body: { watchCode, email },
         });
 
         if (fnError || !data?.success) {
@@ -30,7 +32,7 @@ export default function WatchMovie() {
         }
 
         setTicket(data.ticket);
-      } catch (err: any) {
+      } catch {
         setError('Unable to validate your ticket. Please try again.');
       } finally {
         setLoading(false);
@@ -43,6 +45,22 @@ export default function WatchMovie() {
       setLoading(false);
     }
   }, [watchCode, searchParams]);
+
+  const handleHeartbeat = (position: number) => {
+    if (!ticket) return;
+    const now = Date.now();
+    const delta = Math.round((now - lastBeatRef.current) / 1000);
+    lastBeatRef.current = now;
+    supabase.functions.invoke('record-watch-heartbeat', {
+      body: {
+        watchCode: ticket.watchCode,
+        email: ticket.email,
+        sessionId: sessionIdRef.current,
+        deltaSeconds: delta,
+        position,
+      },
+    }).catch(() => {});
+  };
 
   const handleShare = async () => {
     const url = window.location.href;
@@ -86,14 +104,13 @@ export default function WatchMovie() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Video Player */}
       <VideoPlayer
         src={ticket.videoUrl || 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'}
         poster={ticket.moviePoster}
         title={ticket.movieTitle}
+        onHeartbeat={handleHeartbeat}
       />
 
-      {/* Movie Info */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-4 sm:space-y-6">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -107,14 +124,14 @@ export default function WatchMovie() {
           </Button>
         </div>
 
-        {/* Access Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             { icon: Mail, label: 'Email', value: ticket.email, color: 'text-primary' },
-            { icon: Clock, label: 'Access', value: '90 Days Replay', color: 'text-success' },
-            { icon: Shield, label: 'Security', value: 'DRM Protected', color: 'text-accent' },
+            { icon: Clock, label: 'Access', value: '90 Days', color: 'text-success' },
+            { icon: Tv2, label: 'Streams Left', value: `${ticket.streamsRemaining ?? '∞'} of ${ticket.maxStreams ?? '∞'}`, color: 'text-accent' },
+            { icon: Shield, label: 'Security', value: 'Signed URL', color: 'text-accent' },
           ].map((item) => (
-            <div key={item.label} className="flex items-center gap-3 p-3 sm:p-4 rounded-xl bg-secondary/50">
+            <div key={item.label} className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50">
               <div className={`w-9 h-9 rounded-full bg-card flex items-center justify-center ${item.color}`}>
                 <item.icon className="w-4 h-4" />
               </div>
@@ -126,7 +143,12 @@ export default function WatchMovie() {
           ))}
         </div>
 
-        {/* Nav */}
+        {ticket.country && (
+          <div className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground bg-secondary/30 rounded-full px-3 py-1">
+            <Globe className="w-3 h-3" /> Streaming from {ticket.country}
+          </div>
+        )}
+
         <div className="flex gap-3 pt-4">
           <Button variant="outline" className="rounded-full flex-1 sm:flex-none" asChild>
             <Link to="/tickets">My Tickets</Link>

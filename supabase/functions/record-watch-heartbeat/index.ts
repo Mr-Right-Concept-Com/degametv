@@ -48,7 +48,8 @@ if (import.meta.main) {
       if (existing) {
         await supabase.from('watch_history').update({
           watch_duration_seconds: (existing.watch_duration_seconds || 0) + Math.max(0, Math.round(deltaSeconds || 0)),
-          last_position_seconds: Math.round(position || 0),
+          watch_position: Math.round(position || 0),
+          last_watched_at: new Date().toISOString(),
           country,
         }).eq('id', existing.id);
       } else {
@@ -56,7 +57,7 @@ if (import.meta.main) {
           screening_id: ticket.screening_id,
           session_id: sessionId,
           watch_duration_seconds: Math.max(0, Math.round(deltaSeconds || 0)),
-          last_position_seconds: Math.round(position || 0),
+          watch_position: Math.round(position || 0),
           country,
         });
       }
