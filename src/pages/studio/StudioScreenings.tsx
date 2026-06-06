@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { StudioLayout } from '@/components/studio/StudioLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Calendar, Loader2, Film } from 'lucide-react';
+import { Calendar, Loader2, Film, BarChart3 } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface ScreeningRow {
@@ -69,19 +71,24 @@ export default function StudioScreenings() {
         <div className="grid gap-4">
           {screenings.map(s => (
             <Card key={s.id}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <CardContent className="p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
                     <Film className="w-5 h-5 text-primary" />
                   </div>
-                  <div>
-                    <p className="font-medium text-sm">{s.title}</p>
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate">{s.title}</p>
                     <p className="text-xs text-muted-foreground">
                       {s.screening_date ? new Date(s.screening_date).toLocaleDateString() : 'No date set'}
                     </p>
                   </div>
                 </div>
-                <Badge className={statusColor[s.status] || statusColor.draft}>{s.status}</Badge>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Badge className={statusColor[s.status] || statusColor.draft}>{s.status}</Badge>
+                  <Button variant="outline" size="sm" className="rounded-full h-8 text-xs" asChild>
+                    <Link to={`/studio/analytics/${s.id}`}><BarChart3 className="w-3 h-3 mr-1" /> Analytics</Link>
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
