@@ -132,11 +132,9 @@ export default function TenantsPage() {
       title="Tenants"
       description="Manage platform tenants and their configurations"
       actions={
-        <Button className="gradient-primary" asChild>
-          <Link to="/admin/tenants/new">
-            <Plus className="h-4 w-4 mr-2" />
-            New Tenant
-          </Link>
+        <Button className="gradient-primary" disabled>
+          <Plus className="h-4 w-4 mr-2" />
+          New Tenant
         </Button>
       }
     >
