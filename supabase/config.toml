@@ -29,3 +29,7 @@ verify_jwt = false
 
 [functions.process-refund]
 verify_jwt = true
+
+[functions.convert-currency]
+verify_jwt = false
+
