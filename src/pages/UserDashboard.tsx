@@ -157,11 +157,16 @@ export default function UserDashboard() {
               <Film className="w-4 h-4 mr-1.5" />
               History
             </TabsTrigger>
+            <TabsTrigger value="rewards">
+              <Award className="w-4 h-4 mr-1.5" />
+              Rewards
+            </TabsTrigger>
             <TabsTrigger value="profile">
               <Settings className="w-4 h-4 mr-1.5" />
               Profile
             </TabsTrigger>
           </TabsList>
+
 
           {/* ─── TICKETS ─── */}
           <TabsContent value="tickets" className="space-y-3">
