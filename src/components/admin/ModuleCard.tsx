@@ -115,11 +115,9 @@ export function ModuleCard({ module, enabled, onToggle, className }: ModuleCardP
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" asChild>
-            <Link to={`/admin/modules/${module.id}`}>
-              <Settings className="h-4 w-4 mr-1" />
-              Configure
-            </Link>
+          <Button variant="ghost" size="sm" disabled>
+            <Settings className="h-4 w-4 mr-1" />
+            Configure
           </Button>
         </div>
       </div>

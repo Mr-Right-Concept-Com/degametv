@@ -605,7 +605,7 @@ export default function TenantOnboarding() {
                   Go to Dashboard
                   <ArrowRight className="w-5 h-5" />
                 </Button>
-                <Button size="lg" variant="outline" onClick={() => navigate('/movies')}>
+                <Button size="lg" variant="outline" onClick={() => navigate('/cinema')}>
                   Preview Frontend
                 </Button>
               </div>
