@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Ticket, Play, Clock, CheckCircle, Copy, Film, User,
-  LogOut, ArrowRight, Calendar, Loader2, Settings, Star, Shield
+  LogOut, ArrowRight, Calendar, Loader2, Settings, Star, Shield, Award, Sparkles
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -26,6 +26,7 @@ export default function UserDashboard() {
   usePageTitle('My Dashboard');
   const [tickets, setTickets] = useState<any[]>([]);
   const [watchHistory, setWatchHistory] = useState<any[]>([]);
+  const [loyalty, setLoyalty] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
   const [displayName, setDisplayName] = useState('');
@@ -38,7 +39,7 @@ export default function UserDashboard() {
 
   const fetchAll = async () => {
     setLoading(true);
-    const [ticketsRes, historyRes, profileRes] = await Promise.all([
+    const [ticketsRes, historyRes, profileRes, loyaltyRes] = await Promise.all([
       supabase.from('screening_tickets')
         .select('*, screening:screenings(*)')
         .or(`user_id.eq.${user!.id},email.eq.${user!.email}`)
@@ -52,10 +53,16 @@ export default function UserDashboard() {
       supabase.from('profiles')
         .select('*')
         .eq('user_id', user!.id)
-        .single()
+        .single(),
+      supabase.from('loyalty_points')
+        .select('*')
+        .eq('user_id', user!.id)
+        .order('created_at', { ascending: false })
+        .limit(50),
     ]);
     if (ticketsRes.data) setTickets(ticketsRes.data);
     if (historyRes.data) setWatchHistory(historyRes.data);
+    if (loyaltyRes.data) setLoyalty(loyaltyRes.data);
     if (profileRes.data) {
       setProfile(profileRes.data);
       setDisplayName(profileRes.data.display_name || profileRes.data.full_name || '');
