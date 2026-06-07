@@ -246,7 +246,45 @@ export default function UserDashboard() {
             )}
           </TabsContent>
 
+          {/* ─── REWARDS ─── */}
+          <TabsContent value="rewards" className="space-y-4">
+            <Card className="overflow-hidden border-primary/30 bg-gradient-to-br from-primary/10 via-accent/5 to-transparent">
+              <CardContent className="p-6 text-center">
+                <Sparkles className="w-8 h-8 text-accent mx-auto mb-2" />
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Loyalty Balance</p>
+                <p className="text-5xl font-extrabold text-primary mt-1">{loyaltyBalance.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground mt-1">points · earn 1 pt per ₦100 spent</p>
+                <p className="text-[11px] text-muted-foreground/70 mt-3">Redeem 500 pts for 10% off your next ticket</p>
+              </CardContent>
+            </Card>
+            {loyalty.length === 0 ? (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <Award className="w-10 h-10 mx-auto mb-2 text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">No activity yet — buy a ticket to start earning</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {loyalty.map(l => (
+                  <Card key={l.id}>
+                    <CardContent className="p-3 flex items-center justify-between">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{l.reason}</p>
+                        <p className="text-[10px] text-muted-foreground">{new Date(l.created_at).toLocaleDateString()}</p>
+                      </div>
+                      <span className={`text-sm font-bold ${l.points >= 0 ? 'text-success' : 'text-destructive'}`}>
+                        {l.points >= 0 ? '+' : ''}{l.points}
+                      </span>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
           {/* ─── PROFILE ─── */}
+
           <TabsContent value="profile">
             <Card>
               <CardHeader>
