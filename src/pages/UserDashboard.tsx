@@ -97,6 +97,7 @@ export default function UserDashboard() {
 
   const initials = (user?.email || 'U').charAt(0).toUpperCase();
   const userName = displayName || profile?.full_name || user?.email?.split('@')[0] || 'User';
+  const loyaltyBalance = loyalty.reduce((sum, l) => sum + (l.points || 0), 0);
 
   if (loading) {
     return (
