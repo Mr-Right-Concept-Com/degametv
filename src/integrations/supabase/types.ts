@@ -442,6 +442,41 @@ export type Database = {
           },
         ]
       }
+      live_reactions: {
+        Row: {
+          created_at: string
+          emoji: string
+          id: string
+          position_seconds: number | null
+          screening_id: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          emoji: string
+          id?: string
+          position_seconds?: number | null
+          screening_id: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          emoji?: string
+          id?: string
+          position_seconds?: number | null
+          screening_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_reactions_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
+            referencedRelation: "screenings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       live_streams: {
         Row: {
           actual_end: string | null
@@ -536,6 +571,41 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      loyalty_points: {
+        Row: {
+          created_at: string
+          id: string
+          points: number
+          reason: string
+          ticket_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          points: number
+          reason: string
+          ticket_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          points?: number
+          reason?: string
+          ticket_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loyalty_points_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "screening_tickets"
             referencedColumns: ["id"]
           },
         ]
@@ -901,8 +971,12 @@ export type Database = {
           addons: Json | null
           created_at: string
           currency: string | null
+          display_amount: number | null
+          display_currency: string | null
           email: string
           expires_at: string
+          gift_from: string | null
+          gift_message: string | null
           id: string
           is_used: boolean | null
           last_country: string | null
@@ -931,8 +1005,12 @@ export type Database = {
           addons?: Json | null
           created_at?: string
           currency?: string | null
+          display_amount?: number | null
+          display_currency?: string | null
           email: string
           expires_at?: string
+          gift_from?: string | null
+          gift_message?: string | null
           id?: string
           is_used?: boolean | null
           last_country?: string | null
@@ -961,8 +1039,12 @@ export type Database = {
           addons?: Json | null
           created_at?: string
           currency?: string | null
+          display_amount?: number | null
+          display_currency?: string | null
           email?: string
           expires_at?: string
+          gift_from?: string | null
+          gift_message?: string | null
           id?: string
           is_used?: boolean | null
           last_country?: string | null
@@ -1429,6 +1511,85 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      watch_party_participants: {
+        Row: {
+          display_name: string | null
+          id: string
+          joined_at: string
+          room_id: string
+          user_id: string
+        }
+        Insert: {
+          display_name?: string | null
+          id?: string
+          joined_at?: string
+          room_id: string
+          user_id: string
+        }
+        Update: {
+          display_name?: string | null
+          id?: string
+          joined_at?: string
+          room_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "watch_party_participants_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "watch_party_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      watch_party_rooms: {
+        Row: {
+          created_at: string
+          current_position: number
+          host_user_id: string
+          id: string
+          is_playing: boolean
+          last_event_at: string
+          name: string | null
+          room_code: string
+          screening_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_position?: number
+          host_user_id: string
+          id?: string
+          is_playing?: boolean
+          last_event_at?: string
+          name?: string | null
+          room_code: string
+          screening_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_position?: number
+          host_user_id?: string
+          id?: string
+          is_playing?: boolean
+          last_event_at?: string
+          name?: string | null
+          room_code?: string
+          screening_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "watch_party_rooms_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
+            referencedRelation: "screenings"
             referencedColumns: ["id"]
           },
         ]

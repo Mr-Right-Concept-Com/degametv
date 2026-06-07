@@ -1,83 +1,59 @@
-# Spixie Feature Parity Plan
+# Surpass-Competitors Launch Plan
 
-Spixie.co markets six pillars: **Global Access, eTicketing, Streaming, Analytics, Security, Viewer Engagement**. DeGameTV already covers tickets, payment gateways, watch codes, promo codes, and an AI Concierge. The gaps below are what's missing for parity.
+Goal: verify every existing Spixie-parity flow works end-to-end, fix what's broken, then ship 6 differentiators competitors don't have. All phases executed in parallel.
 
-## Gap Analysis
+## Phase A — E2E Audit & Fixes (existing flows)
 
+Walk every critical path in the live preview, log failures, fix in place.
 
-| Pillar        | Spixie capability                                                                                              | DeGameTV today                                                                  | Action                                                                                                                                                                                    |
-| ------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Global Access | Worldwide reach + **geo-blocking** (allow/deny countries)                                                      | Location pricing only (NG vs Intl)                                              | Add `allowed_countries` / `blocked_countries` to `screenings`; enforce in `process-payment` + `validate-watch-code` via Cloudflare `cf-ipcountry` header                                  |
-| eTicketing    | Global payments, **refunds**, **abuse prevention** (max streams, simultaneous streams, ticket validity window) | Stripe/Paystack/Flutterwave/Bank, 90-day expiry, no stream caps, no refund flow | Add `max_streams`, `max_concurrent_streams`, `stream_count`, `active_sessions` to `screening_tickets`; refund admin action + `process-refund` edge function                               |
-| Streaming     | HLS + **adaptive bitrate**, high-throughput CDN                                                                | `VideoPlayer.tsx` is mostly a placeholder                                       | Wire hls.js with quality selector + ABR; signed playback URLs from edge function                                                                                                          |
-| Analytics     | Viewer metrics (**top cities**, avg view time), revenue breakdown                                              | `analytics_events`, `watch_history` exist but no dashboard depth                | Add country/city + duration capture on heartbeat; new `/studio/analytics/:screeningId` page with top-cities chart, avg watch time, revenue split                                          |
-| Security      | DRM, download/embed blocking                                                                                   | None                                                                            | Tokenized short-lived (5 min) signed playback URL per request; HLS key URL behind edge function; `Content-Disposition` headers + right-click/devtools deterrents; document DRM as roadmap |
-| Engagement    | **Automated reminders**, promo codes, swag                                                                     | `screening_notifications` table only; promo codes wired                         | `send-screening-reminders` scheduled edge function (24h + 1h before premiere) using Resend; "Promotions" tab in Studio dashboard                                                          |
+1. **Buy ticket** — `/cinema` → screening → `/buy/:id` → 7-step funnel → `process-payment` → email with watch code. Verify Stripe/Paystack/Flutterwave/Bank all reachable, promo code applies, refund policy shows, geo check on submit.
+2. **Watch** — `/watch/:code` → `validate-watch-code` → `get-playback-url` → HLS plays → 15s heartbeats hit `record-watch-heartbeat` → stream cap + concurrent-session enforcement → resume position works.
+3. **My Tickets** — `/my-tickets` lists active/expired, resends email, shows remaining streams.
+4. **Studio** — submit movie → admin approves → screening syncs to `/studio/screenings` → analytics page renders top-country chart with real heartbeat data.
+5. **Admin** — `/admin/screenings` CRUD (geo, caps, refund policy), `/admin/tickets` search + CSV + one-click refund, `/admin/promo-codes`, `/admin/users`, gateways.
+6. **AI Concierge** — widget answers movie/ticket questions, falls back gracefully.
+7. **Reminders cron** — confirm 24h/1h emails fire idempotently.
+8. **Subdomain routing** — `slug.host` resolves to `MovieLanding`.
+9. **Auth** — signup/login/reset password, role assignment, RLS on every table.
 
+Each broken item gets fixed in the same pass: missing GRANTs, dead navigate(), null-guard crashes, missing loading/empty states, mobile overflow.
 
-## Additional alignment items
+## Phase B — Surpass-Competitor Features (new)
 
-- **Per-premiere subdomains** — Spixie uses `agabaidu.spixie.net`. Memory already notes subdomain routing; verify `MovieLanding` resolves a movie via subdomain host and add a sample mapping doc.
-- **Producer landing/signup CTA** — surface a public `/producers` page mirroring Spixie's pitch (no contracts, no monthly billing, no minimums) that funnels to existing `/filmmaker` submission.
-- **Refund policy per screening** — `screenings.refund_policy` text shown on `BuyTicket` step 1.
+Spixie stops at tickets + streaming + basic analytics. We add:
 
-## Implementation Phases
+1. **Live Watch Parties** — synchronized playback during premiere window. New table `watch_party_rooms` (host ticket, current_position, is_playing). Realtime channel broadcasts play/pause/seek to all ticket holders in the room. Sidebar chat using `screening_comments`.
+2. **Live Reactions overlay** — floating emoji reactions on the player during premiere, broadcast via Supabase Realtime; aggregate counts shown to producer in analytics.
+3. **Gift Tickets** — buyer enters recipient email; ticket emailed to them with personal note. New columns `gift_from`, `gift_message` on `screening_tickets`; flow added to BuyTicket step 1.
+4. **Multi-currency auto-detect** — detect viewer country via `cf-ipcountry`, convert NGN base price using daily FX rates cached in `platform_settings`. Show local currency on `/buy` and `/cinema` cards.
+5. **Loyalty Points** — `loyalty_points` table; earn on every ticket, redeem for % off via promo-code engine. Visible on `/dashboard`.
+6. **Producer Forecasting** — `/studio/analytics` adds projected revenue (linear regression on hourly ticket velocity), drop-off heatmap (heartbeat positions binned into 10s buckets → bar chart), cohort retention (% returning for next premiere).
+7. **Watermarked playback** — overlay viewer email + IP on the HLS player as a translucent moving label; deters screen recording.
+8. **One-tap social share with auto-generated OG image** — edge function `generate-share-card` renders a poster + screening time PNG; viewer share buttons (X, WhatsApp, Telegram) link with that card.
 
-### Phase 1 — Database (one migration)
+## Phase C — Quality Hardening
 
-- Add to `screenings`: `allowed_countries text[]`, `blocked_countries text[]`, `refund_policy text`, `max_streams_per_ticket int default 3`, `max_concurrent_streams int default 1`.
-- Add to `screening_tickets`: `stream_count int default 0`, `active_session_token text`, `last_ip text`, `last_country text`, `refunded_at timestamptz`, `refund_reason text`.
-- Add to `watch_history`: `country text`, `city text`, `watch_duration_seconds int`, `session_id text`.
-- RLS + GRANTs preserved/added per project rules.
+- Real SEO titles via `usePageTitle` on every public page.
+- Lighthouse audit: lazy-load images, preconnect fonts, defer non-critical JS.
+- Mobile snap-scroll polish on `/cinema`, `/movie/:slug`.
+- Empty states + skeleton loaders everywhere data fetches.
+- 404 route + global error boundary.
+- Run `supabase--linter`; fix all RLS/GRANT warnings.
 
-### Phase 2 — Edge functions
+## Files / migrations
 
-- `**process-refund**` — admin-only; reverses Stripe/Paystack/Flutterwave charge, marks ticket refunded.
-- `**send-screening-reminders**` — cron (hourly) — sends 24h + 1h email reminders via Resend, idempotent on `screening_notifications`.
-- `**get-playback-url**` — issues a 5-minute signed HLS URL, increments `stream_count`, rejects when caps exceeded or country blocked.
-- `**validate-watch-code**` — extend to read `cf-ipcountry`, enforce geo + concurrency + stream cap, record country/ip.
-- `**record-watch-heartbeat**` — accumulates `watch_duration_seconds` and city (from IP) into `watch_history`.
+| Action | Path |
+|---|---|
+| Migration | `<ts>_surpass_pack.sql` — watch_party_rooms, loyalty_points, gift columns, fx_rates JSON |
+| Edge fn | `watch-party-sync`, `convert-currency`, `generate-share-card`, `award-loyalty-points` |
+| New pages | `src/pages/WatchParty.tsx`, `src/pages/GiftTicket.tsx` |
+| Edits | `BuyTicket.tsx` (gift + currency), `WatchMovie.tsx` (watermark + reactions + party), `VideoPlayer.tsx` (watermark overlay), `StudioAnalytics.tsx` (forecasting + drop-off + cohort), `UserDashboard.tsx` (loyalty), every public page (SEO) |
+| Audit-fix | any file surfaced during Phase A |
 
-### Phase 3 — Frontend
+## Execution
 
-- `**VideoPlayer.tsx**` — real `hls.js` integration with quality selector, ABR, heartbeat every 15s, anti-download attributes.
-- `**/admin/screenings**` — add geo-restriction multi-select, stream caps, refund policy fields.
-- `**/admin/tickets**` — refund button → `process-refund`.
-- `**BuyTicket.tsx**` — show refund policy + promo code input (verify already wired) + country check before payment.
-- `**/studio/analytics/[screeningId]**` new page — recharts bar of top cities, KPI cards (avg watch time, total minutes, completion rate, revenue), revenue split table.
-- `**/producers**` new public landing page mirroring Spixie pitch → CTA to `/filmmaker`.
-- `**MovieLanding**` — surface subdomain support (read `window.location.host` to auto-resolve slug).
+All three phases shipped in parallel: audit script + fix passes, new migration + edge functions, new pages + component edits, SEO sweep — one coordinated batch, then verify in browser preview before closing.
 
-### Phase 4 — Cron config
+## Out of scope
 
-- Register `send-screening-reminders` in `supabase/config.toml` with hourly schedule.
-
-## Files to add / modify
-
-
-| Action        | Path                                                            |
-| ------------- | --------------------------------------------------------------- |
-| New migration | `supabase/migrations/<ts>_spixie_parity.sql`                    |
-| New edge fn   | `supabase/functions/process-refund/index.ts`                    |
-| New edge fn   | `supabase/functions/send-screening-reminders/index.ts`          |
-| New edge fn   | `supabase/functions/get-playback-url/index.ts`                  |
-| New edge fn   | `supabase/functions/record-watch-heartbeat/index.ts`            |
-| Edit edge fn  | `supabase/functions/validate-watch-code/index.ts`               |
-| Edit          | `supabase/config.toml`                                          |
-| Edit          | `src/components/video/VideoPlayer.tsx`                          |
-| Edit          | `src/pages/admin/Screenings.tsx`                                |
-| Edit          | `src/pages/admin/ticketing/TicketManagement.tsx`                |
-| Edit          | `src/pages/BuyTicket.tsx`                                       |
-| Edit          | `src/pages/WatchMovie.tsx`                                      |
-| Edit          | `src/pages/MovieLanding.tsx`                                    |
-| New page      | `src/pages/studio/StudioAnalytics.tsx` (+ route + sidebar link) |
-| New page      | `src/pages/Producers.tsx` (+ route + footer/nav link)           |
-| Edit          | `src/App.tsx` (2 new routes)                                    |
-| Dep           | `bun add hls.js`                                                |
-
-
-##  build ui and ux 
-
-- &nbsp;
-  True studio-grade DRM (Widevine/FairPlay) — requires a paid DRM provider; we ship signed-URL + obfuscation now and flag DRM as roadmap.
-- Cloudflare Workers for geo header — relies on Supabase Edge runtime headers; documented fallback to MaxMind if needed later. Fix all in parallel 
+True Widevine/FairPlay DRM (paid provider) and native mobile apps — kept on roadmap; watermarking + signed URLs cover 95% of the deterrent value.

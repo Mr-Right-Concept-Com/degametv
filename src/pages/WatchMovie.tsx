@@ -4,6 +4,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, Share2, Home, Clock, Mail, Shield, Globe, Tv2 } from 'lucide-react';
 import { VideoPlayer } from '@/components/video/VideoPlayer';
+import { Watermark } from '@/components/video/Watermark';
+import { LiveReactions } from '@/components/video/LiveReactions';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -102,14 +104,21 @@ export default function WatchMovie() {
     );
   }
 
+  const watermarkLabel = `${ticket.email} • ${ticket.country || ''}`.trim();
+
   return (
     <div className="min-h-screen bg-background">
-      <VideoPlayer
-        src={ticket.videoUrl || 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'}
-        poster={ticket.moviePoster}
-        title={ticket.movieTitle}
-        onHeartbeat={handleHeartbeat}
-      />
+      <div className="relative">
+        <VideoPlayer
+          src={ticket.videoUrl || 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'}
+          poster={ticket.moviePoster}
+          title={ticket.movieTitle}
+          onHeartbeat={handleHeartbeat}
+        />
+        <Watermark label={watermarkLabel} />
+        {ticket.screeningId && <LiveReactions screeningId={ticket.screeningId} />}
+      </div>
+
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-4 sm:space-y-6">
         <div className="flex items-start justify-between gap-4">

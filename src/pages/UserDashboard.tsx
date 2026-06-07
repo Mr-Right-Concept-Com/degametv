@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Ticket, Play, Clock, CheckCircle, Copy, Film, User,
-  LogOut, ArrowRight, Calendar, Loader2, Settings, Star, Shield
+  LogOut, ArrowRight, Calendar, Loader2, Settings, Star, Shield, Award, Sparkles
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -26,6 +26,7 @@ export default function UserDashboard() {
   usePageTitle('My Dashboard');
   const [tickets, setTickets] = useState<any[]>([]);
   const [watchHistory, setWatchHistory] = useState<any[]>([]);
+  const [loyalty, setLoyalty] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
   const [displayName, setDisplayName] = useState('');
@@ -38,7 +39,7 @@ export default function UserDashboard() {
 
   const fetchAll = async () => {
     setLoading(true);
-    const [ticketsRes, historyRes, profileRes] = await Promise.all([
+    const [ticketsRes, historyRes, profileRes, loyaltyRes] = await Promise.all([
       supabase.from('screening_tickets')
         .select('*, screening:screenings(*)')
         .or(`user_id.eq.${user!.id},email.eq.${user!.email}`)
@@ -52,10 +53,16 @@ export default function UserDashboard() {
       supabase.from('profiles')
         .select('*')
         .eq('user_id', user!.id)
-        .single()
+        .single(),
+      supabase.from('loyalty_points')
+        .select('*')
+        .eq('user_id', user!.id)
+        .order('created_at', { ascending: false })
+        .limit(50),
     ]);
     if (ticketsRes.data) setTickets(ticketsRes.data);
     if (historyRes.data) setWatchHistory(historyRes.data);
+    if (loyaltyRes.data) setLoyalty(loyaltyRes.data);
     if (profileRes.data) {
       setProfile(profileRes.data);
       setDisplayName(profileRes.data.display_name || profileRes.data.full_name || '');
@@ -90,6 +97,7 @@ export default function UserDashboard() {
 
   const initials = (user?.email || 'U').charAt(0).toUpperCase();
   const userName = displayName || profile?.full_name || user?.email?.split('@')[0] || 'User';
+  const loyaltyBalance = loyalty.reduce((sum, l) => sum + (l.points || 0), 0);
 
   if (loading) {
     return (
@@ -149,11 +157,16 @@ export default function UserDashboard() {
               <Film className="w-4 h-4 mr-1.5" />
               History
             </TabsTrigger>
+            <TabsTrigger value="rewards">
+              <Award className="w-4 h-4 mr-1.5" />
+              Rewards
+            </TabsTrigger>
             <TabsTrigger value="profile">
               <Settings className="w-4 h-4 mr-1.5" />
               Profile
             </TabsTrigger>
           </TabsList>
+
 
           {/* ─── TICKETS ─── */}
           <TabsContent value="tickets" className="space-y-3">
@@ -233,7 +246,45 @@ export default function UserDashboard() {
             )}
           </TabsContent>
 
+          {/* ─── REWARDS ─── */}
+          <TabsContent value="rewards" className="space-y-4">
+            <Card className="overflow-hidden border-primary/30 bg-gradient-to-br from-primary/10 via-accent/5 to-transparent">
+              <CardContent className="p-6 text-center">
+                <Sparkles className="w-8 h-8 text-accent mx-auto mb-2" />
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Loyalty Balance</p>
+                <p className="text-5xl font-extrabold text-primary mt-1">{loyaltyBalance.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground mt-1">points · earn 1 pt per ₦100 spent</p>
+                <p className="text-[11px] text-muted-foreground/70 mt-3">Redeem 500 pts for 10% off your next ticket</p>
+              </CardContent>
+            </Card>
+            {loyalty.length === 0 ? (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <Award className="w-10 h-10 mx-auto mb-2 text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">No activity yet — buy a ticket to start earning</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {loyalty.map(l => (
+                  <Card key={l.id}>
+                    <CardContent className="p-3 flex items-center justify-between">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{l.reason}</p>
+                        <p className="text-[10px] text-muted-foreground">{new Date(l.created_at).toLocaleDateString()}</p>
+                      </div>
+                      <span className={`text-sm font-bold ${l.points >= 0 ? 'text-success' : 'text-destructive'}`}>
+                        {l.points >= 0 ? '+' : ''}{l.points}
+                      </span>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
           {/* ─── PROFILE ─── */}
+
           <TabsContent value="profile">
             <Card>
               <CardHeader>
