@@ -104,9 +104,9 @@ export default function FilmmakerSubmit() {
         <Button
           size="lg"
           className="rounded-full gap-2"
-          onClick={() => navigate(user ? '/studio/submit' : '/auth')}
+          onClick={() => navigate(user ? '/apply-filmmaker' : '/auth?redirect=/apply-filmmaker')}
         >
-          {user ? 'Go to Studio' : 'Get Started'}
+          {user ? 'Apply Now' : 'Get Started'}
           <ArrowRight className="w-4 h-4" />
         </Button>
       </div>
