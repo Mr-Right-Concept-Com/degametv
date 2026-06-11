@@ -102,13 +102,6 @@ const App = () => (
               
               {/* ============ STUDIO (Protected - Filmmakers) ============ */}
               <Route path="/studio" element={<ProtectedRoute><StudioDashboard /></ProtectedRoute>} />
-              <Route path="/studio/movies" element={<ProtectedRoute><StudioMovies /></ProtectedRoute>} />
-              <Route path="/studio/submit" element={<ProtectedRoute><StudioSubmit /></ProtectedRoute>} />
-              <Route path="/studio/screenings" element={<ProtectedRoute><StudioScreenings /></ProtectedRoute>} />
-              <Route path="/studio/earnings" element={<ProtectedRoute><StudioEarnings /></ProtectedRoute>} />
-              <Route path="/studio/analytics" element={<ProtectedRoute><StudioScreenings /></ProtectedRoute>} />
-              <Route path="/studio/analytics/:screeningId" element={<ProtectedRoute><StudioAnalytics /></ProtectedRoute>} />
-              
               {/* ============ ADMIN (Protected) ============ */}
               <Route path="/admin" element={<ProtectedAdminRoute><Dashboard /></ProtectedAdminRoute>} />
               <Route path="/admin/users" element={<ProtectedAdminRoute><Users /></ProtectedAdminRoute>} />
@@ -117,6 +110,7 @@ const App = () => (
               <Route path="/admin/promo-codes" element={<ProtectedAdminRoute><PromoCodes /></ProtectedAdminRoute>} />
               <Route path="/admin/sales" element={<ProtectedAdminRoute><ProducerDashboard /></ProtectedAdminRoute>} />
               <Route path="/admin/filmmaker" element={<ProtectedAdminRoute><FilmmakerPortal /></ProtectedAdminRoute>} />
+              <Route path="/admin/filmmaker-applications" element={<ProtectedAdminRoute><FilmmakerApplications /></ProtectedAdminRoute>} />
               <Route path="/admin/settings/payment-gateways" element={<ProtectedAdminRoute><PaymentGatewaySettings /></ProtectedAdminRoute>} />
               <Route path="/admin/settings/email" element={<ProtectedAdminRoute><EmailSettings /></ProtectedAdminRoute>} />
               <Route path="/admin/settings/branding" element={<ProtectedAdminRoute><WhiteLabel /></ProtectedAdminRoute>} />
