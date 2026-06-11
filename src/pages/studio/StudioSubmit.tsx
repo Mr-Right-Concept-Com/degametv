@@ -11,10 +11,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Film, Upload, CheckCircle, ChevronRight, Loader2,
-  Image as ImageIcon, Link2, ArrowRight, Users
+  Image as ImageIcon, Link2, ArrowRight, Users, ShieldCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import { KYCVerification } from '@/components/kyc/KYCVerification';
+import { useEffect } from 'react';
 
 const GENRES = ['Action', 'Comedy', 'Drama', 'Horror', 'Thriller', 'Romance', 'Documentary', 'Animation', 'Sci-Fi', 'Fantasy', 'Crime', 'Biography', 'Musical', 'Nollywood', 'African Cinema'];
 const BUDGET_RANGES = ['Under $10K', '$10K – $50K', '$50K – $250K', '$250K – $1M', '$1M – $5M', 'Over $5M'];
@@ -41,8 +43,20 @@ export default function StudioSubmit() {
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [createdContentId, setCreatedContentId] = useState<string | null>(null);
   const [uploadingPoster, setUploadingPoster] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [kycVerified, setKycVerified] = useState(false);
+  const [checkingKyc, setCheckingKyc] = useState(true);
+
+  useEffect(() => {
+    if (!user) { setCheckingKyc(false); return; }
+    supabase.from('profiles').select('kyc_status').eq('user_id', user.id).maybeSingle()
+      .then(({ data }) => {
+        setKycVerified(data?.kyc_status === 'verified');
+        setCheckingKyc(false);
+      });
+  }, [user?.id]);
 
   const [form, setForm] = useState({
     submitter_name: '',
@@ -101,9 +115,11 @@ export default function StudioSubmit() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep3()) return;
+    if (!kycVerified) { toast.error('Verify your identity (KYC) first'); return; }
 
     setSubmitting(true);
-    const { error } = await supabase.from('filmmaker_submissions').insert({
+    // Auto-approved because user is KYC verified
+    const { data: sub, error } = await supabase.from('filmmaker_submissions').insert({
       submitter_name: form.submitter_name,
       submitter_email: user?.email || form.submitter_email,
       company_name: form.company_name || null,
@@ -119,10 +135,38 @@ export default function StudioSubmit() {
       video_url: form.video_url || null,
       budget_range: form.budget_range || null,
       distribution_rights: form.distribution_rights || null,
-      status: 'pending',
-    });
-    if (error) toast.error('Submission failed: ' + error.message);
-    else setSubmitted(true);
+      status: 'approved',
+      admin_notes: 'Auto-approved: filmmaker KYC verified',
+    }).select('id').single();
+
+    if (error || !sub) {
+      toast.error('Submission failed: ' + (error?.message || 'unknown'));
+      setSubmitting(false);
+      return;
+    }
+
+    // Auto-create content record so the film is live-ready
+    const slug = form.project_title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36);
+    const { data: content } = await supabase.from('content').insert({
+      title: form.project_title,
+      slug,
+      description: form.description || '',
+      type: (form.project_type === 'series' ? 'series' : 'movie') as any,
+      status: 'published' as any,
+      poster_url: form.poster_url || null,
+      trailer_url: form.trailer_url || null,
+      video_url: form.video_url || null,
+      duration: form.duration_minutes ? parseInt(form.duration_minutes) * 60 : null,
+      genres: form.genres.length > 0 ? form.genres : null,
+      release_date: form.release_year ? `${form.release_year}-01-01` : null,
+    } as any).select('id').single();
+
+    if (content) {
+      await supabase.from('filmmaker_submissions').update({ content_id: content.id }).eq('id', sub.id);
+      setCreatedContentId(content.id);
+    }
+
+    setSubmitted(true);
     setSubmitting(false);
   };
 
@@ -149,21 +193,36 @@ export default function StudioSubmit() {
 
   if (submitted) {
     return (
-      <StudioLayout title="Submission Complete">
+      <StudioLayout title="Film Published">
         <div className="max-w-lg mx-auto py-12 text-center">
           <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-10 h-10 text-green-500" />
           </div>
-          <h2 className="text-2xl font-bold mb-3">Submission Received!</h2>
+          <h2 className="text-2xl font-bold mb-3">Your Film is Live!</h2>
           <p className="text-muted-foreground mb-6">
-            "{form.project_title}" has been submitted for review. We'll notify you at <strong>{user?.email}</strong>.
+            "{form.project_title}" was auto-approved (KYC verified) and is now in your catalog. Schedule a premiere or set up ticketing next.
           </p>
           <div className="flex flex-col gap-3">
-            <Button className="rounded-full" onClick={() => navigate('/studio/movies')}>View My Movies</Button>
-            <Button variant="outline" className="rounded-full" onClick={() => { setSubmitted(false); setStep(1); setForm(f => ({ ...f, project_title: '', description: '', genres: [], duration_minutes: '', poster_url: '' })); }}>
+            <Button className="rounded-full" onClick={() => navigate('/studio/screenings')}>Schedule Premiere</Button>
+            <Button variant="outline" className="rounded-full" onClick={() => navigate('/studio/movies')}>View My Movies</Button>
+            <Button variant="ghost" className="rounded-full" onClick={() => { setSubmitted(false); setStep(1); setCreatedContentId(null); setForm(f => ({ ...f, project_title: '', description: '', genres: [], duration_minutes: '', poster_url: '' })); }}>
               Submit Another
             </Button>
           </div>
+        </div>
+      </StudioLayout>
+    );
+  }
+
+  if (checkingKyc) {
+    return <StudioLayout title="Submit Film"><div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div></StudioLayout>;
+  }
+
+  if (!kycVerified) {
+    return (
+      <StudioLayout title="Verify Identity" description="One-time KYC check before you can publish films">
+        <div className="max-w-xl mx-auto">
+          <KYCVerification onVerified={() => setKycVerified(true)} />
         </div>
       </StudioLayout>
     );

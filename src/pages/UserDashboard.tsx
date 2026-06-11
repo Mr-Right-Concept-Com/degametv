@@ -17,6 +17,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { KYCVerification } from '@/components/kyc/KYCVerification';
 
 const displayNameSchema = z.string().trim().min(2, 'Name must be at least 2 characters').max(50, 'Name must be under 50 characters');
 
@@ -322,6 +323,9 @@ export default function UserDashboard() {
                 </div>
               </CardContent>
             </Card>
+            <div className="mt-4">
+              <KYCVerification />
+            </div>
           </TabsContent>
         </Tabs>
       </div>
