@@ -34,6 +34,7 @@ import PromoCodes from "./pages/admin/PromoCodes";
 import PaymentGatewaySettings from "./pages/admin/PaymentGatewaySettings";
 import ProducerDashboard from "./pages/admin/ProducerDashboard";
 import FilmmakerPortal from "./pages/admin/filmmaker/FilmmakerPortal";
+import FilmmakerApplications from "./pages/admin/FilmmakerApplications";
 import EmailSettings from "./pages/admin/settings/EmailSettings";
 import WhiteLabel from "./pages/admin/settings/WhiteLabel";
 import TicketManagement from "./pages/admin/ticketing/TicketManagement";
