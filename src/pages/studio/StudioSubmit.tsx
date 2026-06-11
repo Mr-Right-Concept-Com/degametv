@@ -11,12 +11,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Film, Upload, CheckCircle, ChevronRight, Loader2,
-  Image as ImageIcon, Link2, ArrowRight, Users, ShieldCheck
+  Image as ImageIcon, Link2, ArrowRight, Users
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { KYCVerification } from '@/components/kyc/KYCVerification';
-import { useEffect } from 'react';
 
 const GENRES = ['Action', 'Comedy', 'Drama', 'Horror', 'Thriller', 'Romance', 'Documentary', 'Animation', 'Sci-Fi', 'Fantasy', 'Crime', 'Biography', 'Musical', 'Nollywood', 'African Cinema'];
 const BUDGET_RANGES = ['Under $10K', '$10K – $50K', '$50K – $250K', '$250K – $1M', '$1M – $5M', 'Over $5M'];
