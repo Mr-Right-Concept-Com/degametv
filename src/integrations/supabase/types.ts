@@ -754,6 +754,13 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          kyc_full_name: string | null
+          kyc_id_type: string | null
+          kyc_id_url: string | null
+          kyc_selfie_url: string | null
+          kyc_status: string
+          kyc_submitted_at: string | null
+          kyc_verified_at: string | null
           language: string | null
           timezone: string | null
           updated_at: string
@@ -768,6 +775,13 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          kyc_full_name?: string | null
+          kyc_id_type?: string | null
+          kyc_id_url?: string | null
+          kyc_selfie_url?: string | null
+          kyc_status?: string
+          kyc_submitted_at?: string | null
+          kyc_verified_at?: string | null
           language?: string | null
           timezone?: string | null
           updated_at?: string
@@ -782,6 +796,13 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          kyc_full_name?: string | null
+          kyc_id_type?: string | null
+          kyc_id_url?: string | null
+          kyc_selfie_url?: string | null
+          kyc_status?: string
+          kyc_submitted_at?: string | null
+          kyc_verified_at?: string | null
           language?: string | null
           timezone?: string | null
           updated_at?: string
@@ -1646,6 +1667,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_kyc_verified: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
