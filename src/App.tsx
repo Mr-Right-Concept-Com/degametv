@@ -81,6 +81,7 @@ const App = () => (
               <Route path="/faq" element={<FAQ />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/producers" element={<Producers />} />
+              <Route path="/apply-filmmaker" element={<ApplyFilmmaker />} />
               
               
               {/* ============ VIRTUAL CINEMA TICKET FUNNEL ============ */}
@@ -89,6 +90,15 @@ const App = () => (
               <Route path="/tickets" element={<ProtectedRoute><MyTickets /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
               <Route path="/filmmaker" element={<FilmmakerSubmit />} />
+              
+              {/* ============ STUDIO (Protected - Approved Filmmakers Only) ============ */}
+              <Route path="/studio" element={<ProtectedCreatorRoute><StudioDashboard /></ProtectedCreatorRoute>} />
+              <Route path="/studio/movies" element={<ProtectedCreatorRoute><StudioMovies /></ProtectedCreatorRoute>} />
+              <Route path="/studio/submit" element={<ProtectedCreatorRoute><StudioSubmit /></ProtectedCreatorRoute>} />
+              <Route path="/studio/screenings" element={<ProtectedCreatorRoute><StudioScreenings /></ProtectedCreatorRoute>} />
+              <Route path="/studio/earnings" element={<ProtectedCreatorRoute><StudioEarnings /></ProtectedCreatorRoute>} />
+              <Route path="/studio/analytics" element={<ProtectedCreatorRoute><StudioScreenings /></ProtectedCreatorRoute>} />
+              <Route path="/studio/analytics/:screeningId" element={<ProtectedCreatorRoute><StudioAnalytics /></ProtectedCreatorRoute>} />
               
               {/* ============ STUDIO (Protected - Filmmakers) ============ */}
               <Route path="/studio" element={<ProtectedRoute><StudioDashboard /></ProtectedRoute>} />
