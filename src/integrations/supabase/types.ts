@@ -1667,6 +1667,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_filmmaker: { Args: { _user_id: string }; Returns: boolean }
       is_kyc_verified: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
     }
