@@ -26,35 +26,24 @@ export default function FilmmakerSubmit() {
           Virtual cinema, VOD, and revenue sharing for Nollywood and African cinema.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          {user ? (
+          <Button
+            size="lg"
+            className="rounded-full bg-primary-foreground text-primary hover:bg-primary-foreground/90 gap-2"
+            onClick={() => navigate(user ? '/apply-filmmaker' : '/auth?redirect=/apply-filmmaker')}
+          >
+            <Clapperboard className="w-5 h-5" />
+            {user ? 'Apply to Premiere' : 'Sign Up & Apply'}
+            <ArrowRight className="w-4 h-4" />
+          </Button>
+          {!user && (
             <Button
               size="lg"
-              className="rounded-full bg-primary-foreground text-primary hover:bg-primary-foreground/90 gap-2"
-              onClick={() => navigate('/studio')}
+              variant="outline"
+              className="rounded-full border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10"
+              onClick={() => navigate('/auth')}
             >
-              <Clapperboard className="w-5 h-5" />
-              Go to Studio Dashboard
-              <ArrowRight className="w-4 h-4" />
+              Sign In
             </Button>
-          ) : (
-            <>
-              <Button
-                size="lg"
-                className="rounded-full bg-primary-foreground text-primary hover:bg-primary-foreground/90 gap-2"
-                onClick={() => navigate('/auth')}
-              >
-                Sign Up as Filmmaker
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="rounded-full border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10"
-                onClick={() => navigate('/auth')}
-              >
-                Sign In
-              </Button>
-            </>
           )}
         </div>
       </div>
@@ -89,10 +78,10 @@ export default function FilmmakerSubmit() {
         </div>
         <div className="max-w-2xl mx-auto space-y-6">
           {[
-            { step: '1', title: 'Create Your Account', desc: 'Sign up and access the Studio Dashboard' },
-            { step: '2', title: 'Submit Your Film', desc: 'Upload poster, trailer, screener link, and full details' },
-            { step: '3', title: 'We Review & Approve', desc: 'Our acquisitions team reviews within 5–7 business days' },
-            { step: '4', title: 'Go Live', desc: 'Set premiere dates, pricing, and start earning from ticket sales' },
+            { step: '1', title: 'Create Your Account', desc: 'Sign up with your normal viewer account' },
+            { step: '2', title: 'Apply & Verify (KYC)', desc: 'Submit your ID and selfie — protects against piracy & impersonation' },
+            { step: '3', title: 'Get Approved', desc: 'Our team reviews within 24–48 hours and unlocks your Studio' },
+            { step: '4', title: 'Upload & Premiere', desc: 'Add films, schedule premieres, sell tickets, earn revenue' },
           ].map(s => (
             <div key={s.step} className="flex items-start gap-4">
               <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm flex-shrink-0">
@@ -115,9 +104,9 @@ export default function FilmmakerSubmit() {
         <Button
           size="lg"
           className="rounded-full gap-2"
-          onClick={() => navigate(user ? '/studio/submit' : '/auth')}
+          onClick={() => navigate(user ? '/apply-filmmaker' : '/auth?redirect=/apply-filmmaker')}
         >
-          {user ? 'Go to Studio' : 'Get Started'}
+          {user ? 'Apply Now' : 'Get Started'}
           <ArrowRight className="w-4 h-4" />
         </Button>
       </div>

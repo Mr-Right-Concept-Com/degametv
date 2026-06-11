@@ -100,20 +100,18 @@ export function KYCVerification({ onVerified, compact }: Props) {
     }
     setErrors({});
     setSubmitting(true);
-    // Auto-approve on submission (same pattern as event ticket creation)
+    // Submit for admin review (NOT auto-verified)
     const { error } = await supabase
       .from('profiles')
       .update({
         ...result.data,
-        kyc_status: 'verified',
+        kyc_status: 'pending',
         kyc_submitted_at: new Date().toISOString(),
-        kyc_verified_at: new Date().toISOString(),
       })
       .eq('user_id', user.id);
-    if (error) { toast.error('Verification failed: ' + error.message); setSubmitting(false); return; }
-    toast.success('Identity verified! You can now upload films.');
+    if (error) { toast.error('Submission failed: ' + error.message); setSubmitting(false); return; }
+    toast.success('Application submitted! Our team will review within 24–48 hours.');
     await load();
-    onVerified?.();
     setSubmitting(false);
   };
 
@@ -129,10 +127,27 @@ export function KYCVerification({ onVerified, compact }: Props) {
             <ShieldCheck className="w-5 h-5 text-green-500" />
           </div>
           <div className="flex-1">
-            <p className="font-semibold text-sm">Identity Verified</p>
-            <p className="text-xs text-muted-foreground">Your films are auto-approved for publishing</p>
+            <p className="font-semibold text-sm">Approved Filmmaker</p>
+            <p className="text-xs text-muted-foreground">You can now access the Studio and upload films</p>
           </div>
-          <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30">KYC ✓</Badge>
+          <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30">Verified ✓</Badge>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (profile?.kyc_status === 'pending') {
+    return (
+      <Card className="border-amber-500/30 bg-amber-500/5">
+        <CardContent className="p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+            <Clock className="w-5 h-5 text-amber-500" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-sm">Application Under Review</p>
+            <p className="text-xs text-muted-foreground">We'll email you within 24–48 hours when your filmmaker access is approved.</p>
+          </div>
+          <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/30">Pending</Badge>
         </CardContent>
       </Card>
     );
@@ -143,10 +158,10 @@ export function KYCVerification({ onVerified, compact }: Props) {
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <ScanFace className="w-4 h-4 text-primary" />
-          Identity Verification (KYC) Required
+          Filmmaker Application — Verify Identity
         </CardTitle>
         <CardDescription className="text-xs">
-          For piracy protection and platform security, verify your identity once. After verification, your film uploads are <strong>instantly approved</strong>.
+          To premiere films on DeGameTV, complete this one-time identity check. Our team reviews applications within 24–48 hours. After approval you unlock the Studio to upload and schedule premieres.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -213,10 +228,10 @@ export function KYCVerification({ onVerified, compact }: Props) {
 
         <Button onClick={submit} disabled={submitting} className="w-full rounded-full">
           {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
-          {submitting ? 'Verifying...' : 'Verify Identity'}
+          {submitting ? 'Submitting...' : 'Submit Application'}
         </Button>
         <p className="text-[10px] text-muted-foreground text-center">
-          <Clock className="w-3 h-3 inline mr-1" />Instant verification. Your data is encrypted and used only for compliance.
+          <Clock className="w-3 h-3 inline mr-1" />Reviewed within 24–48 hours. Your data is encrypted and used only for compliance.
         </p>
       </CardContent>
     </Card>

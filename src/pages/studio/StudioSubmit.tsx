@@ -11,12 +11,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Film, Upload, CheckCircle, ChevronRight, Loader2,
-  Image as ImageIcon, Link2, ArrowRight, Users, ShieldCheck
+  Image as ImageIcon, Link2, ArrowRight, Users
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { KYCVerification } from '@/components/kyc/KYCVerification';
-import { useEffect } from 'react';
 
 const GENRES = ['Action', 'Comedy', 'Drama', 'Horror', 'Thriller', 'Romance', 'Documentary', 'Animation', 'Sci-Fi', 'Fantasy', 'Crime', 'Biography', 'Musical', 'Nollywood', 'African Cinema'];
 const BUDGET_RANGES = ['Under $10K', '$10K – $50K', '$50K – $250K', '$250K – $1M', '$1M – $5M', 'Over $5M'];
@@ -46,17 +44,6 @@ export default function StudioSubmit() {
   const [createdContentId, setCreatedContentId] = useState<string | null>(null);
   const [uploadingPoster, setUploadingPoster] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [kycVerified, setKycVerified] = useState(false);
-  const [checkingKyc, setCheckingKyc] = useState(true);
-
-  useEffect(() => {
-    if (!user) { setCheckingKyc(false); return; }
-    supabase.from('profiles').select('kyc_status').eq('user_id', user.id).maybeSingle()
-      .then(({ data }) => {
-        setKycVerified(data?.kyc_status === 'verified');
-        setCheckingKyc(false);
-      });
-  }, [user?.id]);
 
   const [form, setForm] = useState({
     submitter_name: '',
@@ -115,7 +102,7 @@ export default function StudioSubmit() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep3()) return;
-    if (!kycVerified) { toast.error('Verify your identity (KYC) first'); return; }
+    
 
     setSubmitting(true);
     // Auto-approved because user is KYC verified
@@ -214,19 +201,8 @@ export default function StudioSubmit() {
     );
   }
 
-  if (checkingKyc) {
-    return <StudioLayout title="Submit Film"><div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div></StudioLayout>;
-  }
 
-  if (!kycVerified) {
-    return (
-      <StudioLayout title="Verify Identity" description="One-time KYC check before you can publish films">
-        <div className="max-w-xl mx-auto">
-          <KYCVerification onVerified={() => setKycVerified(true)} />
-        </div>
-      </StudioLayout>
-    );
-  }
+
 
   return (
     <StudioLayout title="Submit Film" description="Upload your movie for review and distribution">

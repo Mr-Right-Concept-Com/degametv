@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { TenantProvider } from "@/hooks/useTenant";
 import { ProtectedAdminRoute } from "@/components/auth/ProtectedAdminRoute";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { ProtectedCreatorRoute } from "@/components/auth/ProtectedCreatorRoute";
 
 // End-user pages
 import Index from "./pages/Index";
@@ -23,6 +24,7 @@ import FAQ from "./pages/FAQ";
 import Contact from "./pages/Contact";
 import ResetPassword from "./pages/ResetPassword";
 import Producers from "./pages/Producers";
+import ApplyFilmmaker from "./pages/ApplyFilmmaker";
 
 // Admin pages
 import Dashboard from "./pages/admin/Dashboard";
@@ -32,6 +34,7 @@ import PromoCodes from "./pages/admin/PromoCodes";
 import PaymentGatewaySettings from "./pages/admin/PaymentGatewaySettings";
 import ProducerDashboard from "./pages/admin/ProducerDashboard";
 import FilmmakerPortal from "./pages/admin/filmmaker/FilmmakerPortal";
+import FilmmakerApplications from "./pages/admin/FilmmakerApplications";
 import EmailSettings from "./pages/admin/settings/EmailSettings";
 import WhiteLabel from "./pages/admin/settings/WhiteLabel";
 import TicketManagement from "./pages/admin/ticketing/TicketManagement";
@@ -78,6 +81,7 @@ const App = () => (
               <Route path="/faq" element={<FAQ />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/producers" element={<Producers />} />
+              <Route path="/apply-filmmaker" element={<ApplyFilmmaker />} />
               
               
               {/* ============ VIRTUAL CINEMA TICKET FUNNEL ============ */}
@@ -87,15 +91,17 @@ const App = () => (
               <Route path="/dashboard" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
               <Route path="/filmmaker" element={<FilmmakerSubmit />} />
               
+              {/* ============ STUDIO (Protected - Approved Filmmakers Only) ============ */}
+              <Route path="/studio" element={<ProtectedCreatorRoute><StudioDashboard /></ProtectedCreatorRoute>} />
+              <Route path="/studio/movies" element={<ProtectedCreatorRoute><StudioMovies /></ProtectedCreatorRoute>} />
+              <Route path="/studio/submit" element={<ProtectedCreatorRoute><StudioSubmit /></ProtectedCreatorRoute>} />
+              <Route path="/studio/screenings" element={<ProtectedCreatorRoute><StudioScreenings /></ProtectedCreatorRoute>} />
+              <Route path="/studio/earnings" element={<ProtectedCreatorRoute><StudioEarnings /></ProtectedCreatorRoute>} />
+              <Route path="/studio/analytics" element={<ProtectedCreatorRoute><StudioScreenings /></ProtectedCreatorRoute>} />
+              <Route path="/studio/analytics/:screeningId" element={<ProtectedCreatorRoute><StudioAnalytics /></ProtectedCreatorRoute>} />
+              
               {/* ============ STUDIO (Protected - Filmmakers) ============ */}
               <Route path="/studio" element={<ProtectedRoute><StudioDashboard /></ProtectedRoute>} />
-              <Route path="/studio/movies" element={<ProtectedRoute><StudioMovies /></ProtectedRoute>} />
-              <Route path="/studio/submit" element={<ProtectedRoute><StudioSubmit /></ProtectedRoute>} />
-              <Route path="/studio/screenings" element={<ProtectedRoute><StudioScreenings /></ProtectedRoute>} />
-              <Route path="/studio/earnings" element={<ProtectedRoute><StudioEarnings /></ProtectedRoute>} />
-              <Route path="/studio/analytics" element={<ProtectedRoute><StudioScreenings /></ProtectedRoute>} />
-              <Route path="/studio/analytics/:screeningId" element={<ProtectedRoute><StudioAnalytics /></ProtectedRoute>} />
-              
               {/* ============ ADMIN (Protected) ============ */}
               <Route path="/admin" element={<ProtectedAdminRoute><Dashboard /></ProtectedAdminRoute>} />
               <Route path="/admin/users" element={<ProtectedAdminRoute><Users /></ProtectedAdminRoute>} />
@@ -104,6 +110,7 @@ const App = () => (
               <Route path="/admin/promo-codes" element={<ProtectedAdminRoute><PromoCodes /></ProtectedAdminRoute>} />
               <Route path="/admin/sales" element={<ProtectedAdminRoute><ProducerDashboard /></ProtectedAdminRoute>} />
               <Route path="/admin/filmmaker" element={<ProtectedAdminRoute><FilmmakerPortal /></ProtectedAdminRoute>} />
+              <Route path="/admin/filmmaker-applications" element={<ProtectedAdminRoute><FilmmakerApplications /></ProtectedAdminRoute>} />
               <Route path="/admin/settings/payment-gateways" element={<ProtectedAdminRoute><PaymentGatewaySettings /></ProtectedAdminRoute>} />
               <Route path="/admin/settings/email" element={<ProtectedAdminRoute><EmailSettings /></ProtectedAdminRoute>} />
               <Route path="/admin/settings/branding" element={<ProtectedAdminRoute><WhiteLabel /></ProtectedAdminRoute>} />
