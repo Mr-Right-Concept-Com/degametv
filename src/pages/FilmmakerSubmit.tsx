@@ -78,10 +78,10 @@ export default function FilmmakerSubmit() {
         </div>
         <div className="max-w-2xl mx-auto space-y-6">
           {[
-            { step: '1', title: 'Create Your Account', desc: 'Sign up and access the Studio Dashboard' },
-            { step: '2', title: 'Submit Your Film', desc: 'Upload poster, trailer, screener link, and full details' },
-            { step: '3', title: 'We Review & Approve', desc: 'Our acquisitions team reviews within 5–7 business days' },
-            { step: '4', title: 'Go Live', desc: 'Set premiere dates, pricing, and start earning from ticket sales' },
+            { step: '1', title: 'Create Your Account', desc: 'Sign up with your normal viewer account' },
+            { step: '2', title: 'Apply & Verify (KYC)', desc: 'Submit your ID and selfie — protects against piracy & impersonation' },
+            { step: '3', title: 'Get Approved', desc: 'Our team reviews within 24–48 hours and unlocks your Studio' },
+            { step: '4', title: 'Upload & Premiere', desc: 'Add films, schedule premieres, sell tickets, earn revenue' },
           ].map(s => (
             <div key={s.step} className="flex items-start gap-4">
               <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm flex-shrink-0">
