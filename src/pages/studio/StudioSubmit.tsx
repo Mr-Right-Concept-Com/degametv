@@ -104,7 +104,7 @@ export default function StudioSubmit() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep3()) return;
-    if (!kycVerified) { toast.error('Verify your identity (KYC) first'); return; }
+    
 
     setSubmitting(true);
     // Auto-approved because user is KYC verified
