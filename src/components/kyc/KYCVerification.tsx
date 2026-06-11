@@ -127,10 +127,27 @@ export function KYCVerification({ onVerified, compact }: Props) {
             <ShieldCheck className="w-5 h-5 text-green-500" />
           </div>
           <div className="flex-1">
-            <p className="font-semibold text-sm">Identity Verified</p>
-            <p className="text-xs text-muted-foreground">Your films are auto-approved for publishing</p>
+            <p className="font-semibold text-sm">Approved Filmmaker</p>
+            <p className="text-xs text-muted-foreground">You can now access the Studio and upload films</p>
           </div>
-          <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30">KYC ✓</Badge>
+          <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30">Verified ✓</Badge>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (profile?.kyc_status === 'pending') {
+    return (
+      <Card className="border-amber-500/30 bg-amber-500/5">
+        <CardContent className="p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+            <Clock className="w-5 h-5 text-amber-500" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-sm">Application Under Review</p>
+            <p className="text-xs text-muted-foreground">We'll email you within 24–48 hours when your filmmaker access is approved.</p>
+          </div>
+          <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/30">Pending</Badge>
         </CardContent>
       </Card>
     );
@@ -141,10 +158,10 @@ export function KYCVerification({ onVerified, compact }: Props) {
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <ScanFace className="w-4 h-4 text-primary" />
-          Identity Verification (KYC) Required
+          Filmmaker Application — Verify Identity
         </CardTitle>
         <CardDescription className="text-xs">
-          For piracy protection and platform security, verify your identity once. After verification, your film uploads are <strong>instantly approved</strong>.
+          To premiere films on DeGameTV, complete this one-time identity check. Our team reviews applications within 24–48 hours. After approval you unlock the Studio to upload and schedule premieres.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
