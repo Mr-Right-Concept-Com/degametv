@@ -193,21 +193,36 @@ export default function StudioSubmit() {
 
   if (submitted) {
     return (
-      <StudioLayout title="Submission Complete">
+      <StudioLayout title="Film Published">
         <div className="max-w-lg mx-auto py-12 text-center">
           <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-10 h-10 text-green-500" />
           </div>
-          <h2 className="text-2xl font-bold mb-3">Submission Received!</h2>
+          <h2 className="text-2xl font-bold mb-3">Your Film is Live!</h2>
           <p className="text-muted-foreground mb-6">
-            "{form.project_title}" has been submitted for review. We'll notify you at <strong>{user?.email}</strong>.
+            "{form.project_title}" was auto-approved (KYC verified) and is now in your catalog. Schedule a premiere or set up ticketing next.
           </p>
           <div className="flex flex-col gap-3">
-            <Button className="rounded-full" onClick={() => navigate('/studio/movies')}>View My Movies</Button>
-            <Button variant="outline" className="rounded-full" onClick={() => { setSubmitted(false); setStep(1); setForm(f => ({ ...f, project_title: '', description: '', genres: [], duration_minutes: '', poster_url: '' })); }}>
+            <Button className="rounded-full" onClick={() => navigate('/studio/screenings')}>Schedule Premiere</Button>
+            <Button variant="outline" className="rounded-full" onClick={() => navigate('/studio/movies')}>View My Movies</Button>
+            <Button variant="ghost" className="rounded-full" onClick={() => { setSubmitted(false); setStep(1); setCreatedContentId(null); setForm(f => ({ ...f, project_title: '', description: '', genres: [], duration_minutes: '', poster_url: '' })); }}>
               Submit Another
             </Button>
           </div>
+        </div>
+      </StudioLayout>
+    );
+  }
+
+  if (checkingKyc) {
+    return <StudioLayout title="Submit Film"><div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div></StudioLayout>;
+  }
+
+  if (!kycVerified) {
+    return (
+      <StudioLayout title="Verify Identity" description="One-time KYC check before you can publish films">
+        <div className="max-w-xl mx-auto">
+          <KYCVerification onVerified={() => setKycVerified(true)} />
         </div>
       </StudioLayout>
     );
