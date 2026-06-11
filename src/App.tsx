@@ -24,6 +24,7 @@ import FAQ from "./pages/FAQ";
 import Contact from "./pages/Contact";
 import ResetPassword from "./pages/ResetPassword";
 import Producers from "./pages/Producers";
+import ApplyFilmmaker from "./pages/ApplyFilmmaker";
 
 // Admin pages
 import Dashboard from "./pages/admin/Dashboard";
