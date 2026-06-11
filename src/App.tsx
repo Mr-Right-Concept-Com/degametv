@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { TenantProvider } from "@/hooks/useTenant";
 import { ProtectedAdminRoute } from "@/components/auth/ProtectedAdminRoute";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { ProtectedCreatorRoute } from "@/components/auth/ProtectedCreatorRoute";
 
 // End-user pages
 import Index from "./pages/Index";
