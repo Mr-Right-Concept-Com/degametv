@@ -43,8 +43,20 @@ export default function StudioSubmit() {
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [createdContentId, setCreatedContentId] = useState<string | null>(null);
   const [uploadingPoster, setUploadingPoster] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [kycVerified, setKycVerified] = useState(false);
+  const [checkingKyc, setCheckingKyc] = useState(true);
+
+  useEffect(() => {
+    if (!user) { setCheckingKyc(false); return; }
+    supabase.from('profiles').select('kyc_status').eq('user_id', user.id).maybeSingle()
+      .then(({ data }) => {
+        setKycVerified(data?.kyc_status === 'verified');
+        setCheckingKyc(false);
+      });
+  }, [user?.id]);
 
   const [form, setForm] = useState({
     submitter_name: '',
