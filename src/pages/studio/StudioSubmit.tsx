@@ -115,9 +115,11 @@ export default function StudioSubmit() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep3()) return;
+    if (!kycVerified) { toast.error('Verify your identity (KYC) first'); return; }
 
     setSubmitting(true);
-    const { error } = await supabase.from('filmmaker_submissions').insert({
+    // Auto-approved because user is KYC verified
+    const { data: sub, error } = await supabase.from('filmmaker_submissions').insert({
       submitter_name: form.submitter_name,
       submitter_email: user?.email || form.submitter_email,
       company_name: form.company_name || null,
@@ -133,10 +135,38 @@ export default function StudioSubmit() {
       video_url: form.video_url || null,
       budget_range: form.budget_range || null,
       distribution_rights: form.distribution_rights || null,
-      status: 'pending',
-    });
-    if (error) toast.error('Submission failed: ' + error.message);
-    else setSubmitted(true);
+      status: 'approved',
+      admin_notes: 'Auto-approved: filmmaker KYC verified',
+    }).select('id').single();
+
+    if (error || !sub) {
+      toast.error('Submission failed: ' + (error?.message || 'unknown'));
+      setSubmitting(false);
+      return;
+    }
+
+    // Auto-create content record so the film is live-ready
+    const slug = form.project_title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36);
+    const { data: content } = await supabase.from('content').insert({
+      title: form.project_title,
+      slug,
+      description: form.description || '',
+      type: (form.project_type === 'series' ? 'series' : 'movie') as any,
+      status: 'published' as any,
+      poster_url: form.poster_url || null,
+      trailer_url: form.trailer_url || null,
+      video_url: form.video_url || null,
+      duration: form.duration_minutes ? parseInt(form.duration_minutes) * 60 : null,
+      genres: form.genres.length > 0 ? form.genres : null,
+      release_date: form.release_year ? `${form.release_year}-01-01` : null,
+    } as any).select('id').single();
+
+    if (content) {
+      await supabase.from('filmmaker_submissions').update({ content_id: content.id }).eq('id', sub.id);
+      setCreatedContentId(content.id);
+    }
+
+    setSubmitted(true);
     setSubmitting(false);
   };
 
