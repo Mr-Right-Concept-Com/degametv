@@ -26,35 +26,24 @@ export default function FilmmakerSubmit() {
           Virtual cinema, VOD, and revenue sharing for Nollywood and African cinema.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          {user ? (
+          <Button
+            size="lg"
+            className="rounded-full bg-primary-foreground text-primary hover:bg-primary-foreground/90 gap-2"
+            onClick={() => navigate(user ? '/apply-filmmaker' : '/auth?redirect=/apply-filmmaker')}
+          >
+            <Clapperboard className="w-5 h-5" />
+            {user ? 'Apply to Premiere' : 'Sign Up & Apply'}
+            <ArrowRight className="w-4 h-4" />
+          </Button>
+          {!user && (
             <Button
               size="lg"
-              className="rounded-full bg-primary-foreground text-primary hover:bg-primary-foreground/90 gap-2"
-              onClick={() => navigate('/studio')}
+              variant="outline"
+              className="rounded-full border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10"
+              onClick={() => navigate('/auth')}
             >
-              <Clapperboard className="w-5 h-5" />
-              Go to Studio Dashboard
-              <ArrowRight className="w-4 h-4" />
+              Sign In
             </Button>
-          ) : (
-            <>
-              <Button
-                size="lg"
-                className="rounded-full bg-primary-foreground text-primary hover:bg-primary-foreground/90 gap-2"
-                onClick={() => navigate('/auth')}
-              >
-                Sign Up as Filmmaker
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="rounded-full border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10"
-                onClick={() => navigate('/auth')}
-              >
-                Sign In
-              </Button>
-            </>
           )}
         </div>
       </div>
