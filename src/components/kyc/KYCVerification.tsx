@@ -228,10 +228,10 @@ export function KYCVerification({ onVerified, compact }: Props) {
 
         <Button onClick={submit} disabled={submitting} className="w-full rounded-full">
           {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
-          {submitting ? 'Verifying...' : 'Verify Identity'}
+          {submitting ? 'Submitting...' : 'Submit Application'}
         </Button>
         <p className="text-[10px] text-muted-foreground text-center">
-          <Clock className="w-3 h-3 inline mr-1" />Instant verification. Your data is encrypted and used only for compliance.
+          <Clock className="w-3 h-3 inline mr-1" />Reviewed within 24–48 hours. Your data is encrypted and used only for compliance.
         </p>
       </CardContent>
     </Card>
