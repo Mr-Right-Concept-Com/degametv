@@ -319,9 +319,11 @@ export default function UserDashboard() {
                     <LogOut className="w-4 h-4 mr-2" />
                     Sign Out
                   </Button>
-                </div>
               </CardContent>
             </Card>
+            <div className="mt-4">
+              <KYCVerification />
+            </div>
           </TabsContent>
         </Tabs>
       </div>
