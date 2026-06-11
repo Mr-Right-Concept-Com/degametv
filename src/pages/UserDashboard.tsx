@@ -323,9 +323,6 @@ export default function UserDashboard() {
                 </div>
               </CardContent>
             </Card>
-            <div className="mt-4">
-              <KYCVerification />
-            </div>
           </TabsContent>
         </Tabs>
       </div>
