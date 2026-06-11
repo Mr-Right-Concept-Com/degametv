@@ -100,20 +100,18 @@ export function KYCVerification({ onVerified, compact }: Props) {
     }
     setErrors({});
     setSubmitting(true);
-    // Auto-approve on submission (same pattern as event ticket creation)
+    // Submit for admin review (NOT auto-verified)
     const { error } = await supabase
       .from('profiles')
       .update({
         ...result.data,
-        kyc_status: 'verified',
+        kyc_status: 'pending',
         kyc_submitted_at: new Date().toISOString(),
-        kyc_verified_at: new Date().toISOString(),
       })
       .eq('user_id', user.id);
-    if (error) { toast.error('Verification failed: ' + error.message); setSubmitting(false); return; }
-    toast.success('Identity verified! You can now upload films.');
+    if (error) { toast.error('Submission failed: ' + error.message); setSubmitting(false); return; }
+    toast.success('Application submitted! Our team will review within 24–48 hours.');
     await load();
-    onVerified?.();
     setSubmitting(false);
   };
 
