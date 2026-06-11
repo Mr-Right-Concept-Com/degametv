@@ -33,7 +33,8 @@ const sections: { title: string; items: NavItem[] }[] = [
     title: 'People',
     items: [
       { label: 'Users', href: '/admin/users', icon: Users },
-      { label: 'Filmmaker Submissions', href: '/admin/filmmaker', icon: Upload },
+      { label: 'Filmmaker Applications', href: '/admin/filmmaker-applications', icon: Upload },
+      { label: 'Film Submissions', href: '/admin/filmmaker', icon: Film },
     ],
   },
   {
