@@ -203,19 +203,8 @@ export default function StudioSubmit() {
     );
   }
 
-  if (checkingKyc) {
-    return <StudioLayout title="Submit Film"><div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div></StudioLayout>;
-  }
 
-  if (!kycVerified) {
-    return (
-      <StudioLayout title="Verify Identity" description="One-time KYC check before you can publish films">
-        <div className="max-w-xl mx-auto">
-          <KYCVerification onVerified={() => setKycVerified(true)} />
-        </div>
-      </StudioLayout>
-    );
-  }
+
 
   return (
     <StudioLayout title="Submit Film" description="Upload your movie for review and distribution">
