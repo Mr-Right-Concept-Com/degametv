@@ -173,6 +173,34 @@ export default function StudioSubmit() {
     setUploadingPoster(false);
   };
 
+  const handleVideoUpload = async (file: File) => {
+    if (file.size > 5 * 1024 * 1024 * 1024) {
+      toast.error('Video must be under 5GB');
+      return;
+    }
+    setUploadingVideo(true);
+    setVideoProgress(0);
+    const ext = file.name.split('.').pop();
+    const path = `submissions/${Date.now()}-master.${ext}`;
+    // Simulated progress (Supabase JS v2 doesn't emit progress events for uploads)
+    const tick = setInterval(() => setVideoProgress(p => Math.min(p + 5, 90)), 400);
+    const { data, error } = await supabase.storage.from('content-uploads').upload(path, file, {
+      contentType: file.type || 'video/mp4',
+      upsert: false,
+    });
+    clearInterval(tick);
+    if (error) {
+      toast.error('Video upload failed: ' + error.message);
+    } else {
+      const { data: urlData } = supabase.storage.from('content-uploads').getPublicUrl(data.path);
+      setForm(f => ({ ...f, video_url: urlData.publicUrl }));
+      setVideoProgress(100);
+      toast.success('Master video uploaded — DRM tokenization will be applied at playback');
+    }
+    setUploadingVideo(false);
+  };
+
+
   const toggleGenre = (genre: string) => {
     setForm(f => ({
       ...f,
