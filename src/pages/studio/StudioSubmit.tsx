@@ -136,7 +136,9 @@ export default function StudioSubmit() {
 
     // Auto-create content record so the film is live-ready
     const slug = form.project_title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36);
-    const { data: content } = await supabase.from('content').insert({
+    const { data: content, error: contentErr } = await supabase.from('content').insert({
+      tenant_id: '00000000-0000-0000-0000-000000000001',
+      creator_id: user?.id,
       title: form.project_title,
       slug,
       description: form.description || '',
@@ -150,6 +152,9 @@ export default function StudioSubmit() {
       release_date: form.release_year ? `${form.release_year}-01-01` : null,
     } as any).select('id').single();
 
+    if (contentErr) {
+      toast.error('Content record failed: ' + contentErr.message);
+    }
     if (content) {
       await supabase.from('filmmaker_submissions').update({ content_id: content.id }).eq('id', sub.id);
       setCreatedContentId(content.id);
