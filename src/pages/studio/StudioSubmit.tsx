@@ -107,34 +107,8 @@ export default function StudioSubmit() {
     
 
     setSubmitting(true);
-    // Auto-approved because user is KYC verified
-    const { data: sub, error } = await supabase.from('filmmaker_submissions').insert({
-      submitter_name: form.submitter_name,
-      submitter_email: user?.email || form.submitter_email,
-      company_name: form.company_name || null,
-      project_title: form.project_title,
-      project_type: form.project_type,
-      description: form.description || null,
-      genres: form.genres.length > 0 ? form.genres : null,
-      duration_minutes: form.duration_minutes ? parseInt(form.duration_minutes) : null,
-      release_year: form.release_year ? parseInt(form.release_year) : null,
-      poster_url: form.poster_url || null,
-      trailer_url: form.trailer_url || null,
-      screener_url: form.screener_url || null,
-      video_url: form.video_url || null,
-      budget_range: form.budget_range || null,
-      distribution_rights: form.distribution_rights || null,
-      status: 'approved',
-      admin_notes: 'Auto-approved: filmmaker KYC verified',
-    }).select('id').single();
 
-    if (error || !sub) {
-      toast.error('Submission failed: ' + (error?.message || 'unknown'));
-      setSubmitting(false);
-      return;
-    }
-
-    // Auto-create content record so the film is live-ready
+    // 1) Create the content row FIRST so submission can reference it (RLS: creator_id = auth.uid())
     const slug = form.project_title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36);
     const { data: content, error: contentErr } = await supabase.from('content').insert({
       tenant_id: '00000000-0000-0000-0000-000000000001',
@@ -152,12 +126,39 @@ export default function StudioSubmit() {
       release_date: form.release_year ? `${form.release_year}-01-01` : null,
     } as any).select('id').single();
 
-    if (contentErr) {
-      toast.error('Content record failed: ' + contentErr.message);
+    if (contentErr || !content) {
+      toast.error('Content record failed: ' + (contentErr?.message || 'unknown'));
+      setSubmitting(false);
+      return;
     }
-    if (content) {
-      await supabase.from('filmmaker_submissions').update({ content_id: content.id }).eq('id', sub.id);
-      setCreatedContentId(content.id);
+    setCreatedContentId(content.id);
+
+    // 2) Create the filmmaker submission (auto-approved, linked to content)
+    const { error } = await supabase.from('filmmaker_submissions').insert({
+      submitter_name: form.submitter_name,
+      submitter_email: user?.email || form.submitter_email,
+      company_name: form.company_name || null,
+      project_title: form.project_title,
+      project_type: form.project_type,
+      description: form.description || null,
+      genres: form.genres.length > 0 ? form.genres : null,
+      duration_minutes: form.duration_minutes ? parseInt(form.duration_minutes) : null,
+      release_year: form.release_year ? parseInt(form.release_year) : null,
+      poster_url: form.poster_url || null,
+      trailer_url: form.trailer_url || null,
+      screener_url: form.screener_url || null,
+      video_url: form.video_url || null,
+      budget_range: form.budget_range || null,
+      distribution_rights: form.distribution_rights || null,
+      content_id: content.id,
+      status: 'approved',
+      admin_notes: 'Auto-approved: filmmaker KYC verified',
+    });
+
+    if (error) {
+      toast.error('Submission failed: ' + error.message);
+      setSubmitting(false);
+      return;
     }
 
     setSubmitted(true);
