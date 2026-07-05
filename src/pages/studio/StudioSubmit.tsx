@@ -371,10 +371,31 @@ export default function StudioSubmit() {
                   </div>
                 </div>
                 <div className="space-y-2">
+                  <Label>Master Video File (MP4/MOV) <span className="text-muted-foreground text-xs font-normal">— streamed with signed URLs + watermark</span></Label>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-16 h-24 rounded-lg flex items-center justify-center ${form.video_url ? 'bg-primary/10 text-primary' : 'bg-secondary text-muted-foreground'}`}>
+                      <Film className="w-6 h-6" />
+                    </div>
+                    <label className="flex-1">
+                      <Button type="button" variant="outline" className="w-full" disabled={uploadingVideo} asChild>
+                        <span>
+                          {uploadingVideo ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
+                          {uploadingVideo ? `Uploading… ${videoProgress}%` : form.video_url ? 'Replace Video' : 'Upload Master Video'}
+                        </span>
+                      </Button>
+                      <input aria-label="Master video file" type="file" accept="video/mp4,video/quicktime,video/x-matroska,video/*" className="hidden" onChange={e => e.target.files?.[0] && handleVideoUpload(e.target.files[0])} />
+                    </label>
+                  </div>
+                  {form.video_url && (
+                    <p className="text-xs text-muted-foreground truncate">✓ Master ready — will be served via tokenized HLS at premiere.</p>
+                  )}
+                </div>
+                <div className="space-y-2">
                   <Label>Trailer URL</Label>
                   <Input value={form.trailer_url} onChange={e => setForm(f => ({ ...f, trailer_url: e.target.value }))} placeholder="https://youtu.be/..." />
                   {errors.trailer_url && <p className="text-xs text-destructive">{errors.trailer_url}</p>}
                 </div>
+
                 <div className="space-y-2">
                   <Label>Screener URL</Label>
                   <Input value={form.screener_url} onChange={e => setForm(f => ({ ...f, screener_url: e.target.value }))} placeholder="https://vimeo.com/..." />
