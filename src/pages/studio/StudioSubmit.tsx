@@ -43,6 +43,8 @@ export default function StudioSubmit() {
   const [submitted, setSubmitted] = useState(false);
   const [createdContentId, setCreatedContentId] = useState<string | null>(null);
   const [uploadingPoster, setUploadingPoster] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [videoProgress, setVideoProgress] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [form, setForm] = useState({
