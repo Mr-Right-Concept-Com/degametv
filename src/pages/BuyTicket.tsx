@@ -140,12 +140,18 @@ export default function BuyTicket() {
 
   const handlePayment = async () => {
     if (!selectedPayment) return;
+    const emailCheck = emailSchema.safeParse(email);
+    if (!emailCheck.success) {
+      toast.error(emailCheck.error.errors[0].message);
+      setStep('email');
+      return;
+    }
     setProcessing(true);
     try {
       const { data, error } = await supabase.functions.invoke('process-payment', {
         body: {
           method: selectedPayment,
-          email,
+          email: emailCheck.data,
           amount: total,
           currency,
           screeningId: screening.id,
@@ -155,7 +161,7 @@ export default function BuyTicket() {
       });
 
       if (error || !data?.success) {
-        toast.error('Payment failed. Please try again.');
+        toast.error(data?.error || error?.message || 'Payment failed. Please try again.');
         return;
       }
 
