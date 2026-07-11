@@ -83,7 +83,7 @@ export default function Index() {
               <h1 className="text-3xl sm:text-4xl md:text-6xl lg:text-7xl font-extrabold text-primary-foreground mb-3 sm:mb-4 tracking-tight leading-[1.1]">
                 {featuredScreening.title}
               </h1>
-              <p className="text-primary-foreground/95 text-sm sm:text-base md:text-lg max-w-xl mx-auto mb-6 sm:mb-8 leading-relaxed px-2">
+              <p className="text-primary-foreground text-sm sm:text-base md:text-lg max-w-xl mx-auto mb-6 sm:mb-8 leading-relaxed px-2">
                 {featuredScreening.description}
               </p>
 

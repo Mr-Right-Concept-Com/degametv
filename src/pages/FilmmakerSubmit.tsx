@@ -21,7 +21,7 @@ export default function FilmmakerSubmit() {
         <h1 className="text-3xl md:text-5xl font-extrabold mb-4 tracking-tight">
           Premiere Your Film on DeGameTV
         </h1>
-        <p className="text-primary-foreground/95 max-w-xl mx-auto text-sm md:text-base mb-8">
+        <p className="text-primary-foreground max-w-xl mx-auto text-sm md:text-base mb-8">
           Partner with us to distribute your film to audiences across Africa and the world. 
           Virtual cinema, VOD, and revenue sharing for Nollywood and African cinema.
         </p>
