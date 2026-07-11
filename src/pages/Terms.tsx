@@ -22,7 +22,7 @@ export default function Terms() {
           <h2 className="text-lg font-semibold text-foreground">6. Limitation of Liability</h2>
           <p>DeGameTV is not liable for any indirect, incidental, or consequential damages arising from the use of our platform.</p>
           <h2 className="text-lg font-semibold text-foreground">7. Contact</h2>
-          <p>Questions about these terms? Email us at <a href="mailto:legal@degametv.net" className="text-primary hover:underline">legal@degametv.net</a>.</p>
+          <p>Questions about these terms? Email us at <a href="mailto:legal@degametv.net" className="text-primary underline underline-offset-2 hover:no-underline">legal@degametv.net</a>.</p>
         </div>
       </div>
     </MainLayout>
