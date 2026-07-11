@@ -116,10 +116,11 @@ export function AdminSidebar({ onNavigate }: AdminSidebarProps) {
           <Button
             variant="ghost"
             size="icon"
+            aria-label="Sign out"
             onClick={() => signOut()}
             className="h-8 w-8 text-muted-foreground hover:text-destructive"
           >
-            <LogOut className="h-4 w-4" />
+            <LogOut className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
       </div>
