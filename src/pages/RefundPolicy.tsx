@@ -18,7 +18,7 @@ export default function RefundPolicy() {
             <li>Duplicate purchases — contact support within 48 hours of purchase.</li>
           </ul>
           <h2 className="text-lg font-semibold text-foreground">How to Request a Refund</h2>
-          <p>Email us at <a href="mailto:support@degametv.net" className="text-primary hover:underline">support@degametv.net</a> with your ticket code and reason for the refund request. We aim to respond within 2 business days.</p>
+          <p>Email us at <a href="mailto:support@degametv.net" className="text-primary underline underline-offset-2 hover:no-underline">support@degametv.net</a> with your ticket code and reason for the refund request. We aim to respond within 2 business days.</p>
           <h2 className="text-lg font-semibold text-foreground">Processing Time</h2>
           <p>Approved refunds are processed within 5-10 business days and returned via the original payment method.</p>
         </div>

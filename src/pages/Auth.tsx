@@ -89,7 +89,7 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <main className="min-h-screen flex">
       {/* Left Side - Form */}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
@@ -172,10 +172,12 @@ export default function Auth() {
                 />
                 <button
                   type="button"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showPassword ? <EyeOff className="w-5 h-5" aria-hidden="true" /> : <Eye className="w-5 h-5" aria-hidden="true" />}
                 </button>
               </div>
               {errors.password && (
@@ -217,7 +219,7 @@ export default function Auth() {
 
             <Button
               type="submit"
-              className="w-full bg-gradient-primary hover:opacity-90"
+              className="w-full bg-primary text-primary-foreground hover:opacity-90"
               disabled={loading}
             >
               {loading ? (
@@ -306,6 +308,6 @@ export default function Auth() {
           </div>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

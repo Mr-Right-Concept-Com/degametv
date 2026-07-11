@@ -15,13 +15,13 @@ export default function FilmmakerSubmit() {
     <MainLayout>
       {/* Hero */}
       <div className="bg-primary text-primary-foreground py-16 px-4 text-center">
-        <Badge className="bg-primary-foreground/20 text-primary-foreground border-0 mb-4 text-xs font-semibold tracking-wider rounded-full px-4 py-1">
+        <Badge className="bg-primary-foreground text-primary border-0 mb-4 text-xs font-semibold tracking-wider rounded-full px-4 py-1">
           🎬 FILMMAKER PORTAL
         </Badge>
         <h1 className="text-3xl md:text-5xl font-extrabold mb-4 tracking-tight">
           Premiere Your Film on DeGameTV
         </h1>
-        <p className="text-primary-foreground/80 max-w-xl mx-auto text-sm md:text-base mb-8">
+        <p className="text-primary-foreground max-w-xl mx-auto text-sm md:text-base mb-8">
           Partner with us to distribute your film to audiences across Africa and the world. 
           Virtual cinema, VOD, and revenue sharing for Nollywood and African cinema.
         </p>
@@ -39,7 +39,7 @@ export default function FilmmakerSubmit() {
             <Button
               size="lg"
               variant="outline"
-              className="rounded-full border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10"
+              className="rounded-full bg-transparent border-primary-foreground text-primary-foreground hover:bg-primary-foreground/20"
               onClick={() => navigate('/auth')}
             >
               Sign In

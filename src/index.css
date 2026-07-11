@@ -17,7 +17,7 @@
     --popover-foreground: 220 20% 10%;
 
     /* Hot Coral / Warm accent — Monzo signature */
-    --primary: 350 85% 55%;
+    --primary: 350 82% 38%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 220 14% 96%;
@@ -56,7 +56,7 @@
     /* Sidebar — clean light */
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 220 20% 10%;
-    --sidebar-primary: 350 85% 55%;
+    --sidebar-primary: 350 82% 38%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 220 14% 96%;
     --sidebar-accent-foreground: 220 20% 10%;
@@ -74,8 +74,8 @@
     --popover: 220 18% 12%;
     --popover-foreground: 0 0% 96%;
 
-    --primary: 350 85% 58%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 350 82% 68%;
+    --primary-foreground: 350 90% 10%;
 
     --secondary: 220 14% 14%;
     --secondary-foreground: 0 0% 96%;
@@ -95,8 +95,8 @@
 
     --sidebar-background: 220 18% 8%;
     --sidebar-foreground: 0 0% 96%;
-    --sidebar-primary: 350 85% 58%;
-    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-primary: 350 82% 68%;
+    --sidebar-primary-foreground: 350 90% 10%;
     --sidebar-accent: 220 14% 14%;
     --sidebar-accent-foreground: 0 0% 96%;
     --sidebar-border: 220 14% 18%;

@@ -20,7 +20,7 @@ export default function Privacy() {
           <h2 className="text-lg font-semibold text-foreground">Data Sharing</h2>
           <p>We do not sell your personal data. We share data only with payment processors and email delivery providers necessary to fulfill your orders.</p>
           <h2 className="text-lg font-semibold text-foreground">Your Rights</h2>
-          <p>You may request access to, correction of, or deletion of your personal data by contacting <a href="mailto:privacy@degametv.net" className="text-primary hover:underline">privacy@degametv.net</a>.</p>
+          <p>You may request access to, correction of, or deletion of your personal data by contacting <a href="mailto:privacy@degametv.net" className="text-primary underline underline-offset-2 hover:no-underline">privacy@degametv.net</a>.</p>
           <h2 className="text-lg font-semibold text-foreground">Cookies</h2>
           <p>We use essential cookies to maintain your session. No third-party tracking cookies are used.</p>
         </div>
