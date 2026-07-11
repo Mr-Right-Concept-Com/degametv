@@ -89,7 +89,7 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <main className="min-h-screen flex">
       {/* Left Side - Form */}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
