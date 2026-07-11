@@ -15,7 +15,7 @@ export default function FilmmakerSubmit() {
     <MainLayout>
       {/* Hero */}
       <div className="bg-primary text-primary-foreground py-16 px-4 text-center">
-        <Badge className="bg-primary-foreground/20 text-primary-foreground border-0 mb-4 text-xs font-semibold tracking-wider rounded-full px-4 py-1">
+        <Badge className="bg-primary-foreground text-primary border-0 mb-4 text-xs font-semibold tracking-wider rounded-full px-4 py-1">
           🎬 FILMMAKER PORTAL
         </Badge>
         <h1 className="text-3xl md:text-5xl font-extrabold mb-4 tracking-tight">

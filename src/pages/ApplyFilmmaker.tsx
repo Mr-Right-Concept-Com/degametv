@@ -33,7 +33,7 @@ export default function ApplyFilmmaker() {
   return (
     <MainLayout>
       <div className="bg-primary text-primary-foreground py-12 px-4 text-center">
-        <Badge className="bg-primary-foreground/20 text-primary-foreground border-0 mb-3 text-xs">FILMMAKER APPLICATION</Badge>
+        <Badge className="bg-primary-foreground text-primary border-0 mb-3 text-xs">FILMMAKER APPLICATION</Badge>
         <h1 className="text-3xl md:text-4xl font-extrabold mb-3">Apply to Premiere on DeGameTV</h1>
         <p className="text-primary-foreground max-w-xl mx-auto text-sm">
           Once approved, your studio dashboard unlocks — schedule premieres, sell tickets, and earn revenue. Your filmmaker profile sits inside your existing account.

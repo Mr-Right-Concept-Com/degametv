@@ -72,7 +72,7 @@ export default function Index() {
       {/* Hero */}
       <section className="relative overflow-hidden bg-primary animate-fade-in">
         <div className="container mx-auto px-5 py-14 sm:py-20 md:py-28 text-center relative z-10">
-          <Badge className="bg-primary-foreground/20 text-primary-foreground border-0 mb-4 sm:mb-6 text-[10px] sm:text-xs font-semibold tracking-wider rounded-full px-3 sm:px-4 py-1">
+          <Badge className="bg-primary-foreground text-primary border-0 mb-4 sm:mb-6 text-[10px] sm:text-xs font-semibold tracking-wider rounded-full px-3 sm:px-4 py-1">
             🎬 VIRTUAL PREMIERE
           </Badge>
 
