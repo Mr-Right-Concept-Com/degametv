@@ -137,11 +137,12 @@ export function AIConcierge() {
               />
               <Button
                 size="icon"
+                aria-label="Send message"
                 className="rounded-full h-9 w-9 flex-shrink-0"
                 onClick={sendMessage}
                 disabled={!input.trim() || loading}
               >
-                <Send className="w-3.5 h-3.5" />
+                <Send className="w-3.5 h-3.5" aria-hidden="true" />
               </Button>
             </div>
           </div>

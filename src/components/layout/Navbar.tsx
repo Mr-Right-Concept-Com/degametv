@@ -85,10 +85,12 @@ export function Navbar() {
             <Button
               variant="ghost"
               size="icon"
+              aria-label={isSearchOpen ? "Close search" : "Open search"}
+              aria-expanded={isSearchOpen}
               className="md:hidden rounded-full h-9 w-9"
               onClick={() => setIsSearchOpen(!isSearchOpen)}
             >
-              <Search className="w-4 h-4" />
+              <Search className="w-4 h-4" aria-hidden="true" />
             </Button>
 
             {user ? (
@@ -102,9 +104,9 @@ export function Navbar() {
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
+                    <Button variant="ghost" size="icon" aria-label="User menu" className="rounded-full h-9 w-9">
                       <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="text-xs font-bold text-primary">
+                        <span aria-hidden="true" className="text-xs font-bold text-primary">
                           {user.email?.charAt(0).toUpperCase()}
                         </span>
                       </div>
@@ -163,10 +165,12 @@ export function Navbar() {
             <Button
               variant="ghost"
               size="icon"
+              aria-label={isMenuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={isMenuOpen}
               className="md:hidden rounded-full h-9 w-9"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
             >
-              {isMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              {isMenuOpen ? <X className="w-4 h-4" aria-hidden="true" /> : <Menu className="w-4 h-4" aria-hidden="true" />}
             </Button>
           </div>
         </div>

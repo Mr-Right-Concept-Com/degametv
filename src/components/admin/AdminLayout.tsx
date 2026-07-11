@@ -31,8 +31,8 @@ export function AdminLayout({ children, title, description, actions }: AdminLayo
 
       <div className="md:pl-64">
         <AdminHeader title={title} description={description} actions={actions}>
-          <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setOpen(true)}>
-            <Menu className="h-5 w-5" />
+          <Button variant="ghost" size="icon" aria-label="Open menu" className="md:hidden" onClick={() => setOpen(true)}>
+            <Menu className="h-5 w-5" aria-hidden="true" />
           </Button>
         </AdminHeader>
         <main className="p-4 md:p-6">
