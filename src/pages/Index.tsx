@@ -97,7 +97,7 @@ export default function Index() {
                 ].map((unit, i) => (
                   <span key={i} className="flex items-baseline gap-0.5">
                     <span className="text-xl sm:text-2xl md:text-3xl font-bold text-primary-foreground tabular-nums">{unit.val}</span>
-                    <span className="text-[10px] sm:text-xs text-primary-foreground/60 font-medium">{unit.label}</span>
+                    <span className="text-[10px] sm:text-xs text-primary-foreground/85 font-medium">{unit.label}</span>
                   </span>
                 ))}
               </div>
@@ -118,7 +118,7 @@ export default function Index() {
               </div>
 
               {featuredScreening.screening_date && (
-                <div className="flex items-center justify-center gap-4 sm:gap-5 mt-6 sm:mt-8 text-xs sm:text-sm text-primary-foreground/70">
+                <div className="flex items-center justify-center gap-4 sm:gap-5 mt-6 sm:mt-8 text-xs sm:text-sm text-primary-foreground/90">
                   <span className="flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     {new Date(featuredScreening.screening_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
@@ -130,7 +130,7 @@ export default function Index() {
             <div className="py-8">
               <Film className="w-16 h-16 text-primary-foreground/50 mx-auto mb-4" />
               <h1 className="text-3xl sm:text-4xl font-extrabold text-primary-foreground mb-3">Coming Soon</h1>
-              <p className="text-primary-foreground/70">No screenings available yet. Check back soon!</p>
+              <p className="text-primary-foreground/90">No screenings available yet. Check back soon!</p>
             </div>
           )}
         </div>

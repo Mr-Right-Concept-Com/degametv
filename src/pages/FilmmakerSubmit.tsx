@@ -39,7 +39,7 @@ export default function FilmmakerSubmit() {
             <Button
               size="lg"
               variant="outline"
-              className="rounded-full border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10"
+              className="rounded-full border-primary-foreground text-primary-foreground hover:bg-primary-foreground/20"
               onClick={() => navigate('/auth')}
             >
               Sign In
