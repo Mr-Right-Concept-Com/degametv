@@ -20,6 +20,7 @@ export default function FAQ() {
       <div className="container mx-auto px-4 py-10 max-w-3xl">
         <h1 className="text-3xl font-bold mb-2">Frequently Asked Questions</h1>
         <p className="text-muted-foreground mb-8">Everything you need to know about DeGameTV virtual cinema.</p>
+        <h2 className="sr-only">Questions</h2>
         <Accordion type="single" collapsible className="space-y-2">
           {faqs.map((faq, i) => (
             <AccordionItem key={i} value={`faq-${i}`} className="border border-border rounded-xl px-4">
