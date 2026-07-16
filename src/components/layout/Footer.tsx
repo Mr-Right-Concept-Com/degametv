@@ -47,7 +47,7 @@ export function Footer() {
 
           {/* Quick Links */}
           <div>
-            <h4 className="font-semibold mb-4 text-accent">Browse</h4>
+            <h3 className="font-semibold mb-4 text-accent">Browse</h3>
             <ul className="space-y-2">
               <li><Link to="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Now Showing</Link></li>
               <li><Link to="/cinema" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Upcoming Screenings</Link></li>
@@ -58,7 +58,7 @@ export function Footer() {
 
           {/* Support */}
           <div>
-            <h4 className="font-semibold mb-4 text-accent">Support</h4>
+            <h3 className="font-semibold mb-4 text-accent">Support</h3>
             <ul className="space-y-2">
               <li><Link to="/faq" className="text-sm text-muted-foreground hover:text-foreground transition-colors">FAQs</Link></li>
               <li><Link to="/contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Contact Us</Link></li>
@@ -67,7 +67,7 @@ export function Footer() {
 
           {/* Legal */}
           <div>
-            <h4 className="font-semibold mb-4 text-accent">Legal</h4>
+            <h3 className="font-semibold mb-4 text-accent">Legal</h3>
             <ul className="space-y-2">
               <li><Link to="/terms" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Terms of Service</Link></li>
               <li><Link to="/privacy" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Privacy Policy</Link></li>

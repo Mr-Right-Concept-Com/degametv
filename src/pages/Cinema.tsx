@@ -96,9 +96,9 @@ export default function Cinema() {
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2 mb-1">
-                    <h3 className="font-bold text-sm sm:text-base line-clamp-1 group-hover:text-primary transition-colors">
+                    <h2 className="font-bold text-sm sm:text-base line-clamp-1 group-hover:text-primary transition-colors">
                       {s.title}
-                    </h3>
+                    </h2>
                     <span className="text-xs sm:text-sm font-bold text-primary whitespace-nowrap">
                       {getPrice(s.location_pricing)}
                     </span>
