@@ -39,6 +39,7 @@ export default function Contact() {
         <h1 className="text-3xl font-bold mb-2">Contact Us</h1>
         <p className="text-muted-foreground mb-8">Have a question or need support? We'd love to hear from you.</p>
 
+        <h2 className="sr-only">Contact channels</h2>
         <div className="grid md:grid-cols-2 gap-8">
           <div className="space-y-6">
             <div className="flex items-start gap-3">
