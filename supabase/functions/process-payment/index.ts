@@ -68,7 +68,7 @@ async function handlePayment(supabase: any, body: any, gateway: string) {
   const ticketCode = `TICKET_${Date.now()}`;
   const watchCode = `WATCH_${crypto.randomUUID()}`;
 
-  const { error: insErr } = await supabase.from('screening_tickets').insert({
+  const { data: ticketRow, error: insErr } = await supabase.from('screening_tickets').insert({
     screening_id: screeningId,
     email,
     ticket_code: ticketCode,
@@ -81,7 +81,24 @@ async function handlePayment(supabase: any, body: any, gateway: string) {
     payment_reference: paymentRef,
     payment_status: 'completed',
     tenant_id: screening.tenant_id || '00000000-0000-0000-0000-000000000001',
-  });
+  }).select('id').single();
+
+  // Organizer wallet: commission 10% Creator tier, 7.5% Business tier
+  if (!insErr && ticketRow) {
+    try {
+      const { data: scr } = await supabase.from('screenings').select('content_id').eq('id', screeningId).maybeSingle();
+      const { data: c } = scr ? await supabase.from('content').select('creator_id').eq('id', scr.content_id).maybeSingle() : { data: null };
+      if (c?.creator_id) {
+        const { data: acct } = await supabase.from('studio_accounts').select('tier, status').eq('user_id', c.creator_id).maybeSingle();
+        const rate = acct?.tier === 'business' && acct?.status === 'approved' ? 0.075 : 0.10;
+        const fee = Math.round(amount * rate * 100) / 100;
+        await supabase.from('wallet_ledger').insert({
+          user_id: c.creator_id, ticket_id: ticketRow.id, screening_id: screeningId,
+          gross: amount, fee, net: amount - fee, currency: currency || 'NGN', kind: 'sale',
+        });
+      }
+    } catch (e) { console.error('ledger write failed', e); }
+  }
 
   if (insErr) {
     console.error('screening_tickets insert failed:', insErr);

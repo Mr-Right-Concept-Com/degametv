@@ -1,0 +1,1 @@
+ALTER FUNCTION public.wallet_balance(uuid) SECURITY INVOKER;

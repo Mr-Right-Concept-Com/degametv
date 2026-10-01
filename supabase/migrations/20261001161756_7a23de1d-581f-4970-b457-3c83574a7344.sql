@@ -1,0 +1,1 @@
+CREATE POLICY "own studio account resubmit" ON public.studio_accounts FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id AND status = 'pending');

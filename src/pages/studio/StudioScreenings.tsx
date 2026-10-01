@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Calendar, Loader2, Film, BarChart3 } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { EventLifecycleControls } from '@/components/studio/EventLifecycleControls';
 
 interface ScreeningRow {
   id: string;
@@ -15,6 +16,7 @@ interface ScreeningRow {
   status: string;
   screening_date: string | null;
   slug: string;
+  lifecycle: string;
 }
 
 export default function StudioScreenings() {
@@ -22,32 +24,25 @@ export default function StudioScreenings() {
   const { user } = useAuth();
   const [screenings, setScreenings] = useState<ScreeningRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
-    if (!user?.email) return;
+    if (!user?.id) return;
     const fetch = async () => {
-      // Get approved submissions for this filmmaker
-      const { data: subs } = await supabase
-        .from('filmmaker_submissions')
-        .select('content_id')
-        .eq('submitter_email', user.email)
-        .eq('status', 'approved')
-        .not('content_id', 'is', null);
-
-      if (!subs || subs.length === 0) { setLoading(false); return; }
-
-      const contentIds = subs.map(s => s.content_id).filter(Boolean) as string[];
+      const { data: owned } = await supabase.from('content').select('id').eq('creator_id', user.id);
+      const contentIds = (owned || []).map(c => c.id);
+      if (contentIds.length === 0) { setLoading(false); return; }
       const { data } = await supabase
         .from('screenings')
-        .select('id, title, status, screening_date, slug')
+        .select('id, title, status, screening_date, slug, lifecycle')
         .in('content_id', contentIds)
         .order('screening_date', { ascending: false });
 
-      setScreenings(data || []);
+      setScreenings((data as ScreeningRow[]) || []);
       setLoading(false);
     };
     fetch();
-  }, [user?.email]);
+  }, [user?.id, reload]);
 
   const statusColor: Record<string, string> = {
     draft: 'bg-muted text-muted-foreground',
@@ -83,8 +78,10 @@ export default function StudioScreenings() {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
                   <Badge className={statusColor[s.status] || statusColor.draft}>{s.status}</Badge>
+                  <Badge variant="outline" className="capitalize">{s.lifecycle}</Badge>
+                  <EventLifecycleControls screeningId={s.id} lifecycle={s.lifecycle} onDone={() => setReload(r => r + 1)} />
                   <Button variant="outline" size="sm" className="rounded-full h-8 text-xs" asChild>
                     <Link to={`/studio/analytics/${s.id}`}><BarChart3 className="w-3 h-3 mr-1" /> Analytics</Link>
                   </Button>

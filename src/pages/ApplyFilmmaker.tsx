@@ -1,5 +1,6 @@
 import { MainLayout } from '@/components/layout/MainLayout';
 import { KYCVerification } from '@/components/kyc/KYCVerification';
+import { TierUpgradeCard } from '@/components/studio/TierUpgradeCard';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
@@ -55,6 +56,7 @@ export default function ApplyFilmmaker() {
           ))}
         </div>
 
+        <TierUpgradeCard />
         <KYCVerification />
 
         <div className="text-center">

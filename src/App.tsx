@@ -38,6 +38,7 @@ import FilmmakerApplications from "./pages/admin/FilmmakerApplications";
 import EmailSettings from "./pages/admin/settings/EmailSettings";
 import WhiteLabel from "./pages/admin/settings/WhiteLabel";
 import TicketManagement from "./pages/admin/ticketing/TicketManagement";
+import Payouts from "./pages/admin/Payouts";
 
 // Virtual Cinema Funnel
 import BuyTicket from "./pages/BuyTicket";
@@ -109,6 +110,7 @@ const App = () => (
               <Route path="/admin/tickets" element={<ProtectedAdminRoute><TicketManagement /></ProtectedAdminRoute>} />
               <Route path="/admin/promo-codes" element={<ProtectedAdminRoute><PromoCodes /></ProtectedAdminRoute>} />
               <Route path="/admin/sales" element={<ProtectedAdminRoute><ProducerDashboard /></ProtectedAdminRoute>} />
+              <Route path="/admin/payouts" element={<ProtectedAdminRoute><Payouts /></ProtectedAdminRoute>} />
               <Route path="/admin/filmmaker" element={<ProtectedAdminRoute><FilmmakerPortal /></ProtectedAdminRoute>} />
               <Route path="/admin/filmmaker-applications" element={<ProtectedAdminRoute><FilmmakerApplications /></ProtectedAdminRoute>} />
               <Route path="/admin/settings/payment-gateways" element={<ProtectedAdminRoute><PaymentGatewaySettings /></ProtectedAdminRoute>} />
