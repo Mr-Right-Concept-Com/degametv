@@ -311,6 +311,35 @@ export type Database = {
           },
         ]
       }
+      event_waitlist: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          screening_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          screening_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          screening_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_waitlist_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
+            referencedRelation: "screenings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feature_flags: {
         Row: {
           conditions: Json | null
@@ -1104,13 +1133,16 @@ export type Database = {
           allowed_countries: string[] | null
           banner_url: string | null
           blocked_countries: string[] | null
+          cancelled_at: string | null
           cast_crew: Json | null
           content_id: string
           created_at: string
           description: string | null
           duration: number | null
+          event_type: string
           gallery_images: string[] | null
           id: string
+          lifecycle: string
           location_pricing: Json
           max_concurrent_streams: number
           max_streams_per_ticket: number
@@ -1118,6 +1150,9 @@ export type Database = {
           poster_url: string | null
           refund_policy: string | null
           release_date: string | null
+          replay_access_hours: number
+          replay_price_ngn: number | null
+          replay_price_usd: number | null
           review_count: number | null
           screening_date: string | null
           slug: string
@@ -1133,13 +1168,16 @@ export type Database = {
           allowed_countries?: string[] | null
           banner_url?: string | null
           blocked_countries?: string[] | null
+          cancelled_at?: string | null
           cast_crew?: Json | null
           content_id: string
           created_at?: string
           description?: string | null
           duration?: number | null
+          event_type?: string
           gallery_images?: string[] | null
           id?: string
+          lifecycle?: string
           location_pricing?: Json
           max_concurrent_streams?: number
           max_streams_per_ticket?: number
@@ -1147,6 +1185,9 @@ export type Database = {
           poster_url?: string | null
           refund_policy?: string | null
           release_date?: string | null
+          replay_access_hours?: number
+          replay_price_ngn?: number | null
+          replay_price_usd?: number | null
           review_count?: number | null
           screening_date?: string | null
           slug: string
@@ -1162,13 +1203,16 @@ export type Database = {
           allowed_countries?: string[] | null
           banner_url?: string | null
           blocked_countries?: string[] | null
+          cancelled_at?: string | null
           cast_crew?: Json | null
           content_id?: string
           created_at?: string
           description?: string | null
           duration?: number | null
+          event_type?: string
           gallery_images?: string[] | null
           id?: string
+          lifecycle?: string
           location_pricing?: Json
           max_concurrent_streams?: number
           max_streams_per_ticket?: number
@@ -1176,6 +1220,9 @@ export type Database = {
           poster_url?: string | null
           refund_policy?: string | null
           release_date?: string | null
+          replay_access_hours?: number
+          replay_price_ngn?: number | null
+          replay_price_usd?: number | null
           review_count?: number | null
           screening_date?: string | null
           slug?: string
@@ -1524,6 +1571,48 @@ export type Database = {
         }
         Relationships: []
       }
+      wallet_ledger: {
+        Row: {
+          created_at: string
+          currency: string
+          fee: number
+          gross: number
+          id: string
+          kind: string
+          net: number
+          screening_id: string | null
+          settles_at: string
+          ticket_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          fee?: number
+          gross?: number
+          id?: string
+          kind?: string
+          net?: number
+          screening_id?: string | null
+          settles_at?: string
+          ticket_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          fee?: number
+          gross?: number
+          id?: string
+          kind?: string
+          net?: number
+          screening_id?: string | null
+          settles_at?: string
+          ticket_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       watch_history: {
         Row: {
           city: string | null
@@ -1708,6 +1797,48 @@ export type Database = {
           },
         ]
       }
+      withdrawal_requests: {
+        Row: {
+          account_name: string
+          account_number: string
+          admin_note: string | null
+          amount: number
+          bank_name: string
+          created_at: string
+          currency: string
+          id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_name: string
+          account_number: string
+          admin_note?: string | null
+          amount: number
+          bank_name: string
+          created_at?: string
+          currency?: string
+          id?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_name?: string
+          account_number?: string
+          admin_note?: string | null
+          amount?: number
+          bank_name?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -1724,6 +1855,15 @@ export type Database = {
       is_filmmaker: { Args: { _user_id: string }; Returns: boolean }
       is_kyc_verified: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      wallet_balance: {
+        Args: { _user_id: string }
+        Returns: {
+          escrow: number
+          fees: number
+          gross: number
+          withdrawable: number
+        }[]
+      }
     }
     Enums: {
       app_role:
