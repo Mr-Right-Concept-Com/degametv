@@ -1,59 +1,42 @@
-# Surpass-Competitors Launch Plan
+# DeGameTV Premiere & Live-Event Infrastructure
 
-Goal: verify every existing Spixie-parity flow works end-to-end, fix what's broken, then ship 6 differentiators competitors don't have. All phases executed in parallel.
+Blocker: the connected Supabase project's authorization has expired. The database changes this plan needs can't be applied until Supabase is reconnected (Settings → Integrations → Supabase).
 
-## Phase A — E2E Audit & Fixes (existing flows)
+## Phase 1 — Dual-tier upgrade (Creator / Business)
+- `/dashboard` "Upgrade to Studio" card that opens a tier picker.
+- Creator: the existing KYC step (ID and selfie).
+- Business: KYC plus KYB (CAC document, Tax ID, corporate bank, distribution-rights declaration, seat count).
+- An automatic first check (file types, formats, duplicate IDs), then admin review in `/admin/filmmaker-applications` with tier badges.
+- Upgrade from Creator to Business, and downgrade, from the Studio settings.
 
-Walk every critical path in the live preview, log failures, fix in place.
+## Phase 2 — Event types and lifecycle
+- Screenings get `event_type` (film | live) and `lifecycle` (upcoming | live | replay | archived), plus replay price and access window.
+- `/movie/:slug` microsite shows a different screen at each stage: countdown, trailer and Notify Me while upcoming; buy-and-check-in, player, chat and watermark while live; on-demand purchase with a 24h/48h timer during replay; a re-run waitlist once archived.
+- Organizer switch: "End live → Replay".
 
-1. **Buy ticket** — `/cinema` → screening → `/buy/:id` → 7-step funnel → `process-payment` → email with watch code. Verify Stripe/Paystack/Flutterwave/Bank all reachable, promo code applies, refund policy shows, geo check on submit.
-2. **Watch** — `/watch/:code` → `validate-watch-code` → `get-playback-url` → HLS plays → 15s heartbeats hit `record-watch-heartbeat` → stream cap + concurrent-session enforcement → resume position works.
-3. **My Tickets** — `/my-tickets` lists active/expired, resends email, shows remaining streams.
-4. **Studio** — submit movie → admin approves → screening syncs to `/studio/screenings` → analytics page renders top-country chart with real heartbeat data.
-5. **Admin** — `/admin/screenings` CRUD (geo, caps, refund policy), `/admin/tickets` search + CSV + one-click refund, `/admin/promo-codes`, `/admin/users`, gateways.
-6. **AI Concierge** — widget answers movie/ticket questions, falls back gracefully.
-7. **Reminders cron** — confirm 24h/1h emails fire idempotently.
-8. **Subdomain routing** — `slug.host` resolves to `MovieLanding`.
-9. **Auth** — signup/login/reset password, role assignment, RLS on every table.
+## Phase 3 — Streaming suite
+- In-browser studio: webcam, mic, screen share and lower-third overlay, with a local preview.
+- Pro RTMP: an ingest URL and private stream key for each event (key can be regenerated), plus simulcast destinations.
+- Note: browser-to-viewer delivery needs a media provider such as Mux, Cloudflare Stream or LiveKit. The provider's API key is needed before it goes live.
 
-Each broken item gets fixed in the same pass: missing GRANTs, dead navigate(), null-guard crashes, missing loading/empty states, mobile overflow.
+## Phase 4 — Guest checkout and refunds
+- Guest checkout with only an email (NGN/USD). A login-free "Enter Live Premiere" pass, linked to the account in the background.
+- One-click cancellation of an event: every ticket is refunded and every buyer gets an email.
 
-## Phase B — Surpass-Competitor Features (new)
+## Phase 5 — Wallet and payouts
+- Commission on each sale: 10% for Creator, 7.5% for Business.
+- Studio Wallet showing gross revenue, fees, escrow and withdrawable balance.
+- Withdrawal requests that move through Pending → Approved → Paid, with an admin payout queue.
 
-Spixie stops at tickets + streaming + basic analytics. We add:
+## Phase 6 — Fan Blast CRM and promotions
+- Waitlist plus ticket-holder audiences. Email blasts sent from Studio before doors open or when the replay launches.
+- Admin-managed panoramic hero banners and spotlight slots on the home page and cinema page.
 
-1. **Live Watch Parties** — synchronized playback during premiere window. New table `watch_party_rooms` (host ticket, current_position, is_playing). Realtime channel broadcasts play/pause/seek to all ticket holders in the room. Sidebar chat using `screening_comments`.
-2. **Live Reactions overlay** — floating emoji reactions on the player during premiere, broadcast via Supabase Realtime; aggregate counts shown to producer in analytics.
-3. **Gift Tickets** — buyer enters recipient email; ticket emailed to them with personal note. New columns `gift_from`, `gift_message` on `screening_tickets`; flow added to BuyTicket step 1.
-4. **Multi-currency auto-detect** — detect viewer country via `cf-ipcountry`, convert NGN base price using daily FX rates cached in `platform_settings`. Show local currency on `/buy` and `/cinema` cards.
-5. **Loyalty Points** — `loyalty_points` table; earn on every ticket, redeem for % off via promo-code engine. Visible on `/dashboard`.
-6. **Producer Forecasting** — `/studio/analytics` adds projected revenue (linear regression on hourly ticket velocity), drop-off heatmap (heartbeat positions binned into 10s buckets → bar chart), cohort retention (% returning for next premiere).
-7. **Watermarked playback** — overlay viewer email + IP on the HLS player as a translucent moving label; deters screen recording.
-8. **One-tap social share with auto-generated OG image** — edge function `generate-share-card` renders a poster + screening time PNG; viewer share buttons (X, WhatsApp, Telegram) link with that card.
+## Technical details
+- New tables: studio_accounts (tier, kyb fields), event_waitlist, stream_configs, wallet_ledger, withdrawal_requests, fan_blasts, promo_banners. Every new table gets GRANTs and RLS.
+- Edge functions: verify-application, cancel-event-refund, request-withdrawal, send-fan-blast, rotate-stream-key, transition-lifecycle.
+- Commission is calculated on the server inside process-payment and written to wallet_ledger.
+- Every form is validated with Zod.
 
-## Phase C — Quality Hardening
-
-- Real SEO titles via `usePageTitle` on every public page.
-- Lighthouse audit: lazy-load images, preconnect fonts, defer non-critical JS.
-- Mobile snap-scroll polish on `/cinema`, `/movie/:slug`.
-- Empty states + skeleton loaders everywhere data fetches.
-- 404 route + global error boundary.
-- Run `supabase--linter`; fix all RLS/GRANT warnings.
-
-## Files / migrations
-
-| Action | Path |
-|---|---|
-| Migration | `<ts>_surpass_pack.sql` — watch_party_rooms, loyalty_points, gift columns, fx_rates JSON |
-| Edge fn | `watch-party-sync`, `convert-currency`, `generate-share-card`, `award-loyalty-points` |
-| New pages | `src/pages/WatchParty.tsx`, `src/pages/GiftTicket.tsx` |
-| Edits | `BuyTicket.tsx` (gift + currency), `WatchMovie.tsx` (watermark + reactions + party), `VideoPlayer.tsx` (watermark overlay), `StudioAnalytics.tsx` (forecasting + drop-off + cohort), `UserDashboard.tsx` (loyalty), every public page (SEO) |
-| Audit-fix | any file surfaced during Phase A |
-
-## Execution
-
-All three phases shipped in parallel: audit script + fix passes, new migration + edge functions, new pages + component edits, SEO sweep — one coordinated batch, then verify in browser preview before closing.
-
-## Out of scope
-
-True Widevine/FairPlay DRM (paid provider) and native mobile apps — kept on roadmap; watermarking + signed URLs cover 95% of the deterrent value.
+## Order
+Phases 1, 2, 4 and 5 ship first, because they need only the database. Phases 3 and 6 follow, once a streaming provider is chosen.
