@@ -133,6 +133,15 @@ export default function UserDashboard() {
           </Button>
         </div>
 
+        {/* Studio upgrade */}
+        <div className="mb-6 p-4 rounded-2xl border border-primary/30 bg-primary/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <p className="font-semibold">Premiere your film or live event</p>
+            <p className="text-xs text-muted-foreground">Upgrade to Creator (KYC, 10% fee) or Business (KYB + KYC, 7.5% fee, team seats).</p>
+          </div>
+          <Button asChild size="sm" className="rounded-full shrink-0"><Link to="/apply-filmmaker">Upgrade to Studio</Link></Button>
+        </div>
+
         {/* Quick Stats */}
         <div className="grid grid-cols-3 gap-3 mb-8">
           {[

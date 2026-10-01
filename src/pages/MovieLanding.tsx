@@ -13,6 +13,7 @@ import {
   ChevronLeft, ChevronRight, Loader2, MessageCircle, Shield
 } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { LifecycleBanner } from '@/components/cinema/LifecycleBanner';
 
 interface CastMember {
   name: string;
@@ -262,6 +263,16 @@ export default function MovieLanding() {
           </div>
         </div>
       </section>
+
+      <LifecycleBanner
+        screeningId={screening.id}
+        slug={screening.slug}
+        lifecycle={(screening as any).lifecycle || 'upcoming'}
+        screeningDate={screening.screening_date}
+        replayPriceNgn={(screening as any).replay_price_ngn}
+        replayPriceUsd={(screening as any).replay_price_usd}
+        replayAccessHours={(screening as any).replay_access_hours}
+      />
 
       <div className="container mx-auto px-4 py-8 space-y-12">
         {/* Synopsis */}

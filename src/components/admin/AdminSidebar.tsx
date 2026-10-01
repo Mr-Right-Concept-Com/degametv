@@ -41,6 +41,7 @@ const sections: { title: string; items: NavItem[] }[] = [
     title: 'Revenue',
     items: [
       { label: 'Sales Dashboard', href: '/admin/sales', icon: TrendingUp },
+      { label: 'Payouts & Tiers', href: '/admin/payouts', icon: CreditCard },
       { label: 'Payment Gateways', href: '/admin/settings/payment-gateways', icon: CreditCard },
     ],
   },

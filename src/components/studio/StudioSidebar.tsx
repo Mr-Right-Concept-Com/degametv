@@ -8,7 +8,7 @@ const navItems = [
   { label: 'Submit Film', href: '/studio/submit', icon: Upload },
   { label: 'My Screenings', href: '/studio/screenings', icon: Calendar },
   { label: 'Analytics', href: '/studio/analytics', icon: BarChart3 },
-  { label: 'Earnings', href: '/studio/earnings', icon: DollarSign },
+  { label: 'Wallet & Earnings', href: '/studio/earnings', icon: DollarSign },
 ];
 
 interface StudioSidebarProps {

@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Film, Upload, Clock, CheckCircle, DollarSign, Loader2 } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { TierUpgradeCard } from '@/components/studio/TierUpgradeCard';
 
 interface Submission {
   id: string;
@@ -54,6 +55,7 @@ export default function StudioDashboard() {
 
   return (
     <StudioLayout title="Studio Dashboard" description="Manage your films and track performance">
+      <div className="mb-6"><TierUpgradeCard /></div>
       {/* Quick Actions */}
       <div className="flex gap-3 mb-6">
         <Button asChild className="rounded-full gap-2">
