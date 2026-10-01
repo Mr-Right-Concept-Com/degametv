@@ -1188,6 +1188,60 @@ export type Database = {
         }
         Relationships: []
       }
+      studio_accounts: {
+        Row: {
+          bank_account_name: string | null
+          bank_account_number: string | null
+          bank_name: string | null
+          cac_doc_path: string | null
+          cac_number: string | null
+          company_name: string | null
+          created_at: string
+          id: string
+          rights_declared: boolean
+          seats: number
+          status: string
+          tax_id: string | null
+          tier: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
+          cac_doc_path?: string | null
+          cac_number?: string | null
+          company_name?: string | null
+          created_at?: string
+          id?: string
+          rights_declared?: boolean
+          seats?: number
+          status?: string
+          tax_id?: string | null
+          tier?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
+          cac_doc_path?: string | null
+          cac_number?: string | null
+          company_name?: string | null
+          created_at?: string
+          id?: string
+          rights_declared?: boolean
+          seats?: number
+          status?: string
+          tax_id?: string | null
+          tier?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       subscription_plans: {
         Row: {
           created_at: string
