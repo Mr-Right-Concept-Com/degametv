@@ -10,13 +10,13 @@ const corsHeaders = {
 // Server-side input validation (mirror of client zod schema)
 function validatePayload(body: any): { ok: true } | { ok: false; error: string } {
   if (!body || typeof body !== 'object') return { ok: false, error: 'Invalid request body' };
-  const { method, email, amount, screeningId } = body;
+  const { method, email, screeningId } = body;
   if (!['stripe', 'paystack', 'flutterwave', 'bank'].includes(method))
     return { ok: false, error: 'Unsupported payment method' };
   if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 255)
     return { ok: false, error: 'Invalid email address' };
-  if (typeof amount !== 'number' || !Number.isFinite(amount) || amount < 0 || amount > 10_000_000)
-    return { ok: false, error: 'Invalid amount' };
+  if (!['nigeria', 'international'].includes(body.location))
+    return { ok: false, error: 'Invalid location' };
   if (typeof screeningId !== 'string' || !/^[0-9a-f-]{36}$/i.test(screeningId))
     return { ok: false, error: 'Invalid screening reference' };
   return { ok: true };
@@ -183,6 +183,8 @@ async function handlePayment(supabase: any, body: any, gateway: string) {
       paymentRef,
       ticketCode,
       watchCode,
+      amount,
+      currency,
       watchUrl: `/watch/${watchCode}?email=${encodeURIComponent(email)}`,
     }),
     { headers: corsHeaders }
@@ -190,17 +192,18 @@ async function handlePayment(supabase: any, body: any, gateway: string) {
 }
 
 async function handleBankTransfer(supabase: any, body: any) {
-  const { email, amount, currency, screeningId, location, addons } = body;
+  const { email, screeningId, location } = body;
 
   const { data: screening } = await supabase
     .from('screenings')
-    .select('id, tenant_id')
+    .select('id, tenant_id, lifecycle, location_pricing, replay_price_ngn, replay_price_usd, replay_access_hours')
     .eq('id', screeningId)
     .maybeSingle();
   if (!screening) {
     return new Response(JSON.stringify({ success: false, error: 'Screening not found' }), { status: 404, headers: corsHeaders });
   }
 
+  const priced = await computePrice(supabase, screening, body);
   const paymentRef = crypto.randomUUID();
   const ticketCode = `TICKET_${Date.now()}`;
   const watchCode = `WATCH_${crypto.randomUUID()}`;
@@ -211,9 +214,11 @@ async function handleBankTransfer(supabase: any, body: any) {
     ticket_code: ticketCode,
     watch_code: watchCode,
     location,
-    price: amount,
-    currency: currency || 'NGN',
-    addons: addons || {},
+    price: priced.amount,
+    currency: priced.currency,
+    addons: priced.addons,
+    ticket_kind: priced.ticketKind,
+    access_hours: priced.accessHours,
     payment_method: 'bank_transfer',
     payment_reference: paymentRef,
     payment_status: 'pending',
