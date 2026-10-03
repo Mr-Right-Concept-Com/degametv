@@ -95,7 +95,9 @@ export default function BuyTicket() {
   }
 
   const pricing = screening.location_pricing;
-  const basePrice = pricing[location];
+  const isReplay = (screening as any).lifecycle === 'replay';
+  const replayPrice = location === 'nigeria' ? (screening as any).replay_price_ngn : (screening as any).replay_price_usd;
+  const basePrice = isReplay && replayPrice ? Number(replayPrice) : pricing[location];
   const currency = location === 'nigeria' ? 'NGN' : 'USD';
   const symbol = location === 'nigeria' ? '₦' : '$';
   const addonsTotal = addons.filter(a => a.selected).reduce((sum, a) => sum + a.price, 0);
@@ -156,6 +158,7 @@ export default function BuyTicket() {
           currency,
           screeningId: screening.id,
           location,
+          promoCode: promoDiscount ? promoCode : undefined,
           addons: addons.filter(a => a.selected).map(a => ({ name: a.name, price: a.price })),
         },
       });
