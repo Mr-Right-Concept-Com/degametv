@@ -44,6 +44,14 @@ if (import.meta.main) {
         return new Response(JSON.stringify({ error: 'Ticket has expired' }), { status: 403, headers: corsHeaders });
       }
 
+      // Timed entitlement: window starts at first play
+      if (ticket.first_played_at && ticket.access_hours) {
+        const ends = new Date(ticket.first_played_at).getTime() + ticket.access_hours * 3600000;
+        if (Date.now() > ends) {
+          return new Response(JSON.stringify({ error: `Your ${ticket.access_hours}-hour viewing window has ended` }), { status: 403, headers: corsHeaders });
+        }
+      }
+
       const s = ticket.screening;
       // Geo enforcement
       if (country) {
@@ -61,6 +69,7 @@ if (import.meta.main) {
 
       await supabase.from('screening_tickets').update({
         used_at: new Date().toISOString(),
+        ...(ticket.first_played_at ? {} : { first_played_at: new Date().toISOString() }),
         last_ip: ip,
         last_country: country,
       }).eq('id', ticket.id);

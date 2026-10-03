@@ -1,0 +1,2 @@
+- Ticket prices are computed in the process-payment function from screening data and platform_settings; never trust client amounts (prevents price tampering).
+- Commission, escrow, add-on and stream rules live in platform_settings rows, not code (admin-configurable without rebuilds).
