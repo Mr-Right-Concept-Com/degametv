@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.grant_creator_on_tier_approval() FROM PUBLIC, anon, authenticated;
