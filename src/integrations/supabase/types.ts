@@ -340,6 +340,48 @@ export type Database = {
           },
         ]
       }
+      fan_blasts: {
+        Row: {
+          audience: string
+          body: string | null
+          created_at: string
+          error: string | null
+          id: string
+          recipients_count: number
+          screening_id: string
+          status: string
+          subject: string
+          template: string
+          user_id: string
+        }
+        Insert: {
+          audience?: string
+          body?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          recipients_count?: number
+          screening_id: string
+          status?: string
+          subject: string
+          template: string
+          user_id: string
+        }
+        Update: {
+          audience?: string
+          body?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          recipients_count?: number
+          screening_id?: string
+          status?: string
+          subject?: string
+          template?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       feature_flags: {
         Row: {
           conditions: Json | null
@@ -839,6 +881,51 @@ export type Database = {
         }
         Relationships: []
       }
+      promo_banners: {
+        Row: {
+          created_at: string
+          ends_at: string | null
+          id: string
+          image_url: string
+          is_active: boolean
+          link_url: string | null
+          owner_id: string | null
+          placement: string
+          sort_order: number
+          starts_at: string | null
+          subtitle: string | null
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          image_url: string
+          is_active?: boolean
+          link_url?: string | null
+          owner_id?: string | null
+          placement?: string
+          sort_order?: number
+          starts_at?: string | null
+          subtitle?: string | null
+          title: string
+        }
+        Update: {
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          image_url?: string
+          is_active?: boolean
+          link_url?: string | null
+          owner_id?: string | null
+          placement?: string
+          sort_order?: number
+          starts_at?: string | null
+          subtitle?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
       promo_codes: {
         Row: {
           code: string
@@ -1016,6 +1103,7 @@ export type Database = {
       }
       screening_tickets: {
         Row: {
+          access_hours: number | null
           active_session_started_at: string | null
           active_session_token: string | null
           addons: Json | null
@@ -1025,6 +1113,7 @@ export type Database = {
           display_currency: string | null
           email: string
           expires_at: string
+          first_played_at: string | null
           gift_from: string | null
           gift_message: string | null
           id: string
@@ -1044,12 +1133,14 @@ export type Database = {
           stream_count: number
           tenant_id: string
           ticket_code: string
+          ticket_kind: string
           used_at: string | null
           user_id: string | null
           watch_code: string
           watch_url: string | null
         }
         Insert: {
+          access_hours?: number | null
           active_session_started_at?: string | null
           active_session_token?: string | null
           addons?: Json | null
@@ -1059,6 +1150,7 @@ export type Database = {
           display_currency?: string | null
           email: string
           expires_at?: string
+          first_played_at?: string | null
           gift_from?: string | null
           gift_message?: string | null
           id?: string
@@ -1078,12 +1170,14 @@ export type Database = {
           stream_count?: number
           tenant_id: string
           ticket_code: string
+          ticket_kind?: string
           used_at?: string | null
           user_id?: string | null
           watch_code: string
           watch_url?: string | null
         }
         Update: {
+          access_hours?: number | null
           active_session_started_at?: string | null
           active_session_token?: string | null
           addons?: Json | null
@@ -1093,6 +1187,7 @@ export type Database = {
           display_currency?: string | null
           email?: string
           expires_at?: string
+          first_played_at?: string | null
           gift_from?: string | null
           gift_message?: string | null
           id?: string
@@ -1112,6 +1207,7 @@ export type Database = {
           stream_count?: number
           tenant_id?: string
           ticket_code?: string
+          ticket_kind?: string
           used_at?: string | null
           user_id?: string | null
           watch_code?: string
@@ -1235,6 +1331,45 @@ export type Database = {
         }
         Relationships: []
       }
+      stream_configs: {
+        Row: {
+          id: string
+          ingest_url: string | null
+          is_live: boolean
+          playback_url: string | null
+          provider: string
+          screening_id: string | null
+          simulcast_targets: Json
+          stream_key: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          ingest_url?: string | null
+          is_live?: boolean
+          playback_url?: string | null
+          provider?: string
+          screening_id?: string | null
+          simulcast_targets?: Json
+          stream_key?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          ingest_url?: string | null
+          is_live?: boolean
+          playback_url?: string | null
+          provider?: string
+          screening_id?: string | null
+          simulcast_targets?: Json
+          stream_key?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       studio_accounts: {
         Row: {
           bank_account_name: string | null
@@ -1286,6 +1421,36 @@ export type Database = {
           tier?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      studio_members: {
+        Row: {
+          created_at: string
+          id: string
+          member_email: string
+          member_user_id: string | null
+          owner_id: string
+          role: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          member_email: string
+          member_user_id?: string | null
+          owner_id: string
+          role?: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          member_email?: string
+          member_user_id?: string | null
+          owner_id?: string
+          role?: string
+          status?: string
         }
         Relationships: []
       }
