@@ -39,6 +39,7 @@ import EmailSettings from "./pages/admin/settings/EmailSettings";
 import WhiteLabel from "./pages/admin/settings/WhiteLabel";
 import TicketManagement from "./pages/admin/ticketing/TicketManagement";
 import Payouts from "./pages/admin/Payouts";
+import Godmode from "./pages/admin/Godmode";
 
 // Virtual Cinema Funnel
 import BuyTicket from "./pages/BuyTicket";
@@ -54,6 +55,8 @@ import StudioSubmit from "./pages/studio/StudioSubmit";
 import StudioScreenings from "./pages/studio/StudioScreenings";
 import StudioEarnings from "./pages/studio/StudioEarnings";
 import StudioAnalytics from "./pages/studio/StudioAnalytics";
+import StudioLive from "./pages/studio/StudioLive";
+import StudioFanBlast from "./pages/studio/StudioFanBlast";
 
 const queryClient = new QueryClient();
 
@@ -101,8 +104,8 @@ const App = () => (
               <Route path="/studio/analytics" element={<ProtectedCreatorRoute><StudioScreenings /></ProtectedCreatorRoute>} />
               <Route path="/studio/analytics/:screeningId" element={<ProtectedCreatorRoute><StudioAnalytics /></ProtectedCreatorRoute>} />
               
-              {/* ============ STUDIO (Protected - Filmmakers) ============ */}
-              <Route path="/studio" element={<ProtectedRoute><StudioDashboard /></ProtectedRoute>} />
+              <Route path="/studio/live" element={<ProtectedCreatorRoute><StudioLive /></ProtectedCreatorRoute>} />
+              <Route path="/studio/fan-blast" element={<ProtectedCreatorRoute><StudioFanBlast /></ProtectedCreatorRoute>} />
               {/* ============ ADMIN (Protected) ============ */}
               <Route path="/admin" element={<ProtectedAdminRoute><Dashboard /></ProtectedAdminRoute>} />
               <Route path="/admin/users" element={<ProtectedAdminRoute><Users /></ProtectedAdminRoute>} />
@@ -111,6 +114,7 @@ const App = () => (
               <Route path="/admin/promo-codes" element={<ProtectedAdminRoute><PromoCodes /></ProtectedAdminRoute>} />
               <Route path="/admin/sales" element={<ProtectedAdminRoute><ProducerDashboard /></ProtectedAdminRoute>} />
               <Route path="/admin/payouts" element={<ProtectedAdminRoute><Payouts /></ProtectedAdminRoute>} />
+              <Route path="/admin/godmode" element={<ProtectedAdminRoute><Godmode /></ProtectedAdminRoute>} />
               <Route path="/admin/filmmaker" element={<ProtectedAdminRoute><FilmmakerPortal /></ProtectedAdminRoute>} />
               <Route path="/admin/filmmaker-applications" element={<ProtectedAdminRoute><FilmmakerApplications /></ProtectedAdminRoute>} />
               <Route path="/admin/settings/payment-gateways" element={<ProtectedAdminRoute><PaymentGatewaySettings /></ProtectedAdminRoute>} />
