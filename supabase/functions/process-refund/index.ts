@@ -62,9 +62,9 @@ if (import.meta.main) {
       await supabase.from('audit_logs').insert({
         user_id: user.id,
         action: 'ticket_refund',
-        resource_type: 'screening_ticket',
-        resource_id: ticketId,
-        metadata: { reason, amount: ticket.price, currency: ticket.currency },
+        entity_type: 'screening_ticket',
+        entity_id: ticketId,
+        new_data: { reason, amount: ticket.price, currency: ticket.currency },
       });
 
       return new Response(

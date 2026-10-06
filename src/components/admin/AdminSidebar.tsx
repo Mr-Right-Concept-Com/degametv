@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { 
   LayoutDashboard, Users, Film, Tag, TrendingUp, CreditCard,
-  Palette, Mail, Upload, ExternalLink, LogOut, Ticket
+  Palette, Mail, Upload, ExternalLink, LogOut, Ticket, ShieldAlert
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ const sections: { title: string; items: NavItem[] }[] = [
     title: 'Overview',
     items: [
       { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
+      { label: 'Godmode', href: '/admin/godmode', icon: ShieldAlert },
     ],
   },
   {
