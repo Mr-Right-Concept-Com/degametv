@@ -1,0 +1,224 @@
+import { useEffect, useState } from 'react';
+import { AdminLayout } from '@/components/admin/AdminLayout';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { supabase } from '@/integrations/supabase/client';
+import { usePageTitle } from '@/hooks/usePageTitle';
+import { toast } from 'sonner';
+import { z } from 'zod';
+import { Loader2 } from 'lucide-react';
+
+async function god(body: Record<string, unknown>) {
+  const { data, error } = await supabase.functions.invoke('admin-godmode', { body });
+  if (error || !data?.success) {
+    let msg = data?.error;
+    try { msg = msg || (await (error as any)?.context?.json())?.error; } catch { /* ignore */ }
+    throw new Error(typeof msg === 'string' ? msg : 'Action failed');
+  }
+  return data.result;
+}
+
+const adjustSchema = z.object({
+  userId: z.string().uuid('Pick a user'),
+  amount: z.number().refine(n => n !== 0, 'Amount cannot be zero'),
+  currency: z.enum(['NGN', 'USD']),
+  reason: z.string().min(3, 'Give a reason'),
+});
+
+interface Profile { user_id: string; email: string | null; full_name: string | null }
+
+export default function Godmode() {
+  usePageTitle('Godmode — Admin');
+  const [settings, setSettings] = useState<{ setting_key: string; setting_value: any; description: string | null }[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [roles, setRoles] = useState<{ user_id: string; role: string }[]>([]);
+  const [tiers, setTiers] = useState<any[]>([]);
+  const [screenings, setScreenings] = useState<any[]>([]);
+  const [audit, setAudit] = useState<any[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [q, setQ] = useState('');
+  const [adj, setAdj] = useState({ userId: '', amount: '', currency: 'NGN', reason: '' });
+
+  const load = async () => {
+    const [s, p, r, t, sc, a] = await Promise.all([
+      supabase.from('platform_settings').select('setting_key, setting_value, description').order('setting_key'),
+      supabase.from('profiles').select('user_id, email, full_name').order('created_at', { ascending: false }).limit(500),
+      supabase.from('user_roles').select('user_id, role'),
+      supabase.from('studio_accounts').select('*').order('created_at', { ascending: false }),
+      supabase.from('screenings').select('id, title, lifecycle').order('created_at', { ascending: false }).limit(200),
+      supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(100),
+    ]);
+    setSettings(s.data || []);
+    setDrafts(Object.fromEntries((s.data || []).map(x => [x.setting_key, JSON.stringify(x.setting_value, null, 2)])));
+    setProfiles((p.data as Profile[]) || []);
+    setRoles((r.data as any) || []);
+    setTiers(t.data || []);
+    setScreenings(sc.data || []);
+    setAudit(a.data || []);
+  };
+  useEffect(() => { load(); }, []);
+
+  const run = async (id: string, body: Record<string, unknown>, ok: string) => {
+    setBusy(id);
+    try { const r = await god(body); toast.success(ok); await load(); return r; }
+    catch (e) { toast.error((e as Error).message); }
+    finally { setBusy(null); }
+  };
+
+  const saveSetting = (key: string) => {
+    let value: unknown;
+    try { value = JSON.parse(drafts[key]); } catch { toast.error('Value must be valid JSON'); return; }
+    run(`s-${key}`, { action: 'setting_update', key, value }, 'Setting saved');
+  };
+
+  const submitAdjust = () => {
+    const parsed = adjustSchema.safeParse({ ...adj, amount: Number(adj.amount) });
+    if (!parsed.success) { toast.error(parsed.error.errors[0].message); return; }
+    run('adj', { action: 'wallet_adjust', ...parsed.data }, 'Wallet adjusted').then(() => setAdj({ userId: '', amount: '', currency: 'NGN', reason: '' }));
+  };
+
+  const lifecycle = async (id: string, action: string) => {
+    setBusy(`l-${id}`);
+    const { data, error } = await supabase.functions.invoke('manage-event', { body: { screeningId: id, action } });
+    if (error || data?.error) toast.error(data?.error || 'Override failed'); else { toast.success('Event updated'); load(); }
+    setBusy(null);
+  };
+
+  const impersonate = async (userId: string) => {
+    const r: any = await run(`i-${userId}`, { action: 'impersonate', userId, redirectTo: `${window.location.origin}/studio` }, 'Sign-in link created');
+    if (r?.link) {
+      await navigator.clipboard?.writeText(r.link).catch(() => {});
+      toast.message(`Link for ${r.email} copied. Open it in a private window so your admin session stays signed in.`);
+    }
+  };
+
+  const rolesOf = (id: string) => roles.filter(r => r.user_id === id).map(r => r.role);
+  const nameOf = (id: string) => profiles.find(p => p.user_id === id)?.email || id.slice(0, 8);
+  const filtered = profiles.filter(p => !q || (p.email || '').toLowerCase().includes(q.toLowerCase()) || (p.full_name || '').toLowerCase().includes(q.toLowerCase()));
+
+  return (
+    <AdminLayout title="Godmode" description="Platform-wide control: settings, roles, wallets, tiers, events and audit trail">
+      <Tabs defaultValue="settings">
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+          <TabsTrigger value="users">Users & roles</TabsTrigger>
+          <TabsTrigger value="wallets">Wallets</TabsTrigger>
+          <TabsTrigger value="tiers">Tiers</TabsTrigger>
+          <TabsTrigger value="events">Events</TabsTrigger>
+          <TabsTrigger value="audit">Audit log</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="settings" className="grid md:grid-cols-2 gap-4 mt-4">
+          {settings.map(s => (
+            <Card key={s.setting_key}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-mono">{s.setting_key}</CardTitle>
+                {s.description && <CardDescription>{s.description}</CardDescription>}
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Label htmlFor={`set-${s.setting_key}`} className="sr-only">{s.setting_key}</Label>
+                <Textarea id={`set-${s.setting_key}`} rows={4} className="font-mono text-xs" value={drafts[s.setting_key] ?? ''} onChange={e => setDrafts(d => ({ ...d, [s.setting_key]: e.target.value }))} />
+                <Button size="sm" className="rounded-full" disabled={busy === `s-${s.setting_key}`} onClick={() => saveSetting(s.setting_key)}>
+                  {busy === `s-${s.setting_key}` && <Loader2 className="w-3 h-3 animate-spin mr-1" />}Save
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </TabsContent>
+
+        <TabsContent value="users" className="mt-4 space-y-3">
+          <Input placeholder="Search by email or name" value={q} onChange={e => setQ(e.target.value)} className="max-w-sm" aria-label="Search users" />
+          {filtered.slice(0, 100).map(p => {
+            const r = rolesOf(p.user_id);
+            return (
+              <Card key={p.user_id}><CardContent className="p-3 flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{p.email}</p>
+                  <div className="flex flex-wrap gap-1 mt-1">{r.map(x => <Badge key={x} variant="secondary">{x}</Badge>)}</div>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {(['creator', 'platform_admin', 'super_admin'] as const).map(role => (
+                    <Button key={role} size="sm" variant={r.includes(role) ? 'default' : 'outline'} className="rounded-full text-xs"
+                      disabled={!!busy} onClick={() => run(`r-${p.user_id}`, { action: 'role_set', userId: p.user_id, role, grant: !r.includes(role) }, 'Roles updated')}>
+                      {r.includes(role) ? `Revoke ${role}` : `Grant ${role}`}
+                    </Button>
+                  ))}
+                  <Button size="sm" variant="ghost" className="rounded-full text-xs" disabled={!!busy} onClick={() => impersonate(p.user_id)}>Sign in as</Button>
+                </div>
+              </CardContent></Card>
+            );
+          })}
+        </TabsContent>
+
+        <TabsContent value="wallets" className="mt-4">
+          <Card className="max-w-lg"><CardHeader><CardTitle className="text-base">Manual wallet adjustment</CardTitle>
+            <CardDescription>Positive credits the wallet, negative debits it. Applies immediately and is logged.</CardDescription></CardHeader>
+            <CardContent className="space-y-3">
+              <div><Label>User</Label>
+                <Select value={adj.userId} onValueChange={v => setAdj(a => ({ ...a, userId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Choose account" /></SelectTrigger>
+                  <SelectContent>{profiles.map(p => <SelectItem key={p.user_id} value={p.user_id}>{p.email}</SelectItem>)}</SelectContent>
+                </Select></div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><Label htmlFor="adj-amt">Amount</Label><Input id="adj-amt" type="number" value={adj.amount} onChange={e => setAdj(a => ({ ...a, amount: e.target.value }))} /></div>
+                <div><Label>Currency</Label>
+                  <Select value={adj.currency} onValueChange={v => setAdj(a => ({ ...a, currency: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="NGN">NGN</SelectItem><SelectItem value="USD">USD</SelectItem></SelectContent>
+                  </Select></div>
+              </div>
+              <div><Label htmlFor="adj-r">Reason</Label><Input id="adj-r" value={adj.reason} onChange={e => setAdj(a => ({ ...a, reason: e.target.value }))} /></div>
+              <Button className="rounded-full" disabled={busy === 'adj'} onClick={submitAdjust}>Apply adjustment</Button>
+            </CardContent></Card>
+        </TabsContent>
+
+        <TabsContent value="tiers" className="mt-4 space-y-2">
+          {tiers.length === 0 && <p className="text-sm text-muted-foreground">No tier applications yet.</p>}
+          {tiers.map(t => (
+            <Card key={t.id}><CardContent className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div><p className="text-sm font-medium">{nameOf(t.user_id)} · <span className="capitalize">{t.tier}</span></p>
+                <p className="text-xs text-muted-foreground">{t.company_name || '—'} · <Badge variant="outline">{t.status}</Badge></p></div>
+              <div className="flex gap-1">
+                <Button size="sm" className="rounded-full" disabled={!!busy || t.status === 'approved'} onClick={() => run(`t-${t.id}`, { action: 'tier_set', userId: t.user_id, status: 'approved' }, 'Tier approved, Studio access granted')}>Force approve</Button>
+                <Button size="sm" variant="outline" className="rounded-full" disabled={!!busy || t.status === 'rejected'} onClick={() => run(`t-${t.id}`, { action: 'tier_set', userId: t.user_id, status: 'rejected' }, 'Tier revoked')}>Revoke</Button>
+              </div>
+            </CardContent></Card>
+          ))}
+        </TabsContent>
+
+        <TabsContent value="events" className="mt-4 space-y-2">
+          {screenings.map(s => (
+            <Card key={s.id}><CardContent className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <p className="text-sm font-medium">{s.title} <Badge variant="secondary" className="ml-1">{s.lifecycle}</Badge></p>
+              <div className="flex flex-wrap gap-1">
+                {['upcoming', 'live', 'replay', 'archived', 'cancel'].map(a => (
+                  <Button key={a} size="sm" variant={a === 'cancel' ? 'destructive' : 'outline'} className="rounded-full text-xs capitalize"
+                    disabled={!!busy || s.lifecycle === a} onClick={() => lifecycle(s.id, a)}>{a}</Button>
+                ))}
+              </div>
+            </CardContent></Card>
+          ))}
+        </TabsContent>
+
+        <TabsContent value="audit" className="mt-4">
+          <Card><CardContent className="p-0 divide-y divide-border">
+            {audit.length === 0 && <p className="p-4 text-sm text-muted-foreground">No audit entries yet.</p>}
+            {audit.map(a => (
+              <div key={a.id} className="p-3 text-xs flex flex-col sm:flex-row sm:justify-between gap-1">
+                <span><span className="font-mono">{a.action}</span> by {a.user_id ? nameOf(a.user_id) : 'system'}</span>
+                <span className="text-muted-foreground">{new Date(a.created_at).toLocaleString()}</span>
+              </div>
+            ))}
+          </CardContent></Card>
+        </TabsContent>
+      </Tabs>
+    </AdminLayout>
+  );
+}
