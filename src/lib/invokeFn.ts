@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 
-export type FnResult<T> = { ok: true; data: T } | { ok: false; error: string; status?: number };
+export type FnResult<T> = { ok: boolean; data?: T; error?: string; status?: number };
 
 const FRIENDLY: Record<number, string> = {
   401: 'Please sign in again.',
