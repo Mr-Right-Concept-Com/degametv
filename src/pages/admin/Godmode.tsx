@@ -9,19 +9,16 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
+import { invokeFn } from '@/lib/invokeFn';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { Loader2 } from 'lucide-react';
 
 async function god(body: Record<string, unknown>) {
-  const { data, error } = await supabase.functions.invoke('admin-godmode', { body });
-  if (error || !data?.success) {
-    let msg = data?.error;
-    try { msg = msg || (await (error as any)?.context?.json())?.error; } catch { /* ignore */ }
-    throw new Error(typeof msg === 'string' ? msg : 'Action failed');
-  }
-  return data.result;
+  const r = await invokeFn('admin-godmode', body);
+  if (!r.ok) throw new Error(r.error);
+  return r.data.result;
 }
 
 const adjustSchema = z.object({
@@ -42,6 +39,8 @@ export default function Godmode() {
   const [tiers, setTiers] = useState<any[]>([]);
   const [screenings, setScreenings] = useState<any[]>([]);
   const [audit, setAudit] = useState<any[]>([]);
+  const [banners, setBanners] = useState<any[]>([]);
+  const [nb, setNb] = useState({ title: '', subtitle: '', image_url: '', link_url: '', placement: 'home' });
   const [busy, setBusy] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [adj, setAdj] = useState({ userId: '', amount: '', currency: 'NGN', reason: '' });
@@ -62,6 +61,24 @@ export default function Godmode() {
     setTiers(t.data || []);
     setScreenings(sc.data || []);
     setAudit(a.data || []);
+    const { data: bn } = await supabase.from('promo_banners').select('*').order('sort_order').order('created_at', { ascending: false });
+    setBanners(bn || []);
+  };
+
+  const bannerSchema = z.object({ title: z.string().trim().min(2, 'Add a title').max(120), subtitle: z.string().max(200), image_url: z.string().trim().url('Image URL is invalid'), link_url: z.string().trim().max(500), placement: z.enum(['home', 'cinema', 'all']) });
+  const addBanner = async () => {
+    const p = bannerSchema.safeParse(nb);
+    if (!p.success) { toast.error(p.error.errors[0].message); return; }
+    const { error } = await supabase.from('promo_banners').insert({ ...p.data, subtitle: p.data.subtitle || null, link_url: p.data.link_url || null, is_active: true, status: 'approved' } as any);
+    if (error) toast.error(error.message); else { toast.success('Banner published'); setNb({ title: '', subtitle: '', image_url: '', link_url: '', placement: 'home' }); load(); }
+  };
+  const patchBanner = async (id: string, patch: Record<string, unknown>, ok: string) => {
+    const { error } = await supabase.from('promo_banners').update(patch as any).eq('id', id);
+    if (error) toast.error(error.message); else { toast.success(ok); load(); }
+  };
+  const deleteBanner = async (id: string) => {
+    const { error } = await supabase.from('promo_banners').delete().eq('id', id);
+    if (error) toast.error(error.message); else { toast.success('Banner removed'); load(); }
   };
   useEffect(() => { load(); }, []);
 
@@ -86,8 +103,8 @@ export default function Godmode() {
 
   const lifecycle = async (id: string, action: string) => {
     setBusy(`l-${id}`);
-    const { data, error } = await supabase.functions.invoke('manage-event', { body: { screeningId: id, action } });
-    if (error || data?.error) toast.error(data?.error || 'Override failed'); else { toast.success('Event updated'); load(); }
+    const r = await invokeFn('manage-event', { screeningId: id, action });
+    if (!r.ok) toast.error(r.error); else { toast.success('Event updated'); load(); }
     setBusy(null);
   };
 
@@ -112,6 +129,7 @@ export default function Godmode() {
           <TabsTrigger value="wallets">Wallets</TabsTrigger>
           <TabsTrigger value="tiers">Tiers</TabsTrigger>
           <TabsTrigger value="events">Events</TabsTrigger>
+          <TabsTrigger value="banners">Banners</TabsTrigger>
           <TabsTrigger value="audit">Audit log</TabsTrigger>
         </TabsList>
 
@@ -205,6 +223,35 @@ export default function Godmode() {
               </div>
             </CardContent></Card>
           ))}
+        </TabsContent>
+
+        <TabsContent value="banners" className="mt-4 grid lg:grid-cols-2 gap-4">
+          <Card><CardHeader><CardTitle className="text-base">New banner</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              {(['title', 'subtitle', 'image_url', 'link_url'] as const).map(f => (
+                <div key={f}><Label htmlFor={`nb-${f}`} className="capitalize">{f.replace('_', ' ')}</Label>
+                  <Input id={`nb-${f}`} value={nb[f]} onChange={e => setNb(v => ({ ...v, [f]: e.target.value }))} placeholder={f === 'link_url' ? '/movie/slug' : ''} /></div>
+              ))}
+              <Select value={nb.placement} onValueChange={v => setNb(x => ({ ...x, placement: v }))}>
+                <SelectTrigger aria-label="Placement"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="home">Homepage</SelectItem><SelectItem value="cinema">Cinema lobby</SelectItem><SelectItem value="all">Both</SelectItem></SelectContent>
+              </Select>
+              <Button className="rounded-full" onClick={addBanner}>Publish banner</Button>
+            </CardContent></Card>
+          <div className="space-y-2">
+            {banners.length === 0 && <p className="text-sm text-muted-foreground">No banners yet.</p>}
+            {banners.map(b => (
+              <Card key={b.id}><CardContent className="p-3 flex gap-3 items-center">
+                <img src={b.image_url} alt="" className="w-24 h-10 object-cover rounded-lg bg-muted" />
+                <div className="flex-1 min-w-0"><p className="text-sm font-medium truncate">{b.title}</p>
+                  <p className="text-xs text-muted-foreground">{b.placement} · {b.status === 'requested' ? 'organizer request' : b.is_active ? 'live' : 'hidden'}</p></div>
+                {b.status === 'requested'
+                  ? <Button size="sm" className="rounded-full" onClick={() => patchBanner(b.id, { status: 'approved', is_active: true }, 'Request approved')}>Approve</Button>
+                  : <Button size="sm" variant="outline" className="rounded-full" onClick={() => patchBanner(b.id, { is_active: !b.is_active }, b.is_active ? 'Banner hidden' : 'Banner live')}>{b.is_active ? 'Hide' : 'Show'}</Button>}
+                <Button size="sm" variant="ghost" className="rounded-full text-destructive" onClick={() => deleteBanner(b.id)}>Delete</Button>
+              </CardContent></Card>
+            ))}
+          </div>
         </TabsContent>
 
         <TabsContent value="audit" className="mt-4">

@@ -19,7 +19,14 @@ export function ProtectedCreatorRoute({ children }: { children: ReactNode }) {
         .eq('user_id', user.id)
         .in('role', ['creator', 'super_admin', 'platform_admin'])
         .maybeSingle();
-      setIsCreator(!!data);
+      let ok = !!data;
+      if (!ok) {
+        // Business team seats: claim pending invites, then check membership
+        await supabase.rpc('accept_studio_invites' as any).then(() => {}, () => {});
+        const { data: member } = await supabase.rpc('is_studio_member' as any, { _user_id: user.id });
+        ok = !!member;
+      }
+      setIsCreator(ok);
       setChecking(false);
     })();
   }, [user, authLoading]);

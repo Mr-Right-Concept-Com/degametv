@@ -32,6 +32,10 @@ export default function WatchMovie() {
           setError(data?.error || 'Invalid or expired watch link. Please check your email for a valid link.');
           return;
         }
+        if (searchParams.get('checkin') === '1') {
+          toast.success('Checked in — enjoy the show! Your pass is saved under My Tickets.');
+        }
+
 
         setTicket(data.ticket);
       } catch {

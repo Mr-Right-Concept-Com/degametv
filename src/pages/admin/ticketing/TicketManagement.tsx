@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Search, Download, Loader2, Mail, RotateCcw, Ticket } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { invokeFn } from '@/lib/invokeFn';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -54,11 +55,9 @@ export default function TicketManagement() {
 
   const handleRefund = async (id: string) => {
     setRefundingId(id);
-    const { data, error } = await supabase.functions.invoke('process-refund', {
-      body: { ticketId: id, reason: refundReason || 'Admin refund' },
-    });
-    if (error || !data?.success) {
-      toast.error(data?.error || error?.message || 'Refund failed');
+    const r = await invokeFn('process-refund', { ticketId: id, reason: refundReason || 'Admin refund' });
+    if (!r.ok) {
+      toast.error(`Refund failed: ${r.error}`);
     } else {
       toast.success('Ticket refunded');
       setRefundReason('');
@@ -176,10 +175,8 @@ export default function TicketManagement() {
                               title="Resend watch email"
                               onClick={async () => {
                                 const watchUrl = `${window.location.origin}/watch/${t.watch_code}?email=${encodeURIComponent(t.email)}`;
-                                await supabase.functions.invoke('send-watch-email', {
-                                  body: { email: t.email, movieTitle: t.screening?.title, watchUrl, ticketCode: t.ticket_code, expiresAt: t.expires_at, location: t.location, price: t.price, currency: t.currency },
-                                });
-                                toast.success('Watch link resent');
+                                const r = await invokeFn('send-watch-email', { email: t.email, movieTitle: t.screening?.title, watchUrl, ticketCode: t.ticket_code, expiresAt: t.expires_at, location: t.location, price: t.price, currency: t.currency });
+                                if (r.ok) toast.success('Watch link resent'); else toast.error(`Email not sent: ${r.error}`);
                               }}
                             >
                               <Mail className="w-3.5 h-3.5" />

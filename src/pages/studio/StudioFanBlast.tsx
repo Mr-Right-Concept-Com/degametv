@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
+import { invokeFn } from '@/lib/invokeFn';
 import { useAuth } from '@/hooks/useAuth';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
@@ -56,11 +57,10 @@ export default function StudioFanBlast() {
     const parsed = schema.safeParse(form);
     if (!parsed.success) { toast.error(parsed.error.errors[0].message); return; }
     setSending(true);
-    const { data, error } = await supabase.functions.invoke('send-fan-blast', { body: { ...form, ...parsed.data } });
-    let msg = data?.error;
-    if (error && !msg) { try { msg = (await (error as any).context?.json())?.error; } catch { /* ignore */ } }
-    if (error || !data?.success) toast.error(msg || 'Could not send');
-    else toast.success(`Sent to ${data.sent} fans`);
+    const r = await invokeFn<{ sent: number; total: number }>('send-fan-blast', { ...form, ...parsed.data });
+    if (!r.ok) toast.error(r.error);
+    else if (r.data.sent < r.data.total) toast.warning(`Sent to ${r.data.sent} of ${r.data.total} fans — some emails were not accepted.`);
+    else toast.success(`Sent to ${r.data.sent} fans`);
     setSending(false);
     load();
   };

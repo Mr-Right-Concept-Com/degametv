@@ -59,8 +59,8 @@ export function TierUpgradeCard() {
     setBusy(true);
     try {
       if (tier === 'business' && file) {
-        const path = `kyb/${user.id}/${Date.now()}-${file.name.replace(/[^\w.-]/g, '_')}`;
-        const { error: upErr } = await supabase.storage.from('content-uploads').upload(path, file);
+        const path = `${user.id}/${Date.now()}-${file.name.replace(/[^\w.-]/g, '_')}`;
+        const { error: upErr } = await supabase.storage.from('kyb-docs').upload(path, file);
         if (upErr) throw upErr;
         payload.cac_doc_path = path;
       }

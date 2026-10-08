@@ -57,6 +57,7 @@ import StudioEarnings from "./pages/studio/StudioEarnings";
 import StudioAnalytics from "./pages/studio/StudioAnalytics";
 import StudioLive from "./pages/studio/StudioLive";
 import StudioFanBlast from "./pages/studio/StudioFanBlast";
+import StudioTeam from "./pages/studio/StudioTeam";
 
 const queryClient = new QueryClient();
 
@@ -105,6 +106,7 @@ const App = () => (
               <Route path="/studio/analytics/:screeningId" element={<ProtectedCreatorRoute><StudioAnalytics /></ProtectedCreatorRoute>} />
               
               <Route path="/studio/live" element={<ProtectedCreatorRoute><StudioLive /></ProtectedCreatorRoute>} />
+              <Route path="/studio/team" element={<ProtectedCreatorRoute><StudioTeam /></ProtectedCreatorRoute>} />
               <Route path="/studio/fan-blast" element={<ProtectedCreatorRoute><StudioFanBlast /></ProtectedCreatorRoute>} />
               {/* ============ ADMIN (Protected) ============ */}
               <Route path="/admin" element={<ProtectedAdminRoute><Dashboard /></ProtectedAdminRoute>} />
