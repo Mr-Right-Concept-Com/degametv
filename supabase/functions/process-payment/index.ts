@@ -204,12 +204,14 @@ async function handleBankTransfer(supabase: any, body: any) {
   }
 
   const priced = await computePrice(supabase, screening, body);
+  const guestId = await ensureGuestUser(supabase, email);
   const paymentRef = crypto.randomUUID();
   const ticketCode = `TICKET_${Date.now()}`;
   const watchCode = `WATCH_${crypto.randomUUID()}`;
 
   const { error: insErr } = await supabase.from('screening_tickets').insert({
     screening_id: screeningId,
+    user_id: guestId,
     email,
     ticket_code: ticketCode,
     watch_code: watchCode,

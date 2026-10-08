@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Film, LayoutDashboard, Upload, Calendar, DollarSign, ExternalLink, Clapperboard, BarChart3, Radio, Megaphone } from 'lucide-react';
+import { Film, LayoutDashboard, Upload, Calendar, DollarSign, ExternalLink, Clapperboard, BarChart3, Radio, Megaphone, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -8,6 +8,7 @@ const navItems = [
   { label: 'Submit Film', href: '/studio/submit', icon: Upload },
   { label: 'My Screenings', href: '/studio/screenings', icon: Calendar },
   { label: 'Go Live', href: '/studio/live', icon: Radio },
+  { label: 'Team & Promotion', href: '/studio/team', icon: Users },
   { label: 'Fan Blast', href: '/studio/fan-blast', icon: Megaphone },
   { label: 'Analytics', href: '/studio/analytics', icon: BarChart3 },
   { label: 'Wallet & Earnings', href: '/studio/earnings', icon: DollarSign },

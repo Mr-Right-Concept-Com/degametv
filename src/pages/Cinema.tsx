@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { PromoBanner } from '@/components/cinema/PromoBanner';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,6 +56,7 @@ export default function Cinema() {
 
   return (
     <MainLayout>
+      <PromoBanner placement="cinema" />
       <div className="container mx-auto px-5 py-6 sm:py-10">
         <div className="mb-5 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-0.5 sm:mb-1">Virtual Cinema</h1>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { PromoBanner } from '@/components/cinema/PromoBanner';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -69,6 +70,7 @@ export default function Index() {
 
   return (
     <MainLayout>
+      <PromoBanner placement="home" />
       {/* Hero */}
       <section className="relative overflow-hidden bg-primary animate-fade-in">
         <div className="container mx-auto px-5 py-14 sm:py-20 md:py-28 text-center relative z-10">

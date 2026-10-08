@@ -170,6 +170,7 @@ export default function BuyTicket() {
 
       setConfirmation(data);
       setStep('confirmation');
+      const instant = ['live', 'replay'].includes((screening as any).lifecycle);
 
       // Send email with watch link
       const watchUrl = `${window.location.origin}/watch/${data.watchCode}?email=${encodeURIComponent(email)}`;
@@ -184,9 +185,13 @@ export default function BuyTicket() {
           price: total,
           currency,
         },
-      });
 
-      toast.success('Ticket confirmed! Check your email for the watch link.');
+      }).catch(() => toast.message('Ticket saved — the email copy could not be sent, but your pass works now.'));
+
+      toast.success(instant ? 'Checked in! Taking you to the screen…' : 'Ticket confirmed! Your pass is also saved under My Tickets.');
+      if (instant && data.watchCode) {
+        setTimeout(() => navigate(`/watch/${data.watchCode}?email=${encodeURIComponent(email)}&checkin=1`), 1200);
+      }
     } catch (err) {
       toast.error('Something went wrong. Please try again.');
     } finally {
