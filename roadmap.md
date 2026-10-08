@@ -15,3 +15,12 @@
 - [ ] Fan Blast live sending — needs RESEND_API_KEY
 - [ ] Real viewers need a stream provider account (any WHIP/RTMP)
 - [ ] Promo banners: admin/organizer manager + home/cinema display
+
+## Oct 8 batch
+- [x] Instant pass: after paying for a live/replay event the buyer goes straight to the player with a check-in message; bank-transfer tickets also linked to an account
+- [x] Team & Promotion page (invite by email with Producer/Live Operator/Accountant/Viewer roles, seat limits), invited staff get Studio access
+- [x] Company documents upload to private storage
+- [x] Banner carousel on home and cinema; Godmode Banners tab; organizers can request placements
+- [x] Clear error messages for Godmode, Fan Blast, refunds and resend email
+- [ ] Database update for team seats + banner approval — blocked: Supabase login expired
+- [ ] Upload server functions (admin-godmode, send-fan-blast, process-refund, process-payment) — blocked: Supabase login expired
