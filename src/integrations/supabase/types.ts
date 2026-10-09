@@ -891,8 +891,10 @@ export type Database = {
           link_url: string | null
           owner_id: string | null
           placement: string
+          screening_id: string | null
           sort_order: number
           starts_at: string | null
+          status: string
           subtitle: string | null
           title: string
         }
@@ -905,8 +907,10 @@ export type Database = {
           link_url?: string | null
           owner_id?: string | null
           placement?: string
+          screening_id?: string | null
           sort_order?: number
           starts_at?: string | null
+          status?: string
           subtitle?: string | null
           title: string
         }
@@ -919,8 +923,10 @@ export type Database = {
           link_url?: string | null
           owner_id?: string | null
           placement?: string
+          screening_id?: string | null
           sort_order?: number
           starts_at?: string | null
+          status?: string
           subtitle?: string | null
           title?: string
         }
@@ -2009,6 +2015,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_studio_invites: { Args: never; Returns: number }
       get_user_tenant_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
@@ -2019,6 +2026,7 @@ export type Database = {
       }
       is_filmmaker: { Args: { _user_id: string }; Returns: boolean }
       is_kyc_verified: { Args: { _user_id: string }; Returns: boolean }
+      is_studio_member: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       wallet_balance: {
         Args: { _user_id: string }
