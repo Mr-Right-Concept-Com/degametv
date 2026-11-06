@@ -24,3 +24,10 @@
 - [x] Clear error messages for Godmode, Fan Blast, refunds and resend email
 - [ ] Database update for team seats + banner approval — blocked: Supabase login expired
 - [ ] Upload server functions (admin-godmode, send-fan-blast, process-refund, process-payment) — blocked: Supabase login expired
+
+## Spixie parity and production verification
+- [ ] Audit existing film intake, premiere, checkout, playback, refunds, reminders, reporting, and promotions
+- [ ] Complete missing real-data intake and lifecycle-aware public premiere flows without replacing existing features
+- [ ] Ensure payment/refund flows report provider/configuration limitations rather than simulated success
+- [ ] Resolve relevant exposed SECURITY DEFINER function grants without weakening RLS
+- [ ] Verify available public and authenticated end-to-end paths; record provider/auth blockers
