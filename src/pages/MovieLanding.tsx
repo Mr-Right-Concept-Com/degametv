@@ -164,8 +164,13 @@ export default function MovieLanding() {
     );
   }
 
-  const isUpcoming = screening.status !== 'published' ||
-    (screening.screening_date && new Date(screening.screening_date) > new Date());
+  const lifecycle = (screening as any).lifecycle as string | undefined;
+  const isOnSale = lifecycle
+    ? lifecycle === 'live' || lifecycle === 'replay'
+    : screening.status === 'published' && (!screening.screening_date || new Date(screening.screening_date) <= new Date());
+  const isUpcoming = lifecycle
+    ? lifecycle === 'upcoming'
+    : screening.status !== 'published' || (!!screening.screening_date && new Date(screening.screening_date) > new Date());
 
   const renderStars = (rating: number) => {
     return Array.from({ length: 5 }, (_, i) => (
@@ -233,7 +238,7 @@ export default function MovieLanding() {
 
             {/* CTAs */}
             <div className="flex flex-wrap gap-3 pt-2">
-              {!isUpcoming && (
+              {isOnSale && (
                 <Button asChild size="lg" className="rounded-full gap-2 shadow-lg">
                   <Link to={`/buy/${screening.slug}`}>
                     <Ticket className="w-5 h-5" /> Purchase Tickets
@@ -406,7 +411,7 @@ export default function MovieLanding() {
       </div>
 
       {/* Sticky Buy CTA (mobile) */}
-      {!isUpcoming && (
+      {isOnSale && (
         <div className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-md border-t border-border p-3 safe-bottom md:hidden">
           <div className="flex items-center justify-between gap-3">
             <div>
