@@ -63,6 +63,10 @@ export default function StudioSubmit() {
     video_url: '',
     budget_range: '',
     distribution_rights: '',
+    premiere_date: '',
+    rights_territories: '',
+    prior_screenings: '',
+    cast_crew_text: '',
   });
 
   const validateStep1 = () => {
@@ -150,6 +154,13 @@ export default function StudioSubmit() {
       video_url: form.video_url || null,
       budget_range: form.budget_range || null,
       distribution_rights: form.distribution_rights || null,
+      premiere_date: form.premiere_date || null,
+      rights_territories: form.rights_territories.split(',').map(value => value.trim()).filter(Boolean),
+      prior_screenings: form.prior_screenings.trim() || null,
+      cast_crew: form.cast_crew_text.split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+        const [name, ...roleParts] = line.split('—');
+        return { name: name.trim(), role: roleParts.join('—').trim() };
+      }),
       content_id: content.id,
       status: 'approved',
       admin_notes: 'Auto-approved: filmmaker KYC verified',
@@ -339,6 +350,10 @@ export default function StudioSubmit() {
                     ))}
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label>Cast & Crew</Label>
+                  <Textarea value={form.cast_crew_text} onChange={e => setForm(f => ({ ...f, cast_crew_text: e.target.value }))} rows={3} placeholder={'Name — Role, one person per line'} />
+                </div>
                 <div className="flex gap-3">
                   <Button type="button" variant="outline" className="flex-1 rounded-full" onClick={() => setStep(1)}>Back</Button>
                   <Button type="button" className="flex-1 rounded-full" onClick={() => { if (validateStep2()) setStep(3); }}>
@@ -422,6 +437,20 @@ export default function StudioSubmit() {
                       <SelectContent>{RIGHTS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Planned Premiere Date</Label>
+                    <Input type="date" value={form.premiere_date} onChange={e => setForm(f => ({ ...f, premiere_date: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Rights Territories</Label>
+                    <Input value={form.rights_territories} onChange={e => setForm(f => ({ ...f, rights_territories: e.target.value }))} placeholder="NG, GH, GB, US" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Prior Screenings</Label>
+                  <Textarea value={form.prior_screenings} onChange={e => setForm(f => ({ ...f, prior_screenings: e.target.value }))} rows={2} placeholder="Festivals, cinemas, or previous digital releases" />
                 </div>
                 <div className="flex gap-3">
                   <Button type="button" variant="outline" className="flex-1 rounded-full" onClick={() => setStep(2)}>Back</Button>
