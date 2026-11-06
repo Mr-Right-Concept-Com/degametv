@@ -427,6 +427,7 @@ export type Database = {
         Row: {
           admin_notes: string | null
           budget_range: string | null
+          cast_crew: Json
           company_name: string | null
           content_id: string | null
           created_at: string
@@ -436,9 +437,12 @@ export type Database = {
           genres: string[] | null
           id: string
           poster_url: string | null
+          premiere_date: string | null
+          prior_screenings: string | null
           project_title: string
           project_type: string
           release_year: number | null
+          rights_territories: string[]
           screener_url: string | null
           status: string
           submitter_email: string
@@ -451,6 +455,7 @@ export type Database = {
         Insert: {
           admin_notes?: string | null
           budget_range?: string | null
+          cast_crew?: Json
           company_name?: string | null
           content_id?: string | null
           created_at?: string
@@ -460,9 +465,12 @@ export type Database = {
           genres?: string[] | null
           id?: string
           poster_url?: string | null
+          premiere_date?: string | null
+          prior_screenings?: string | null
           project_title: string
           project_type?: string
           release_year?: number | null
+          rights_territories?: string[]
           screener_url?: string | null
           status?: string
           submitter_email: string
@@ -475,6 +483,7 @@ export type Database = {
         Update: {
           admin_notes?: string | null
           budget_range?: string | null
+          cast_crew?: Json
           company_name?: string | null
           content_id?: string | null
           created_at?: string
@@ -484,9 +493,12 @@ export type Database = {
           genres?: string[] | null
           id?: string
           poster_url?: string | null
+          premiere_date?: string | null
+          prior_screenings?: string | null
           project_title?: string
           project_type?: string
           release_year?: number | null
+          rights_territories?: string[]
           screener_url?: string | null
           status?: string
           submitter_email?: string

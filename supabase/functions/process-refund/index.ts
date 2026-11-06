@@ -47,29 +47,9 @@ if (import.meta.main) {
         return new Response(JSON.stringify({ error: 'Already refunded' }), { status: 400, headers: corsHeaders });
       }
 
-      // Mark refunded — actual gateway-side refund integration is gateway-specific and noted
-      // in payment_gateways admin notes. For now we record the refund and invalidate access.
-      await supabase
-        .from('screening_tickets')
-        .update({
-          refunded_at: new Date().toISOString(),
-          refund_reason: reason || 'Admin refund',
-          payment_status: 'refunded',
-        })
-        .eq('id', ticketId);
-
-      // Audit log
-      await supabase.from('audit_logs').insert({
-        user_id: user.id,
-        action: 'ticket_refund',
-        entity_type: 'screening_ticket',
-        entity_id: ticketId,
-        new_data: { reason, amount: ticket.price, currency: ticket.currency },
-      });
-
       return new Response(
-        JSON.stringify({ success: true, refundedAt: new Date().toISOString() }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Automatic refunds are not connected to a payment processor. No refund was issued and ticket access was not changed.' }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } catch (error) {
       return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });

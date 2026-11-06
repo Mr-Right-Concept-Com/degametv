@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { MapPin, Mail, Zap, Check, ArrowLeft, Loader2, Clock, Calendar, Tag } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -36,6 +37,7 @@ export default function BuyTicket() {
   const [email, setEmail] = useState('');
   const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
   const [screening, setScreening] = useState<Screening | null>(null);
   const [loadingScreening, setLoadingScreening] = useState(true);
   usePageTitle(screening?.title ? `Buy Ticket — ${screening.title}` : 'Buy Ticket');
@@ -142,6 +144,7 @@ export default function BuyTicket() {
 
   const handlePayment = async () => {
     if (!selectedPayment) return;
+    setPaymentError('');
     const emailCheck = emailSchema.safeParse(email);
     if (!emailCheck.success) {
       toast.error(emailCheck.error.errors[0].message);
@@ -164,7 +167,17 @@ export default function BuyTicket() {
       });
 
       if (error || !data?.success) {
-        toast.error(data?.error || error?.message || 'Payment failed. Please try again.');
+        let message = data?.error || error?.message || 'Payment failed. Please try again.';
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const details = await error.context.json();
+            message = details?.error || message;
+          } catch {
+            // Retain the invocation message when the response is not JSON.
+          }
+        }
+        setPaymentError(message);
+        toast.error(message);
         return;
       }
 
@@ -337,6 +350,11 @@ export default function BuyTicket() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {paymentError && (
+                  <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                    {paymentError}
+                  </div>
+                )}
                 {/* Add-ons (Nigeria only) */}
                 {location === 'nigeria' && (
                   <div className="bg-secondary/50 p-3 rounded-xl">
