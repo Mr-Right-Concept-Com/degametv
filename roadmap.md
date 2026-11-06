@@ -26,8 +26,12 @@
 - [ ] Upload server functions (admin-godmode, send-fan-blast, process-refund, process-payment) — blocked: Supabase login expired
 
 ## Spixie parity and production verification
-- [ ] Audit existing film intake, premiere, checkout, playback, refunds, reminders, reporting, and promotions
-- [ ] Complete missing real-data intake and lifecycle-aware public premiere flows without replacing existing features
-- [ ] Ensure payment/refund flows report provider/configuration limitations rather than simulated success
-- [ ] Resolve relevant exposed SECURITY DEFINER function grants without weakening RLS
-- [ ] Verify available public and authenticated end-to-end paths; record provider/auth blockers
+- [x] Audit current film intake, premiere, checkout, playback, refunds, reminders, reporting, and promotions
+- [ ] Complete missing real-data intake fields and lifecycle-aware public premiere actions
+- [x] Stop online and bank checkout from issuing fake successful tickets; explain missing payment setup
+- [x] Stop admin refund flow from marking tickets refunded when no provider refund was sent
+- [x] Restrict Studio invite/member helpers and trigger-only SECURITY DEFINER functions
+- [x] Verify public cinema rendering and checkout failure state without false confirmation
+- [ ] Run authenticated end-to-end paths — blocked: external Supabase auth session is unavailable
+- [ ] Configure and test payment processing/refunds — blocked: no connected provider integration; stored gateway settings are test-only
+- [ ] Verify real video delivery/reminders/Fan Blast — blocked: streaming provider and email sending credentials are not configured
