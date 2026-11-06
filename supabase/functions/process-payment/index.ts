@@ -109,6 +109,11 @@ async function ensureGuestUser(supabase: any, email: string): Promise<string | n
 }
 
 async function handlePayment(supabase: any, body: any, gateway: string) {
+  return new Response(
+    JSON.stringify({ success: false, error: 'Online payments are not connected to a payment processor yet. No charge was made.' }),
+    { status: 503, headers: corsHeaders }
+  );
+
   const { email, screeningId, location } = body;
 
   const { data: screening, error: sErr } = await supabase
@@ -192,6 +197,11 @@ async function handlePayment(supabase: any, body: any, gateway: string) {
 }
 
 async function handleBankTransfer(supabase: any, body: any) {
+  return new Response(
+    JSON.stringify({ success: false, error: 'Bank transfer checkout is not configured yet. No ticket was issued.' }),
+    { status: 503, headers: corsHeaders }
+  );
+
   const { email, screeningId, location } = body;
 
   const { data: screening } = await supabase
