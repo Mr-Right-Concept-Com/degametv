@@ -35,3 +35,11 @@
 - [ ] Run authenticated Studio/admin end-to-end paths — blocked: external Supabase auth session is unavailable
 - [ ] Configure and test payment processing/refunds — blocked: no connected provider integration; stored gateway settings are test-only
 - [ ] Verify real video delivery/reminders/Fan Blast — blocked: streaming provider and email sending credentials are not configured
+
+## Production readiness follow-up
+- [ ] Audit connected database, routes, navigation, edge functions, and current provider settings
+- [ ] Replace payment credential exposure with secure server-side provider configuration and test/live gating
+- [ ] Connect real Paystack, Flutterwave, and Stripe checkout/refund confirmation flows; never mark access paid before provider confirmation
+- [ ] Wire remaining pages/navigation to live data; remove misleading mock-success states
+- [ ] Deploy updated edge functions and verify public flows; complete authenticated end-to-end checks where a valid session is available
+- [ ] Record any external provider, credential, or streaming/email setup still required
