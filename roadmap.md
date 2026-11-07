@@ -37,7 +37,8 @@
 - [ ] Verify real video delivery/reminders/Fan Blast — blocked: streaming provider and email sending credentials are not configured
 
 ## Production readiness follow-up
-- [ ] Audit connected database, routes, navigation, edge functions, and current provider settings
+- [x] Audit connected database, routes, navigation, edge functions, and current provider settings
+- [x] Remove public ticket creation and restrict the creator-role grant policy
 - [ ] Replace payment credential exposure with secure server-side provider configuration and test/live gating
 - [ ] Connect real Paystack, Flutterwave, and Stripe checkout/refund confirmation flows; never mark access paid before provider confirmation
 - [ ] Wire remaining pages/navigation to live data; remove misleading mock-success states
