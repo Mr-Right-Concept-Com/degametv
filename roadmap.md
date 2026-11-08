@@ -44,3 +44,9 @@
 - [ ] Wire remaining pages/navigation to live data; remove misleading mock-success states
 - [ ] Deploy updated edge functions and verify public flows; complete authenticated end-to-end checks where a valid session is available
 - [ ] Record any external provider, credential, or streaming/email setup still required
+
+## Spixie parity closeout
+- [ ] Compare publicly visible Spixie flows against current DeGameTV and classify real, mocked, and provider-blocked paths
+- [ ] Complete the highest-priority connected public film, ticket, playback, and audience follow-up flows without replacing existing functionality
+- [ ] Remove misleading mock-success states and ensure unavailable payment, email, or streaming providers are clearly surfaced
+- [ ] Verify the changed flows in the browser and record any remaining external setup or authentication blockers
