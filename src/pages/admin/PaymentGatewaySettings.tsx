@@ -40,7 +40,8 @@ export default function PaymentGatewaySettings() {
   useEffect(() => {
     const fetchGateways = async () => {
       setLoading(true);
-      const { data } = await supabase.from('payment_gateways').select('*');
+      const { data } = await supabase.from('payment_gateways')
+        .select('id,gateway_name,is_enabled,is_live,test_public_key,live_public_key');
       if (data && data.length > 0) {
         setGateways(data as GatewayRow[]);
       } else {
@@ -80,14 +81,8 @@ export default function PaymentGatewaySettings() {
   const toggleEnabled = (gw: GatewayRow) => saveGateway(gw, { is_enabled: !gw.is_enabled });
 
   const saveKeys = (gw: GatewayRow) => {
-    const keys = editKeys[gw.gateway_name];
-    if (!keys) return;
-    saveGateway(gw, {
-      test_public_key: keys.test_public_key || gw.test_public_key,
-      test_secret_key: keys.test_secret_key || gw.test_secret_key,
-      live_public_key: keys.live_public_key || gw.live_public_key,
-      live_secret_key: keys.live_secret_key || gw.live_secret_key,
-    });
+    void gw;
+    toast.error('Secure provider-key setup is not connected. No key was saved.');
   };
 
   const switchMode = (gw: GatewayRow, goLive: boolean) => saveGateway(gw, { is_live: goLive });
@@ -106,7 +101,7 @@ export default function PaymentGatewaySettings() {
         <Alert className="border-amber-500/50 bg-amber-500/10">
           <TestTube className="h-4 w-4 text-amber-600" />
           <AlertDescription>
-            <strong>Test Mode Active:</strong> Switch to live mode only when you're ready to process real payments.
+            Provider credentials are not handled in this browser. Payment processing remains unavailable until secure server-side credentials and verified payment callbacks are configured.
           </AlertDescription>
         </Alert>
 
@@ -175,7 +170,8 @@ export default function PaymentGatewaySettings() {
                         <Label>Test Secret Key</Label>
                         <Input
                           type={showSecrets[`${currentGateway.gateway_name}_test`] ? 'text' : 'password'}
-                          value={editKeys[currentGateway.gateway_name]?.test_secret_key ?? currentGateway.test_secret_key ?? ''}
+                          value=""
+                          disabled
                           onChange={e => setEditKeys(prev => ({ ...prev, [currentGateway.gateway_name]: { ...(prev[currentGateway.gateway_name] || { test_public_key: '', test_secret_key: '', live_public_key: '', live_secret_key: '' }), test_secret_key: e.target.value } }))}
                           placeholder="sk_test_..."
                         />
@@ -203,7 +199,8 @@ export default function PaymentGatewaySettings() {
                         <Label>Live Secret Key</Label>
                         <Input
                           type={showSecrets[`${currentGateway.gateway_name}_live`] ? 'text' : 'password'}
-                          value={editKeys[currentGateway.gateway_name]?.live_secret_key ?? currentGateway.live_secret_key ?? ''}
+                          value=""
+                          disabled
                           onChange={e => setEditKeys(prev => ({ ...prev, [currentGateway.gateway_name]: { ...(prev[currentGateway.gateway_name] || { test_public_key: '', test_secret_key: '', live_public_key: '', live_secret_key: '' }), live_secret_key: e.target.value } }))}
                           placeholder="sk_live_..."
                         />
@@ -212,12 +209,12 @@ export default function PaymentGatewaySettings() {
                   </div>
 
                   <div className="flex flex-col sm:flex-row gap-3">
-                    <Button onClick={() => saveKeys(currentGateway)} disabled={saving} className="flex-1">
+                    <Button onClick={() => saveKeys(currentGateway)} disabled className="flex-1">
                       {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
                       Save Keys
                     </Button>
-                    <Button variant={currentGateway.is_live ? 'outline' : 'destructive'} onClick={() => switchMode(currentGateway, !currentGateway.is_live)} className="flex-1">
-                      {currentGateway.is_live ? 'Switch to Test Mode' : 'Activate Live Mode'}
+                    <Button variant={currentGateway.is_live ? 'outline' : 'destructive'} onClick={() => switchMode(currentGateway, !currentGateway.is_live)} className="flex-1" disabled>
+                      Live mode unavailable
                     </Button>
                   </div>
                 </CardContent>
