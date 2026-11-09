@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { TenantProvider } from "@/hooks/useTenant";
 import { ProtectedAdminRoute } from "@/components/auth/ProtectedAdminRoute";
@@ -12,8 +12,6 @@ import { ProtectedCreatorRoute } from "@/components/auth/ProtectedCreatorRoute";
 // End-user pages
 import Index from "./pages/Index";
 import Cinema from "./pages/Cinema";
-import CinemaEvent from "./pages/CinemaEvent";
-import ContentDetail from "./pages/ContentDetail";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import MovieLanding from "./pages/MovieLanding";
@@ -73,9 +71,9 @@ const App = () => (
               {/* ============ END-USER EXPERIENCE ============ */}
               <Route path="/" element={<Index />} />
               <Route path="/cinema" element={<Cinema />} />
-              <Route path="/cinema/:id" element={<CinemaEvent />} />
+              <Route path="/cinema/:id" element={<Navigate to="/cinema" replace />} />
               <Route path="/movie/:slug" element={<MovieLanding />} />
-              <Route path="/content/:id" element={<ContentDetail />} />
+              <Route path="/content/:id" element={<Navigate to="/cinema" replace />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               
