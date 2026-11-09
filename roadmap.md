@@ -46,7 +46,8 @@
 - [ ] Record any external provider, credential, or streaming/email setup still required
 
 ## Spixie parity closeout
-- [ ] Compare publicly visible Spixie flows against current DeGameTV and classify real, mocked, and provider-blocked paths
-- [ ] Complete the highest-priority connected public film, ticket, playback, and audience follow-up flows without replacing existing functionality
-- [ ] Remove misleading mock-success states and ensure unavailable payment, email, or streaming providers are clearly surfaced
-- [ ] Verify the changed flows in the browser and record any remaining external setup or authentication blockers
+- [x] Audit public film, checkout, playback, Studio, admin, email, and security paths; classify provider-blocked and mock paths
+- [ ] Keep film intake, screening configuration, microsite routing, and landing-page metadata connected without replacing existing records
+- [ ] Remove mock booking success, demo media fallback, secret-bearing browser reads, and incorrect route destinations
+- [ ] Keep payment, refunds, email, streaming, reminders, geo-controls, payouts, and analytics truthful; only report confirmed provider outcomes
+- [ ] Verify public routes and denial/safe states in-browser; record provider credentials, deployed migrations/functions, and authenticated-session blockers
