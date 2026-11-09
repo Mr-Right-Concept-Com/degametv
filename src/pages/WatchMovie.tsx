@@ -87,8 +87,6 @@ export default function WatchMovie() {
     );
   }
 
-  const watermarkLabel = `${ticket.email} • ${ticket.country || ''}`.trim();
-
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-5xl px-4 pt-6">

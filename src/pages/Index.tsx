@@ -108,7 +108,7 @@ export default function Index() {
                 <Button size="lg" className="w-full sm:w-auto rounded-full bg-primary-foreground text-primary hover:bg-primary-foreground/90 font-semibold gap-2 px-6 sm:px-8 h-12 tap-scale" asChild>
                   <Link to={`/buy/${featuredScreening.slug}`}>
                     <Ticket className="w-5 h-5" />
-                    Get Ticket — ₦{(featuredScreening.location_pricing?.nigeria || 5000).toLocaleString()}
+                    Get Ticket{featuredScreening.location_pricing?.nigeria ? ` — ₦${Number(featuredScreening.location_pricing.nigeria).toLocaleString()}` : ''}
                   </Link>
                 </Button>
                 <Button size="lg" variant="ghost" className="w-full sm:w-auto rounded-full text-primary-foreground hover:bg-primary-foreground/10 font-semibold gap-2 h-12 tap-scale" asChild>
@@ -170,7 +170,7 @@ export default function Index() {
                   <div className="aspect-[2/3] relative rounded-2xl overflow-hidden bg-secondary mb-2 sm:mb-3">
                     <img src={s.poster_url || ''} alt={s.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
                     <div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 bg-primary text-primary-foreground text-[10px] sm:text-xs font-bold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full">
-                      ₦{(s.location_pricing?.nigeria || 0).toLocaleString()}
+                      {s.location_pricing?.nigeria ? `₦${Number(s.location_pricing.nigeria).toLocaleString()}` : 'Price unavailable'}
                     </div>
                     <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/10 transition-colors flex items-center justify-center">
                       <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-primary-foreground/90 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -221,7 +221,7 @@ export default function Index() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2 mb-1 sm:mb-2">
                       <h3 className="font-bold text-sm sm:text-base line-clamp-1 group-hover:text-primary transition-colors">{item.title}</h3>
-                      <span className="text-xs sm:text-sm font-bold text-primary whitespace-nowrap">₦{(item.location_pricing?.nigeria || 0).toLocaleString()}</span>
+                      <span className="text-xs sm:text-sm font-bold text-primary whitespace-nowrap">{item.location_pricing?.nigeria ? `₦${Number(item.location_pricing.nigeria).toLocaleString()}` : 'Price unavailable'}</span>
                     </div>
                     <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 mb-3 sm:mb-4">{item.description}</p>
                     <div className="flex items-center gap-3 sm:gap-4 text-[10px] sm:text-xs text-muted-foreground">
