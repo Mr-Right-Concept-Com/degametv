@@ -112,7 +112,7 @@ export default function WatchMovie() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             { icon: Mail, label: 'Email', value: ticket.email, color: 'text-primary' },
-            { icon: Clock, label: 'Access', value: '90 Days', color: 'text-success' },
+            { icon: Clock, label: 'Access ends', value: new Date(ticket.expiresAt).toLocaleDateString(), color: 'text-muted-foreground' },
             { icon: Tv2, label: 'Streams Left', value: `${ticket.streamsRemaining ?? '∞'} of ${ticket.maxStreams ?? '∞'}`, color: 'text-accent' },
             { icon: Shield, label: 'Delivery', value: 'Provider unavailable', color: 'text-muted-foreground' },
           ].map((item) => (
