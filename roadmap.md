@@ -48,6 +48,10 @@
 ## Spixie parity closeout
 - [x] Audit public film, checkout, playback, Studio, admin, email, and security paths; classify provider-blocked and mock paths
 - [ ] Keep film intake, screening configuration, microsite routing, and landing-page metadata connected without replacing existing records
-- [ ] Remove mock booking success, demo media fallback, secret-bearing browser reads, and incorrect route destinations
+- [x] Remove mock booking success and legacy demo detail pages; route old event/content URLs to real cinema
+- [x] Remove the public test-stream fallback and block playback until protected media delivery is configured
+- [x] Stop payment settings from reading stored secret-key columns in the browser; disable key editing/live mode until secure setup exists
+- [x] Fix the Studio analytics landing route
 - [ ] Keep payment, refunds, email, streaming, reminders, geo-controls, payouts, and analytics truthful; only report confirmed provider outcomes
-- [ ] Verify public routes and denial/safe states in-browser; record provider credentials, deployed migrations/functions, and authenticated-session blockers
+- [x] Verify public cinema, movie landing, checkout no-provider state, legacy redirects, and invalid-ticket denial in-browser
+- [ ] Configure providers, verify deployed functions/migrations, and run authenticated E2E paths — blocked by missing provider setup and external Supabase auth session
