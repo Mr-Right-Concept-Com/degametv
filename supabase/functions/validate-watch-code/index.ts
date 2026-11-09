@@ -63,6 +63,13 @@ if (import.meta.main) {
         }
       }
 
+      // Do not consume first-play access or expose media until a provider can
+      // enforce short-lived, signed playback delivery at the origin.
+      return new Response(JSON.stringify({ error: 'Secure streaming is not configured for this screening. Your viewing window has not started.' }), {
+        status: 503,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+
       // Stream cap
       const maxStreams = s.max_streams_per_ticket ?? 5;
       const streamsRemaining = Math.max(0, maxStreams - (ticket.stream_count || 0));
@@ -84,7 +91,6 @@ if (import.meta.main) {
           expiresAt: ticket.expires_at,
           location: ticket.location,
           email: ticket.email,
-          videoUrl: s.video_url,
           streamsRemaining,
           maxStreams,
           maxConcurrent: s.max_concurrent_streams ?? 1,

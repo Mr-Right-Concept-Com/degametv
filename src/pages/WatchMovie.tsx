@@ -1,11 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, Share2, Home, Clock, Mail, Shield, Globe, Tv2 } from 'lucide-react';
-import { VideoPlayer } from '@/components/video/VideoPlayer';
-import { Watermark } from '@/components/video/Watermark';
-import { LiveReactions } from '@/components/video/LiveReactions';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -17,8 +14,6 @@ export default function WatchMovie() {
   const [loading, setLoading] = useState(true);
   const [ticket, setTicket] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const sessionIdRef = useRef<string>(crypto.randomUUID());
-  const lastBeatRef = useRef<number>(Date.now());
 
   useEffect(() => {
     const validateTicket = async () => {
@@ -51,22 +46,6 @@ export default function WatchMovie() {
       setLoading(false);
     }
   }, [watchCode, searchParams]);
-
-  const handleHeartbeat = (position: number) => {
-    if (!ticket) return;
-    const now = Date.now();
-    const delta = Math.round((now - lastBeatRef.current) / 1000);
-    lastBeatRef.current = now;
-    supabase.functions.invoke('record-watch-heartbeat', {
-      body: {
-        watchCode: ticket.watchCode,
-        email: ticket.email,
-        sessionId: sessionIdRef.current,
-        deltaSeconds: delta,
-        position,
-      },
-    }).catch(() => {});
-  };
 
   const handleShare = async () => {
     const url = window.location.href;
@@ -108,19 +87,12 @@ export default function WatchMovie() {
     );
   }
 
-  const watermarkLabel = `${ticket.email} • ${ticket.country || ''}`.trim();
-
   return (
     <div className="min-h-screen bg-background">
-      <div className="relative">
-        <VideoPlayer
-          src={ticket.videoUrl || 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'}
-          poster={ticket.moviePoster}
-          title={ticket.movieTitle}
-          onHeartbeat={handleHeartbeat}
-        />
-        <Watermark label={watermarkLabel} />
-        {ticket.screeningId && <LiveReactions screeningId={ticket.screeningId} />}
+      <div className="mx-auto max-w-5xl px-4 pt-6">
+        <div role="status" className="rounded-md border border-warning/40 bg-warning/10 p-4 text-sm text-muted-foreground">
+          Your ticket is valid, but secure film delivery is not connected for this screening. Playback is unavailable; the original video file will not be exposed as a fallback.
+        </div>
       </div>
 
 
@@ -140,9 +112,9 @@ export default function WatchMovie() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             { icon: Mail, label: 'Email', value: ticket.email, color: 'text-primary' },
-            { icon: Clock, label: 'Access', value: '90 Days', color: 'text-success' },
+            { icon: Clock, label: 'Access ends', value: new Date(ticket.expiresAt).toLocaleDateString(), color: 'text-muted-foreground' },
             { icon: Tv2, label: 'Streams Left', value: `${ticket.streamsRemaining ?? '∞'} of ${ticket.maxStreams ?? '∞'}`, color: 'text-accent' },
-            { icon: Shield, label: 'Security', value: 'Signed URL', color: 'text-accent' },
+            { icon: Shield, label: 'Delivery', value: 'Provider unavailable', color: 'text-muted-foreground' },
           ].map((item) => (
             <div key={item.label} className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50">
               <div className={`w-9 h-9 rounded-full bg-card flex items-center justify-center ${item.color}`}>

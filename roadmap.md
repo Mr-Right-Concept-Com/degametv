@@ -46,7 +46,12 @@
 - [ ] Record any external provider, credential, or streaming/email setup still required
 
 ## Spixie parity closeout
-- [ ] Compare publicly visible Spixie flows against current DeGameTV and classify real, mocked, and provider-blocked paths
-- [ ] Complete the highest-priority connected public film, ticket, playback, and audience follow-up flows without replacing existing functionality
-- [ ] Remove misleading mock-success states and ensure unavailable payment, email, or streaming providers are clearly surfaced
-- [ ] Verify the changed flows in the browser and record any remaining external setup or authentication blockers
+- [x] Audit public film, checkout, playback, Studio, admin, email, and security paths; classify provider-blocked and mock paths
+- [ ] Keep film intake, screening configuration, microsite routing, and landing-page metadata connected without replacing existing records
+- [x] Remove mock booking success and legacy demo detail pages; route old event/content URLs to real cinema
+- [x] Remove the public test-stream fallback and block playback until protected media delivery is configured
+- [x] Stop payment settings from reading stored secret-key columns in the browser; disable key editing/live mode until secure setup exists
+- [x] Fix the Studio analytics landing route
+- [ ] Keep payment, refunds, email, streaming, reminders, geo-controls, payouts, and analytics truthful; only report confirmed provider outcomes
+- [x] Verify public cinema, movie landing, checkout no-provider state, legacy redirects, and invalid-ticket denial in-browser
+- [ ] Configure providers, verify deployed functions/migrations, and run authenticated E2E paths — blocked by missing provider setup and external Supabase auth session

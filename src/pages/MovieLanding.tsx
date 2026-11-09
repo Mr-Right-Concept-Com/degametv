@@ -166,8 +166,8 @@ export default function MovieLanding() {
 
   const lifecycle = (screening as any).lifecycle as string | undefined;
   const isOnSale = lifecycle
-    ? lifecycle === 'live' || lifecycle === 'replay'
-    : screening.status === 'published' && (!screening.screening_date || new Date(screening.screening_date) <= new Date());
+    ? ['upcoming', 'live', 'replay'].includes(lifecycle)
+    : screening.status === 'published';
   const isUpcoming = lifecycle
     ? lifecycle === 'upcoming'
     : screening.status !== 'published' || (!!screening.screening_date && new Date(screening.screening_date) > new Date());

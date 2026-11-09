@@ -133,10 +133,10 @@ export default function BuyTicket() {
   };
 
   const paymentMethods = [
-    { id: 'stripe', name: 'Credit/Debit Card', icon: '💳', available: true },
-    { id: 'paystack', name: 'Paystack', icon: '🔗', available: true },
-    { id: 'flutterwave', name: 'Flutterwave', icon: '⚡', available: true },
-    { id: 'bank', name: 'Bank Transfer', icon: '🏦', available: true },
+    { id: 'stripe', name: 'Credit/Debit Card', icon: '💳', available: false },
+    { id: 'paystack', name: 'Paystack', icon: '🔗', available: false },
+    { id: 'flutterwave', name: 'Flutterwave', icon: '⚡', available: false },
+    { id: 'bank', name: 'Bank Transfer', icon: '🏦', available: false },
   ];
 
   const steps = ['location', 'email', 'payment', 'confirmation'] as const;
@@ -424,18 +424,23 @@ export default function BuyTicket() {
 
                 {/* Methods */}
                 <div className="space-y-2">
+                  <div role="status" className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-muted-foreground">
+                    Secure payment processing is not connected yet. No payment will be taken and no ticket will be issued.
+                  </div>
                   {paymentMethods.map((m) => (
                     <button
                       key={m.id}
-                      onClick={() => setSelectedPayment(m.id)}
-                      className={`w-full p-3.5 border-2 rounded-xl transition-all flex items-center gap-3 active:scale-[0.98] ${
+                      disabled={!m.available}
+                      onClick={() => m.available && setSelectedPayment(m.id)}
+                      className={`w-full p-3.5 border-2 rounded-xl transition-all flex items-center gap-3 ${
                         selectedPayment === m.id
                           ? 'border-primary bg-primary/5 shadow-sm'
-                          : 'border-border hover:border-primary/30'
+                          : 'border-border opacity-60 cursor-not-allowed'
                       }`}
                     >
                       <span className="text-xl">{m.icon}</span>
                       <span className="flex-1 text-left text-sm font-medium">{m.name}</span>
+                      <span className="text-xs text-muted-foreground">Not connected</span>
                       {selectedPayment === m.id && <Check className="w-4 h-4 text-primary" />}
                     </button>
                   ))}
@@ -446,7 +451,7 @@ export default function BuyTicket() {
                   <Button
                     className="flex-1 rounded-full h-10"
                     onClick={handlePayment}
-                    disabled={!selectedPayment || processing}
+                    disabled={!selectedPayment || processing || !paymentMethods.some(method => method.available)}
                   >
                     {processing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                     Pay {symbol}{total.toLocaleString()}
