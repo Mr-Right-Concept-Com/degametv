@@ -84,7 +84,6 @@ if (import.meta.main) {
           expiresAt: ticket.expires_at,
           location: ticket.location,
           email: ticket.email,
-          videoUrl: s.video_url,
           streamsRemaining,
           maxStreams,
           maxConcurrent: s.max_concurrent_streams ?? 1,

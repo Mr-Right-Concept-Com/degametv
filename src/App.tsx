@@ -102,7 +102,7 @@ const App = () => (
               <Route path="/studio/submit" element={<ProtectedCreatorRoute><StudioSubmit /></ProtectedCreatorRoute>} />
               <Route path="/studio/screenings" element={<ProtectedCreatorRoute><StudioScreenings /></ProtectedCreatorRoute>} />
               <Route path="/studio/earnings" element={<ProtectedCreatorRoute><StudioEarnings /></ProtectedCreatorRoute>} />
-              <Route path="/studio/analytics" element={<ProtectedCreatorRoute><StudioScreenings /></ProtectedCreatorRoute>} />
+              <Route path="/studio/analytics" element={<ProtectedCreatorRoute><StudioAnalytics /></ProtectedCreatorRoute>} />
               <Route path="/studio/analytics/:screeningId" element={<ProtectedCreatorRoute><StudioAnalytics /></ProtectedCreatorRoute>} />
               
               <Route path="/studio/live" element={<ProtectedCreatorRoute><StudioLive /></ProtectedCreatorRoute>} />

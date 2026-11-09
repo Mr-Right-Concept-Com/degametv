@@ -91,7 +91,10 @@ export function LifecycleBanner(p: Props) {
           </div>
         ) : <p className="font-semibold">Date to be announced</p>}
       </div>
-      {waitlist('Notify me')}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        {waitlist('Notify me')}
+        <Button asChild className="rounded-full shrink-0"><Link to={`/buy/${p.slug}`}>Buy ticket</Link></Button>
+      </div>
     </section>
   );
 }
