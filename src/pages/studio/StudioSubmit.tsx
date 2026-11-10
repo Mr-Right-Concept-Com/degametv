@@ -108,9 +108,19 @@ export default function StudioSubmit() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep3()) return;
-    
 
     setSubmitting(true);
+
+    const { data: identity, error: identityError } = await supabase
+      .from('profiles')
+      .select('kyc_status')
+      .eq('user_id', user?.id || '')
+      .maybeSingle();
+    if (identityError || identity?.kyc_status !== 'verified') {
+      toast.error('Verified identity is required before submitting a film. No film was created.');
+      setSubmitting(false);
+      return;
+    }
 
     // 1) Create the content row FIRST so submission can reference it (RLS: creator_id = auth.uid())
     const slug = form.project_title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36);
@@ -121,7 +131,7 @@ export default function StudioSubmit() {
       slug,
       description: form.description || '',
       type: (form.project_type === 'series' ? 'series' : 'movie') as any,
-      status: 'published' as any,
+      status: 'draft' as any,
       poster_url: form.poster_url || null,
       trailer_url: form.trailer_url || null,
       video_url: form.video_url || null,
@@ -137,7 +147,7 @@ export default function StudioSubmit() {
     }
     setCreatedContentId(content.id);
 
-    // 2) Create the filmmaker submission (auto-approved, linked to content)
+    // Keep publication under review; uploading a submission does not publish the film.
     const { error } = await supabase.from('filmmaker_submissions').insert({
       submitter_name: form.submitter_name,
       submitter_email: user?.email || form.submitter_email,
@@ -162,8 +172,7 @@ export default function StudioSubmit() {
         return { name: name.trim(), role: roleParts.join('—').trim() };
       }),
       content_id: content.id,
-      status: 'approved',
-      admin_notes: 'Auto-approved: filmmaker KYC verified',
+      status: 'pending',
     });
 
     if (error) {
@@ -191,30 +200,8 @@ export default function StudioSubmit() {
   };
 
   const handleVideoUpload = async (file: File) => {
-    if (file.size > 5 * 1024 * 1024 * 1024) {
-      toast.error('Video must be under 5GB');
-      return;
-    }
-    setUploadingVideo(true);
-    setVideoProgress(0);
-    const ext = file.name.split('.').pop();
-    const path = `submissions/${Date.now()}-master.${ext}`;
-    // Simulated progress (Supabase JS v2 doesn't emit progress events for uploads)
-    const tick = setInterval(() => setVideoProgress(p => Math.min(p + 5, 90)), 400);
-    const { data, error } = await supabase.storage.from('content-uploads').upload(path, file, {
-      contentType: file.type || 'video/mp4',
-      upsert: false,
-    });
-    clearInterval(tick);
-    if (error) {
-      toast.error('Video upload failed: ' + error.message);
-    } else {
-      const { data: urlData } = supabase.storage.from('content-uploads').getPublicUrl(data.path);
-      setForm(f => ({ ...f, video_url: urlData.publicUrl }));
-      setVideoProgress(100);
-      toast.success('Master video uploaded — DRM tokenization will be applied at playback');
-    }
-    setUploadingVideo(false);
+    void file;
+    toast.error('Private master-video storage is not configured. The video was not uploaded.');
   };
 
 
@@ -232,12 +219,11 @@ export default function StudioSubmit() {
           <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-10 h-10 text-green-500" />
           </div>
-          <h2 className="text-2xl font-bold mb-3">Your Film is Live!</h2>
+          <h2 className="text-2xl font-bold mb-3">Film submitted for review</h2>
           <p className="text-muted-foreground mb-6">
-            "{form.project_title}" was auto-approved (KYC verified) and is now in your catalog. Schedule a premiere or set up ticketing next.
+            "{form.project_title}" is saved as a draft while the submission is reviewed. It is not published or available for ticket sales yet.
           </p>
           <div className="flex flex-col gap-3">
-            <Button className="rounded-full" onClick={() => navigate('/studio/screenings')}>Schedule Premiere</Button>
             <Button variant="outline" className="rounded-full" onClick={() => navigate('/studio/movies')}>View My Movies</Button>
             <Button variant="ghost" className="rounded-full" onClick={() => { setSubmitted(false); setStep(1); setCreatedContentId(null); setForm(f => ({ ...f, project_title: '', description: '', genres: [], duration_minutes: '', poster_url: '' })); }}>
               Submit Another
@@ -392,24 +378,22 @@ export default function StudioSubmit() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Master Video File (MP4/MOV) <span className="text-muted-foreground text-xs font-normal">— streamed with signed URLs + watermark</span></Label>
+                  <Label>Master Video File (MP4/MOV) <span className="text-muted-foreground text-xs font-normal">— private delivery is not configured</span></Label>
                   <div className="flex items-center gap-3">
                     <div className={`w-16 h-24 rounded-lg flex items-center justify-center ${form.video_url ? 'bg-primary/10 text-primary' : 'bg-secondary text-muted-foreground'}`}>
                       <Film className="w-6 h-6" />
                     </div>
                     <label className="flex-1">
-                      <Button type="button" variant="outline" className="w-full" disabled={uploadingVideo} asChild>
+                      <Button type="button" variant="outline" className="w-full" disabled asChild>
                         <span>
-                          {uploadingVideo ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
-                          {uploadingVideo ? `Uploading… ${videoProgress}%` : form.video_url ? 'Replace Video' : 'Upload Master Video'}
+                          <Upload className="w-4 h-4 mr-2" />
+                          Secure upload unavailable
                         </span>
                       </Button>
-                      <input aria-label="Master video file" type="file" accept="video/mp4,video/quicktime,video/x-matroska,video/*" className="hidden" onChange={e => e.target.files?.[0] && handleVideoUpload(e.target.files[0])} />
+                      <input aria-label="Master video file" type="file" accept="video/mp4,video/quicktime,video/x-matroska,video/*" className="hidden" disabled onChange={e => e.target.files?.[0] && handleVideoUpload(e.target.files[0])} />
                     </label>
                   </div>
-                  {form.video_url && (
-                    <p className="text-xs text-muted-foreground truncate">✓ Master ready — will be served via tokenized HLS at premiere.</p>
-                  )}
+                  <p className="text-xs text-muted-foreground">The master file is not accepted until private storage and protected playback are available.</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Trailer URL</Label>

@@ -125,7 +125,7 @@ export default function PaymentGatewaySettings() {
                           <p className="text-xs text-muted-foreground">Payment Processor</p>
                         </div>
                       </div>
-                      <Switch checked={gw.is_enabled} onCheckedChange={() => toggleEnabled(gw)} />
+                      <Switch checked={false} disabled aria-label={`${gw.gateway_name} checkout unavailable`} />
                     </div>
                     <div className="space-y-2 text-sm">
                       <div className="flex items-center justify-between">
@@ -134,7 +134,7 @@ export default function PaymentGatewaySettings() {
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">Status:</span>
-                        <Badge variant={gw.is_enabled ? 'default' : 'secondary'}>{gw.is_enabled ? 'Enabled' : 'Disabled'}</Badge>
+                        <Badge variant="secondary">Not connected</Badge>
                       </div>
                     </div>
                   </CardContent>
@@ -151,7 +151,7 @@ export default function PaymentGatewaySettings() {
                     <span className="text-3xl">{GATEWAY_ICONS[currentGateway.gateway_name] || '💳'}</span>
                     <span className="capitalize">{currentGateway.gateway_name}</span> Configuration
                   </CardTitle>
-                  <CardDescription>{currentGateway.is_live ? 'Live mode - Real transactions' : 'Test mode - No real charges'}</CardDescription>
+                  <CardDescription>Payments remain unavailable until secure credentials and verified payment callbacks are configured.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {/* Test Keys */}
@@ -161,7 +161,8 @@ export default function PaymentGatewaySettings() {
                       <div className="space-y-2">
                         <Label>Test Public Key</Label>
                         <Input
-                          value={editKeys[currentGateway.gateway_name]?.test_public_key ?? currentGateway.test_public_key ?? ''}
+                          value=""
+                          disabled
                           onChange={e => setEditKeys(prev => ({ ...prev, [currentGateway.gateway_name]: { ...(prev[currentGateway.gateway_name] || { test_public_key: '', test_secret_key: '', live_public_key: '', live_secret_key: '' }), test_public_key: e.target.value } }))}
                           placeholder="pk_test_..."
                         />
@@ -190,7 +191,8 @@ export default function PaymentGatewaySettings() {
                       <div className="space-y-2">
                         <Label>Live Public Key</Label>
                         <Input
-                          value={editKeys[currentGateway.gateway_name]?.live_public_key ?? currentGateway.live_public_key ?? ''}
+                          value=""
+                          disabled
                           onChange={e => setEditKeys(prev => ({ ...prev, [currentGateway.gateway_name]: { ...(prev[currentGateway.gateway_name] || { test_public_key: '', test_secret_key: '', live_public_key: '', live_secret_key: '' }), live_public_key: e.target.value } }))}
                           placeholder="pk_live_..."
                         />
