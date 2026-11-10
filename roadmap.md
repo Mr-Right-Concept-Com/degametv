@@ -55,3 +55,13 @@
 - [ ] Keep payment, refunds, email, streaming, reminders, geo-controls, payouts, and analytics truthful; only report confirmed provider outcomes
 - [x] Verify public cinema, movie landing, checkout no-provider state, legacy redirects, and invalid-ticket denial in-browser
 - [ ] Configure providers, verify deployed functions/migrations, and run authenticated E2E paths — blocked by missing provider setup and external Supabase auth session
+
+## Consolidated production readiness
+- [x] Prevent provider controls from appearing enabled when secure credentials and verified callbacks are unavailable
+- [x] Require verified KYC before film submission; keep submitted content unpublished pending review
+- [x] Disable public master-video and identity-document uploads until private storage and protected delivery are configured
+- [x] Replace the Studio dashboard's fixed-zero earnings with ledger totals and separate NGN/USD analytics
+- [ ] Restore Supabase project authorization before database changes, provider setup, or edge-function deployment
+- [ ] Implement provider-managed Paystack, Flutterwave, and Stripe checkout/refunds, secure credential lifecycle, signed webhooks, and idempotent ticket settlement
+- [ ] Configure private KYC/master-media storage and a real supported playback provider before enabling intake, sales, or playback
+- [ ] Finish verified public/Studio/admin route checks and authenticated E2E after Supabase access and provider setup are restored

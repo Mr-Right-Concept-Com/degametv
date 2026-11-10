@@ -43,7 +43,11 @@ export default function StudioAnalytics() {
   }
 
   const completed = tickets.filter(t => t.payment_status === 'completed');
-  const revenue = completed.reduce((s, t) => s + (Number(t.price) || 0), 0);
+  const revenue = completed.reduce((totals, ticket) => {
+    const currency = ticket.currency === 'USD' ? 'USD' : ticket.currency === 'NGN' ? 'NGN' : null;
+    if (currency) totals[currency] += Number(ticket.price) || 0;
+    return totals;
+  }, { NGN: 0, USD: 0 });
   const totalSeconds = history.reduce((s, h) => s + (Number(h.watch_duration_seconds) || 0), 0);
   const avgSeconds = history.length ? Math.round(totalSeconds / history.length) : 0;
   const fmt = (s: number) => `${Math.floor(s / 60)}m ${s % 60}s`;
@@ -62,7 +66,7 @@ export default function StudioAnalytics() {
   const stats: Stat[] = [
     { label: 'Tickets Sold', value: completed.length.toString(), icon: Users },
     { label: 'Revenue', value: `₦${revenue.toLocaleString()}`, icon: DollarSign },
-    { label: 'Unique Viewers', value: history.length.toString(), icon: Eye },
+    { label: 'Unique Viewers', value: new Set(history.map(row => row.user_id || row.session_id).filter(Boolean)).size.toString(), icon: Eye },
     { label: 'Avg Watch Time', value: fmt(avgSeconds), icon: Clock, sub: `${Math.round(totalSeconds / 60)} total mins` },
   ];
 
@@ -85,7 +89,7 @@ export default function StudioAnalytics() {
                   <p className="text-xs text-muted-foreground">{s.label}</p>
                   <s.icon className="w-4 h-4 text-muted-foreground" />
                 </div>
-                <p className="text-2xl font-bold">{s.value}</p>
+                  <p className="text-2xl font-bold">{s.label === 'Revenue' ? `₦${revenue.NGN.toLocaleString()} · $${revenue.USD.toLocaleString()}` : s.value}</p>
                 {s.sub && <p className="text-[10px] text-muted-foreground mt-1">{s.sub}</p>}
               </CardContent>
             </Card>

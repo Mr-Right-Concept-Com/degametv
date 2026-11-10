@@ -74,19 +74,9 @@ export function KYCVerification({ onVerified, compact }: Props) {
   useEffect(() => { load(); }, [user?.id]);
 
   const upload = async (file: File, kind: 'id' | 'selfie') => {
-    if (!user) return;
-    const set = kind === 'id' ? setUploadingId : setUploadingSelfie;
-    set(true);
-    try {
-      if (file.size > 10 * 1024 * 1024) { toast.error('Max 10MB'); return; }
-      const ext = file.name.split('.').pop();
-      const path = `kyc/${user.id}/${kind}-${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from('content-uploads').upload(path, file, { upsert: true });
-      if (error) { toast.error('Upload failed'); return; }
-      const { data: urlData } = supabase.storage.from('content-uploads').getPublicUrl(path);
-      setForm(f => ({ ...f, [kind === 'id' ? 'kyc_id_url' : 'kyc_selfie_url']: urlData.publicUrl }));
-      toast.success(`${kind === 'id' ? 'ID' : 'Selfie'} uploaded`);
-    } finally { set(false); }
+    void file;
+    void kind;
+    toast.error('Private identity-document storage is unavailable. No document was uploaded.');
   };
 
   const submit = async () => {
@@ -201,10 +191,10 @@ export function KYCVerification({ onVerified, compact }: Props) {
               <div className="w-full h-28 rounded-lg border-2 border-dashed border-border flex items-center justify-center text-muted-foreground text-xs">No ID uploaded</div>
             )}
             <label>
-              <Button type="button" variant="outline" size="sm" className="w-full" disabled={uploadingId} asChild>
+              <Button type="button" variant="outline" size="sm" className="w-full" disabled asChild>
                 <span>{uploadingId ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Upload className="w-3 h-3 mr-2" />}{form.kyc_id_url ? 'Replace' : 'Upload ID'}</span>
               </Button>
-              <input type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && upload(e.target.files[0], 'id')} />
+              <input type="file" accept="image/*" className="hidden" disabled onChange={e => e.target.files?.[0] && upload(e.target.files[0], 'id')} />
             </label>
             {errors.kyc_id_url && <p className="text-xs text-destructive">{errors.kyc_id_url}</p>}
           </div>
@@ -217,10 +207,10 @@ export function KYCVerification({ onVerified, compact }: Props) {
               <div className="w-full h-28 rounded-lg border-2 border-dashed border-border flex items-center justify-center text-muted-foreground text-xs">No selfie uploaded</div>
             )}
             <label>
-              <Button type="button" variant="outline" size="sm" className="w-full" disabled={uploadingSelfie} asChild>
+              <Button type="button" variant="outline" size="sm" className="w-full" disabled asChild>
                 <span>{uploadingSelfie ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Upload className="w-3 h-3 mr-2" />}{form.kyc_selfie_url ? 'Replace' : 'Upload Selfie'}</span>
               </Button>
-              <input type="file" accept="image/*" capture="user" className="hidden" onChange={e => e.target.files?.[0] && upload(e.target.files[0], 'selfie')} />
+              <input type="file" accept="image/*" capture="user" className="hidden" disabled onChange={e => e.target.files?.[0] && upload(e.target.files[0], 'selfie')} />
             </label>
             {errors.kyc_selfie_url && <p className="text-xs text-destructive">{errors.kyc_selfie_url}</p>}
           </div>

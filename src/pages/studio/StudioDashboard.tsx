@@ -23,17 +23,24 @@ export default function StudioDashboard() {
   const { user } = useAuth();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [earnings, setEarnings] = useState({ NGN: 0, USD: 0 });
 
   useEffect(() => {
     if (!user?.email) return;
     const fetch = async () => {
-      const { data } = await supabase
-        .from('filmmaker_submissions')
-        .select('id, project_title, status, created_at, project_type')
-        .eq('submitter_email', user.email)
-        .order('created_at', { ascending: false })
-        .limit(10);
+      const [{ data }, { data: ledger }] = await Promise.all([
+        supabase.from('filmmaker_submissions')
+          .select('id, project_title, status, created_at, project_type')
+          .eq('submitter_email', user.email)
+          .order('created_at', { ascending: false })
+          .limit(10),
+        supabase.from('wallet_ledger').select('net, currency').eq('user_id', user.id).eq('kind', 'sale'),
+      ]);
       setSubmissions(data || []);
+      setEarnings((ledger || []).reduce((totals, row) => {
+        if (row.currency === 'NGN' || row.currency === 'USD') totals[row.currency] += Number(row.net) || 0;
+        return totals;
+      }, { NGN: 0, USD: 0 }));
       setLoading(false);
     };
     fetch();
@@ -72,7 +79,7 @@ export default function StudioDashboard() {
           { label: 'Total Submissions', value: stats.total, icon: Film, color: 'text-primary' },
           { label: 'Pending Review', value: stats.pending, icon: Clock, color: 'text-warning' },
           { label: 'Approved', value: stats.approved, icon: CheckCircle, color: 'text-success' },
-          { label: 'Revenue', value: '₦0', icon: DollarSign, color: 'text-accent' },
+          { label: 'Net ticket revenue', value: `₦${earnings.NGN.toLocaleString()} · $${earnings.USD.toLocaleString()}`, icon: DollarSign, color: 'text-accent' },
         ].map(s => (
           <Card key={s.label}>
             <CardContent className="pt-5 pb-4">
