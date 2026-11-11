@@ -68,6 +68,7 @@
 
 ## Viewer-to-Studio and unified publishing build
 - [ ] Preserve guest discovery and checkout entry; let viewers receive a configurable, expiring email watch link or sign in to watch
+- [ ] Send the same watch-link email to registered purchasers and keep their active passes directly accessible in the viewer dashboard
 - [ ] Add Creator (KYC, selfie/video, payout details) and Business (KYC/KYB, selfie/video, business payout) applications from the viewer dashboard
 - [ ] Support administrator-configured automatic, manual, and hybrid approvals with clear applicant status and notifications
 - [ ] Provide a guided, validated Studio create flow for films, series, live streams, and upcoming virtual events; save drafts and publish shareable pages
