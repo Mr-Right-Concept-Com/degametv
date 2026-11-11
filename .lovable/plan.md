@@ -1,30 +1,32 @@
-# Spixie parity closeout
+# Viewer-to-Studio and virtual premiere build
 
 ## Goal
-Bring DeGameTV's public filmmaker-to-viewer journeys as close as possible to the requested Spixie feature set while preserving existing records, roles, tenant isolation, and admin/Studio functionality. Never report a provider-dependent capability as working before it is configured and verified.
+Make DeGameTV a connected virtual-premiere workspace while preserving its existing cinema, viewer accounts, Studio, live events, payouts, and admin data. Keep the viewer journey email-first and allow account creation to remain optional until a viewer chooses to sign in.
 
-## Work
-1. **Remove misleading routes and confirmations**
-   - Replace the mock `/cinema/:id` booking page and mock `/content/:id` detail page with database-backed routes or safe redirects into the canonical `/movie/:slug → /buy/:slug → /watch/:watchCode` flow.
-   - Ensure checkout displays only genuinely configured payment methods and cannot claim success without server-confirmed settlement.
-2. **Secure playback before enabling sales**
-   - Route all playback through validated entitlement/session issuance; remove the public test-stream fallback and raw-media-URL path.
-   - Enforce paid/refunded/expired status, first-play access windows, geo limits, event lifecycle, and stream/concurrency limits. If the configured media origin cannot enforce signed access, clearly block playback rather than calling it protected.
-3. **Complete the filmmaker-to-premiere handoff**
-   - Preserve submission rights territories, prior screenings, premiere date, synopsis, poster/trailer, and cast/crew through review, ownership, screening setup, and the public page.
-   - Keep approval and publication under authorized admin control.
-4. **Make related customer and operator flows truthful**
-   - Keep email, reminders, Fan Blast, refunds, and payouts visibly pending/unavailable unless provider confirmation exists; do not report mock sends or manual status changes as completed external transactions.
-   - Correct analytics for currency separation and unique-viewer semantics; repair route and navigation mismatches.
-5. **Use secure provider configuration**
-   - Keep all private payment/email/media credentials server-side; remove secret values from browser reads and admin forms.
-   - Connect and test the providers supported by the current external-Supabase setup, using verified callbacks, idempotent settlement, refunds, and audit trails. If the needed secure setup is unavailable, leave the operation disabled and document exactly what is needed.
-6. **Verify and report**
-   - Test public film pages, checkout failure/success boundaries, ticket entitlements, playback denial, support routes, Studio/admin navigation, and provider-independent workflows in a browser.
-   - Run the project's relevant tests and inspect build/runtime signals; record external-credentials and authenticated-session blockers separately.
+## Build scope
+1. **Viewer entry and watch access**
+   - Keep public film/event pages and guest checkout available without requiring signup.
+   - Email every confirmed purchaser—including registered viewers—a watch link; signed-in viewers can also open the same pass directly from their dashboard.
+   - Apply the creator-configured access window consistently to email links and dashboard entry.
+   - Never issue a paid ticket or report a refund without verified provider confirmation. Keep unavailable payment methods disabled and clearly explained.
+2. **Creator and Business applications**
+   - Add dashboard applications for Creator (identity/KYC, selfie/video, payout details) and Business (KYC plus KYB, selfie/video, business payout details).
+   - Add automatic, manual, and hybrid administrator approval modes, applicant-visible status, and notifications where a configured email provider supports delivery.
+   - Grant Studio access only after trusted approval; preserve the existing role table and secure review controls.
+3. **Guided Studio publishing**
+   - Extend the existing Studio into a context-aware “Create” flow for films, series, live streams, and upcoming events.
+   - Use Zod validation and guided steps for industry metadata, rights, cast/crew, media links, pricing, territory, schedule, duration, access limits, and expiry.
+   - Support drafts, review/approval where required, publishable share links and dedicated pages, and lifecycle transitions that preserve records.
+4. **Unified administration and modular configuration**
+   - Extend existing Godmode rather than create a second admin system: audited UUID-based management of applications, users/roles, studios, content, events, tickets, payouts, settings, and provider status.
+   - Keep branding, payment/email/media provider selection, feature availability, and test/live controls data-driven; keep private credentials server-side and out of browser-readable rows.
+5. **Security, deployment, and verification**
+   - Inspect existing policies before schema changes; use migrations with explicit grants, restrictive RLS, and audit-safe server functions.
+   - Enforce server-calculated prices, territory rules, ticket validity, expiry, and configured concurrency limits. Claim DRM, anti-capture, or CDN guarantees only when the selected provider confirms them.
+   - Verify each available public and authenticated journey in the browser, run relevant tests, and report provider credentials, account verification, Supabase access, or session requirements that still block live E2E.
 
-## Technical decisions
-- Keep payment settlement and ticket issuance server-authoritative; never trust browser prices or redirect returns.
-- Preserve external Supabase and existing tables/data; use migrations only for required schema changes, with grants and restrictive RLS.
-- Do not store private provider keys in database rows readable by the browser. Do not enable real-money checkout until keys and webhook verification are safely configured.
-- Avoid broad schema or route replacement; retain existing DeGameTV features and make the canonical journey the single truthful path.
+## Technical details
+- Reuse the existing Supabase schema and routes where possible; add only necessary fields or tables and preserve existing records.
+- Centralize provider-specific behavior behind adapters/configuration so providers can be switched without rewriting viewer or Studio flows.
+- Treat email delivery, payments/refunds, private storage, and protected playback as unavailable until secure configuration and provider callbacks are verified.
+- Keep the three existing surfaces distinct: public film/event pages, viewer dashboard, and the unified Studio/admin workspaces.

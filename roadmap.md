@@ -65,3 +65,14 @@
 - [ ] Implement provider-managed Paystack, Flutterwave, and Stripe checkout/refunds, secure credential lifecycle, signed webhooks, and idempotent ticket settlement
 - [ ] Configure private KYC/master-media storage and a real supported playback provider before enabling intake, sales, or playback
 - [ ] Finish verified public/Studio/admin route checks and authenticated E2E after Supabase access and provider setup are restored
+
+## Viewer-to-Studio and unified publishing build
+- [ ] Preserve guest discovery and checkout entry; let viewers receive a configurable, expiring email watch link or sign in to watch
+- [ ] Send the same watch-link email to registered purchasers and keep their active passes directly accessible in the viewer dashboard
+- [ ] Add Creator (KYC, selfie/video, payout details) and Business (KYC/KYB, selfie/video, business payout) applications from the viewer dashboard
+- [ ] Support administrator-configured automatic, manual, and hybrid approvals with clear applicant status and notifications
+- [ ] Provide a guided, validated Studio create flow for films, series, live streams, and upcoming virtual events; save drafts and publish shareable pages
+- [ ] Configure premiere dates, durations, sales/access windows, and lifecycle transitions without deleting prior records
+- [ ] Extend the existing Godmode for safe, audited administration, modular branding, and vendor-neutral provider controls
+- [ ] Connect payment, email, storage, and streaming only through secure server-side provider capabilities; keep unsupported features clearly unavailable
+- [ ] Verify public viewer, application, publishing, admin, checkout, watch-link, and lifecycle flows; document authentication/provider blockers
