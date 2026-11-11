@@ -6,7 +6,8 @@ Make DeGameTV a connected virtual-premiere workspace while preserving its existi
 ## Build scope
 1. **Viewer entry and watch access**
    - Keep public film/event pages and guest checkout available without requiring signup.
-   - Deliver a watch link to the purchase email and apply the creator-configured access window; signed-in viewers can also manage passes in their dashboard.
+   - Email every confirmed purchaser—including registered viewers—a watch link; signed-in viewers can also open the same pass directly from their dashboard.
+   - Apply the creator-configured access window consistently to email links and dashboard entry.
    - Never issue a paid ticket or report a refund without verified provider confirmation. Keep unavailable payment methods disabled and clearly explained.
 2. **Creator and Business applications**
    - Add dashboard applications for Creator (identity/KYC, selfie/video, payout details) and Business (KYC plus KYB, selfie/video, business payout details).

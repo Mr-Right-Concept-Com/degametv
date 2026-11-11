@@ -1,2 +1,3 @@
 - Ticket prices are computed in the process-payment function from screening data and platform_settings; never trust client amounts (prevents price tampering).
 - Commission, escrow, add-on and stream rules live in platform_settings rows, not code (admin-configurable without rebuilds).
+- Provider integrations must sit behind secure server-side adapters so providers can be switched without fragmenting the shared viewer, Studio, or admin journeys.
