@@ -33,3 +33,20 @@
 
 ## Strategic must-have
 Rights-aware, secure, creator-first African cinema distribution and live/virtual screening with local payment and settlement. Current status **UNVERIFIED / not yet demonstrated**. Prove with successful real test transactions, secure origin playback, creator settlements, local market conversion and audience reliability before claiming advantage.
+
+
+
+## 18 November primitive status update
+
+No competitor capability is marked ABSORBED based solely on the new commits. These changes improve foundations but do not yet deliver the complete reference primitive.
+
+| Primitive | Updated status | Evidence / remaining gap |
+|---|---|---|
+| Private identity evidence intake | PARTIAL | Private bucket, owner policies and submit function deployed; malware scanning, reviewer workflow and video verification untested |
+| Origin-verified playback | MISSING | Endpoint now fails closed; no media origin/provider validates entitlement tokens |
+| Payment orchestration and settlement | MISSING | Checkout remains HTTP 503 until provider adapter and credentials exist |
+| CI and accessibility quality gate | PARTIAL | Workflow committed; no passing run evidence |
+| Rights-aware geo/time entitlement | PARTIAL | Validation foundations exist; no real secure delivery and complete rights workflow |
+| Database cost controls | PARTIAL | Duplicate index removed; Neon not benchmarked and cost attribution absent |
+
+Neon reference update: official documentation describes compute scale-to-zero after inactivity, autoscaling bounds and cold-start behavior. These are useful primitives for staging and bursty workloads, but not a measured reason to move production. The migration gate is documented in `docs/operations/neon-postgres-cost-optimization.md`.
