@@ -56,3 +56,32 @@ Priority ordered by user harm and dependency. No feature should be started atop 
 
 ## Human handoff / sign-offs
 Payment and streaming provider credentials; KYC provider/legal basis and retention; legal review for rights, royalties, tax, refunds and content moderation; security review of identity and payment paths; fraud policy approval; real iOS/Android/desktop/browser testing.
+
+
+
+## 18 November implementation update
+
+Completed prerequisites that the next build must reuse:
+- Private identity evidence bucket `identity-documents`, owner-scoped upload/read policies, and server-side `submit-kyc` function.
+- KYC React form now uploads private evidence and submits through the function.
+- Playback authorization now deliberately fails closed without exposing the raw origin or consuming stream allowance.
+- Duplicate `screening_tickets(screening_id)` index removed.
+- `npm run typecheck` and a GitHub quality workflow added.
+- Neon/PostgreSQL cost playbook added at `docs/operations/neon-postgres-cost-optimization.md`.
+
+### Updated ranked build sequence
+
+1. **Close identity authorization:** audit all profile mutation callsites; revoke broad profile UPDATE and grant an explicit safe-column allowlist; route verification/admin changes through role-checked server functions. Add KYC video proof, malware quarantine, review queue, immutable decision audit, evidence retention/deletion workflow and creator/business entitlement tests.
+2. **Make CI executable:** reconcile npm lockfile, run typecheck/lint/build/axe, add real unit/integration/Edge Function tests, tenant isolation and RLS regression suite; require all checks on main.
+3. **Payments:** implement provider-neutral payment intent/verify/refund/webhook ports, provider adapters, idempotency keys, immutable ledger, reconciliation and guest claim; external sandbox/production credentials required.
+4. **Playback:** implement a provider/origin adapter that cryptographically verifies entitlement at the origin or through a controlled proxy; signed manifests, DRM where rights require it, session heartbeat, concurrency, expiry, geo and replay enforcement.
+5. **Studio and rights lifecycle:** creator/business KYC, multi-user roles, rights/territory/time windows, upload quarantine/transcoding/QC, drafts/review/publish and expiry.
+6. **Operations and engagement:** reminders, Fan Blast, gifts, loyalty, watch parties, reactions, check-in, live-to-replay and settlements.
+7. **Platform ownership:** replace provider-specific app dependencies behind capability ports, instrument tenant/provider cost, restore drills, rollout/rollback, API/SDK/webhooks and admin governance.
+
+### Acceptance additions
+
+- KYC: a user can upload two files privately; another user cannot read them; the applicant cannot delete submitted evidence; staff reviewer can read only with approved role; decision creates an audit event; profile role cannot be self-elevated.
+- Playback: provider-unconfigured request returns 503 without stream-count/session mutation or origin URL; configured origin rejects expired, forged, wrong-ticket and replayed entitlement tokens.
+- CI: clean checkout plus locked install succeeds; typecheck, lint, build and axe finish green; no skipped security/E2E tests.
+- Cost: duplicate index remains absent; query/egress/compute baselines are recorded; Neon is benchmarked only in isolated staging before any production decision.
