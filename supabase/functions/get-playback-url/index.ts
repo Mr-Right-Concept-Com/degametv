@@ -8,7 +8,7 @@ const corsHeaders = {
 
 // Simple HMAC-based signed URL token (5 minute TTL)
 async function signToken(payload: Record<string, unknown>) {
-  const secret = Deno.env.get('PLAYBACK_SIGNING_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+  const secret = Deno.env.get('PLAYBACK_SIGNING_KEY') || '';
   const data = btoa(JSON.stringify({ ...payload, exp: Date.now() + 5 * 60 * 1000 }));
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data));
@@ -88,8 +88,14 @@ if (import.meta.main) {
         used_at: ticket.used_at || new Date().toISOString(),
       }).eq('id', ticket.id);
 
+      const videoUrl = typeof s.video_url === 'string' ? s.video_url.trim() : '';
+      if (!videoUrl || !/^https:\/\//i.test(videoUrl)) {
+        return new Response(JSON.stringify({ error: 'Protected playback is not configured for this title. No fallback stream is available.' }), { status: 503, headers: corsHeaders });
+      }
+      if (!Deno.env.get('PLAYBACK_SIGNING_KEY')) {
+        return new Response(JSON.stringify({ error: 'Playback signing is not configured. Contact the platform administrator.' }), { status: 503, headers: corsHeaders });
+      }
       const token = await signToken({ ticketId: ticket.id, sid, screeningId: s.id });
-      const videoUrl = s.video_url || 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
       const playbackUrl = `${videoUrl}${videoUrl.includes('?') ? '&' : '?'}t=${encodeURIComponent(token)}`;
 
       return new Response(JSON.stringify({
