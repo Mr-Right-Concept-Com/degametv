@@ -27,3 +27,16 @@ Ownership percentage: **UNVERIFIED**. A defensible percentage requires inventory
 | Admin/God Mode | broad pages | admin-godmode function | multiple tables | full step-up/audit/two-person approval unverified | NOT TESTED | STATIC |
 
 No capability is certified L2/L3 based on this audit. Product baseline maturity remains L1 foundations.
+
+
+
+## Implementation delta — 18 November 2026
+
+- Identity evidence now has a private Supabase Storage bucket and owner-scoped object policies. Supabase Storage remains an external provider dependency; the application must consume it through a storage port before claiming provider independence.
+- KYC form and server-side submission function are implemented, but malware quarantine, reviewer workflow, video verification, data retention and end-to-end entitlement proof remain PARTIAL / NOT TESTED.
+- Playback capability is intentionally fail-closed. No provider/origin adapter has been absorbed yet; do not count signed query tokens as secure delivery.
+- Payment capability remains unavailable (HTTP 503). No payment provider is configured or certified.
+- GitHub workflow now defines typecheck, lint, build and axe checks; execution result remains NOT TESTED.
+- Duplicate screening ticket index removed; one canonical index remains.
+- Anonymous SELECT/UPDATE access to profiles revoked and owner UPDATE policy now preserves user_id. Authenticated table-level UPDATE remains a high-priority unresolved ownership/security boundary.
+- Neon is an evaluated database option only; no production data or infrastructure has been moved. Supabase remains authoritative until provider swap and restore drills pass.
