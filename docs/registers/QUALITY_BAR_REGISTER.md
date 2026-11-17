@@ -27,3 +27,26 @@
 Must-have advantage: trusted, rights-aware African independent cinema screening and monetization with creator-friendly distribution. **UNVERIFIED** until secure playback, successful checkout, verified payouts and rights controls are operational and measured.
 Track: guest checkout conversion, time-to-first-play, playback start success, rebuffer ratio, payment success/decline, refund and chargeback rates, creator onboarding completion, median approval time, ticket redemption, creator net revenue, contribution margin, accessibility defects, support contacts and incident recovery time.
 No numeric competitor superiority claims until comparable measurements and source methods are available.
+
+
+
+## Measurement update — 18 November 2026
+
+### New enforced / proposed gates
+- TypeScript: `npm run typecheck` is now an explicit CI step.
+- Production build and lint are explicit CI steps.
+- Accessibility: axe-core Playwright route audit is wired into CI; execution is NOT TESTED until a GitHub Actions run reports green.
+- Private identity uploads: 10 MiB maximum and MIME allowlist on the private identity bucket; server checks ownership and object existence before submission.
+- Playback fail-closed invariant: missing origin-verification adapter must not return a media URL or consume ticket stream allowance.
+- Database index hygiene: verified duplicate index removed.
+
+### Current measured status
+- Supabase SQL RUN: anon SELECT/UPDATE privileges on `public.profiles` are false after migration.
+- Supabase SQL RUN: authenticated UPDATE on `public.profiles` remains true; privileged-column allowlisting is OPEN.
+- Supabase SQL RUN: one canonical screening_id btree index remains on `screening_tickets`.
+- Supabase SQL RUN: `identity-documents` bucket is private with a 10 MiB cap and image/PDF MIME allowlist.
+- Edge deployment RUN: `get-playback-url` ACTIVE version 10; `submit-kyc` ACTIVE (manual caller authentication is implemented even though the deployed function metadata reports verify_jwt=false).
+- CI status API returned an empty status list; therefore all build/test/accessibility thresholds remain NOT TESTED, not PASS.
+- Browser/device visual QA, WCAG 2.2 AA full conformance, performance budgets and low-end device metrics remain NOT TESTED.
+
+Thresholds are not lowered. A wired CI command is not evidence of a passing run.
