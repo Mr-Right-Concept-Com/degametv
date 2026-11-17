@@ -16,8 +16,8 @@ const kycSchema = z.object({
   kyc_id_type: z.enum(['nin', 'passport', 'drivers_license', 'voters_card'], {
     errorMap: () => ({ message: 'Select an ID type' }),
   }),
-  kyc_id_url: z.string().url('Upload your government-issued ID'),
-  kyc_selfie_url: z.string().url('Upload a selfie holding your ID'),
+  kyc_id_url: z.string().min(1, 'Upload your government-issued ID'),
+  kyc_selfie_url: z.string().min(1, 'Upload a selfie holding your ID'),
 });
 
 interface Profile {
@@ -74,9 +74,30 @@ export function KYCVerification({ onVerified, compact }: Props) {
   useEffect(() => { load(); }, [user?.id]);
 
   const upload = async (file: File, kind: 'id' | 'selfie') => {
-    void file;
-    void kind;
-    toast.error('Private identity-document storage is unavailable. No document was uploaded.');
+    if (!user) { toast.error('Sign in before uploading identity documents.'); return; }
+    const allowed = kind === 'id'
+      ? ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+      : ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type) || file.size > 10 * 1024 * 1024) {
+      toast.error('Use a supported image or PDF under 10 MB.');
+      return;
+    }
+    const setUploading = kind === 'id' ? setUploadingId : setUploadingSelfie;
+    setUploading(true);
+    try {
+      const extension = file.name.split('.').pop()?.toLowerCase() || (file.type === 'application/pdf' ? 'pdf' : 'jpg');
+      const path = `${user.id}/kyc/${kind}-${crypto.randomUUID()}.${extension}`;
+      const { error } = await supabase.storage.from('identity-documents').upload(path, file, {
+        contentType: file.type, cacheControl: '0', upsert: false,
+      });
+      if (error) throw error;
+      setForm(current => ({ ...current, [kind === 'id' ? 'kyc_id_url' : 'kyc_selfie_url']: path }));
+      toast.success(kind === 'id' ? 'Identity document uploaded securely.' : 'Selfie uploaded securely.');
+    } catch {
+      toast.error('Upload failed. Your document was not submitted; please retry.');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const submit = async () => {
@@ -90,17 +111,20 @@ export function KYCVerification({ onVerified, compact }: Props) {
     }
     setErrors({});
     setSubmitting(true);
-    // Submit for admin review (NOT auto-verified)
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        ...result.data,
-        kyc_status: 'pending',
-        kyc_submitted_at: new Date().toISOString(),
-      })
-      .eq('user_id', user.id);
-    if (error) { toast.error('Submission failed: ' + error.message); setSubmitting(false); return; }
-    toast.success('Application submitted! Our team will review within 24–48 hours.');
+    const { data, error } = await supabase.functions.invoke('submit-kyc', {
+      body: {
+        full_name: result.data.kyc_full_name,
+        id_type: result.data.kyc_id_type,
+        id_path: result.data.kyc_id_url,
+        selfie_path: result.data.kyc_selfie_url,
+      },
+    });
+    if (error || !data?.success) {
+      toast.error(data?.error || 'Submission failed. Your application has not been submitted.');
+      setSubmitting(false);
+      return;
+    }
+    toast.success('Application submitted for identity review.');
     await load();
     setSubmitting(false);
   };
@@ -185,32 +209,28 @@ export function KYCVerification({ onVerified, compact }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-2">
             <Label className="text-xs">Photo of ID <span className="text-destructive">*</span></Label>
-            {form.kyc_id_url ? (
-              <img src={form.kyc_id_url} alt="ID" className="w-full h-28 object-cover rounded-lg border" />
-            ) : (
-              <div className="w-full h-28 rounded-lg border-2 border-dashed border-border flex items-center justify-center text-muted-foreground text-xs">No ID uploaded</div>
-            )}
+            <div className="w-full h-28 rounded-lg border-2 border-dashed border-border flex items-center justify-center text-muted-foreground text-xs px-2 text-center">
+              {form.kyc_id_url ? 'Identity document uploaded securely' : 'No ID uploaded'}
+            </div>
             <label>
-              <Button type="button" variant="outline" size="sm" className="w-full" disabled asChild>
+              <Button type="button" variant="outline" size="sm" className="w-full" disabled={uploadingId} asChild>
                 <span>{uploadingId ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Upload className="w-3 h-3 mr-2" />}{form.kyc_id_url ? 'Replace' : 'Upload ID'}</span>
               </Button>
-              <input type="file" accept="image/*" className="hidden" disabled onChange={e => e.target.files?.[0] && upload(e.target.files[0], 'id')} />
+              <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden" disabled={uploadingId} onChange={e => e.target.files?.[0] && upload(e.target.files[0], 'id')} />
             </label>
             {errors.kyc_id_url && <p className="text-xs text-destructive">{errors.kyc_id_url}</p>}
           </div>
 
           <div className="space-y-2">
             <Label className="text-xs">Selfie with ID <span className="text-destructive">*</span></Label>
-            {form.kyc_selfie_url ? (
-              <img src={form.kyc_selfie_url} alt="Selfie" className="w-full h-28 object-cover rounded-lg border" />
-            ) : (
-              <div className="w-full h-28 rounded-lg border-2 border-dashed border-border flex items-center justify-center text-muted-foreground text-xs">No selfie uploaded</div>
-            )}
+            <div className="w-full h-28 rounded-lg border-2 border-dashed border-border flex items-center justify-center text-muted-foreground text-xs px-2 text-center">
+              {form.kyc_selfie_url ? 'Selfie uploaded securely' : 'No selfie uploaded'}
+            </div>
             <label>
-              <Button type="button" variant="outline" size="sm" className="w-full" disabled asChild>
+              <Button type="button" variant="outline" size="sm" className="w-full" disabled={uploadingSelfie} asChild>
                 <span>{uploadingSelfie ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Upload className="w-3 h-3 mr-2" />}{form.kyc_selfie_url ? 'Replace' : 'Upload Selfie'}</span>
               </Button>
-              <input type="file" accept="image/*" capture="user" className="hidden" disabled onChange={e => e.target.files?.[0] && upload(e.target.files[0], 'selfie')} />
+              <input type="file" accept="image/jpeg,image/png,image/webp" capture="user" className="hidden" disabled={uploadingSelfie} onChange={e => e.target.files?.[0] && upload(e.target.files[0], 'selfie')} />
             </label>
             {errors.kyc_selfie_url && <p className="text-xs text-destructive">{errors.kyc_selfie_url}</p>}
           </div>
