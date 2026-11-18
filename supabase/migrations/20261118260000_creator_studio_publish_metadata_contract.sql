@@ -19,9 +19,9 @@ BEGIN
   );
 
   IF v_updated = v_definition THEN
-    IF position(''episode'' in v_definition) = 0
-       OR position(''short'' in v_definition) = 0
-       OR position(''trailer'' in v_definition) = 0 THEN
+    IF position('episode' in v_definition) = 0
+       OR position('short' in v_definition) = 0
+       OR position('trailer' in v_definition) = 0 THEN
       RAISE EXCEPTION 'creator submission type guard could not be safely extended';
     END IF;
   END IF;
@@ -34,7 +34,7 @@ BEGIN
   );
 
   IF v_updated = v_definition THEN
-    IF position(''rights_declaration'' in v_definition) = 0 THEN
+    IF position('rights_declaration' in v_definition) = 0 THEN
       RAISE EXCEPTION 'creator content rights metadata contract could not be safely extended';
     END IF;
   END IF;
