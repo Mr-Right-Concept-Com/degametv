@@ -95,7 +95,6 @@ export default function BuyTicket() {
           sessionStorage.removeItem('degame_checkout_email');
           sessionStorage.removeItem('degame_checkout_location');
           window.history.replaceState({}, '', window.location.pathname);
-          await supabase.functions.invoke('send-watch-email', { body: { email: savedEmail, movieTitle: screening.title, watchUrl: window.location.origin + '/watch/' + result.data.watchCode + '?email=' + encodeURIComponent(savedEmail), ticketCode: result.data.ticketCode , expiresAt: result.data.expiresAt } });
           toast.success('Payment confirmed. Your ticket is ready.');
           setProcessing(false);
           return;
