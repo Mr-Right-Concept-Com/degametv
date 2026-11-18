@@ -58,7 +58,7 @@ Deno.serve(async req => {
     let supplied = signatureValue.toLowerCase().replace(/^sha256=/, "").replace(/^sha512=/, "");
     let signedPayload = raw;
     if (settings.signature_format === "timestamped_v1") {
-      const timestamp = signatureValue.match(/(?:^|[, ])t=(\\d+)/)?.[1];
+      const timestamp = signatureValue.match(/(?:^|[, ])t=(\d+)/)?.[1];
       const v1 = signatureValue.match(/(?:^|[, ])v1=([a-f0-9]+)/i)?.[1];
       const timestampSeconds = timestamp ? Number(timestamp) : NaN;
       const tolerance = Math.min(900, Math.max(30, Number(settings.signature_timestamp_tolerance_seconds) || 300));
