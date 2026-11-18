@@ -42,6 +42,7 @@ export default function StudioSubmit() {
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [published, setPublished] = useState(false);
   const [createdContentId, setCreatedContentId] = useState<string | null>(null);
   const [uploadingPoster, setUploadingPoster] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
@@ -158,6 +159,12 @@ export default function StudioSubmit() {
     }
     setCreatedContentId(submission.content_id);
 
+    if (form.poster_url && form.video_url) {
+      const { data: publication, error: publishError } = await supabase.rpc('publish_creator_content', { p_content_id: submission.content_id });
+      if (!publishError && publication?.status === 'published') setPublished(true);
+      else toast.info('Your film is saved in Studio. Complete creator approval or required assets before publishing.');
+    }
+
     setSubmitted(true);
     setSubmitting(false);
   };
@@ -221,14 +228,14 @@ export default function StudioSubmit() {
 
   if (submitted) {
     return (
-      <StudioLayout title="Submission received">
+      <StudioLayout title={published ? "Film published" : "Submission received"}>
         <div className="max-w-lg mx-auto py-12 text-center">
           <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-10 h-10 text-green-500" />
           </div>
-          <h2 className="text-2xl font-bold mb-3">{form.project_type === 'series' ? 'Series' : 'Film'} submitted for review</h2>
+          <h2 className="text-2xl font-bold mb-3">{published ? 'Film published' : 'Submission saved to Studio'}</h2>
           <p className="text-muted-foreground mb-6">
-            "{form.project_title}" is saved as a draft while the submission is reviewed. It is not published or available for ticket sales yet.
+            {published ? `"${form.project_title}" is now live on DeGameTV and can be shared.` : `"${form.project_title}" is saved as a draft. Add required assets and complete creator approval to publish.`}
           </p>
           <div className="flex flex-col gap-3">
             <Button variant="outline" className="rounded-full" onClick={() => navigate('/studio/movies')}>View My Movies</Button>
