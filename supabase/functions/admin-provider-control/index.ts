@@ -64,7 +64,7 @@ Deno.serve(async req => {
     try{
       const response=await fetch(target,{method:"GET",headers:{Authorization:"Bearer "+provider.credential,Accept:"application/json"},signal:AbortSignal.timeout(10000)});
       const body=await response.json().catch(()=>null);
-      if(!response.ok||body?.ok!==true)return json({success:false,error:"Provider health check failed. Binding has not been changed."},502);
+      if(!response.ok||(body?.ok!==true&&body?.status!==true))return json({success:false,error:"Provider health check failed. Binding has not been changed."},502);
       return json({success:true,provider:p.providerKey,capability:p.capability,mode:provider.is_live?"live":"test",checkedAt:new Date().toISOString()});
     }catch{return json({success:false,error:"Provider health endpoint did not respond. Binding has not been changed."},502);}
   }
