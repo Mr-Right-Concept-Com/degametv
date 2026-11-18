@@ -13,7 +13,7 @@ if(import.meta.main)serve(async(req:Request)=>{
  if(!url||!service)return json(503,{error:"Payment status is temporarily unavailable."});
  try{
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
-  const {data:order,error}=await admin.from("guest_payment_orders").select("id,ticket_id,status,email,provider_reference,provider,amount_minor,currency").eq("provider_reference",parsed.data.reference).eq("email",parsed.data.email).maybeSingle();
+  const {data:order,error}=await admin.from("guest_payment_orders").select("id,ticket_id,status,email,provider_reference,provider,amount_minor,currency,app_origin").eq("provider_reference",parsed.data.reference).eq("email",parsed.data.email).maybeSingle();
   if(error||!order)return json(404,{error:"No payment could be found for those details."});
   if(order.status==="pending"&&order.provider==="paystack"){
    const {data:configs,error:configError}=await admin.rpc("get_payment_provider_runtime_config",{p_provider:"paystack"});
@@ -37,7 +37,7 @@ if(import.meta.main)serve(async(req:Request)=>{
   let emailSent=false;
   if(emailClaim){
    const {data:screening}=await admin.from("screenings").select("title").eq("id",ticket.screening_id).maybeSingle();
-   const mailResponse=await fetch(url+"/functions/v1/send-watch-email",{method:"POST",headers:{"Authorization":"Bearer "+service,"apikey":service,"Content-Type":"application/json"},body:JSON.stringify({email:order.email,movieTitle:screening?.title||"Your DeGameTV screening",watchUrl:(req.headers.get("origin")||"").replace(/\/$/,"")+"/watch/"+ticket.watch_code+"?email="+encodeURIComponent(order.email),ticketCode:ticket.ticket_code,expiresAt:ticket.expires_at,location:ticket.location,price:Number(ticket.price),currency:order.currency})}).catch(()=>null);
+   const mailResponse=await fetch(url+"/functions/v1/send-watch-email",{method:"POST",headers:{"Authorization":"Bearer "+service,"apikey":service,"Content-Type":"application/json"},body:JSON.stringify({email:order.email,movieTitle:screening?.title||"Your DeGameTV screening",watchUrl:(order.app_origin||"").replace(/\/$/,"")+"/watch/"+ticket.watch_code+"?email="+encodeURIComponent(order.email),ticketCode:ticket.ticket_code,expiresAt:ticket.expires_at,location:ticket.location,price:Number(ticket.price),currency:order.currency})}).catch(()=>null);
    emailSent=Boolean(mailResponse?.ok);
    if(!emailSent)await admin.from("guest_payment_orders").update({email_sent_at:null}).eq("id",order.id);
   }
