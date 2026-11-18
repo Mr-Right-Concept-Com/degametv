@@ -72,9 +72,12 @@ export default function Index() {
     <MainLayout>
       <PromoBanner placement="home" />
       {/* Hero */}
-      <section className="relative overflow-hidden bg-primary animate-fade-in">
-        <div className="container mx-auto px-5 py-14 sm:py-20 md:py-28 text-center relative z-10">
-          <Badge className="bg-primary-foreground text-primary border-0 mb-4 sm:mb-6 text-[10px] sm:text-xs font-semibold tracking-wider rounded-full px-3 sm:px-4 py-1">
+      <section className="relative isolate min-h-[560px] overflow-hidden bg-[#090909] animate-fade-in sm:min-h-[620px]">
+        <div className="absolute inset-0 -z-20 bg-cover bg-center opacity-55" style={{ backgroundImage: `url(${featuredScreening?.banner_url || featuredScreening?.poster_url || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1800&auto=format&fit=crop'})` }} />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-black via-black/85 to-black/35" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black via-transparent to-black/20" />
+        <div className="container relative z-10 mx-auto flex min-h-[560px] items-center px-5 py-16 sm:min-h-[620px] sm:py-20">
+          <Badge className="mb-5 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-[10px] font-semibold tracking-[.18em] text-white backdrop-blur sm:mb-7 sm:text-xs">
             🎬 VIRTUAL PREMIERE
           </Badge>
 
@@ -82,15 +85,15 @@ export default function Index() {
             <div className="py-12"><Loader2 className="w-8 h-8 animate-spin text-primary-foreground mx-auto" /></div>
           ) : featuredScreening ? (
             <>
-              <h1 className="text-3xl sm:text-4xl md:text-6xl lg:text-7xl font-extrabold text-primary-foreground mb-3 sm:mb-4 tracking-tight leading-[1.1]">
+              <h1 className="mb-4 max-w-4xl text-left text-4xl font-extrabold leading-[1.02] tracking-tight text-white sm:text-5xl md:text-7xl lg:text-8xl">
                 {featuredScreening.title}
               </h1>
-              <p className="text-primary-foreground text-sm sm:text-base md:text-lg max-w-xl mx-auto mb-6 sm:mb-8 leading-relaxed px-2">
+              <p className="mb-7 max-w-xl text-left text-sm leading-relaxed text-white/75 sm:text-base md:text-lg">
                 {featuredScreening.description}
               </p>
 
               {/* Countdown */}
-              <div className="inline-flex items-center gap-2 sm:gap-3 bg-primary-foreground/10 backdrop-blur-sm rounded-full px-4 sm:px-6 py-2.5 sm:py-3 mb-6 sm:mb-8">
+              <div className="mb-7 inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur sm:gap-3 sm:px-6">
                 {[
                   { val: countdown.days, label: 'd' },
                   { val: countdown.hours, label: 'h' },
@@ -104,14 +107,14 @@ export default function Index() {
                 ))}
               </div>
 
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                <Button size="lg" className="w-full sm:w-auto rounded-full bg-primary-foreground text-primary hover:bg-primary-foreground/90 font-semibold gap-2 px-6 sm:px-8 h-12 tap-scale" asChild>
+              <div className="flex w-full flex-col items-stretch gap-3 sm:w-auto sm:flex-row sm:items-center">
+                <Button size="lg" className="h-12 w-full gap-2 rounded-full bg-primary px-7 font-semibold text-white shadow-xl shadow-primary/20 hover:bg-primary/90 tap-scale sm:w-auto" asChild>
                   <Link to={`/buy/${featuredScreening.slug}`}>
                     <Ticket className="w-5 h-5" />
                     Get Ticket{featuredScreening.location_pricing?.nigeria ? ` — ₦${Number(featuredScreening.location_pricing.nigeria).toLocaleString()}` : ''}
                   </Link>
                 </Button>
-                <Button size="lg" variant="ghost" className="w-full sm:w-auto rounded-full text-primary-foreground hover:bg-primary-foreground/10 font-semibold gap-2 h-12 tap-scale" asChild>
+                <Button size="lg" variant="ghost" className="h-12 w-full gap-2 rounded-full border border-white/20 bg-white/10 font-semibold text-white hover:bg-white/15 tap-scale sm:w-auto" asChild>
                   <Link to={`/movie/${featuredScreening.slug}`}>
                     <Play className="w-5 h-5" />
                     Watch Trailer
@@ -120,7 +123,7 @@ export default function Index() {
               </div>
 
               {featuredScreening.screening_date && (
-                <div className="flex items-center justify-center gap-4 sm:gap-5 mt-6 sm:mt-8 text-xs sm:text-sm text-primary-foreground/90">
+                <div className="mt-7 flex items-center justify-start gap-4 text-xs text-white/70 sm:text-sm">
                   <span className="flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     {new Date(featuredScreening.screening_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
