@@ -21,9 +21,8 @@ export function StudioSidebar({ onNavigate }: StudioSidebarProps) {
   const branding = useBranding();
   return (
     <aside className="fixed left-0 top-0 bottom-0 w-64 bg-card border-r border-border z-40 flex flex-col">
-      <div className="h-16 flex items-center gap-2.5 px-5 border-b border-border">
-        <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center"><Clapperboard className="w-5 h-5 text-primary-foreground" /></div>
-        <div><span className="font-bold text-sm text-foreground">Studio Portal</span><p className="text-[10px] text-muted-foreground">{branding.platformName}</p></div>
+      <div className="flex h-16 items-center border-b border-border px-5">
+        <Link to="/" aria-label="DeGameTV home"><img src={branding.logoUrl || '/brand/degametv-lockup.svg'} alt={branding.platformName || 'DeGameTV'} className="h-auto w-[172px] max-w-full object-contain" /></Link>
       </div>
       <nav className="flex-1 py-4 px-3 space-y-1">
         <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-2">Studio</p>
