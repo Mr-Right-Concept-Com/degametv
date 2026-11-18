@@ -27,6 +27,7 @@ test('approved creator can select free admission without entering prices', async
   await expect(page).not.toHaveURL(/\/auth$/);
 
   await page.goto('/studio/create?flow=live&type=live');
+  await page.getByPlaceholder('e.g. The Lagos Creators Live Experience').fill('Creator OS E2E Free Event');
   await page.getByRole('button', { name: 'Continue to event setup' }).click();
   const freeAccess = page.getByRole('button', { name: 'Free access', exact: true });
   const paidTickets = page.getByRole('button', { name: 'Paid tickets', exact: true });
