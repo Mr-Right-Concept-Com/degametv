@@ -249,7 +249,7 @@ export default function StudioSubmit() {
         project_title: form.project_title,
         project_type: form.project_type,
         dynamic_metadata: {
-          contentType: form.preset_type,
+          contentType: form.project_type === 'live' ? 'RECORDED_EVENT' : form.preset_type,
           genres: form.genres,
           castAndCrew: form.cast_crew_text,
           durationMinutes: form.duration_minutes ? Number(form.duration_minutes) : undefined,
