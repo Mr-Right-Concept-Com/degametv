@@ -45,7 +45,8 @@ if(import.meta.main)serve(async(req:Request)=>{
   const result=await verification.json().catch(()=>null);
   if(!verification.ok||result?.verified!==true||result?.status!=="paid")return json(202,{received:true,verified:false});
   const liveOrder=reference.startsWith("DTVL_");
-  const {data:liveOrderRow}=liveOrder?await admin.from("live_payment_orders").select("user_id").eq("provider_reference",reference).maybeSingle():{data:null};\n  const claimToken=liveOrder&&liveOrderRow?.user_id===null?Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,"0")).join(""):null;
+  const {data:liveOrderRow}=liveOrder?await admin.from("live_payment_orders").select("user_id").eq("provider_reference",reference).maybeSingle():{data:null};
+  const claimToken=liveOrder&&liveOrderRow?.user_id===null?Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,"0")).join(""):null;
   const claimHash=claimToken?await crypto.subtle.digest("SHA-256",new TextEncoder().encode(claimToken)).then(b=>Array.from(new Uint8Array(b),v=>v.toString(16).padStart(2,"0")).join("")):null;
   const args=liveOrder?{p_reference:reference,p_transaction_id:String(result.transaction_id||reference),p_amount_minor:Number(result.amount_minor),p_currency:String(result.currency),p_claim_token_hash:claimHash}:{p_reference:reference,p_transaction_id:String(result.transaction_id||reference),p_amount_minor:Number(result.amount_minor),p_currency:String(result.currency)};
   const {data:completed,error:completeError}=await admin.rpc(liveOrder?"complete_live_payment_order":"complete_guest_payment_order",args);
