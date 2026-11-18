@@ -66,6 +66,27 @@ Deno.serve(async req => {
       return json({success:true,provider:p.providerKey,capability:p.capability,mode:provider.is_live?"live":"test",checkedAt:new Date().toISOString()});
     }catch{return json({success:false,error:"Provider health endpoint did not respond. Binding has not been changed."},502);}
   }
+  if(p.action==="configure"&&p.enabled){
+    if(p.live&&!p.webhookSecret){
+      const {data:existing}=await admin.from("service_provider_bindings").select("webhook_secret_ref").eq("capability",p.capability).eq("provider_key",p.providerKey).maybeSingle();
+      if(!existing?.webhook_secret_ref)return json({error:"A webhook signing secret is required before enabling live mode."},409);
+    }
+    const healthPath=p.endpoints.health_check;
+    if(typeof healthPath!=="string"||!healthPath.startsWith("/")||healthPath.startsWith("//"))return json({error:"Configure a relative health_check endpoint and pass a successful provider health test before enabling this binding."},409);
+    let credential=p.credential;
+    if(!credential){
+      const {data:runtime}=await admin.rpc("get_service_provider_runtime_config",{p_capability:p.capability});
+      credential=Array.isArray(runtime)?runtime.find((row:any)=>row.provider_key===p.providerKey)?.credential:undefined;
+    }
+    if(!credential)return json({error:"A Vault credential is required before enabling this provider."},409);
+    try{
+      const target=new URL(healthPath,p.baseUrl);
+      if(target.origin!==new URL(p.baseUrl).origin)return json({error:"Provider health endpoint must remain on the configured host."},400);
+      const response=await fetch(target,{method:"GET",headers:{Authorization:"Bearer "+credential,Accept:"application/json"},signal:AbortSignal.timeout(10000)});
+      const body=await response.json().catch(()=>null);
+      if(!response.ok||body?.ok!==true)return json({error:"Provider health check failed. Provider mode was not changed."},502);
+    }catch{return json({error:"Provider health check did not respond. Provider mode was not changed."},502);}
+  }
   const args=p.action==="remove"
     ? {p_capability:p.capability,p_provider_key:p.providerKey,p_enabled:false,p_is_live:false,p_remove:true}
     : {p_capability:p.capability,p_provider_key:p.providerKey,p_enabled:p.enabled,p_is_live:p.live,p_base_url:p.baseUrl,p_endpoints:p.endpoints,p_settings:p.settings,p_credential:p.credential??null,p_webhook_secret:p.webhookSecret??null,p_remove:false};
