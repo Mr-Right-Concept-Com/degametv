@@ -221,12 +221,12 @@ export default function StudioSubmit() {
 
   if (submitted) {
     return (
-      <StudioLayout title="Film Published">
+      <StudioLayout title="Submission received">
         <div className="max-w-lg mx-auto py-12 text-center">
           <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-10 h-10 text-green-500" />
           </div>
-          <h2 className="text-2xl font-bold mb-3">Film submitted for review</h2>
+          <h2 className="text-2xl font-bold mb-3">{form.project_type === 'series' ? 'Series' : 'Film'} submitted for review</h2>
           <p className="text-muted-foreground mb-6">
             "{form.project_title}" is saved as a draft while the submission is reviewed. It is not published or available for ticket sales yet.
           </p>
@@ -245,7 +245,7 @@ export default function StudioSubmit() {
 
 
   return (
-    <StudioLayout title="Submit Film" description="Upload your movie for review and distribution">
+    <StudioLayout title="Submit Film" description="Submit your film or series for review and distribution">
       <div className="max-w-2xl mx-auto">
         {/* Steps */}
         <div className="flex items-center gap-2 mb-8">
