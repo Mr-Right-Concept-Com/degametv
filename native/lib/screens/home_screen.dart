@@ -340,7 +340,13 @@ class _TicketWalletState extends State<_TicketWallet> {
                 )),
                 if (playbackUrl != null) ...[
                   const SizedBox(height: 14),
-                  SecureVideoPlayer(url: playbackUrl!),
+                  if (Theme.of(context).platform == TargetPlatform.windows || Theme.of(context).platform == TargetPlatform.linux)
+                    OutlinedButton(
+                      onPressed: () => widget.openWeb(playbackUrl!),
+                      child: const Text('Open secure stream in browser'),
+                    )
+                  else
+                    SecureVideoPlayer(url: playbackUrl!),
                   if (playbackExpiresAt != null) Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text('Secure playback grant expires: $playbackExpiresAt', style: const TextStyle(color: Colors.white54, fontSize: 11)),
