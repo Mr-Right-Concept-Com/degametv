@@ -33,6 +33,7 @@ type Acct = { tier: string; status: string } | null;
 export function TierUpgradeCard() {
   const { user } = useAuth();
   const [acct, setAcct] = useState<Acct>(null);
+  const [accountError, setAccountError] = useState(false);
   const [tier, setTier] = useState<'creator' | 'business'>('creator');
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -41,8 +42,11 @@ export function TierUpgradeCard() {
 
   const load = async () => {
     if (!user) return;
-    const { data } = await supabase.from('studio_accounts').select('tier, status').eq('user_id', user.id).maybeSingle();
-    setAcct(data);
+    const { data, error } = await supabase.rpc('get_my_studio_account');
+    if (error) { setAccountError(true); return; }
+    setAccountError(false);
+    const account = Array.isArray(data) ? data[0] : data;
+    setAcct(account ? { tier: account.tier, status: account.status } : null);
     if (data?.tier === 'business') setTier('business');
   };
   useEffect(() => { load(); }, [user?.id]);
@@ -133,6 +137,7 @@ export function TierUpgradeCard() {
         <CardDescription>Creator: 10% platform fee. Business: 7.5% fee, multi-seat team, requires business verification (KYB).</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {accountError && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">We could not verify your studio status. Your application is safe; please refresh shortly or contact support.</p>}
         <div className="grid grid-cols-2 gap-3">
           {([['creator', 'Creator', User, 'Solo / indie filmmaker'], ['business', 'Business', Building2, 'Studio or company']] as const).map(([v, l, Icon, d]) => (
             <button key={v} type="button" aria-pressed={tier === v} onClick={() => setTier(v)}
@@ -172,7 +177,7 @@ export function TierUpgradeCard() {
           </div>
         )}
 
-        <Button onClick={submit} disabled={busy || acct?.status === 'approved'} className="rounded-full w-full sm:w-auto">
+        <Button onClick={submit} disabled={busy || accountError || acct?.status === 'approved'} className="rounded-full w-full sm:w-auto">
           {busy && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
           {acct?.status === 'approved' ? 'Studio approved' : acct ? 'Resubmit for review' : 'Submit tier'}
         </Button>
