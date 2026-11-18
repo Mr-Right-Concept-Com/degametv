@@ -19,11 +19,12 @@ if(import.meta.main) serve(async(req:Request)=>{
   if(configError||!Array.isArray(configs)||!configs.length)return json(503,{success:false,error:"This payment method is not enabled or its secure credentials are incomplete."});
   const config=configs[0];
   if(!config.secret_key||!config.public_key)return json(503,{success:false,error:"Payment provider credentials or webhook verification are incomplete."});
-  const {data:screening,error:screeningError}=await admin.from("screenings").select("id,tenant_id,title,slug,status,location_pricing,screening_date,lifecycle").eq("id",screeningId).eq("status","published").maybeSingle();
+  const {data:screening,error:screeningError}=await admin.from("screenings").select("id,tenant_id,title,slug,status,location_pricing,screening_date,lifecycle,replay_price_ngn,replay_price_usd").eq("id",screeningId).eq("status","published").maybeSingle();
   if(screeningError||!screening)return json(404,{success:false,error:"This screening is no longer available."});
   if(screening.screening_date&&new Date(screening.screening_date).getTime()<Date.now()&&screening.lifecycle!=="replay")return json(409,{success:false,error:"Ticket sales for this screening have closed."});
   const pricing=typeof screening.location_pricing==="string"?JSON.parse(screening.location_pricing):screening.location_pricing;
-  const major=Number(location==="nigeria"?pricing?.nigeria:pricing?.international);
+  const replayPrice=location==="nigeria"?screening.replay_price_ngn:screening.replay_price_usd;
+  const major=Number(screening.lifecycle==="replay"&&replayPrice!==null&&replayPrice!==undefined?replayPrice:(location==="nigeria"?pricing?.nigeria:pricing?.international));
   if(!Number.isFinite(major)||major<=0)return json(409,{success:false,error:"Ticket pricing is not configured for this location."});
   const currency=location==="nigeria"?"NGN":"USD";
   const amountMinor=Math.round(major*100);
