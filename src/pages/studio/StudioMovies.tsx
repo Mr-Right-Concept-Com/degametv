@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Film, Upload, Loader2, ExternalLink } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { toast } from 'sonner';
 
 interface Submission {
   id: string;
