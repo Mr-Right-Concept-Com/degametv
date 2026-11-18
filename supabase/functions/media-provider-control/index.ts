@@ -79,6 +79,7 @@ Deno.serve(async req=>{
        live_replay_ready_at:recordingStatus==="ready"?endedAt:null,updated_at:endedAt,
       }).eq("id",screening.id).eq("tenant_id",screening.tenant_id);
       const metadata={...(content.metadata&&typeof content.metadata==="object"?content.metadata:{}),
+       content_context:"vod",release_strategy:"on_demand",
        replay_from_live:{source_screening_id:screening.id,source_stream_id:endedStream.id,
         provider:stream.metadata?.provider??null,provider_asset_id:providerAssetId,
         recording_status:recordingStatus,ended_at:endedAt}};
