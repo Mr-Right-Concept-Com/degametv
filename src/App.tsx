@@ -49,7 +49,6 @@ import WatchMovie from "./pages/WatchMovie";
 import LiveWatch from "./pages/LiveWatch";
 import LiveGuestClaim from "./pages/LiveGuestClaim";
 import PaymentReturn from "./pages/PaymentReturn";
-import MyTickets from "./pages/MyTickets";
 import UserDashboard from "./pages/UserDashboard";
 
 // Studio pages
