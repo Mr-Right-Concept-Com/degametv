@@ -44,7 +44,7 @@ Deno.serve(async req=>{
    if(!response.ok||result?.stopped!==true)return json({error:"Provider could not confirm stream termination."},502);
    const endedAt=new Date().toISOString();
    const {data:endedStream,error:endError}=await db.from("live_streams")
-    .update({status:"ended",actual_end:endedAt,updated_at:endedAt})
+    .update({status:"ended",lifecycle_status:"PROCESSING_REPLAY",actual_ended_at:endedAt,actual_end:endedAt,updated_at:endedAt})
     .eq("id",p.streamId).eq("creator_id",user.id)
     .select("id,tenant_id,creator_id,metadata").single();
    if(endError||!endedStream)return json({error:"Provider ended the stream, but DeGameTV could not reconcile its event record. Contact support before creating a replay."},503);
@@ -123,7 +123,7 @@ Deno.serve(async req=>{
   const {data:ownedContent,error:contentError}=await db.from("content").select("creator_id,tenant_id").eq("id",screening.content_id).maybeSingle();
   if(contentError||!ownedContent||ownedContent.creator_id!==user.id||ownedContent.tenant_id!==screening.tenant_id)return json({error:"You do not own this event in its tenant."},403);
   const {data:stream,error:insertError}=await db.from("live_streams").insert({
-   tenant_id:screening.tenant_id,creator_id:user.id,title:p.title,description:p.description??null,status:"scheduled",
+   tenant_id:screening.tenant_id,creator_id:user.id,title:p.title,description:p.description??null,status:"scheduled",lifecycle_status:"WAITING_FOR_ENCODER",provider_stream_id:result.provider_reference,
    stream_key:null,rtmp_url:ingest.toString(),playback_url:typeof result.playback_url==="string"?result.playback_url:null,
    scheduled_start:p.scheduledStart??null,recording_enabled:p.recordingEnabled,
    monetization:"free",ticket_price:0,is_ticketed:false,
