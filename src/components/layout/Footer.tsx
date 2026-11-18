@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Film, Twitter, Facebook, Instagram, Youtube } from 'lucide-react';
+import { Twitter, Facebook, Instagram, Youtube } from 'lucide-react';
 
 export function Footer() {
   const socialLinks = [
@@ -16,17 +16,7 @@ export function Footer() {
           {/* Brand */}
           <div className="md:col-span-1">
             <Link to="/" className="flex items-center gap-2 mb-4">
-              <div className="w-10 h-10 rounded-lg gradient-royal flex items-center justify-center">
-                <Film className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xl font-display font-bold text-gradient-royal">
-                  DeGameTV
-                </span>
-                <span className="text-[10px] text-muted-foreground -mt-1 tracking-wider">
-                  VIRTUAL CINEMA
-                </span>
-              </div>
+              <img src="/brand/degametv-lockup.svg" alt="DeGameTV" className="h-10 w-auto max-w-[190px] object-contain" />
             </Link>
             <p className="text-muted-foreground text-sm mb-4 max-w-sm">
               Experience exclusive African cinema premieres from anywhere in the world.
@@ -52,7 +42,7 @@ export function Footer() {
               <li><Link to="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Now Showing</Link></li>
               <li><Link to="/cinema" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Upcoming Screenings</Link></li>
               <li><Link to="/producers" className="text-sm text-muted-foreground hover:text-foreground transition-colors">For Producers</Link></li>
-              <li><Link to="/filmmaker" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Submit a Film</Link></li>
+              <li><Link to="/producers" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Creator Studio</Link></li>
             </ul>
           </div>
 
