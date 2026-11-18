@@ -315,29 +315,11 @@ export default function BuyTicket() {
                     {paymentError}
                   </div>
                 )}
-                {/* Price */}
                 <div className="bg-secondary/30 p-3 rounded-xl space-y-1.5 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Ticket</span>
-                    <span>{symbol}{basePrice.toLocaleString()}</span>
-                  </div>
-                  {addonsTotal > 0 && location === 'nigeria' && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Add-ons</span>
-                      <span>+₦{addonsTotal.toLocaleString()}</span>
-                    </div>
-                  )}
-                  {discount > 0 && (
-                    <div className="flex justify-between text-success">
-                      <span>Promo Discount</span>
-                      <span>-{symbol}{discount.toLocaleString()}</span>
-                    </div>
-                  )}
+                  <div className="flex justify-between"><span className="text-muted-foreground">Ticket</span><span>{symbol}{basePrice.toLocaleString()}</span></div>
                   <Separator />
-                  <div className="flex justify-between font-bold text-base">
-                    <span>Total</span>
-                    <span className="text-primary">{symbol}{total.toLocaleString()}</span>
-                  </div>
+                  <div className="flex justify-between font-bold text-base"><span>Total</span><span className="text-primary">{symbol}{total.toLocaleString()}</span></div>
+                  <p className="text-xs text-muted-foreground">Final amount is calculated and validated by the payment server.</p>
                 </div>
 
                 {/* Methods */}
