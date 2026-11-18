@@ -62,6 +62,7 @@ const StudioAnalytics = lazy(() => import("./pages/studio/StudioAnalytics"));
 const StudioLive = lazy(() => import("./pages/studio/StudioLive"));
 const StudioFanBlast = lazy(() => import("./pages/studio/StudioFanBlast"));
 const StudioTeam = lazy(() => import("./pages/studio/StudioTeam"));
+const StudioProfile = lazy(() => import("./pages/studio/StudioProfile"));
 
 const queryClient = new QueryClient();
 
@@ -119,6 +120,7 @@ const App = () => (
               <Route path="/studio/live" element={<ProtectedCreatorRoute><Navigate to="/studio/create?flow=live&type=live" replace /></ProtectedCreatorRoute>} />
               <Route path="/studio/live/manage" element={<ProtectedCreatorRoute><StudioLive /></ProtectedCreatorRoute>} />
               <Route path="/studio/team" element={<ProtectedCreatorRoute><StudioTeam /></ProtectedCreatorRoute>} />
+              <Route path="/studio/profile" element={<ProtectedCreatorRoute><StudioProfile /></ProtectedCreatorRoute>} />
               <Route path="/studio/fan-blast" element={<ProtectedCreatorRoute><StudioFanBlast /></ProtectedCreatorRoute>} />
               {/* ============ ADMIN (Protected) ============ */}
               <Route path="/admin" element={<ProtectedAdminRoute><Dashboard /></ProtectedAdminRoute>} />
