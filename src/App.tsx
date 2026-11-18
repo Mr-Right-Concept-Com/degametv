@@ -45,6 +45,7 @@ import Godmode from "./pages/admin/Godmode";
 import BuyTicket from "./pages/BuyTicket";
 import WatchMovie from "./pages/WatchMovie";
 import LiveWatch from "./pages/LiveWatch";
+import LiveGuestClaim from "./pages/LiveGuestClaim";
 import MyTickets from "./pages/MyTickets";
 import UserDashboard from "./pages/UserDashboard";
 import FilmmakerSubmit from "./pages/FilmmakerSubmit";
@@ -95,6 +96,7 @@ const App = () => (
               <Route path="/buy/:slug" element={<BuyTicket />} />
               <Route path="/watch/:watchCode" element={<WatchMovie />} />
               <Route path="/live/watch/:streamId" element={<LiveWatch />} />
+              <Route path="/live/claim" element={<LiveGuestClaim />} />
               <Route path="/tickets" element={<ProtectedRoute><MyTickets /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
               <Route path="/filmmaker" element={<FilmmakerSubmit />} />
