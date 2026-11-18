@@ -27,7 +27,7 @@ if(import.meta.main)serve(async(req:Request)=>{
   if(error||!screening)return json(404,{error:"Published event not found."});
   const {data:stream}=await db.from("live_streams").select("id,tenant_id,status,metadata").eq("tenant_id",screening.tenant_id).contains("metadata",{screening_id:screening.id}).maybeSingle();
   if(!stream)return json(409,{error:"Live event has not been provisioned."});
-  if(ticketType==="live"&&!["live","starting"].includes(stream.status))return json(409,{error:"Live admission is not currently available."});
+  if(ticketType==="live"&&!["scheduled","live","starting"].includes(stream.status))return json(409,{error:"Live admission is not currently available."});
   if(ticketType==="replay"&&(!screening.live_replay_ready_at||screening.live_recording_status!=="ready"))return json(409,{error:"Replay is not ready yet."});
   const price=ticketType==="live"?(currency==="NGN"?screening.live_price_ngn:screening.live_price_usd):(currency==="NGN"?screening.replay_price_ngn:screening.replay_price_usd);
   const amount=Number(price);if(!Number.isFinite(amount)||amount<=0)return json(409,{error:"This ticket price is not configured."});
