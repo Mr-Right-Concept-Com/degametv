@@ -10,6 +10,15 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2 } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
+interface ContentRow {
+  id: string;
+  title: string;
+  type: string;
+  description: string | null;
+  poster_url: string | null;
+  genres: string[] | null;
+  release_date: string | null;
+}
 interface ScreeningRow {
   id: string;
   title: string;
@@ -29,25 +38,28 @@ export default function Cinema() {
   const [searchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [screenings, setScreenings] = useState<ScreeningRow[]>([]);
+  const [titles, setTitles] = useState<ContentRow[]>([]);
   const [loading, setLoading] = useState(true);
   usePageTitle('Virtual Cinema');
 
   useEffect(() => {
     const fetchScreenings = async () => {
-      const { data } = await supabase
-        .from('screenings')
+      const [{ data: titleData }, { data }] = await Promise.all([
+        supabase.from('content').select('id,title,type,description,poster_url,genres,release_date').eq('status','published').order('created_at',{ascending:false}),
+        supabase.from('screenings')
         .select('*')
         .eq('status', 'published')
-        .order('screening_date', { ascending: true });
+        .order('screening_date', { ascending: true })
+      ]);
+      if (titleData) setTitles(titleData as ContentRow[]);
       if (data) setScreenings(data as unknown as ScreeningRow[]);
       setLoading(false);
     };
     fetchScreenings();
   }, []);
 
-  const filtered = screenings.filter(s =>
-    s.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filtered = screenings.filter(s => s.title.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredTitles = titles.filter(title => title.title.toLowerCase().includes(searchQuery.toLowerCase()) || (title.genres || []).some(genre => genre.toLowerCase().includes(searchQuery.toLowerCase())));
 
   const getPrice = (pricing: any) => {
     const p = typeof pricing === 'string' ? JSON.parse(pricing) : pricing;
@@ -75,6 +87,22 @@ export default function Cinema() {
           </div>
         </div>
 
+        {!loading && (
+          <section className="mb-12">
+            <div className="mb-5 flex items-end justify-between gap-3">
+              <div><h2 className="text-xl font-semibold">Explore the catalogue</h2><p className="text-sm text-muted-foreground">Films, series, episodes, shorts, trailers and on-demand titles from approved creators.</p></div>
+              <span className="text-xs text-muted-foreground">{filteredTitles.length} titles</span>
+            </div>
+            {filteredTitles.length ? <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {filteredTitles.map(title => <Link key={title.id} to={`/content/${title.id}`} className="group overflow-hidden rounded-xl border bg-card transition hover:-translate-y-0.5 hover:shadow-lg">
+                <div className="aspect-[2/3] overflow-hidden bg-secondary">{title.poster_url ? <img src={title.poster_url} alt={title.title} loading="lazy" className="h-full w-full object-cover transition-transform group-hover:scale-105"/> : <div className="flex h-full items-center justify-center"><Film className="h-10 w-10 text-muted-foreground/50"/></div>}</div>
+                <div className="p-3"><Badge variant="secondary" className="mb-2 capitalize">{title.type}</Badge><h3 className="line-clamp-1 text-sm font-semibold">{title.title}</h3><p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{title.description || (title.genres || []).join(' · ') || 'Explore this title'}</p></div>
+              </Link>)}
+            </div> : <p className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">No published titles match this search.</p>}
+          </section>
+        )}
+        <section>
+          <div className="mb-5"><h2 className="text-xl font-semibold">Premieres & scheduled screenings</h2><p className="text-sm text-muted-foreground">Book a seat or live pass for upcoming cinema events.</p></div>
         {loading ? (
           <div className="flex justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -154,9 +182,10 @@ export default function Cinema() {
           <div className="text-center py-16 sm:py-20">
             <Film className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3 sm:mb-4 text-muted-foreground/40" />
             <h3 className="text-base sm:text-lg font-semibold mb-1">No screenings found</h3>
-            <p className="text-xs sm:text-sm text-muted-foreground">Check back soon for upcoming premieres</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Browse the catalogue above or check back for upcoming premieres</p>
           </div>
         )}
+        </section>
       </div>
     </MainLayout>
   );
