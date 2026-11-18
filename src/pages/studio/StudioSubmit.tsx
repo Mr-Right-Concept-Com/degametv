@@ -25,15 +25,25 @@ const step1Schema = z.object({
 });
 
 const step2Schema = z.object({
-  project_title: z.string().trim().min(1, 'Title is required').max(200),
-  duration_minutes: z.string().optional().refine(v => !v || (parseInt(v) > 0 && parseInt(v) < 1000), 'Invalid duration'),
-  release_year: z.string().optional().refine(v => !v || (parseInt(v) >= 1900 && parseInt(v) <= new Date().getFullYear() + 5), 'Invalid year'),
+  project_title: z.string().trim().min(2, 'Enter a production title').max(200),
+  project_type: z.enum(['movie', 'series', 'episode', 'short', 'trailer', 'live', 'vod']),
+  description: z.string().trim().max(5000, 'Synopsis must be 5,000 characters or fewer').optional(),
+  genres: z.array(z.string().trim().min(1)).max(5, 'Choose no more than five primary genres'),
+  duration_minutes: z.string().optional().refine(v => !v || (/^\\d+$/.test(v) && Number(v) > 0 && Number(v) < 1000), 'Duration must be a whole number between 1 and 999 minutes'),
+  release_year: z.string().optional().refine(v => !v || (/^\\d{4}$/.test(v) && Number(v) >= 1900 && Number(v) <= new Date().getFullYear() + 5), 'Enter a valid release year'),
+  cast_crew_text: z.string().max(12000, 'Cast and crew details are too long').optional(),
+  budget_range: z.string().max(80).optional(),
 });
 
 const step3Schema = z.object({
-  distribution_rights: z.string().trim().min(1, 'A rights declaration is required before publishing.'),
-  trailer_url: z.string().url('Invalid URL').optional().or(z.literal('')),
-  screener_url: z.string().url('Invalid URL').optional().or(z.literal('')),
+  distribution_rights: z.string().trim().min(1, 'A rights declaration is required before publishing.').max(120),
+  trailer_url: z.string().url('Enter a valid trailer URL').optional().or(z.literal('')),
+  screener_url: z.string().url('Enter a valid screener URL').optional().or(z.literal('')),
+  premiere_date: z.string().optional().refine(value => !value || /^\\d{4}-\\d{2}-\\d{2}$/.test(value), 'Enter a valid release or premiere date'),
+  rights_territories: z.string().max(500, 'Territory list is too long').optional(),
+  prior_screenings: z.string().max(3000, 'Prior screening details are too long').optional(),
+  poster_url: z.string().url('Artwork must be a valid URL').optional().or(z.literal('')),
+  video_url: z.string().max(2048).optional(),
 });
 
 export default function StudioSubmit() {
@@ -88,7 +98,7 @@ export default function StudioSubmit() {
   };
 
   const validateStep2 = () => {
-    const result = step2Schema.safeParse({ project_title: form.project_title, duration_minutes: form.duration_minutes, release_year: form.release_year });
+    const result = step2Schema.safeParse({ project_title: form.project_title, project_type: form.project_type, description: form.description, genres: form.genres, duration_minutes: form.duration_minutes, release_year: form.release_year, cast_crew_text: form.cast_crew_text, budget_range: form.budget_range });
     if (!result.success) {
       const errs: Record<string, string> = {};
       result.error.errors.forEach(e => { errs[e.path[0] as string] = e.message; });
@@ -100,7 +110,7 @@ export default function StudioSubmit() {
   };
 
   const validateStep3 = () => {
-    const result = step3Schema.safeParse({ distribution_rights: form.distribution_rights, trailer_url: form.trailer_url, screener_url: form.screener_url });
+    const result = step3Schema.safeParse({ distribution_rights: form.distribution_rights, trailer_url: form.trailer_url, screener_url: form.screener_url, premiere_date: form.premiere_date, rights_territories: form.rights_territories, prior_screenings: form.prior_screenings, poster_url: form.poster_url, video_url: form.video_url });
     if (!result.success) {
       const errs: Record<string, string> = {};
       result.error.errors.forEach(e => { errs[e.path[0] as string] = e.message; });
