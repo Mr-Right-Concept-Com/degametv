@@ -4,40 +4,54 @@ import { TierUpgradeCard } from '@/components/studio/TierUpgradeCard';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { usePageTitle } from '@/hooks/usePageTitle';
-import { Film, Globe, DollarSign, Users } from 'lucide-react';
+import { Film, Globe, DollarSign, Users, Loader2, Clock, ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react';
 
 export default function ApplyFilmmaker() {
   const { user, loading } = useAuth();
-  const navigate = useNavigate();
   usePageTitle('Apply to Premiere Your Film');
-  const [isCreator, setIsCreator] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(true);
+  const [identityVerified, setIdentityVerified] = useState(false);
+  const [studioStatus, setStudioStatus] = useState<string | null>(null);
+  const [canEnterStudio, setCanEnterStudio] = useState(false);
 
   useEffect(() => {
+    let active = true;
     if (!user) { setChecking(false); return; }
-    supabase.from('user_roles').select('role').eq('user_id', user.id).eq('role', 'creator').maybeSingle()
-      .then(({ data }) => { setIsCreator(!!data); setChecking(false); });
+    const load = async () => {
+      const [profile, roles, studio] = await Promise.all([
+        supabase.from('profiles').select('kyc_status').eq('user_id', user.id).maybeSingle(),
+        supabase.from('user_roles').select('role').eq('user_id', user.id).in('role', ['creator', 'super_admin', 'platform_admin']),
+        supabase.from('studio_accounts').select('status').eq('user_id', user.id).maybeSingle(),
+      ]);
+      if (!active) return;
+      const roleSet = new Set((roles.data ?? []).map(row => row.role));
+      const admin = roleSet.has('super_admin') || roleSet.has('platform_admin');
+      setIdentityVerified(profile.data?.kyc_status === 'verified');
+      setStudioStatus(studio.data?.status ?? null);
+      setCanEnterStudio(admin || (roleSet.has('creator') && studio.data?.status === 'approved'));
+      setChecking(false);
+    };
+    void load();
+    return () => { active = false; };
   }, [user?.id]);
 
   if (loading || checking) {
     return <MainLayout><div className="min-h-[60vh] flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div></MainLayout>;
   }
   if (!user) return <Navigate to="/auth?redirect=/apply-filmmaker" replace />;
-  if (isCreator) return <Navigate to="/studio" replace />;
+  if (canEnterStudio) return <Navigate to="/studio" replace />;
 
   return (
     <MainLayout>
       <div className="bg-primary text-primary-foreground py-12 px-4 text-center">
-        <Badge className="bg-primary-foreground text-primary border-0 mb-3 text-xs">FILMMAKER APPLICATION</Badge>
-        <h1 className="text-3xl md:text-4xl font-extrabold mb-3">Apply to Premiere on DeGameTV</h1>
+        <Badge className="bg-primary-foreground text-primary border-0 mb-3 text-xs">CREATOR APPLICATION</Badge>
+        <h1 className="text-3xl md:text-4xl font-extrabold mb-3">Become a DeGameTV Creator</h1>
         <p className="text-primary-foreground max-w-xl mx-auto text-sm">
-          Once approved, your studio dashboard unlocks — schedule premieres, sell tickets, and earn revenue. Your filmmaker profile sits inside your existing account.
+          Complete identity verification, select your Creator or Business studio tier, and submit your studio for approval. Your viewer account stays the same.
         </p>
       </div>
 
@@ -48,22 +62,37 @@ export default function ApplyFilmmaker() {
             { icon: Film, label: 'Virtual premieres' },
             { icon: DollarSign, label: 'Ticket revenue' },
             { icon: Users, label: 'Live audience' },
-          ].map(b => (
-            <Card key={b.label}><CardContent className="p-3 flex flex-col items-center gap-1.5">
-              <b.icon className="w-5 h-5 text-primary" />
-              <p className="text-xs font-medium">{b.label}</p>
+          ].map(item => (
+            <Card key={item.label}><CardContent className="p-3 flex flex-col items-center gap-1.5">
+              <item.icon className="w-5 h-5 text-primary" />
+              <p className="text-xs font-medium">{item.label}</p>
             </CardContent></Card>
           ))}
         </div>
 
-        <TierUpgradeCard />
-        <KYCVerification />
+        {studioStatus === 'pending' && (
+          <Card className="border-amber-500/30 bg-amber-500/5">
+            <CardContent className="p-4 flex items-center gap-3">
+              <Clock className="w-5 h-5 text-amber-500" />
+              <div><p className="font-semibold text-sm">Studio approval pending</p><p className="text-xs text-muted-foreground">Your identity and studio application are being reviewed. Creator publishing stays locked until the studio is approved.</p></div>
+            </CardContent>
+          </Card>
+        )}
+        {studioStatus === 'rejected' && (
+          <Card className="border-destructive/30 bg-destructive/5">
+            <CardContent className="p-4"><p className="font-semibold text-sm">Studio application needs changes</p><p className="text-xs text-muted-foreground">Review your application details and resubmit for approval.</p></CardContent>
+          </Card>
+        )}
 
-        <div className="text-center">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard')}>
-            Continue as viewer
-          </Button>
-        </div>
+        <KYCVerification onVerified={() => setIdentityVerified(true)} />
+        {identityVerified ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-green-600"><ShieldCheck className="w-4 h-4" /> Identity verified — continue to studio setup</div>
+            <TierUpgradeCard />
+          </div>
+        ) : (
+          <Card><CardContent className="p-4 text-sm text-muted-foreground">Complete identity verification before submitting a Creator or Business studio application. Your private documents are reviewed separately from your public creator profile.</CardContent></Card>
+        )}
       </div>
     </MainLayout>
   );
