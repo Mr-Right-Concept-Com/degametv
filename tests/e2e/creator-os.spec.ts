@@ -27,6 +27,7 @@ test('approved creator can select free admission without entering prices', async
   await expect(page).not.toHaveURL(/\/auth$/);
 
   await page.goto('/studio/create?flow=live&type=live');
+  await page.getByRole('button', { name: 'Continue to event setup' }).click();
   const freeAccess = page.getByRole('button', { name: 'Free access', exact: true });
   const paidTickets = page.getByRole('button', { name: 'Paid tickets', exact: true });
   await expect(freeAccess).toBeVisible();
@@ -59,7 +60,7 @@ test('signed provider events advance lifecycle and deduplicate retries', async (
         [signatureHeader]: signature,
       },
     });
-    expect(response.ok(), await response.text()).toBeTruthy();
+    if (!response.ok()) throw new Error(await response.text());
     return response.json() as Promise<{ received?: boolean; duplicate?: boolean; lifecycle_status?: string }>;
   };
 
