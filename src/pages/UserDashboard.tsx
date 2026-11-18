@@ -163,12 +163,12 @@ export default function UserDashboard() {
             <div><p className="font-semibold">Your Creator Studio is ready</p><p className="text-xs text-muted-foreground">Manage your catalogue, publish content and host ticketed live events.</p></div>
             <Button asChild className="rounded-full"><Link to="/studio"><Film className="mr-2 h-4 w-4"/>Open Studio Portal</Link></Button>
           </div>
-        ) : (
+        ) : studioAccess === 'not-approved' ? (
           <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-border bg-card/70 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div><p className="font-semibold">Become a DeGameTV creator</p><p className="text-xs text-muted-foreground">Apply for Creator or Business access to premiere films and host ticketed live events.</p></div>
             <Button asChild size="sm" variant="outline" className="rounded-full"><Link to="/apply-filmmaker">Apply for Studio access</Link></Button>
           </div>
-        )}
+        ) : null}
 
         {/* Quick Stats */}
         <div className="grid grid-cols-3 gap-3 mb-8">
