@@ -267,9 +267,14 @@ export default function WhiteLabel() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
-                  <Label>Primary Domain</Label>
-                  <Input value={branding.customDomain} onChange={e => setBranding({ ...branding, customDomain: e.target.value })} placeholder="stream.yourdomain.com" />
-                  <p className="text-sm text-muted-foreground">Add a CNAME record pointing to your deployment URL</p>
+                  <Label>Control & Management Domain</Label>
+                  <Input value={domains.controlDomain} onChange={e => setDomains({ ...domains, controlDomain: e.target.value.toLowerCase().trim() })} placeholder="degametv.com" />
+                  <p className="text-sm text-muted-foreground">Creator studio, administration, commerce and platform management.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Dedicated Release Domain Root</Label>
+                  <Input value={domains.releaseDomain} onChange={e => setDomains({ ...domains, releaseDomain: e.target.value.toLowerCase().trim() })} placeholder="degametv.com" />
+                  <p className="text-sm text-muted-foreground">Each title receives its own hostname, for example title.degametv.com. Configure wildcard DNS and TLS at your hosting provider.</p>
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
