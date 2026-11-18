@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'robots.txt', 'pwa-192.png', 'pwa-512.png'],
+      includeAssets: ['robots.txt', 'brand/degametv-icon.svg', 'brand/degametv-lockup.svg'],
       workbox: {
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MiB
         navigateFallback: 'index.html',
@@ -35,17 +35,14 @@ export default defineConfig(({ mode }) => ({
         name: 'DeGameTV — Virtual Cinema',
         short_name: 'DeGameTV',
         description: 'Experience exclusive African cinema premieres from anywhere in the world.',
-        theme_color: '#E53E6B',
+        theme_color: '#ed1c18',
         background_color: '#0f0f0f',
         display: 'standalone',
-        orientation: 'portrait',
+        orientation: 'any',
         start_url: '/',
         scope: '/',
         icons: [
-          { src: '/favicon.ico', sizes: '64x64', type: 'image/x-icon' },
-          { src: '/pwa-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/pwa-512.png', sizes: '512x512', type: 'image/png' },
-          { src: '/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: '/brand/degametv-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
         ],
       },
     }),
