@@ -28,25 +28,35 @@ export default function MyTickets() {
       if (claimError) toast.message('Your tickets could not be claimed automatically. Contact support if a purchase is missing.');
       const [{ data: legacy, error: legacyError }, { data: live, error: liveError }] = await Promise.all([
         supabase.from('screening_tickets').select('*, screening:screenings(*)').eq('user_id', user.id).order('created_at', { ascending: false }),
-        supabase.from('tickets').select('*, content:content(id,title,slug,poster_url), stream:live_streams(id,title,thumbnail_url,status,metadata)').eq('user_id', user.id).is('revoked_at', null).order('created_at', { ascending: false }),
+        supabase.from('tickets').select('*').eq('user_id', user.id).is('revoked_at', null).order('created_at', { ascending: false }),
       ]);
 
       if (legacyError) toast.error('Some screening tickets could not be loaded.');
       if (liveError) toast.error('Live and replay entitlements could not be loaded.');
+      const contentIds = [...new Set((live ?? []).map((t: any) => t.content_id).filter(Boolean))];
+      const streamIds = [...new Set((live ?? []).map((t: any) => t.stream_id).filter(Boolean))];
+      const [{ data: contentRows }, { data: streamRows }] = await Promise.all([
+        contentIds.length ? supabase.from('content').select('id,title,slug,poster_url').in('id', contentIds) : Promise.resolve({ data: [] as any[] }),
+        streamIds.length ? supabase.from('live_streams').select('id,title,thumbnail_url').in('id', streamIds) : Promise.resolve({ data: [] as any[] }),
+      ]);
+      const contentMap = new Map((contentRows ?? []).map((row: any) => [row.id, row]));
+      const streamMap = new Map((streamRows ?? []).map((row: any) => [row.id, row]));
       const legacyRows = (legacy ?? []).map((ticket: any) => ({ ...ticket, _kind: 'screening' }));
-      const liveRows = (live ?? []).map((ticket: any) => ({
-        ...ticket,
-        _kind: 'live',
-        price: ticket.price,
-        currency: ticket.currency,
-        expires_at: ticket.valid_until,
-        email: user.email ?? '',
-        screening: {
-          title: ticket.content?.title || ticket.stream?.title || 'Live event',
-          poster_url: ticket.content?.poster_url || ticket.stream?.thumbnail_url || null,
-          slug: ticket.content?.slug || '',
-        },
-      }));
+      const liveRows = (live ?? []).map((ticket: any) => {
+        const content = contentMap.get(ticket.content_id);
+        const stream = streamMap.get(ticket.stream_id);
+        return {
+          ...ticket,
+          _kind: 'live',
+          expires_at: ticket.valid_until,
+          email: user.email ?? '',
+          screening: {
+            title: content?.title || stream?.title || 'Live event',
+            poster_url: content?.poster_url || stream?.thumbnail_url || null,
+            slug: content?.slug || '',
+          },
+        };
+      });
       setTickets([...legacyRows, ...liveRows].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
       setLoading(false);
     };
