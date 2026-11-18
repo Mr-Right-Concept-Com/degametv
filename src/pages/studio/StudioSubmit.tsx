@@ -35,6 +35,7 @@ const step2Schema = z.object({
   release_year: z.string().optional().refine(v => !v || (/^\d{4}$/.test(v) && Number(v) >= 1900 && Number(v) <= new Date().getFullYear() + 5), 'Enter a valid release year'),
   cast_crew_text: z.string().max(12000, 'Cast and crew details are too long').optional(),
   budget_range: z.string().max(80).optional(),
+  live_event_format: z.enum(['broadcast', 'concert', 'conference', 'talk', 'gaming', 'watch_party', 'sports', 'worship', 'other']),
 });
 
 const step3Schema = z.object({
@@ -92,6 +93,7 @@ export default function StudioSubmit() {
     project_title: '',
     project_type: searchParams.get('flow') === 'live' ? 'live' : ['movie', 'series', 'episode', 'short', 'trailer', 'live', 'vod'].includes(searchParams.get('type') || '') ? (searchParams.get('type') as string) : 'movie',
     release_strategy: searchParams.get('flow') === 'live' ? 'live' : 'on_demand',
+    live_event_format: 'broadcast',
     description: '',
     genres: [] as string[],
     duration_minutes: '',
@@ -164,7 +166,7 @@ export default function StudioSubmit() {
   };
 
   const validateStep2 = () => {
-    const result = step2Schema.safeParse({ project_title: form.project_title, project_type: form.project_type, release_strategy: form.release_strategy, description: form.description, genres: form.genres, duration_minutes: form.duration_minutes, release_year: form.release_year, cast_crew_text: form.cast_crew_text, budget_range: form.budget_range });
+    const result = step2Schema.safeParse({ project_title: form.project_title, project_type: form.project_type, release_strategy: form.release_strategy, description: form.description, genres: form.genres, duration_minutes: form.duration_minutes, release_year: form.release_year, cast_crew_text: form.cast_crew_text, budget_range: form.budget_range, live_event_format: form.live_event_format });
     if (!result.success) {
       const errs: Record<string, string> = {};
       result.error.errors.forEach(e => { errs[e.path[0] as string] = e.message; });
@@ -220,6 +222,7 @@ export default function StudioSubmit() {
         project_title: form.project_title,
         project_type: form.project_type,
         release_strategy: form.release_strategy,
+        live_event_format: form.live_event_format,
         description: form.description || null,
         genres: form.genres,
         duration_minutes: form.duration_minutes ? parseInt(form.duration_minutes, 10) : null,
@@ -447,7 +450,7 @@ export default function StudioSubmit() {
                         <SelectItem value="vod">Video on demand</SelectItem>
                       </SelectContent>
                     </Select>
-                  </div> : <div className="space-y-2"><Label>Event format</Label><div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm font-medium">Live broadcast · ticketed event</div><p className="text-xs text-muted-foreground">Configure your event, admission prices and encoder access below.</p></div>}
+                  </div> : <div className="space-y-2"><Label>Event type</Label><Select value={form.live_event_format} onValueChange={v => setForm(f => ({ ...f, live_event_format: v }))}><SelectTrigger><SelectValue placeholder="Choose your live event type" /></SelectTrigger><SelectContent><SelectItem value="broadcast">Live broadcast</SelectItem><SelectItem value="concert">Concert / performance</SelectItem><SelectItem value="conference">Conference / summit</SelectItem><SelectItem value="talk">Talk / podcast / interview</SelectItem><SelectItem value="gaming">Gaming / esports</SelectItem><SelectItem value="watch_party">Watch party</SelectItem><SelectItem value="sports">Sports event</SelectItem><SelectItem value="worship">Worship / community gathering</SelectItem><SelectItem value="other">Other live event</SelectItem></SelectContent></Select><p className="text-xs text-muted-foreground">Choose the event category. Configure the details, admission prices and encoder access below.</p></div>}
                 </div>
                 {!liveFlow ? <div className="space-y-2">
                   <Label>Release strategy</Label>
