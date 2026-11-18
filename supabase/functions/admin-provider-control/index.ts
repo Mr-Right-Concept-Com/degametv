@@ -83,7 +83,7 @@ Deno.serve(async req => {
       if(target.origin!==new URL(p.baseUrl).origin)return json({error:"Provider health endpoint must remain on the configured host."},400);
       const response=await fetch(target,{method:"GET",headers:{Authorization:"Bearer "+credential,Accept:"application/json"},signal:AbortSignal.timeout(10000)});
       const body=await response.json().catch(()=>null);
-      if(!response.ok||body?.ok!==true)return json({error:"Provider health check failed. Provider mode was not changed."},502);
+      if(!response.ok||(body?.ok!==true&&body?.status!==true))return json({error:"Provider health check failed. Provider mode was not changed."},502);
     }catch{return json({error:"Provider health check did not respond. Provider mode was not changed."},502);}
   }
   const args=p.action==="remove"
