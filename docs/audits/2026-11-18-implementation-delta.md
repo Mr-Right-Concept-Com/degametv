@@ -63,3 +63,27 @@ Remaining: validate existing profile settings and admin user-edit workflows in a
 - Corrected the conditional evidence preview JSX after static inspection.
 - Lovable project sync was rechecked and now reports latest_commit_sha `c58c00547459d52bc7b6154106ecb7615ad25b9f`, matching GitHub main. Project status is ready.
 - GitHub combined commit status remains an empty status list. CI has not been certified as passing.
+
+
+## Re-audit correction and additional fixes — 18 November 2026
+
+The following items were directly verified against the current main branch and connected Supabase project. These entries supersede conflicting earlier statements in this file:
+
+| Finding | Change | Evidence |
+|---|---|---|
+| Client-forgeable audit records | Migration `20261118000800_restrict_client_audit_log_writes.sql` revokes INSERT on `audit_logs` from anon and authenticated; service_role remains able to insert | RUN: anon INSERT=false, authenticated INSERT=false, service_role INSERT=true |
+| KYC submission race / weak server-side file checks | Migration `20261118000900_atomic_kyc_submission.sql` adds authenticated-only `submit_kyc_application`; it locks the profile row, verifies both Storage object owner IDs, bucket, MIME, size, and pending/verified state, then records an audit event in the same transaction | RUN: anon function EXECUTE=false; authenticated EXECUTE=true; function definition contains row lock and storage owner checks |
+| KYC submission service-role mutation | `submit-kyc` now validates request with pinned Zod 3.25.76 and invokes the atomic RPC using the caller JWT | SOURCE; Edge deployment ACTIVE; real signed-in user flow NOT TESTED |
+| KYC endpoint gateway JWT verification | `submit-kyc` and `review-kyc` redeployed with JWT verification requested; later function-list metadata did not consistently reflect the deploy response | OPEN: reconcile deployed `verify_jwt` metadata before claiming gateway-level JWT verification |
+| Client-forgeable audit logs | No client role can insert; SECURITY DEFINER review/submission transactions and service_role retain server-side insertion | RUN: privilege checks above |
+| Missing executable CI workflow | Added `.github/workflows/quality.yml` with locked npm install, Playwright Chromium install, typecheck, lint, build and axe accessibility audit | SOURCE: file committed; GitHub run NOT YET OBSERVED |
+
+Latest commits in this pass:
+- `6f9f6b1fb83e9cef2b151088a9d606cf6ff5642c` — audit-log write privilege restriction.
+- `e70f4f20b7e45dbcd4e62afc945f75127db7a82c` — atomic KYC submission migration.
+- `766de7b63d2cc5c30a78db0e7ac2bd7e535204df` — Zod-validated KYC Edge Function using caller-scoped RPC.
+- `cb02d7283ee8aefd545fed3a6d7b99def22b809a` — executable GitHub quality workflow.
+
+Supabase re-check at 2026-11-18 04:20 UTC: all 36 public tables have RLS enabled. Security advisor still reports 34 anon GraphQL schema visibility notices, 36 authenticated visibility notices, 9 authenticated SECURITY DEFINER functions, pg_net in public schema and leaked-password protection disabled. GraphQL schema visibility is not itself proof of row disclosure; every policy still requires an object/tenant audit. The new KYC submission RPC explains one additional SECURITY DEFINER finding and is authenticated-only with an explicit auth.uid check and fixed search_path.
+
+No browser/device or full build test was executed in this pass. Payment and origin-verified playback remain unavailable. This audit delta is not a launch certification.
