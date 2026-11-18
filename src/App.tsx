@@ -101,7 +101,7 @@ const App = () => (
               <Route path="/live/watch/:streamId" element={<LiveWatch />} />
               <Route path="/live/claim" element={<LiveGuestClaim />} />
               <Route path="/payment/return" element={<PaymentReturn />} />
-              <Route path="/tickets" element={<ProtectedRoute><MyTickets /></ProtectedRoute>} />
+              <Route path="/tickets" element={<ProtectedRoute><Navigate to="/dashboard?tab=tickets" replace /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
               <Route path="/filmmaker" element={<Navigate to="/apply-filmmaker" replace />} />
               
