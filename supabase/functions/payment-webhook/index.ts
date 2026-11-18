@@ -28,15 +28,16 @@ if(import.meta.main)serve(async(req:Request)=>{
   if(typeof reference!=="string"||!/^DTV_[A-Za-z0-9]+$/.test(reference)&&!/^DTVL_[A-Za-z0-9]+$/.test(reference))return json(400,{error:"Invalid payment reference."});
   const liveOrder=reference.startsWith("DTVL_");
   const orderLookup=liveOrder
-    ? await admin.from("live_payment_orders").select("provider").eq("provider_reference",reference).maybeSingle()
+    ? await admin.from("live_payment_orders").select("provider,metadata").eq("provider_reference",reference).maybeSingle()
     : await admin.from("guest_payment_orders").select("provider").eq("provider_reference",reference).maybeSingle();
   if(orderLookup.error||!orderLookup.data?.provider)return json(404,{error:"Payment order not found."});
   const [{data:binding,error:bindingError},{data:secrets,error:secretError}]=await Promise.all([
-   admin.from("service_provider_bindings").select("provider_key,base_url,endpoints,settings").eq("capability","payments").eq("provider_key",orderLookup.data.provider).maybeSingle(),
+   admin.from("service_provider_bindings").select("provider_key,base_url,endpoints,settings,is_live").eq("capability","payments").eq("provider_key",orderLookup.data.provider).maybeSingle(),
    admin.rpc("get_service_provider_admin_secret",{p_capability:"payments",p_provider_key:orderLookup.data.provider})
   ]);
   const vault=Array.isArray(secrets)?secrets[0]:null;
-  const config=binding?{...binding,credential:vault?.credential,webhook_secret:vault?.webhook_secret}:null;
+  const mode=orderLookup.data?.metadata?.provider_mode==="live"?"live":"test";
+  const config=binding?{...binding,credential:mode==="live"?(vault?.live_credential||vault?.test_credential):(vault?.test_credential||vault?.live_credential),webhook_secret:mode==="live"?(vault?.live_webhook_secret||vault?.test_webhook_secret):(vault?.test_webhook_secret||vault?.live_webhook_secret)}:null;
   if(bindingError||secretError||!config?.credential||!config?.webhook_secret)return json(503,{error:"The provider used by this payment has no retained webhook credentials."});
   const settings=config.settings||{};
   const signatureHeader=typeof settings.signature_header==="string"?settings.signature_header:"x-provider-signature";
