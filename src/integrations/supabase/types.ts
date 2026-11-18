@@ -2031,6 +2031,18 @@ export type Database = {
         Args: { _application: Json }
         Returns: { content_id: string; submission_id: string }
       }
+      publish_creator_content: {
+        Args: { p_content_id: string }
+        Returns: Json
+      }
+      review_creator_submission: {
+        Args: { p_admin_note: string | null; p_status: string; p_submission_id: string }
+        Returns: Json
+      }
+      review_studio_account: {
+        Args: { p_account_id: string; p_decision: string; p_reason: string }
+        Returns: Json
+      }
       accept_studio_invites: { Args: never; Returns: number }
       get_user_tenant_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
