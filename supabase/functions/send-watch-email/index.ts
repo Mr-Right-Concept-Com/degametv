@@ -6,7 +6,7 @@ const schema=z.object({
  movieTitle:z.string().trim().min(1).max(200),
  watchUrl:z.string().url().max(2048),
  ticketCode:z.string().min(4).max(64),
- expiresAt:z.string().datetime({offset:true}),
+ expiresAt:z.string().datetime({offset:true}).nullable(),
  location:z.enum(["nigeria","international"]),
  price:z.number().finite().nonnegative(),
  currency:z.enum(["NGN","USD"]),
@@ -32,7 +32,7 @@ if(import.meta.main)serve(async(req:Request)=>{
  const v=parsed.data;
  const title=escapeHtml(v.movieTitle),url=escapeHtml(v.watchUrl),ticket=escapeHtml(v.ticketCode);
  const amount=v.currency==="NGN"?"₦"+v.price.toLocaleString("en-NG"):"$"+v.price.toLocaleString("en-US");
- const expires=new Date(v.expiresAt).toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+ const expires=v.expiresAt?new Date(v.expiresAt).toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"}):"As stated on your screening ticket";
  const html=`<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0;background:#101014;color:#fff;font-family:Arial,sans-serif"><main style="max-width:600px;margin:24px auto;padding:28px;background:#1b1b22;border-radius:16px"><h1>Your DeGameTV ticket is confirmed</h1><p>Your ticket for <strong>${title}</strong> is ready.</p><p style="text-align:center;margin:32px"><a href="${url}" style="display:inline-block;padding:14px 30px;background:#e53e6b;color:#fff;text-decoration:none;border-radius:30px;font-weight:bold">Watch now</a></p><p>Ticket code: <strong>${ticket}</strong></p><p>Location: ${v.location}</p><p>Amount paid: ${amount}</p><p>Valid until: ${expires}</p><p style="color:#aaa;font-size:12px">Keep this email private. Your watch link grants access to your ticket.</p></main></body></html>`;
  try{
   const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Authorization":"Bearer "+apiKey,"Content-Type":"application/json"},body:JSON.stringify({from:fromName+" <"+fromEmail+">",reply_to:emailConfig.reply_to||undefined,to:[v.email],subject:"Your DeGameTV ticket — "+v.movieTitle,html})});
