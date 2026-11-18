@@ -1,0 +1,78 @@
+name: DeGameTV native application builds
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['native/**', '.github/workflows/native-flutter-build.yml']
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: native
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+      - run: flutter create --platforms=android --org com.degametv --project-name degametv_native .
+      - run: flutter pub get
+      - run: flutter build appbundle --release --dart-define=SUPABASE_URL=https://dxijsbbdtwtbwdaajiyn.supabase.co --dart-define=SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
+        env:
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      - uses: actions/upload-artifact@v4
+        with: { name: degametv-android-aab, path: native/build/app/outputs/bundle/release/*.aab, if-no-files-found: error }
+  ios:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: native
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+      - run: flutter create --platforms=ios --org com.degametv --project-name degametv_native .
+      - run: flutter pub get
+      - run: flutter build ios --release --no-codesign --dart-define=SUPABASE_URL=https://dxijsbbdtwtbwdaajiyn.supabase.co --dart-define=SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
+        env:
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      - uses: actions/upload-artifact@v4
+        with: { name: degametv-ios-runner-app, path: native/build/ios/iphoneos/Runner.app, if-no-files-found: error }
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            artifact: linux-bundle
+            path: native/build/linux/x64/release/bundle/**
+          - os: windows-latest
+            platform: windows
+            artifact: windows-release
+            path: native/build/windows/x64/runner/Release/**
+          - os: macos-latest
+            platform: macos
+            artifact: macos-release
+            path: native/build/macos/Build/Products/Release/**
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: native
+    steps:
+      - uses: actions/checkout@v4
+      - if: matrix.platform == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+      - run: flutter create --platforms=${{ matrix.platform }} --org com.degametv --project-name degametv_native .
+      - run: flutter pub get
+      - run: flutter build ${{ matrix.platform }} --release --dart-define=SUPABASE_URL=https://dxijsbbdtwtbwdaajiyn.supabase.co --dart-define=SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
+        env:
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: degametv-${{ matrix.artifact }}
+          path: ${{ matrix.path }}
+          if-no-files-found: error
