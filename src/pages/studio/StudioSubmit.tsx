@@ -48,6 +48,43 @@ const step2Schema = z.object({
   if (value.project_type === 'episode' && !value.episode_number) ctx.addIssue({code:z.ZodIssueCode.custom,path:['episode_number'],message:'Add the episode number.'});
 });
 
+const dynamicMetadataSchema = z.discriminatedUnion('contentType', [
+  z.object({
+    contentType: z.enum(['FILM','SHORT','DOCUMENTARY','TRAILER']),
+    genres: z.array(z.string().trim().min(1).max(60)).max(5),
+    castAndCrew: z.string().max(12000).optional(),
+    durationMinutes: z.number().int().min(1).max(999).optional(),
+    releaseYear: z.number().int().min(1900).max(new Date().getFullYear()+5).optional(),
+    audienceRating: z.string().max(20).optional(),
+    productionCountry: z.string().max(80).optional(),
+  }),
+  z.object({
+    contentType: z.enum(['SERIES','EPISODE']),
+    seasonNumber: z.number().int().min(1).max(100),
+    episodeNumber: z.number().int().min(1).max(500).optional(),
+    genres: z.array(z.string().trim().min(1).max(60)).max(5),
+  }),
+  z.object({
+    contentType: z.literal('MUSIC_VIDEO'),
+    primaryArtist: z.string().trim().min(1,'Primary artist is required').max(160),
+    featuredArtists: z.string().max(500).optional(),
+    musicGenre: z.string().max(80).optional(),
+  }),
+  z.object({
+    contentType: z.literal('PODCAST'),
+    showName: z.string().trim().min(1,'Podcast/show name is required').max(200),
+    episodeNumber: z.number().int().min(1).max(500).optional(),
+    hosts: z.string().max(500).optional(),
+    guests: z.string().max(1000).optional(),
+    mediaFormat: z.enum(['VIDEO_PODCAST','AUDIO_ONLY']),
+  }),
+  z.object({
+    contentType: z.enum(['GAMING','SPORTS','EDUCATIONAL','RECORDED_EVENT']),
+    categoryTag: z.string().max(160).optional(),
+    participants: z.string().max(1000).optional(),
+  }),
+]);
+
 const step3Schema = z.object({
   distribution_rights: z.string().trim().min(1, 'A rights declaration is required before publishing.').max(120),
   release_strategy: z.enum(['on_demand', 'premiere', 'live']),
@@ -206,6 +243,30 @@ export default function StudioSubmit() {
       const errs: Record<string, string> = {};
       result.error.errors.forEach(e => { errs[e.path[0] as string] = e.message; });
       setErrors(errs);
+      return false;
+    }
+    const metadataResult = dynamicMetadataSchema.safeParse({
+      contentType: form.project_type === 'live' ? 'RECORDED_EVENT' : form.preset_type,
+      genres: form.genres,
+      castAndCrew: form.cast_crew_text,
+      durationMinutes: form.duration_minutes ? Number(form.duration_minutes) : undefined,
+      releaseYear: form.release_year ? Number(form.release_year) : undefined,
+      audienceRating: form.content_rating,
+      productionCountry: form.production_country,
+      seasonNumber: form.season_number ? Number(form.season_number) : 1,
+      episodeNumber: form.episode_number ? Number(form.episode_number) : undefined,
+      primaryArtist: form.primary_artist,
+      featuredArtists: form.featured_artists,
+      musicGenre: form.music_genre,
+      showName: form.show_name,
+      hosts: form.hosts,
+      guests: form.guests,
+      mediaFormat: form.media_format,
+      categoryTag: form.category_tag,
+      participants: form.participants,
+    });
+    if (!metadataResult.success) {
+      toast.error(metadataResult.error.errors[0]?.message || 'Check the format-specific details.');
       return false;
     }
     setErrors({});
