@@ -18,8 +18,8 @@ Deno.serve(async req=>{
   if(providerError||!Array.isArray(providers))return json(503,{error:"Live provider registry unavailable"});
   const provider=providers.find((p:any)=>p.provider_key===providerKey);
   if(!provider?.webhook_secret)return json(503,{error:"Webhook secret unavailable for stream provider"});
-  const settings=provider.settings||{},header=typeof settings.webhook_signature_header==="string"?settings.webhook_signature_header:"x-provider-signature";
-  const algorithm=settings.webhook_signature_algorithm==="SHA-256"?"SHA-256":"SHA-512";
+  const settings=provider.settings||{},header=typeof settings.signature_header==="string"?settings.signature_header:"x-provider-signature";
+  const algorithm=settings.signature_algorithm==="SHA-256"?"SHA-256":"SHA-512";
   const supplied=(req.headers.get(header)||"").toLowerCase().replace(/^sha256=/,"").replace(/^sha512=/,"");
   const expected=await sign(provider.webhook_secret,raw,algorithm);if(!safeEqual(supplied,expected))return json(401,{error:"Invalid provider signature"});
   const state=event?.status;
