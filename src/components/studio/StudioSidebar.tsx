@@ -1,10 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Film, LayoutDashboard, DollarSign, ExternalLink, BarChart3, Megaphone, Users, PlusCircle, CalendarDays } from 'lucide-react';
+import { Film, LayoutDashboard, DollarSign, ExternalLink, BarChart3, Megaphone, Users, PlusCircle, CalendarDays, UserRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBranding } from '@/components/branding/BrandingProvider';
 
 const navItems = [
   { label: 'Dashboard', href: '/studio', icon: LayoutDashboard },
+  { label: 'Creator Profile', href: '/studio/profile', icon: UserRound },
   { label: 'Create', href: '/studio/create', icon: PlusCircle },
   { label: 'My Catalogue', href: '/studio/movies', icon: Film },
   { label: 'Events & Screenings', href: '/studio/screenings', icon: CalendarDays },
