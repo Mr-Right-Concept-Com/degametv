@@ -40,3 +40,10 @@ No capability is certified L2/L3 based on this audit. Product baseline maturity 
 - Duplicate screening ticket index removed; one canonical index remains.
 - Anonymous SELECT/UPDATE access to profiles revoked and owner UPDATE policy now preserves user_id. Authenticated table-level UPDATE remains a high-priority unresolved ownership/security boundary.
 - Neon is an evaluated database option only; no production data or infrastructure has been moved. Supabase remains authoritative until provider swap and restore drills pass.
+
+
+### Identity privilege boundary — 18 November 2026
+- Authenticated table-level UPDATE on profiles is revoked; only full_name, display_name, avatar_url, bio, country, timezone and language are granted as updateable columns.
+- Authenticated INSERT/DELETE/TRUNCATE on profiles is revoked; profile creation remains auth-trigger managed.
+- Verification state is changed only by the server-side submit/review paths. The atomic review RPC checks admin role, locks the pending row, grants creator role on approval, and writes an audit record.
+- Supabase Storage remains provider-owned infrastructure. The identity storage interface must be extracted behind a storage capability port before claiming native/provider-independent ownership.
