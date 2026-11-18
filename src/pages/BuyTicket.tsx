@@ -33,6 +33,7 @@ interface Screening {
   lifecycle?: string;
   replay_price_ngn?: number | null;
   replay_price_usd?: number | null;
+  replay_access_model?: 'INCLUDED_WITH_TICKET' | 'SEPARATE_PRICE' | 'FREE_REPLAY';
   refund_policy?: string | null;
 }
 
@@ -58,7 +59,7 @@ export default function BuyTicket() {
       if (!slug) return;
       const { data, error } = await supabase
         .from('screenings')
-        .select('id,content_id,title,slug,description,poster_url,banner_url,trailer_url,release_date,screening_date,duration,location_pricing,status,access_model,event_type,lifecycle,live_price_ngn,live_price_usd,live_recording_status,live_started_at,live_ended_at,live_replay_ready_at,replay_price_ngn,replay_price_usd,replay_access_hours,refund_policy,cast_crew,gallery_images,age_rating,star_rating,review_count,allowed_countries,blocked_countries,cancelled_at,created_at,updated_at')
+        .select('id,content_id,title,slug,description,poster_url,banner_url,trailer_url,release_date,screening_date,duration,location_pricing,status,access_model,event_type,lifecycle,live_price_ngn,live_price_usd,live_recording_status,live_started_at,live_ended_at,live_replay_ready_at,replay_price_ngn,replay_price_usd,replay_access_hours,replay_access_model,refund_policy,cast_crew,gallery_images,age_rating,star_rating,review_count,allowed_countries,blocked_countries,cancelled_at,created_at,updated_at')
         .eq('slug', slug)
         .eq('status', 'published')
         .maybeSingle();
@@ -167,7 +168,7 @@ export default function BuyTicket() {
     }
     setFreeClaimBusy(true);
     try {
-      const { data, error } = await supabase.rpc('claim_free_live_ticket', { p_screening_id: screening.id });
+      const { data, error } = await supabase.rpc(isReplay ? 'claim_free_replay_ticket' : 'claim_free_live_ticket', { p_screening_id: screening.id });
       if (error || !data?.claimed || typeof data.stream_id !== 'string') {
         toast.error(error?.message || 'Free admission could not be claimed.');
         return;
@@ -266,11 +267,11 @@ export default function BuyTicket() {
           </div>
 
           {/* Step: Location */}
-          {step === 'location' && !freeStreamId && screening.access_model === 'FREE' ? (
+          {step === 'location' && !freeStreamId && ((isReplay && screening.replay_access_model === 'FREE_REPLAY') || (!isReplay && screening.access_model === 'FREE')) ? (
             <Card className="animate-fade-in border-success/30">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base"><Check className="h-4 w-4 text-success"/> Free admission</CardTitle>
-                <CardDescription>This event is free. Claim one pass on your account; no payment details are required.</CardDescription>
+                <CardDescription>{isReplay ? 'This replay is free. Claim one replay pass on your account.' : 'This event is free. Claim one live pass on your account.'} No payment details are required.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {!user && <p className="text-sm text-muted-foreground">Sign in first to attach your pass to your account.</p>}
