@@ -35,7 +35,7 @@ if(import.meta.main)serve(async(req:Request)=>{
   if(bindingError||secretError||!p?.credential||typeof path!=="string"||!path.startsWith("/")||path.startsWith("//"))return json(503,{error:"Playback authorization adapter is incomplete"});
   const endpoint=new URL(path,p.base_url);if(endpoint.origin!==new URL(p.base_url).origin)return json(503,{error:"Invalid playback endpoint"});
   const header=p.settings?.credential_header||"Authorization",prefix=p.settings?.credential_prefix??"Bearer ";
-  const response=await fetch(endpoint,{method:"POST",headers:{[header]:prefix+p.credential,"Content-Type":"application/json"},body:JSON.stringify({entitlement:{ticket_id:entitlement.id,stream_id:stream.id,user_id:user.id,mode:input.data.mode,valid_until:entitlement.valid_until},asset:{provider_reference:stream.metadata?.provider_reference,playback_url:stream.playback_url}}),signal:AbortSignal.timeout(12000)});
+  const response=await fetch(endpoint,{method:"POST",headers:{[header]:prefix+p.credential,"Content-Type":"application/json"},body:JSON.stringify({entitlement:{ticket_id:entitlement.id,stream_id:stream.id,user_id:user.id,mode:input.data.mode,valid_until:entitlement.valid_until},asset:{provider_reference:stream.metadata?.provider_reference,recording_asset_id:stream.metadata?.recording_asset_id??null,playback_url:stream.playback_url}}),signal:AbortSignal.timeout(12000)});
   const grant=await response.json().catch(()=>null);
   if(!response.ok||grant?.authorized!==true||typeof grant.playback_url!=="string"||typeof grant.expires_at!=="string")return json(503,{error:"Provider refused playback authorization"});
   const playback=new URL(grant.playback_url),expires=new Date(grant.expires_at);
