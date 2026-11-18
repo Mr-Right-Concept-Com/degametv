@@ -60,12 +60,13 @@ export function KYCVerification({ onVerified, compact }: Props) {
       .maybeSingle();
     if (data) {
       setProfile(data as Profile);
-      setForm({
+      setForm(current => ({
+        ...current,
         kyc_full_name: data.kyc_full_name || '',
         kyc_id_type: data.kyc_id_type || '',
         kyc_id_url: data.kyc_id_url || '',
         kyc_selfie_url: data.kyc_selfie_url || '',
-      });
+      }));
       if (data.kyc_status === 'verified') onVerified?.();
     }
     setLoading(false);
