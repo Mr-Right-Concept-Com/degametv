@@ -367,7 +367,14 @@ export default function StudioSubmit() {
 
   return (
     <StudioLayout title="Create" description="Publish films, series, shorts, trailers, VOD and live cinema events from one creator workspace.">
-      <div className="max-w-3xl mx-auto">
+      <div className="space-y-5">
+        <Tabs value={liveFlow ? 'live' : 'content'} onValueChange={selectCreateFlow}>
+          <TabsList className="grid h-12 w-full grid-cols-2 rounded-xl">
+            <TabsTrigger value="content">Create content</TabsTrigger>
+            <TabsTrigger value="live">Go live</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="max-w-3xl mx-auto">
         {/* Steps */}
         <div className="flex items-center gap-2 mb-8">
           {[1, 2, 3].map(s => (
@@ -587,6 +594,7 @@ export default function StudioSubmit() {
             </Card>
           )}
         </form>
+        </div>
       </div>
     </StudioLayout>
   );
