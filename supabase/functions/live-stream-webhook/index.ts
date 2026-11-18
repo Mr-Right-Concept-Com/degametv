@@ -54,9 +54,20 @@ Deno.serve(async req => {
     const settings = binding.settings || {};
     const signatureHeader = typeof settings.signature_header === "string" ? settings.signature_header : "x-provider-signature";
     const algorithm = settings.signature_algorithm === "SHA-256" ? "SHA-256" : "SHA-512";
-    const supplied = (req.headers.get(signatureHeader) || "").toLowerCase()
-      .replace(/^sha256=/, "").replace(/^sha512=/, "");
-    if (!safeEqual(supplied, await hmac(webhookSecret, raw, algorithm)))
+    const signatureValue = req.headers.get(signatureHeader) || "";
+    let supplied = signatureValue.toLowerCase().replace(/^sha256=/, "").replace(/^sha512=/, "");
+    let signedPayload = raw;
+    if (settings.signature_format === "timestamped_v1") {
+      const timestamp = signatureValue.match(/(?:^|[, ])t=(\\d+)/)?.[1];
+      const v1 = signatureValue.match(/(?:^|[, ])v1=([a-f0-9]+)/i)?.[1];
+      const timestampSeconds = timestamp ? Number(timestamp) : NaN;
+      const tolerance = Math.min(900, Math.max(30, Number(settings.signature_timestamp_tolerance_seconds) || 300));
+      if (!Number.isFinite(timestampSeconds) || Math.abs(Date.now() / 1000 - timestampSeconds) > tolerance || !v1)
+        return json(401, { error: "Expired or malformed provider signature" });
+      supplied = v1.toLowerCase();
+      signedPayload = `${timestamp}.${raw}`;
+    }
+    if (!safeEqual(supplied, await hmac(webhookSecret, signedPayload, algorithm)))
       return json(401, { error: "Invalid provider signature" });
 
     const rawType = event.type || event.event || event.status;
