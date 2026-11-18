@@ -22,13 +22,18 @@ type EncoderGrant = { streamId: string; ingestUrl: string; streamKey: string; pl
 export default function StudioLive() {
   usePageTitle('Go Live — Studio');
   const { user } = useAuth();
-  const [events, setEvents] = useState<{ id: string; title: string; lifecycle: string }[]>([]);
+  const [events, setEvents] = useState<{ id: string; title: string; lifecycle: string; live_price_ngn: number | null; live_price_usd: number | null; replay_price_ngn: number | null; replay_price_usd: number | null; replay_access_hours: number }[]>([]);
   const [screeningId, setScreeningId] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [grant, setGrant] = useState<EncoderGrant | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<'idle' | 'scheduled' | 'ended'>('idle');
+  const [liveNgn, setLiveNgn] = useState('');
+  const [liveUsd, setLiveUsd] = useState('');
+  const [replayNgn, setReplayNgn] = useState('');
+  const [replayUsd, setReplayUsd] = useState('');
+  const [replayHours, setReplayHours] = useState('48');
 
   useEffect(() => {
     if (!user) return;
@@ -38,7 +43,7 @@ export default function StudioLive() {
       if (contentError) { toast.error('Your creator events could not be loaded. Please retry.'); return; }
       const ids = (content || []).map(item => item.id);
       if (!ids.length) { if (active) setEvents([]); return; }
-      const { data, error } = await supabase.from('screenings').select('id,title,lifecycle').in('content_id', ids);
+      const { data, error } = await supabase.from('screenings').select('id,title,lifecycle,live_price_ngn,live_price_usd,replay_price_ngn,replay_price_usd,replay_access_hours').in('content_id', ids);
       if (error) { toast.error('Your scheduled events could not be loaded.'); return; }
       if (active) setEvents(data || []);
     })();
@@ -47,8 +52,24 @@ export default function StudioLive() {
 
   useEffect(() => {
     const event = events.find(item => item.id === screeningId);
-    if (event) setTitle(event.title);
+    if (event) { setTitle(event.title); setLiveNgn(event.live_price_ngn == null ? '' : String(event.live_price_ngn)); setLiveUsd(event.live_price_usd == null ? '' : String(event.live_price_usd)); setReplayNgn(event.replay_price_ngn == null ? '' : String(event.replay_price_ngn)); setReplayUsd(event.replay_price_usd == null ? '' : String(event.replay_price_usd)); setReplayHours(String(event.replay_access_hours || 48)); }
   }, [events, screeningId]);
+
+  const savePricing = async () => {
+    const numeric = (value: string) => value.trim() === '' ? null : Number(value);
+    const values = [liveNgn, liveUsd, replayNgn, replayUsd].map(numeric);
+    if (values.some(value => value !== null && (!Number.isFinite(value) || value < 0))) { toast.error('Prices must be valid non-negative amounts.'); return; }
+    const hours = Number(replayHours);
+    if (!Number.isInteger(hours) || hours < 1 || hours > 8760 || !screeningId) { toast.error('Choose an event and a replay access duration from 1 to 8760 hours.'); return; }
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('manage-live-pricing', { body: {
+        screeningId, livePriceNgn: values[0], livePriceUsd: values[1], replayPriceNgn: values[2], replayPriceUsd: values[3], replayAccessHours: hours,
+      }});
+      if (error || !data?.success) { toast.error(data?.error || 'Pricing could not be saved.'); return; }
+      toast.success('Live admission and replay pricing saved.');
+    } finally { setBusy(false); }
+  };
 
   const provision = async () => {
     const parsed = provisionSchema.safeParse({ title, description });
@@ -118,6 +139,17 @@ export default function StudioLive() {
             <div><Label>Creator event</Label><Select value={screeningId} onValueChange={setScreeningId}><SelectTrigger><SelectValue placeholder={events.length ? 'Choose event' : 'No events available'} /></SelectTrigger><SelectContent>{events.map(event => <SelectItem key={event.id} value={event.id}>{event.title}</SelectItem>)}</SelectContent></Select></div>
             <div><Label htmlFor="live-title">Stream title</Label><Input id="live-title" value={title} maxLength={180} onChange={event => setTitle(event.target.value)} /></div>
             <div><Label htmlFor="live-description">Description</Label><Input id="live-description" value={description} maxLength={2000} onChange={event => setDescription(event.target.value)} /></div>
+            <div className="border-t pt-4 space-y-3">
+              <div><p className="font-medium text-sm">Paid access</p><p className="text-xs text-muted-foreground">Live admission and replay are priced separately.</p></div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><Label htmlFor="live-ngn">Live price (NGN)</Label><Input id="live-ngn" inputMode="decimal" value={liveNgn} onChange={e => setLiveNgn(e.target.value)} placeholder="0 = free" /></div>
+                <div><Label htmlFor="live-usd">Live price (USD)</Label><Input id="live-usd" inputMode="decimal" value={liveUsd} onChange={e => setLiveUsd(e.target.value)} placeholder="0 = free" /></div>
+                <div><Label htmlFor="replay-ngn">Replay price (NGN)</Label><Input id="replay-ngn" inputMode="decimal" value={replayNgn} onChange={e => setReplayNgn(e.target.value)} placeholder="Not available" /></div>
+                <div><Label htmlFor="replay-usd">Replay price (USD)</Label><Input id="replay-usd" inputMode="decimal" value={replayUsd} onChange={e => setReplayUsd(e.target.value)} placeholder="Not available" /></div>
+              </div>
+              <div><Label htmlFor="replay-hours">Replay access duration (hours)</Label><Input id="replay-hours" type="number" min="1" max="8760" value={replayHours} onChange={e => setReplayHours(e.target.value)} /></div>
+              <Button className="w-full" variant="outline" disabled={busy || !screeningId} onClick={savePricing}>Save access pricing</Button>
+            </div>
             <Button className="w-full" disabled={busy || !screeningId || !!grant} onClick={provision}>{busy ? 'Provisioning…' : 'Provision secure encoder'}</Button>
             <p className="text-xs text-muted-foreground">Supports standard RTMP/RTMPS encoder output. Browser WHIP publishing is intentionally unavailable until a provider-backed WHIP contract is configured.</p>
           </CardContent>
