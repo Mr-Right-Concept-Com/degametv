@@ -99,7 +99,7 @@ const App = () => (
               <Route path="/live/claim" element={<LiveGuestClaim />} />
               <Route path="/tickets" element={<ProtectedRoute><MyTickets /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
-              <Route path="/filmmaker" element={<FilmmakerSubmit />} />
+              <Route path="/filmmaker" element={<Navigate to="/apply-filmmaker" replace />} />
               
               {/* ============ STUDIO (Protected - Approved Filmmakers Only) ============ */}
               <Route path="/studio" element={<ProtectedCreatorRoute><StudioDashboard /></ProtectedCreatorRoute>} />
