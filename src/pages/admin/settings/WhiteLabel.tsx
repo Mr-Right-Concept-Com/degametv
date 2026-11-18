@@ -27,6 +27,7 @@ export default function WhiteLabel() {
     logoUrl: '/brand/degametv.svg',
     faviconUrl: '',
   });
+  const [domains, setDomains] = useState({ controlDomain: 'degametv.com', releaseDomain: 'degametv.com' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -55,6 +56,8 @@ export default function WhiteLabel() {
           faviconUrl: val.faviconUrl || prev.faviconUrl,
         }));
       }
+      const { data: domainData } = await supabase.from('platform_settings').select('setting_value').eq('setting_key','domain_settings').maybeSingle();
+      if (domainData?.setting_value && typeof domainData.setting_value === 'object') setDomains(prev => ({ ...prev, ...(domainData.setting_value as Record<string,string>) }));
       setLoading(false);
     };
     fetch();
@@ -83,6 +86,9 @@ export default function WhiteLabel() {
       if (error) toast.error('Save failed: ' + error.message);
       else toast.success('Branding saved');
     }
+    const { error: domainError } = await supabase.from('platform_settings').upsert({ setting_key: 'domain_settings', setting_value: domains as any, is_public: true, description: 'Canonical control domain and dedicated release subdomain root' }, { onConflict: 'setting_key' });
+    if (domainError) toast.error('Domain settings could not be saved: ' + domainError.message);
+    else toast.success('Domain settings saved.');
     setSaving(false);
   };
 
@@ -256,8 +262,8 @@ export default function WhiteLabel() {
           <TabsContent value="domain" className="space-y-6">
             <Card className="bg-card border-border">
               <CardHeader>
-                <CardTitle>Custom Domain</CardTitle>
-                <CardDescription>Configure your own domain for the platform</CardDescription>
+                <CardTitle>Platform Domains</CardTitle>
+                <CardDescription>Configure the control-plane domain and the root used for dedicated title storefronts. Both can be changed without rebuilding.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
