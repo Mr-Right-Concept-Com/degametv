@@ -34,7 +34,7 @@ if(import.meta.main)serve(async(req:Request)=>{
   const event=JSON.parse(raw);
   if(event?.type!==(settings.success_event||"payment.succeeded"))return json(200,{received:true,ignored:true});
   const reference=event?.reference;
-  if(typeof reference!=="string"||!reference.startsWith("DTV_"))return json(400,{error:"Invalid payment reference."});
+  if(typeof reference!=="string"||!/^DTV_[A-Za-z0-9]+$/.test(reference)&&!/^DTVL_[A-Za-z0-9]+$/.test(reference))return json(400,{error:"Invalid payment reference."});
   const verifyPath=config.endpoints?.payment_verify;
   if(typeof verifyPath!=="string"||!verifyPath.startsWith("/")||verifyPath.startsWith("//"))return json(503,{error:"Payment verification endpoint is not configured."});
   const verifyUrl=new URL(verifyPath,config.base_url);
@@ -44,9 +44,10 @@ if(import.meta.main)serve(async(req:Request)=>{
   const verification=await fetch(verifyUrl,{method:"POST",headers:{[authHeader]:authPrefix+config.credential,"Content-Type":"application/json"},body:JSON.stringify({reference}),signal:AbortSignal.timeout(15000)});
   const result=await verification.json().catch(()=>null);
   if(!verification.ok||result?.verified!==true||result?.status!=="paid")return json(202,{received:true,verified:false});
-  const {data:completed,error:completeError}=await admin.rpc("complete_guest_payment_order",{p_reference:reference,p_transaction_id:String(result.transaction_id||reference),p_amount_minor:Number(result.amount_minor),p_currency:String(result.currency)});
+  const liveOrder=reference.startsWith("DTVL_");
+  const {data:completed,error:completeError}=await admin.rpc(liveOrder?"complete_live_payment_order":"complete_guest_payment_order",{p_reference:reference,p_transaction_id:String(result.transaction_id||reference),p_amount_minor:Number(result.amount_minor),p_currency:String(result.currency)});
   if(completeError)return json(409,{error:"Payment verification did not match the pending order."});
-  const emailSent=await sendTicketEmail(admin,url,service,reference);
+  const emailSent=liveOrder?false:await sendTicketEmail(admin,url,service,reference);
   return json(200,{received:true,verified:true,fulfillment:completed,emailSent});
  }catch{return json(400,{error:"Invalid webhook payload."});}
 });
