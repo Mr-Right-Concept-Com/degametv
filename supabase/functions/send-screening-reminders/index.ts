@@ -18,10 +18,13 @@ async function sendEmail(config:EmailConfig,to:string,subject:string,html:string
 if(import.meta.main)serve(async(req:Request)=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:{"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type"}});
  if(req.method!=="POST")return new Response(JSON.stringify({error:"Method not allowed."}),{status:405});
- const url=Deno.env.get("SUPABASE_URL"),service=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),origin=Deno.env.get("PUBLIC_APP_URL");
+ const url=Deno.env.get("SUPABASE_URL"),service=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
  if(!url||!service||req.headers.get("Authorization")!=="Bearer "+service)return new Response(JSON.stringify({error:"Forbidden."}),{status:403});
- if(!origin||!origin.startsWith("https://"))return new Response(JSON.stringify({error:"Public app URL is not configured."}),{status:503});
  const supabase=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
+ const {data:siteSetting,error:siteError}=await supabase.from("platform_settings").select("setting_value").eq("setting_key","public_site_url").maybeSingle();
+ const origin=typeof siteSetting?.setting_value==="string"?siteSetting.setting_value:"";
+ try{const parsedOrigin=new URL(origin);if(siteError||parsedOrigin.protocol!=="https:"||parsedOrigin.username||parsedOrigin.password)throw new Error("invalid_origin");}
+ catch{return new Response(JSON.stringify({error:"Public app URL is not configured."}),{status:503});}
  const {data:configs,error:configError}=await supabase.rpc("get_email_provider_runtime_config");
  if(configError||!Array.isArray(configs)||!configs.length||!configs[0].api_key)return new Response(JSON.stringify({error:"Email provider is disabled or not configured."}),{status:503});
  const config=configs[0] as EmailConfig;
