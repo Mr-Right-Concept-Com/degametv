@@ -93,3 +93,20 @@ Completed prerequisites that the next build must reuse:
 - Admin filmmaker review screen now obtains short-lived signed URLs for private identity evidence and invokes `review-kyc` with a required reason.
 
 Next build must validate profile settings regression, test unauthorized and authorized reviewers, add reviewer step-up/MFA policy, add two-person approval for exceptional overrides, malware quarantine, evidence retention and data-subject deletion workflow.
+
+
+## 18 November re-audit delta — completed safeguards and remaining work
+
+### Completed and verified safeguards
+- `audit_logs` INSERT revoked from anon/authenticated; service_role remains writer. Acceptance query: anon=false, authenticated=false, service_role=true.
+- Atomic KYC submission RPC validates auth.uid, locks the profile row, verifies both evidence objects belong to the caller in the private identity bucket, checks MIME and 10 MiB size, rejects duplicate pending/verified applications, and records submission audit event.
+- `submit-kyc` Edge Function validates a strict Zod request and calls the RPC with the caller JWT. Source committed and function deployed; signed-in browser journey still requires test.
+- GitHub Actions quality workflow now exists at `.github/workflows/quality.yml` and runs npm ci, Chromium install, typecheck, lint, production build and axe audit. It is not yet evidenced as passing.
+
+### Immediate next tasks
+1. Reconcile `verify_jwt` deployment metadata for submit-kyc/review-kyc; retain explicit getUser() checks and do not assume the deployment response is authoritative if list metadata disagrees.
+2. Execute the GitHub Actions workflow and fix actual failures without weakening gates.
+3. Run authenticated KYC applicant and reviewer E2E, including cross-user object denial, invalid MIME/size, concurrent submission, unauthorized reviewer, approve/reject, audit and role grant exactly once.
+4. Complete table-by-table grants/RLS tenant isolation tests; distinguish GraphQL discoverability warnings from actual row exposure.
+5. Implement malware quarantine, video identity and business KYB only with approved providers and legal retention/consent decisions.
+6. Payments remain blocked on merchant credentials and provider webhook secrets; playback remains blocked on origin-verifying delivery/DRM configuration. Continue all unrelated engineering while these are blocked.
