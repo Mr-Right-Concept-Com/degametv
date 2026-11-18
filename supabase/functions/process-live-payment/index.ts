@@ -50,10 +50,17 @@ if(import.meta.main)serve(async(req:Request)=>{
     const target=new URL(candidate.endpoints.checkout_initialize,candidate.base_url);
     if(target.origin!==new URL(candidate.base_url).origin)continue;
     const h=candidate.settings?.credential_header||"Authorization",prefix=candidate.settings?.credential_prefix??"Bearer ";
-    const response=await fetch(target,{method:"POST",headers:{[h]:prefix+candidate.credential,"Content-Type":"application/json"},body:JSON.stringify({customer:{email},amount_minor:minor,currency,reference,callback_url:new URL("/payment/return?reference="+reference,parsedOrigin).toString(),metadata:{screening_id:screening.id,stream_id:stream.id,ticket_type:ticketType}}),signal:AbortSignal.timeout(15000)});
+    const callbackUrl=new URL("/payment/return?reference="+reference,parsedOrigin).toString();
+    const adapter=candidate.settings?.adapter;
+    const requestBody=adapter==="paystack"
+      ? {email,amount:minor,currency,reference,callback_url:callbackUrl,metadata:{screening_id:screening.id,stream_id:stream.id,ticket_type:ticketType}}
+      : {customer:{email},amount_minor:minor,currency,reference,callback_url:callbackUrl,metadata:{screening_id:screening.id,stream_id:stream.id,ticket_type:ticketType}};
+    const response=await fetch(target,{method:"POST",headers:{[h]:prefix+candidate.credential,"Content-Type":"application/json"},body:JSON.stringify(requestBody),signal:AbortSignal.timeout(15000)});
     const result=await response.json().catch(()=>null);
-    if(!response.ok||result?.authorized!==true||typeof result.checkout_url!=="string")continue;
-    const checkout=new URL(result.checkout_url),allowed=candidate.settings?.allowed_checkout_origins;
+    const authorized=adapter==="paystack"?result?.status===true:result?.authorized===true;
+    const checkoutValue=adapter==="paystack"?result?.data?.authorization_url:result?.checkout_url;
+    if(!response.ok||!authorized||typeof checkoutValue!=="string")continue;
+    const checkout=new URL(checkoutValue),allowed=candidate.settings?.allowed_checkout_origins;
     if(checkout.protocol!=="https:"||!Array.isArray(allowed)||!allowed.includes(checkout.origin))continue;
     selected=candidate;checkoutUrl=checkout.toString();break;
    }catch{continue;}
