@@ -43,7 +43,7 @@ export default function ApplyFilmmaker() {
     return <MainLayout><div className="min-h-[60vh] flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div></MainLayout>;
   }
   if (!user) return <Navigate to="/auth?redirect=/apply-filmmaker" replace />;
-  if (canEnterStudio) return <Navigate to="/studio" replace />;
+  if (canEnterStudio) return <Navigate to="/dashboard" replace />;
 
   return (
     <MainLayout>
