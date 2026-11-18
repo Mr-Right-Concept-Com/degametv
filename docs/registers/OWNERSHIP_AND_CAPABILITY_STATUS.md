@@ -47,3 +47,12 @@ No capability is certified L2/L3 based on this audit. Product baseline maturity 
 - Authenticated INSERT/DELETE/TRUNCATE on profiles is revoked; profile creation remains auth-trigger managed.
 - Verification state is changed only by the server-side submit/review paths. The atomic review RPC checks admin role, locks the pending row, grants creator role on approval, and writes an audit record.
 - Supabase Storage remains provider-owned infrastructure. The identity storage interface must be extracted behind a storage capability port before claiming native/provider-independent ownership.
+
+
+## Re-audit correction — 18 November 2026
+
+- KYC submission is no longer a service-role profile mutation path: authenticated caller invokes a single RPC that verifies Storage ownership/MIME/size and serializes status transition with a row lock. Evidence remains in Supabase Storage, so portability is still PARTIAL.
+- Audit logs are now write-protected from anon/authenticated clients; server-side service role and the protected SECURITY DEFINER transaction remain writers.
+- All 36 public tables were confirmed RLS-enabled by SQL RUN. This does not establish policy correctness or tenant isolation; those remain unproven.
+- CI ownership: GitHub Actions workflow now defines the web quality pipeline; no successful run has yet been observed.
+- Supabase remains current managed database, auth, object storage and Edge runtime. Neon remains an unimplemented evaluation candidate; native infrastructure ownership is not claimed.
