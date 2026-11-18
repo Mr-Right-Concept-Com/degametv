@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,9 @@ interface Screening {
   duration: number;
   location_pricing: { nigeria: number; international: number };
   status: string;
+  access_model?: 'FREE' | 'TICKETED';
+  live_price_ngn?: number | null;
+  live_price_usd?: number | null;
   lifecycle?: string;
   replay_price_ngn?: number | null;
   replay_price_usd?: number | null;
@@ -43,6 +47,9 @@ export default function BuyTicket() {
   const [paymentError, setPaymentError] = useState('');
   const [screening, setScreening] = useState<Screening | null>(null);
   const [loadingScreening, setLoadingScreening] = useState(true);
+  const { user } = useAuth();
+  const [freeClaimBusy, setFreeClaimBusy] = useState(false);
+  const [freeStreamId, setFreeStreamId] = useState<string | null>(null);
   usePageTitle(screening?.title ? `Buy Ticket — ${screening.title}` : 'Buy Ticket');
   const [confirmation, setConfirmation] = useState<{ticketCode:string;watchCode:string;expiresAt?:string;emailSent?:boolean;location?:'nigeria'|'international';price?:number;currency?:string}|null>(null);
 
@@ -51,7 +58,7 @@ export default function BuyTicket() {
       if (!slug) return;
       const { data, error } = await supabase
         .from('screenings')
-        .select('id,content_id,title,slug,description,poster_url,banner_url,trailer_url,release_date,screening_date,duration,location_pricing,status,event_type,lifecycle,live_price_ngn,live_price_usd,live_recording_status,live_started_at,live_ended_at,live_replay_ready_at,replay_price_ngn,replay_price_usd,replay_access_hours,refund_policy,cast_crew,gallery_images,age_rating,star_rating,review_count,allowed_countries,blocked_countries,cancelled_at,created_at,updated_at')
+        .select('id,content_id,title,slug,description,poster_url,banner_url,trailer_url,release_date,screening_date,duration,location_pricing,status,access_model,event_type,lifecycle,live_price_ngn,live_price_usd,live_recording_status,live_started_at,live_ended_at,live_replay_ready_at,replay_price_ngn,replay_price_usd,replay_access_hours,refund_policy,cast_crew,gallery_images,age_rating,star_rating,review_count,allowed_countries,blocked_countries,cancelled_at,created_at,updated_at')
         .eq('slug', slug)
         .eq('status', 'published')
         .maybeSingle();
@@ -152,6 +159,26 @@ export default function BuyTicket() {
   const steps = ['location', 'email', 'payment', 'confirmation'] as const;
   const currentIdx = steps.indexOf(step);
 
+  const handleFreeClaim = async () => {
+    if (!screening) return;
+    if (!user) {
+      toast.error('Sign in to claim your free event pass.');
+      return;
+    }
+    setFreeClaimBusy(true);
+    try {
+      const { data, error } = await supabase.rpc('claim_free_live_ticket', { p_screening_id: screening.id });
+      if (error || !data?.claimed || typeof data.stream_id !== 'string') {
+        toast.error(error?.message || 'Free admission could not be claimed.');
+        return;
+      }
+      setFreeStreamId(data.stream_id);
+      toast.success(data.already_claimed ? 'Your free pass is already active.' : 'Your free event pass is ready.');
+    } finally {
+      setFreeClaimBusy(false);
+    }
+  };
+
   const handlePayment = async () => {
     if (!selectedPayment) return;
     setPaymentError('');
@@ -208,6 +235,18 @@ export default function BuyTicket() {
             </div>
           </div>
 
+          {freeStreamId ? (
+            <Card className="border-success/30">
+              <CardContent className="p-6 text-center space-y-4">
+                <Check className="mx-auto h-10 w-10 text-success" />
+                <h2 className="text-xl font-bold">Your free pass is ready</h2>
+                <p className="text-sm text-muted-foreground">Admission is attached to your account. No payment was collected.</p>
+                <Button asChild className="w-full rounded-full"><Link to={`/live/watch/${freeStreamId}?mode=live`}>Open live event</Link></Button>
+                <Button asChild variant="outline" className="w-full rounded-full"><Link to="/tickets">My Tickets</Link></Button>
+              </CardContent>
+            </Card>
+          ) : null}
+
           {/* Progress */}
           <div className="flex items-center justify-between mb-6 px-2">
             {steps.map((s, i) => (
@@ -227,7 +266,21 @@ export default function BuyTicket() {
           </div>
 
           {/* Step: Location */}
-          {step === 'location' && (
+          {step === 'location' && screening.access_model === 'FREE' ? (
+            <Card className="animate-fade-in border-success/30">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base"><Check className="h-4 w-4 text-success"/> Free admission</CardTitle>
+                <CardDescription>This event is free. Claim one pass on your account; no payment details are required.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {!user && <p className="text-sm text-muted-foreground">Sign in first to attach your pass to your account.</p>}
+                <Button className="w-full rounded-full" disabled={!user || freeClaimBusy} onClick={handleFreeClaim}>
+                  {freeClaimBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                  {freeClaimBusy ? 'Claiming pass…' : 'Claim free pass'}
+                </Button>
+              </CardContent>
+            </Card>
+          ) : step === 'location' && (
             <Card className="animate-fade-in border-border/50">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
