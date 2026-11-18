@@ -69,7 +69,7 @@ export default function StudioSubmit() {
     else { next.delete('flow'); next.delete('type'); }
     setSearchParams(next, { replace: true });
   };
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(searchParams.get('flow') === 'live' ? 2 : 1);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [published, setPublished] = useState(false);
@@ -84,7 +84,7 @@ export default function StudioSubmit() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [form, setForm] = useState({
-    submitter_name: '',
+    submitter_name: String(user?.user_metadata?.full_name || user?.email?.split('@')[0] || ''),
     submitter_email: user?.email || '',
     company_name: '',
     project_title: '',
@@ -391,7 +391,7 @@ export default function StudioSubmit() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {step === 1 && (
+          {!liveFlow && step === 1 && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2"><Users className="w-4 h-4" /> Your Info</CardTitle>
@@ -428,25 +428,24 @@ export default function StudioSubmit() {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Title <span className="text-destructive">*</span></Label>
-                    <Input value={form.project_title} onChange={e => setForm(f => ({ ...f, project_title: e.target.value }))} />
+                    <Label>{liveFlow ? 'Event title' : 'Title'} <span className="text-destructive">*</span></Label>
+                    <Input value={form.project_title} onChange={e => setForm(f => ({ ...f, project_title: e.target.value }))} placeholder={liveFlow ? 'e.g. The Lagos Creators Live Experience' : 'e.g. The Last Harvest'} />
                     {errors.project_title && <p className="text-xs text-destructive">{errors.project_title}</p>}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Type</Label>
-                    <Select value={form.project_type} onValueChange={v => setForm(f => ({ ...f, project_type: v, release_strategy: v === 'live' ? 'live' : (!['movie', 'series'].includes(v) || f.release_strategy === 'live') ? 'on_demand' : f.release_strategy }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                  {!liveFlow ? <div className="space-y-2">
+                    <Label>Content type</Label>
+                    <Select value={form.project_type} onValueChange={v => setForm(f => ({ ...f, project_type: v, release_strategy: (!['movie', 'series'].includes(v) || f.release_strategy === 'live') ? 'on_demand' : f.release_strategy }))}>
+                      <SelectTrigger><SelectValue placeholder="Choose a format" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="movie">Feature Film</SelectItem>
+                        <SelectItem value="movie">Feature film</SelectItem>
                         <SelectItem value="series">Series</SelectItem>
-                        <SelectItem value="episode">Episode</SelectItem>
-                        <SelectItem value="short">Short</SelectItem>
+                        <SelectItem value="episode">Series episode</SelectItem>
+                        <SelectItem value="short">Short film</SelectItem>
                         <SelectItem value="trailer">Trailer</SelectItem>
-                        <SelectItem value="live">Live Event / Premiere</SelectItem>
-                        <SelectItem value="vod">Video on Demand</SelectItem>
+                        <SelectItem value="vod">Video on demand</SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
+                  </div> : <div className="space-y-2"><Label>Event format</Label><div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm font-medium">Live broadcast · ticketed event</div><p className="text-xs text-muted-foreground">Configure your event, admission prices and encoder access below.</p></div>}
                 </div>
                 <div className="space-y-2">
                   <Label>Release strategy</Label>
@@ -461,10 +460,10 @@ export default function StudioSubmit() {
                   <p className="text-xs text-muted-foreground">Your release choice controls scheduling, ticket pricing and the publishing steps.</p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Synopsis</Label>
-                  <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={4} />
+                  <Label>{liveFlow ? 'Event description' : 'Synopsis'}</Label>
+                  <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={4} placeholder={liveFlow ? 'Tell viewers what will happen, who is hosting and what their ticket includes.' : 'Write a short synopsis that helps audiences understand your title.'} />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                {!liveFlow && <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Duration (mins)</Label>
                     <Input type="number" value={form.duration_minutes} onChange={e => setForm(f => ({ ...f, duration_minutes: e.target.value }))} />
@@ -476,7 +475,7 @@ export default function StudioSubmit() {
                     {errors.release_year && <p className="text-xs text-destructive">{errors.release_year}</p>}
                   </div>
                 </div>
-                <div className="space-y-2">
+                {!liveFlow && <div className="space-y-2">
                   <Label>Genres</Label>
                   <div className="flex flex-wrap gap-2">
                     {GENRES.map(g => (
@@ -486,14 +485,14 @@ export default function StudioSubmit() {
                     ))}
                   </div>
                 </div>
-                <div className="space-y-2">
+                {!liveFlow && <div className="space-y-2">
                   <Label>Cast & Crew</Label>
                   <Textarea value={form.cast_crew_text} onChange={e => setForm(f => ({ ...f, cast_crew_text: e.target.value }))} rows={3} placeholder={'Name — Role, one person per line'} />
-                </div>
+                </div>}
                 <div className="flex gap-3">
-                  <Button type="button" variant="outline" className="flex-1 rounded-full" onClick={() => setStep(1)}>Back</Button>
+                  {!liveFlow && <Button type="button" variant="outline" className="flex-1 rounded-full" onClick={() => setStep(1)}>Back</Button>}
                   <Button type="button" className="flex-1 rounded-full" onClick={() => { if (validateStep2()) setStep(3); }}>
-                    Next <ArrowRight className="w-4 h-4 ml-2" />
+                    {liveFlow ? 'Continue to event setup' : 'Next'} <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                 </div>
               </CardContent>
