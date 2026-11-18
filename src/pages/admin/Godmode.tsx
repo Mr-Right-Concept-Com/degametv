@@ -73,7 +73,7 @@ export default function Godmode() {
   const addBanner = async () => {
     const p = bannerSchema.safeParse(nb);
     if (!p.success) { toast.error(p.error.errors[0].message); return; }
-    const { error } = await supabase.from('promo_banners').insert({ ...p.data, subtitle: p.data.subtitle || null, link_url: p.data.link_url || null, is_active: true, status: 'approved' });
+    const { error } = await supabase.from('promo_banners').insert({ title: p.data.title, image_url: p.data.image_url, subtitle: p.data.subtitle || null, link_url: p.data.link_url || null, placement: p.data.placement, is_active: true, status: 'approved' });
     if (error) toast.error(error.message); else { toast.success('Banner published'); setNb({ title: '', subtitle: '', image_url: '', link_url: '', placement: 'home' }); load(); }
   };
   const patchBanner = async (id: string, patch: Partial<Tables<'promo_banners'>>, ok: string) => {
