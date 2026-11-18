@@ -42,7 +42,7 @@ export default function Producers() {
                 <Link to="/apply-filmmaker">Submit Your Film</Link>
               </Button>
               <Button asChild variant="outline" size="lg" className="rounded-full">
-                <Link to="/studio">Producer Sign In</Link>
+                <Link to="/dashboard">My Dashboard</Link>
               </Button>
             </div>
           </div>
