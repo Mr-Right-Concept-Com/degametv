@@ -26,13 +26,28 @@ export default function MyTickets() {
 
       const { error: claimError } = await supabase.rpc('claim_guest_tickets');
       if (claimError) toast.message('Your tickets could not be claimed automatically. Contact support if a purchase is missing.');
-      const { data } = await supabase
-        .from('screening_tickets')
-        .select('*, screening:screenings(*)')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+      const [{ data: legacy, error: legacyError }, { data: live, error: liveError }] = await Promise.all([
+        supabase.from('screening_tickets').select('*, screening:screenings(*)').eq('user_id', user.id).order('created_at', { ascending: false }),
+        supabase.from('tickets').select('*, content:content(id,title,slug,poster_url), stream:live_streams(id,title,thumbnail_url,status,metadata)').eq('user_id', user.id).is('revoked_at', null).order('created_at', { ascending: false }),
+      ]);
 
-      if (data) setTickets(data);
+      if (legacyError) toast.error('Some screening tickets could not be loaded.');
+      if (liveError) toast.error('Live and replay entitlements could not be loaded.');
+      const legacyRows = (legacy ?? []).map((ticket: any) => ({ ...ticket, _kind: 'screening' }));
+      const liveRows = (live ?? []).map((ticket: any) => ({
+        ...ticket,
+        _kind: 'live',
+        price: ticket.price,
+        currency: ticket.currency,
+        expires_at: ticket.valid_until,
+        email: user.email ?? '',
+        screening: {
+          title: ticket.content?.title || ticket.stream?.title || 'Live event',
+          poster_url: ticket.content?.poster_url || ticket.stream?.thumbnail_url || null,
+          slug: ticket.content?.slug || '',
+        },
+      }));
+      setTickets([...legacyRows, ...liveRows].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
       setLoading(false);
     };
 
@@ -40,8 +55,8 @@ export default function MyTickets() {
   }, [user]);
 
   const now = new Date();
-  const activeTickets = tickets.filter(t => t.payment_status === 'completed' && new Date(t.expires_at) > now);
-  const expiredTickets = tickets.filter(t => t.payment_status === 'completed' && new Date(t.expires_at) <= now);
+  const activeTickets = tickets.filter(t => (t._kind === 'live' || t.payment_status === 'completed') && new Date(t.expires_at) > now);
+  const expiredTickets = tickets.filter(t => (t._kind === 'live' || t.payment_status === 'completed') && new Date(t.expires_at) <= now);
   const pendingTickets = tickets.filter(t => t.payment_status === 'pending');
 
   const copyLink = (watchCode: string, email: string) => {
@@ -65,7 +80,7 @@ export default function MyTickets() {
         <div className="max-w-3xl mx-auto">
           <div className="mb-6">
             <h1 className="text-2xl sm:text-3xl font-bold mb-0.5">My Tickets</h1>
-            <p className="text-sm text-muted-foreground">Access all your purchased screenings</p>
+            <p className="text-sm text-muted-foreground">Access your purchased films, live events and replays</p>
           </div>
 
           {/* Stats */}
@@ -144,7 +159,7 @@ function TicketCard({ ticket, onCopy, type }: { ticket: any; onCopy: (wc: string
           )}
           <div className="flex-1 min-w-0">
             <h3 className="font-bold text-sm line-clamp-1">{movieTitle}</h3>
-            <p className="text-xs text-muted-foreground capitalize">{ticket.location}</p>
+            <p className="text-xs text-muted-foreground capitalize">{ticket._kind === 'live' ? `${ticket.ticket_type} access` : ticket.location}</p>
             <p className="text-sm font-bold text-primary mt-1">{symbol}{Number(ticket.price).toLocaleString()}</p>
           </div>
           <Badge variant={type === 'active' ? 'default' : type === 'pending' ? 'secondary' : 'outline'} className="text-[10px] shrink-0">
@@ -152,7 +167,10 @@ function TicketCard({ ticket, onCopy, type }: { ticket: any; onCopy: (wc: string
           </Badge>
         </div>
 
-        {type === 'active' && (
+        {type === 'active' && ticket._kind === 'live' && (
+          <Button size="sm" className="w-full rounded-full h-9 text-xs" asChild><Link to={`/live/watch/${ticket.stream_id}?mode=${ticket.ticket_type === 'replay' ? 'replay' : 'live'}`}><Play className="w-3.5 h-3.5 mr-1" /> {ticket.ticket_type === 'replay' ? 'Watch Replay' : 'Open Event'}</Link></Button>
+        )}
+        {type === 'active' && ticket._kind !== 'live' && (
           <div className="flex gap-2">
             <Button size="sm" className="flex-1 rounded-full h-9 text-xs" asChild>
               <Link to={`/watch/${ticket.watch_code}?email=${encodeURIComponent(ticket.email)}`}>
@@ -165,7 +183,7 @@ function TicketCard({ ticket, onCopy, type }: { ticket: any; onCopy: (wc: string
           </div>
         )}
 
-        {type === 'expired' && (
+        {type === 'expired' && ticket._kind !== 'live' && (
           <Button variant="outline" size="sm" className="w-full rounded-full h-9 text-xs" asChild>
             <Link to={`/buy/${ticket.screening?.slug || ''}`}>Buy Again</Link>
           </Button>
