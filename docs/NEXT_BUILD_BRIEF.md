@@ -110,3 +110,9 @@ Next build must validate profile settings regression, test unauthorized and auth
 4. Complete table-by-table grants/RLS tenant isolation tests; distinguish GraphQL discoverability warnings from actual row exposure.
 5. Implement malware quarantine, video identity and business KYB only with approved providers and legal retention/consent decisions.
 6. Payments remain blocked on merchant credentials and provider webhook secrets; playback remains blocked on origin-verifying delivery/DRM configuration. Continue all unrelated engineering while these are blocked.
+
+
+### Additional KYC hardening and CI correction — 18 November 2026
+- Database RPC explicitly rejects NULL identity type/MIME and object paths above 512 characters; verify direct RPC invocation tests as well as Edge validation.
+- Supabase config and deployed metadata require JWT verification for submit-kyc and review-kyc. Preserve explicit getUser validation in handlers.
+- Consolidate CI into a single workflow, use immutable `npm ci`, and do not auto-commit generated lockfile changes. First run must complete typecheck, lint, build and axe before quality bar status can be upgraded.
