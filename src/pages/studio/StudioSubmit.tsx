@@ -162,8 +162,27 @@ export default function StudioSubmit() {
 
     if (form.poster_url && (form.video_url || ['live', 'series'].includes(form.project_type) || (form.project_type === 'trailer' && form.trailer_url))) {
       const { data: publication, error: publishError } = await supabase.rpc('publish_creator_content', { p_content_id: submission.content_id });
-      if (!publishError && publication?.status === 'published') setPublished(true);
-      else toast.info('Your content draft is saved. Add the required assets and rights declaration, then publish when ready.');
+      if (!publishError && publication?.status === 'published') {
+        setPublished(true);
+        if (form.project_type === 'live') {
+          const scheduledAt = form.premiere_date
+            ? new Date(`${form.premiere_date}T20:00:00`).toISOString()
+            : new Date(Date.now() + 30 * 60 * 1000).toISOString();
+          const { data: event, error: eventError } = await supabase.rpc('create_creator_screening', {
+            p_content_id: submission.content_id,
+            p_screening_date: scheduledAt,
+            p_location_pricing: { nigeria: 5000, international: 15 },
+            p_event_type: 'live',
+            p_slug: form.project_title,
+          });
+          if (eventError || !event?.screening_id) {
+            setPublished(false);
+            toast.error('The live title is published, but its event could not be scheduled. Open Go Live and create the event before provisioning a stream.');
+          } else {
+            toast.success('Live event published and scheduled. Set admission and replay prices, then provision its secure encoder in Go Live.');
+          }
+        }
+      } else toast.info('Your content draft is saved. Add the required assets and rights declaration, then publish when ready.');
     }
 
     setSubmitted(true);
@@ -239,7 +258,7 @@ export default function StudioSubmit() {
             {published ? `"${form.project_title}" is now live on DeGameTV and can be shared.` : `"${form.project_title}" is saved as a draft. Add required assets and complete its content-specific assets and rights declaration, then publish whenever you are ready.`}
           </p>
           <div className="flex flex-col gap-3">
-            <Button variant="outline" className="rounded-full" onClick={() => navigate('/studio/movies')}>View My Movies</Button>
+            <Button variant="outline" className="rounded-full" onClick={() => navigate('/studio/movies')}>View My Content</Button>
             <Button variant="ghost" className="rounded-full" onClick={() => { setSubmitted(false); setStep(1); setCreatedContentId(null); setForm(f => ({ ...f, project_title: '', description: '', genres: [], duration_minutes: '', poster_url: '' })); }}>
               Submit Another
             </Button>
@@ -458,7 +477,7 @@ export default function StudioSubmit() {
                   <Button type="button" variant="outline" className="flex-1 rounded-full" onClick={() => setStep(2)}>Back</Button>
                   <Button type="submit" className="flex-1 rounded-full" disabled={submitting}>
                     {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
-                    {submitting ? 'Submitting...' : 'Submit Film'}
+                    {submitting ? 'Submitting...' : 'Create & Publish'}
                   </Button>
                 </div>
               </CardContent>
