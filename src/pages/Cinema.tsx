@@ -21,6 +21,9 @@ interface ContentRow {
 }
 interface ScreeningRow {
   id: string;
+  content_id?: string | null;
+  event_type?: string | null;
+  id: string;
   title: string;
   slug: string;
   description: string | null;
@@ -44,13 +47,16 @@ export default function Cinema() {
 
   useEffect(() => {
     const fetchScreenings = async () => {
-      const [{ data: titleData }, { data }] = await Promise.all([
+      const [{ data: titleData, error: titleError }, { data, error: screeningError }] = await Promise.all([
         supabase.from('content').select('id,title,type,description,poster_url,genres,release_date').eq('status','published').order('created_at',{ascending:false}),
         supabase.from('screenings')
         .select('*')
         .eq('status', 'published')
         .order('screening_date', { ascending: true })
       ]);
+      if (titleError || screeningError) {
+        console.error('cinema_catalogue_load_failed', { titleError, screeningError });
+      }
       if (titleData) setTitles(titleData as ContentRow[]);
       if (data) setScreenings(data as unknown as ScreeningRow[]);
       setLoading(false);
@@ -112,7 +118,7 @@ export default function Cinema() {
             {filtered.map((s) => (
               <Link
                 key={s.id}
-                to={`/movie/${s.slug}`}
+                to={s.event_type === 'live' && s.content_id ? `/content/${s.content_id}` : `/movie/${s.slug}`}
                 className="monzo-card group flex flex-row sm:flex-col gap-4 sm:gap-0"
               >
                 <div className="w-24 h-32 sm:w-full sm:h-auto sm:aspect-video flex-shrink-0 rounded-xl overflow-hidden bg-secondary sm:mb-4">
@@ -169,7 +175,7 @@ export default function Cinema() {
                   <div className="flex items-center justify-end pt-3 border-t border-border">
                     <Button size="sm" className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 gap-1 text-[10px] sm:text-xs h-7 sm:h-8 px-3 sm:px-4">
                       <Ticket className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                      View Movie
+                      {s.event_type === 'live' ? 'View live event' : 'View Movie'}
                     </Button>
                   </div>
                 </div>
