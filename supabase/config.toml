@@ -33,3 +33,9 @@ verify_jwt = true
 [functions.convert-currency]
 verify_jwt = false
 
+
+[functions.submit-kyc]
+verify_jwt = true
+
+[functions.review-kyc]
+verify_jwt = true
