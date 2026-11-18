@@ -24,21 +24,28 @@ Deno.serve(async req=>{
  const p=parsed.data;
  const capability=p.action==="create_live"||p.action==="stop_live"?"live_streaming":"video_delivery";
  const {data:providers,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:capability});
- if(providerError||!Array.isArray(providers)||!providers.length)return json({error:"No active provider is configured for this media capability."},503);
+ if(providerError||!Array.isArray(providers))return json({error:"Media provider registry is unavailable."},503);
  let provider=providers[0];
  const operation=p.action==="create_upload"?"upload_create":p.action==="create_live"?"live_create":"live_stop";
  try{
   if(p.action==="stop_live"){
    const {data:stream,error}=await db.from("live_streams").select("id,creator_id,metadata").eq("id",p.streamId).eq("creator_id",user.id).maybeSingle();
    if(error||!stream)return json({error:"Live stream not found."},404);
-   provider=providers.find((candidate:any)=>candidate.provider_key===stream.metadata?.provider);
-   if(!provider?.credential||!provider.endpoints?.live_stop)return json({error:"The provider that created this stream is no longer configured. Restore that binding to stop it safely."},503);
+   const [{data:binding},{data:secrets}]=await Promise.all([
+    db.from("service_provider_bindings").select("provider_key,base_url,endpoints,settings").eq("capability","live_streaming").eq("provider_key",stream.metadata?.provider).maybeSingle(),
+    db.rpc("get_service_provider_admin_secret",{p_capability:"live_streaming",p_provider_key:stream.metadata?.provider})
+   ]);
+   const vault=Array.isArray(secrets)?secrets[0]:null,mode=stream.metadata?.provider_mode==="live"?"live":"test";
+   const credential=mode==="live"?(vault?.live_credential||vault?.test_credential):(vault?.test_credential||vault?.live_credential);
+   provider=binding?{...binding,credential}:null;
+   if(!provider?.credential||!provider.endpoints?.live_stop)return json({error:"The provider that created this stream is no longer configured. Restore its Vault binding to stop it safely."},503);
    const response=await fetch(endpoint(provider.base_url,provider.endpoints.live_stop),{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+provider.credential},body:JSON.stringify({stream_id:p.streamId,provider_reference:stream.metadata?.provider_reference}),signal:AbortSignal.timeout(15000)});
    const result=await response.json().catch(()=>null);
    if(!response.ok||result?.stopped!==true)return json({error:"Provider could not confirm stream termination."},502);
    await db.from("live_streams").update({status:"ended",actual_end:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",p.streamId);
    return json({success:true,status:"ended"});
   }
+  if(!providers.length)return json({error:"No active provider is configured for this media capability."},503);
   const payload=p.action==="create_upload"
    ? {owner_id:user.id,file_name:p.fileName,content_type:p.contentType,size_bytes:p.sizeBytes,content_id:p.contentId??null,transcode:true,delivery_profile:"adaptive"}
    : {owner_id:user.id,title:p.title,description:p.description??null,scheduled_start:p.scheduledStart??null,recording_enabled:p.recordingEnabled};
