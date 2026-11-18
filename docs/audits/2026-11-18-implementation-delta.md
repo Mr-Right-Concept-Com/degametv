@@ -54,3 +54,12 @@ This file records the changes made after the 18 November re-audit. It supersedes
 The authenticated role can no longer set `kyc_status`, `kyc_verified_at`, identity document paths, or insert/delete profile rows directly. Safe profile fields remain editable. The approval transaction and creator-role grant are now one database transaction with an audit record.
 
 Remaining: validate existing profile settings and admin user-edit workflows in a real browser; verify function CORS and auth on preview/production origins; run a real test applicant and reviewer account; add document malware quarantine and approved evidence retention.
+
+
+## Final pass update — latest code commit c58c00547459d52bc7b6154106ecb7615ad25b9f
+
+- Admin filmmaker review now creates 5-minute signed URLs from the private identity bucket; raw private object paths are never treated as public image URLs.
+- Approval/rejection now calls `review-kyc`, requires a review reason, and no longer performs direct profile status mutation or a separate client-side creator-role insert.
+- Corrected the conditional evidence preview JSX after static inspection.
+- Lovable project sync was rechecked and now reports latest_commit_sha `c58c00547459d52bc7b6154106ecb7615ad25b9f`, matching GitHub main. Project status is ready.
+- GitHub combined commit status remains an empty status list. CI has not been certified as passing.
