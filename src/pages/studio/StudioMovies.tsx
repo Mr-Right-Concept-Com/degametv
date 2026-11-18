@@ -17,8 +17,8 @@ export default function StudioMovies(){
  const load=useCallback(async()=>{if(!user?.id){setLoading(false);return;}setLoading(true);
   const {data,error}=await supabase.from('content').select('id,title,type,status,created_at,poster_url,description,genres,duration,release_date,metadata').eq('creator_id',user.id).order('created_at',{ascending:false});
   if(error){toast.error('Your creator catalogue could not be loaded.');setTitles([]);setEvents([]);setLoading(false);return;}
-  const rows=(data||[]) as Title[];setTitles(rows);
-  const ids=rows.map(x=>x.id);if(ids.length){const {data:eventRows}=await supabase.from('screenings').select('id,content_id,screening_date,event_type,status').in('content_id',ids).order('screening_date',{ascending:true});setEvents((eventRows||[]) as Event[]);}else setEvents([]);
+  const rows=(data||[]) as unknown as Title[];setTitles(rows);
+  const ids=rows.map(x=>x.id);if(ids.length){const {data:eventRows}=await supabase.from('screenings').select('id,content_id,screening_date,event_type,status').in('content_id',ids).order('screening_date',{ascending:true});setEvents((eventRows||[]) as unknown as Event[]);}else setEvents([]);
   setLoading(false);
  },[user?.id]);
  useEffect(()=>{void load();},[load]);
