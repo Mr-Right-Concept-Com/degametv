@@ -13,7 +13,7 @@ import { z } from 'zod';
 
 const kycSchema = z.object({
   kyc_full_name: z.string().trim().min(3, 'Full legal name required').max(120),
-  kyc_id_type: z.enum(['nin', 'passport', 'drivers_license', 'voters_card'], {
+  kyc_id_type: z.enum(['national_id', 'nin', 'passport', 'drivers_license', 'voters_card', 'residence_permit'], {
     errorMap: () => ({ message: 'Select an ID type' }),
   }),
   kyc_id_url: z.string().min(1, 'Upload your government-issued ID'),
@@ -162,7 +162,7 @@ export function KYCVerification({ onVerified, compact }: Props) {
           </div>
           <div className="flex-1">
             <p className="font-semibold text-sm">Application Under Review</p>
-            <p className="text-xs text-muted-foreground">We'll email you within 24–48 hours when your filmmaker access is approved.</p>
+            <p className="text-xs text-muted-foreground">Your identity evidence is queued for the configured verification workflow. If no provider is connected, an administrator will review it.</p>
           </div>
           <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/30">Pending</Badge>
         </CardContent>
@@ -178,7 +178,7 @@ export function KYCVerification({ onVerified, compact }: Props) {
           Filmmaker Application — Verify Identity
         </CardTitle>
         <CardDescription className="text-xs">
-          To premiere films on DeGameTV, complete this one-time identity check. Our team reviews applications within 24–48 hours. After approval you unlock the Studio to upload and schedule premieres.
+          To become a DeGameTV creator, submit your country-issued identity document and a short selfie video. Liveness and document matching require a configured verification provider; otherwise the application remains pending for manual review. After approval you unlock the Studio to upload and schedule premieres.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -258,7 +258,7 @@ export function KYCVerification({ onVerified, compact }: Props) {
           {submitting ? 'Submitting...' : 'Submit Application'}
         </Button>
         <p className="text-[10px] text-muted-foreground text-center">
-          <Clock className="w-3 h-3 inline mr-1" />Reviewed within 24–48 hours. Your data is encrypted and used only for compliance.
+          <Clock className="w-3 h-3 inline mr-1" />Your private identity evidence is restricted to verification and compliance review.
         </p>
       </CardContent>
     </Card>
