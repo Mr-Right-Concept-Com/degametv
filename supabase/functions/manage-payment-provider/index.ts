@@ -72,10 +72,19 @@ if (import.meta.main) serve(async (req: Request) => {
       p_live: value.live,
     });
     if (error) {
-      const message = error.message.includes("live_credentials") || error.message.includes("test_credentials")
-        ? "Save the matching public key, secret key and webhook secret before enabling this mode."
-        : error.message.includes("forbidden") ? "Super administrator permission is required."
-        : "Provider settings could not be saved. No credentials were returned.";
+      const invalidKey = error.message.includes("invalid_test_public_key") || error.message.includes("invalid_test_secret_key")
+        ? "Use genuine Paystack test credentials (pk_test_ and sk_test_). Demo and placeholder values are rejected."
+        : error.message.includes("invalid_live_public_key") || error.message.includes("invalid_live_secret_key")
+          ? "Use genuine Paystack live credentials (pk_live_ and sk_live_). Demo and placeholder values are rejected."
+          : null;
+      const message = invalidKey
+        ?? (error.message.includes("live_credentials") || error.message.includes("test_credentials")
+          ? "Save the matching public key and secret key before enabling this mode."
+          : error.message.includes("provider_adapter_not_available")
+            ? "This provider adapter is not deployed yet. Paystack is the only active checkout adapter."
+            : error.message.includes("forbidden")
+              ? "Super administrator permission is required."
+              : "Provider settings could not be saved. No credentials were returned.");
       return json(error.message.includes("forbidden") ? 403 : 400, { error: message });
     }
     return json(200, { success: true, configuration: data });
