@@ -53,10 +53,18 @@ if(import.meta.main)serve(async(req:Request)=>{
   if(completeError)return json(409,{error:"Payment verification did not match the pending order."});
   let emailSent=false;
   if(liveOrder&&completed?.ticket_id&&completed?.email){
-   const site=Deno.env.get("SITE_URL")||req.headers.get("origin")||"";
-   const deliveryUrl=claimToken?new URL("/live/claim?token="+encodeURIComponent(claimToken),site).toString():new URL("/tickets",site).toString();
-   const mail=await fetch(url+"/functions/v1/send-watch-email",{method:"POST",headers:{"Authorization":"Bearer "+service,"apikey":service,"Content-Type":"application/json"},body:JSON.stringify({email:completed.email,movieTitle:completed.title||"Live event",watchUrl:deliveryUrl,ticketCode:completed.ticket_code,expiresAt:completed.valid_until,location:completed.currency==="NGN"?"nigeria":"international",price:Number(completed.price),currency:completed.currency})}).catch(()=>null);
-   emailSent=Boolean(mail?.ok);
+   const configuredSite=Deno.env.get("SITE_URL")||req.headers.get("origin")||"";
+   let deliveryUrl:string|null=null;
+   try {
+    const siteUrl=new URL(configuredSite);
+    if(siteUrl.protocol==="https:"||siteUrl.hostname==="localhost") {
+     deliveryUrl=new URL(claimToken?"/live/claim?token="+encodeURIComponent(claimToken):"/tickets",siteUrl).toString();
+    }
+   } catch { deliveryUrl=null; }
+   if(deliveryUrl) {
+    const mail=await fetch(url+"/functions/v1/send-watch-email",{method:"POST",headers:{"Authorization":"Bearer "+service,"apikey":service,"Content-Type":"application/json"},body:JSON.stringify({email:completed.email,movieTitle:completed.title||"Live event",watchUrl:deliveryUrl,ticketCode:completed.ticket_code,expiresAt:completed.valid_until,location:completed.currency==="NGN"?"nigeria":"international",price:Number(completed.price),currency:completed.currency})}).catch(()=>null);
+    emailSent=Boolean(mail?.ok);
+   }
   } else if(!liveOrder) emailSent=await sendTicketEmail(admin,url,service,reference);
   return json(200,{received:true,verified:true,fulfillment:completed,emailSent});
  }catch{return json(400,{error:"Invalid webhook payload."});}
