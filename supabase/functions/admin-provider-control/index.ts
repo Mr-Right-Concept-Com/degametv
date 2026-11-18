@@ -14,8 +14,10 @@ const schema = z.discriminatedUnion("action", [
     baseUrl: z.string().url().refine(v => new URL(v).protocol === "https:"),
     endpoints: z.record(z.string(), z.unknown()).default({}),
     settings: z.record(z.string(), z.unknown()).default({}),
-    credential: z.string().max(10000).optional(),
-    webhookSecret: z.string().max(10000).optional(),
+    testCredential: z.string().max(10000).optional(),
+    liveCredential: z.string().max(10000).optional(),
+    testWebhookSecret: z.string().max(10000).optional(),
+    liveWebhookSecret: z.string().max(10000).optional(),
   }),
   z.object({
     action: z.literal("remove"),
@@ -45,10 +47,10 @@ Deno.serve(async req => {
   const p=parsed.data;
   if(p.action==="list"){
     const {data,error}=await admin.from("service_provider_bindings")
-      .select("id,capability,provider_key,enabled,is_live,base_url,endpoints,settings,updated_at,removed_at,priority,credential_secret_ref,webhook_secret_ref")
+      .select("id,capability,provider_key,enabled,is_live,base_url,endpoints,settings,updated_at,removed_at,priority,test_credential_secret_ref,live_credential_secret_ref,test_webhook_secret_ref,live_webhook_secret_ref,credential_secret_ref,webhook_secret_ref")
       .order("capability").order("priority").order("provider_key");
     if(error)return json({error:"Provider registry could not be loaded."},503);
-    return json({providers:(data||[]).map(({credential_secret_ref,webhook_secret_ref,...row})=>({...row,hasCredential:Boolean(credential_secret_ref),hasWebhookSecret:Boolean(webhook_secret_ref)}))});
+    return json({providers:(data||[]).map(({test_credential_secret_ref,live_credential_secret_ref,test_webhook_secret_ref,live_webhook_secret_ref,credential_secret_ref,webhook_secret_ref,...row})=>({...row,hasTestCredential:Boolean(test_credential_secret_ref)||Boolean(credential_secret_ref&&!row.is_live),hasLiveCredential:Boolean(live_credential_secret_ref)||Boolean(credential_secret_ref&&row.is_live),hasTestWebhookSecret:Boolean(test_webhook_secret_ref)||Boolean(webhook_secret_ref&&!row.is_live),hasLiveWebhookSecret:Boolean(live_webhook_secret_ref)||Boolean(webhook_secret_ref&&row.is_live)}))});
   }
   if(p.action==="test"){
     const {data:rows,error}=await admin.rpc("get_service_provider_runtime_config",{p_capability:p.capability});
@@ -68,18 +70,14 @@ Deno.serve(async req => {
   }
   if(p.action==="configure"&&p.live&&!p.enabled)return json({error:"Live mode requires the provider binding to be enabled."},400);
   if(p.action==="configure"&&p.enabled){
-    if(p.live&&!p.webhookSecret){
-      const {data:existing}=await admin.from("service_provider_bindings").select("webhook_secret_ref").eq("capability",p.capability).eq("provider_key",p.providerKey).maybeSingle();
-      if(!existing?.webhook_secret_ref)return json({error:"A webhook signing secret is required before enabling live mode."},409);
-    }
+    const {data:stored}=await admin.rpc("get_service_provider_admin_secret",{p_capability:p.capability,p_provider_key:p.providerKey});
+    const existing=Array.isArray(stored)?stored[0]:null;
+    const credential=p.live?(p.liveCredential||existing?.live_credential):(p.testCredential||existing?.test_credential);
+    const webhook=p.live?(p.liveWebhookSecret||existing?.live_webhook_secret):(p.testWebhookSecret||existing?.test_webhook_secret);
+    if(p.live&&p.capability==="live_streaming"&&!webhook)return json({error:"A live webhook signing secret is required before enabling live streaming."},409);
     const healthPath=p.endpoints.health_check;
-    if(typeof healthPath!=="string"||!healthPath.startsWith("/")||healthPath.startsWith("//"))return json({error:"Configure a relative health_check endpoint and pass a successful provider health test before enabling this binding."},409);
-    let credential=p.credential;
-    if(!credential){
-      const {data:stored}=await admin.rpc("get_service_provider_admin_secret",{p_capability:p.capability,p_provider_key:p.providerKey});
-      credential=Array.isArray(stored)?stored[0]?.credential:undefined;
-    }
-    if(!credential)return json({error:"A Vault credential is required before enabling this provider."},409);
+    if(typeof healthPath!=="string"||!healthPath.startsWith("/")||healthPath.startsWith("//"))return json({error:"Configure a relative health_check endpoint before enabling this provider."},409);
+    if(!credential)return json({error:"A Vault credential for the selected test/live mode is required."},409);
     try{
       const target=new URL(healthPath,p.baseUrl);
       if(target.origin!==new URL(p.baseUrl).origin)return json({error:"Provider health endpoint must remain on the configured host."},400);
@@ -90,8 +88,8 @@ Deno.serve(async req => {
   }
   const args=p.action==="remove"
     ? {p_capability:p.capability,p_provider_key:p.providerKey,p_enabled:false,p_is_live:false,p_remove:true}
-    : {p_capability:p.capability,p_provider_key:p.providerKey,p_enabled:p.enabled,p_is_live:p.live,p_base_url:p.baseUrl,p_endpoints:p.endpoints,p_settings:p.settings,p_credential:p.credential??null,p_webhook_secret:p.webhookSecret??null,p_remove:false};
-  const {data,error}=await caller.rpc("admin_configure_service_provider",args);
+    : {p_capability:p.capability,p_provider_key:p.providerKey,p_enabled:p.enabled,p_is_live:p.live,p_base_url:p.baseUrl,p_endpoints:p.endpoints,p_settings:p.settings,p_test_credential:p.testCredential??null,p_live_credential:p.liveCredential??null,p_test_webhook_secret:p.testWebhookSecret??null,p_live_webhook_secret:p.liveWebhookSecret??null,p_remove:false};
+  const {data,error}=await caller.rpc("admin_configure_service_provider_modes",args);
   if(error)return json({error:"Provider change was rejected.",code:error.message},400);
   return json({success:true,result:data});
 });
