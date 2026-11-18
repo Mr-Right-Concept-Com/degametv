@@ -36,7 +36,7 @@ if(import.meta.main)serve(async(req:Request)=>{
    admin.rpc("get_service_provider_admin_secret",{p_capability:"payments",p_provider_key:orderLookup.data.provider})
   ]);
   const vault=Array.isArray(secrets)?secrets[0]:null;
-  const mode=orderLookup.data?.metadata?.provider_mode==="live"?"live":"test";
+  const mode=orderLookup.data?.metadata?.provider_mode==="live"||(orderLookup.data?.metadata?.provider_mode==null&&binding?.is_live===true)?"live":"test";
   const config=binding?{...binding,credential:mode==="live"?(vault?.live_credential||vault?.test_credential):(vault?.test_credential||vault?.live_credential),webhook_secret:mode==="live"?(vault?.live_webhook_secret||vault?.test_webhook_secret):(vault?.test_webhook_secret||vault?.live_webhook_secret)}:null;
   if(bindingError||secretError||!config?.credential||!config?.webhook_secret)return json(503,{error:"The provider used by this payment has no retained webhook credentials."});
   const settings=config.settings||{};
