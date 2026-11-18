@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { z } from "npm:zod@3.25.76";
-const schema=z.object({reference:z.string().min(20).max(80).regex(/^DTV_[A-Za-z0-9]+$/)}).strict();
+const schema=z.object({reference:z.string().min(20).max(80).regex(/^DTV(?:L)?_[A-Za-z0-9]+$/)}).strict();
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
 if(import.meta.main)serve(async(req:Request)=>{
@@ -13,6 +13,11 @@ if(import.meta.main)serve(async(req:Request)=>{
  if(!url||!service)return json(503,{error:"Payment status is temporarily unavailable."});
  try{
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
+  if(parsed.data.reference.startsWith("DTVL_")){
+   const {data:liveOrder,error:liveError}=await admin.from("live_payment_orders").select("id,status,email,user_id,provider_reference,provider,amount_minor,currency,stream_id,metadata").eq("provider_reference",parsed.data.reference).maybeSingle();
+   if(liveError||!liveOrder)return json(404,{error:"No live event payment could be found for that reference."});
+   return json(200,{status:liveOrder.status==="paid"?"paid":liveOrder.status,delivery:liveOrder.user_id?"my_tickets":"email",email:liveOrder.email,provider:liveOrder.provider});
+  }
   const {data:order,error}=await admin.from("guest_payment_orders").select("id,ticket_id,status,email,provider_reference,provider,amount_minor,currency,app_origin").eq("provider_reference",parsed.data.reference).maybeSingle();
   if(error||!order)return json(404,{error:"No payment could be found for those details."});
   if(order.status==="pending"&&order.provider==="paystack"){
