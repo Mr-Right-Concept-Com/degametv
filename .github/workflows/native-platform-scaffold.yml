@@ -9,6 +9,7 @@ on:
       - 'native/test/**'
       - 'native/tool/**'
       - 'native/analysis_options.yaml'
+      - '.github/workflows/native-platform-scaffold.yml'
   workflow_dispatch:
 permissions:
   contents: write
@@ -29,7 +30,14 @@ jobs:
       - name: Generate native runners
         working-directory: native
         run: |
-          flutter create --platforms=android,ios,windows,macos,linux --org com.degametv --project-name degametv_native .
+          mkdir -p .platform-shell
+          flutter create --platforms=android,ios,windows,macos,linux --org com.degametv --project-name degametv_native .platform-shell
+          for platform in android ios windows macos linux; do
+            rm -rf "$platform"
+            mv ".platform-shell/$platform" "$platform"
+          done
+          if [ -f .platform-shell/.metadata ]; then mv .platform-shell/.metadata .metadata; fi
+          rm -rf .platform-shell
           node tool/configure_platforms.mjs
       - name: Commit generated platform projects
         run: |
