@@ -23,18 +23,25 @@ if(import.meta.main)serve(async(req:Request)=>{
  const raw=await req.text();
  try{
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
+  const event=JSON.parse(raw);
+  const reference=event?.reference;
+  if(typeof reference!=="string"||!/^DTV_[A-Za-z0-9]+$/.test(reference)&&!/^DTVL_[A-Za-z0-9]+$/.test(reference))return json(400,{error:"Invalid payment reference."});
+  const liveOrder=reference.startsWith("DTVL_");
+  const orderLookup=liveOrder
+    ? await admin.from("live_payment_orders").select("provider").eq("provider_reference",reference).maybeSingle()
+    : await admin.from("guest_payment_orders").select("provider").eq("provider_reference",reference).maybeSingle();
+  if(orderLookup.error||!orderLookup.data?.provider)return json(404,{error:"Payment order not found."});
   const {data:configs,error}=await admin.rpc("get_service_provider_runtime_config",{p_capability:"payments"});
-  if(error||!Array.isArray(configs)||!configs.length||!configs[0].credential||!configs[0].webhook_secret)return json(503,{error:"Active payment provider or webhook secret is not configured."});
-  const config=configs[0],settings=config.settings||{};
+  if(error||!Array.isArray(configs))return json(503,{error:"Payment provider registry is unavailable."});
+  const config=configs.find((candidate:any)=>candidate.provider_key===orderLookup.data.provider);
+  if(!config?.credential||!config?.webhook_secret)return json(503,{error:"The provider used by this payment has no active webhook credentials."});
+  const settings=config.settings||{};
   const signatureHeader=typeof settings.signature_header==="string"?settings.signature_header:"x-provider-signature";
   const algorithm=settings.signature_algorithm==="SHA-256"?"SHA-256":"SHA-512";
   const signature=req.headers.get(signatureHeader)||"",expected=await hmac(config.webhook_secret,raw,algorithm);
   const normalized=signature.toLowerCase().replace(/^sha256=/,"").replace(/^sha512=/,"");
   if(!equal(normalized,expected.toLowerCase()))return json(401,{error:"Invalid webhook signature."});
-  const event=JSON.parse(raw);
   if(event?.type!==(settings.success_event||"payment.succeeded"))return json(200,{received:true,ignored:true});
-  const reference=event?.reference;
-  if(typeof reference!=="string"||!/^DTV_[A-Za-z0-9]+$/.test(reference)&&!/^DTVL_[A-Za-z0-9]+$/.test(reference))return json(400,{error:"Invalid payment reference."});
   const verifyPath=config.endpoints?.payment_verify;
   if(typeof verifyPath!=="string"||!verifyPath.startsWith("/")||verifyPath.startsWith("//"))return json(503,{error:"Payment verification endpoint is not configured."});
   const verifyUrl=new URL(verifyPath,config.base_url);
