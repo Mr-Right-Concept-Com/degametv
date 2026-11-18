@@ -82,6 +82,7 @@ export default function BuyTicket() {
     const savedLocation = sessionStorage.getItem('degame_checkout_location') === 'international' ? 'international' : 'nigeria';
     if (!reference || !savedEmail) return;
     setLocation(savedLocation);
+    setStep('payment');
     let active = true;
     setEmail(savedEmail);
     setProcessing(true);
