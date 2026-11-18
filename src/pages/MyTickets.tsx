@@ -24,10 +24,12 @@ export default function MyTickets() {
         return;
       }
 
-      const { data, error } = await supabase
+      const { error: claimError } = await supabase.rpc('claim_guest_tickets');
+      if (claimError) toast.message('Your tickets could not be claimed automatically. Contact support if a purchase is missing.');
+      const { data } = await supabase
         .from('screening_tickets')
         .select('*, screening:screenings(*)')
-        .or(`user_id.eq.${user.id},email.eq.${user.email}`)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (data) setTickets(data);
