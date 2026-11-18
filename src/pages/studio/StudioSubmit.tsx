@@ -449,18 +449,17 @@ export default function StudioSubmit() {
                     </Select>
                   </div> : <div className="space-y-2"><Label>Event format</Label><div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm font-medium">Live broadcast · ticketed event</div><p className="text-xs text-muted-foreground">Configure your event, admission prices and encoder access below.</p></div>}
                 </div>
-                <div className="space-y-2">
+                {!liveFlow ? <div className="space-y-2">
                   <Label>Release strategy</Label>
                   <Select value={form.release_strategy} onValueChange={v => setForm(f => ({ ...f, release_strategy: v }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="on_demand">Publish to on-demand catalogue</SelectItem>
                       {(form.project_type === 'movie' || form.project_type === 'series') && <SelectItem value="premiere">Ticketed virtual premiere</SelectItem>}
-                      {form.project_type === 'live' && <SelectItem value="live">Live broadcast / virtual event</SelectItem>}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">Your release choice controls scheduling, ticket pricing and the publishing steps.</p>
-                </div>
+                  <p className="text-xs text-muted-foreground">Your release choice controls scheduling, ticket pricing and publishing.</p>
+                </div> : <div className="space-y-2"><Label>Release strategy</Label><div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm font-medium">Live broadcast · paid or free admission</div></div>}
                 <div className="space-y-2">
                   <Label>{liveFlow ? 'Event description' : 'Synopsis'}</Label>
                   <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={4} placeholder={liveFlow ? 'Tell viewers what will happen, who is hosting and what their ticket includes.' : 'Write a short synopsis that helps audiences understand your title.'} />
