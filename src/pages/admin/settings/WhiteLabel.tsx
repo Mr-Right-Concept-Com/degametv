@@ -40,24 +40,25 @@ export default function WhiteLabel() {
         .maybeSingle();
       
       if (data?.setting_value && typeof data.setting_value === 'object') {
-        const val = data.setting_value as Record<string, any>;
+        const val = data.setting_value as Record<string, unknown>;
+        const textValue = (key: string, fallback: string) => typeof val[key] === 'string' ? val[key] as string : fallback;
         setBranding(prev => ({
           ...prev,
-          platformName: val.platformName || prev.platformName,
-          tagline: val.tagline || prev.tagline,
-          primaryColor: val.primaryColor || prev.primaryColor,
-          secondaryColor: val.secondaryColor || prev.secondaryColor,
-          accentColor: val.accentColor || prev.accentColor,
-          backgroundColor: val.backgroundColor || prev.backgroundColor,
-          fontFamily: val.fontFamily || prev.fontFamily,
-          customDomain: val.customDomain || prev.customDomain,
-          supportEmail: val.supportEmail || prev.supportEmail,
-          logoUrl: val.logoUrl || prev.logoUrl,
-          faviconUrl: val.faviconUrl || prev.faviconUrl,
+          platformName: textValue('platformName', prev.platformName),
+          tagline: textValue('tagline', prev.tagline),
+          primaryColor: textValue('primaryColor', prev.primaryColor),
+          secondaryColor: textValue('secondaryColor', prev.secondaryColor),
+          accentColor: textValue('accentColor', prev.accentColor),
+          backgroundColor: textValue('backgroundColor', prev.backgroundColor),
+          fontFamily: textValue('fontFamily', prev.fontFamily),
+          customDomain: textValue('customDomain', prev.customDomain),
+          supportEmail: textValue('supportEmail', prev.supportEmail),
+          logoUrl: textValue('logoUrl', prev.logoUrl),
+          faviconUrl: textValue('faviconUrl', prev.faviconUrl),
         }));
       }
       const { data: domainData } = await supabase.from('platform_settings').select('setting_value').eq('setting_key','domain_settings').maybeSingle();
-      if (domainData?.setting_value && typeof domainData.setting_value === 'object') setDomains(prev => ({ ...prev, ...(domainData.setting_value as Record<string,string>) }));
+      if (domainData?.setting_value && typeof domainData.setting_value === 'object') setDomains(prev => { const value = domainData.setting_value as Record<string, unknown>; return { controlDomain: typeof value.controlDomain === 'string' ? value.controlDomain : prev.controlDomain, releaseDomain: typeof value.releaseDomain === 'string' ? value.releaseDomain : prev.releaseDomain }; });
       setLoading(false);
     };
     fetch();
@@ -75,7 +76,7 @@ export default function WhiteLabel() {
     if (existing) {
       const { error } = await supabase
         .from('platform_settings')
-        .update({ setting_value: branding as any })
+        .update({ setting_value: branding as unknown as import('@/integrations/supabase/types').Json })
         .eq('id', existing.id);
       if (error) toast.error('Save failed: ' + error.message);
       else toast.success('Branding saved');
@@ -86,7 +87,7 @@ export default function WhiteLabel() {
       if (error) toast.error('Save failed: ' + error.message);
       else toast.success('Branding saved');
     }
-    const { error: domainError } = await supabase.from('platform_settings').upsert({ setting_key: 'domain_settings', setting_value: domains as any, is_public: true, description: 'Canonical control domain and dedicated release subdomain root' }, { onConflict: 'setting_key' });
+    const { error: domainError } = await supabase.from('platform_settings').upsert({ setting_key: 'domain_settings', setting_value: domains as unknown as import('@/integrations/supabase/types').Json, is_public: true, description: 'Canonical control domain and dedicated release subdomain root' }, { onConflict: 'setting_key' });
     if (domainError) toast.error('Domain settings could not be saved: ' + domainError.message);
     else toast.success('Domain settings saved.');
     setSaving(false);
