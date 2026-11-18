@@ -26,9 +26,9 @@ export default function Producers() {
   return (
     <MainLayout>
       {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-accent/5" />
-        <div className="container mx-auto px-5 py-16 sm:py-24 relative">
+      <section className="relative isolate overflow-hidden">
+        <div className="absolute inset-0 -z-20 bg-[url(https://images.unsplash.com/photo-1485846234645-a62644f84728?w=1800&auto=format&fit=crop)] bg-cover bg-center opacity-20" /><div className="absolute inset-0 -z-10 bg-gradient-to-br from-background via-background/95 to-primary/20" />
+        <div className="container relative mx-auto px-5 py-20 sm:py-28">
           <div className="max-w-3xl">
             <p className="text-xs font-semibold tracking-widest text-primary uppercase mb-3">For Producers</p>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight leading-tight mb-5">
@@ -57,7 +57,7 @@ export default function Producers() {
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
           {pillars.map((p) => (
-            <div key={p.title} className="rounded-2xl p-5 sm:p-6 bg-card border border-border hover:border-primary/30 transition-all">
+            <div key={p.title} className="rounded-[1.6rem] p-6 sm:p-7 bg-card/90 border border-border/70 shadow-sm hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl transition-all">
               <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
                 <p.icon className="w-5 h-5 text-primary" />
               </div>
@@ -70,7 +70,7 @@ export default function Producers() {
 
       {/* Advantages */}
       <section className="container mx-auto px-5 py-16">
-        <div className="max-w-3xl mx-auto bg-card border border-border rounded-3xl p-8 sm:p-12 text-center">
+        <div className="max-w-3xl mx-auto bg-gradient-to-br from-card to-primary/10 border border-border/70 rounded-[2rem] p-8 sm:p-12 text-center shadow-lg">
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-2">The DeGameTV Advantage</h2>
           <p className="text-sm text-muted-foreground mb-8">No surprises. Just a partner that helps your film succeed.</p>
           <ul className="space-y-3 max-w-md mx-auto text-left">
