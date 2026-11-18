@@ -74,3 +74,9 @@ Browser profile editing and admin review journeys remain NOT TESTED; database gr
 - GitHub quality workflow `.github/workflows/quality.yml` now exists and runs npm ci, Playwright Chromium installation, typecheck, lint, build and axe. Workflow execution remains NOT TESTED until an Actions run is observed.
 - Supabase security advisor refreshed 2026-11-18 04:20 UTC: 34 anonymous GraphQL visibility notices, 36 authenticated GraphQL visibility notices, 9 authenticated SECURITY DEFINER functions, pg_net public-schema notice and leaked-password protection disabled. Treat visibility as discoverability warnings; prove row access through grants + RLS tests, not by counting advisor warnings alone.
 - Function deployment metadata for submit-kyc/review-kyc was inconsistent between deployment responses and subsequent list output. Gateway JWT verification is OPEN pending reconciliation; both function bodies continue explicit bearer-token user verification.
+
+
+### Final validation and CI configuration update — 18 November 2026
+- KYC RPC database boundary now explicitly rejects NULL identity type, MIME and oversized object paths; SQL RUN confirms function grants and these guards.
+- Both KYC Edge Functions are configured in `supabase/config.toml` for gateway JWT verification and deployed metadata currently confirms `verify_jwt=true` (submit v9, review v8).
+- CI is consolidated in one `quality-gate.yml`; it uses `npm ci` without auto-mutating or pushing package-lock changes. Run was queued/in progress; all test gates remain NOT TESTED until successful completion.
