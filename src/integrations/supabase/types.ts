@@ -2044,6 +2044,10 @@ export type Database = {
         Args: { p_content_id: string }
         Returns: Json
       }
+      create_creator_screening: {
+        Args: { p_content_id: string; p_event_type: string; p_location_pricing: Json; p_screening_date: string | null; p_slug: string }
+        Returns: Json
+      }
       review_creator_submission: {
         Args: { p_admin_note: string | null; p_status: string; p_submission_id: string }
         Returns: Json
