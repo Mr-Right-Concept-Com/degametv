@@ -168,31 +168,38 @@ export default function StudioSubmit() {
     setCreatedContentId(submission.content_id);
 
     if (form.poster_url && (form.video_url || ['live', 'series'].includes(form.project_type) || (form.project_type === 'trailer' && form.trailer_url))) {
-      const { data: publication, error: publishError } = await supabase.rpc('publish_creator_content', { p_content_id: submission.content_id });
-      if (!publishError && (publication as { status?: string } | null)?.status === 'published') {
-        setPublished(true);
-        if (form.project_type === 'live') {
-          const scheduledDate = form.premiere_date ? new Date(`${form.premiere_date}T${form.premiere_time}:00`) : new Date(Date.now() + 30 * 60 * 1000);
-          if (!Number.isFinite(scheduledDate.getTime()) || scheduledDate.getTime() < Date.now() + 15 * 60 * 1000) {
-            toast.error('Choose a premiere date and time at least 15 minutes in the future.');
-            setSubmitting(false);
-            return;
-          }
-          const scheduledAt = scheduledDate.toISOString();
-          const { data: event, error: eventError } = await supabase.rpc('create_creator_screening', {
-            p_content_id: submission.content_id,
-            p_screening_date: scheduledAt,
-            p_location_pricing: { nigeria: Number(form.live_price_ngn), international: Number(form.live_price_usd) },
-            p_event_type: 'live',
-            p_slug: form.project_title,
-          });
-          if (eventError || !(event as { screening_id?: string } | null)?.screening_id) {
-            toast.error('The live title is published, but its event could not be scheduled. Open Go Live and create the event before provisioning a stream.');
-          } else {
-            toast.success('Live event published and scheduled. Set admission and replay prices, then provision its secure encoder in Go Live.');
-          }
+      if (form.project_type === 'live') {
+        const scheduledDate = form.premiere_date ? new Date(`${form.premiere_date}T${form.premiere_time}:00`) : new Date(Date.now() + 30 * 60 * 1000);
+        if (!Number.isFinite(scheduledDate.getTime()) || scheduledDate.getTime() < Date.now() + 15 * 60 * 1000) {
+          toast.error('Choose a premiere date and time at least 15 minutes in the future.');
+          setSubmitting(false);
+          return;
         }
-      } else toast.info('Your content draft is saved. Add the required assets and rights declaration, then publish when ready.');
+        if (!Number.isFinite(Number(form.live_price_ngn)) || Number(form.live_price_ngn) <= 0 || !Number.isFinite(Number(form.live_price_usd)) || Number(form.live_price_usd) <= 0) {
+          toast.error('Set valid Nigeria and international admission prices before scheduling this live event.');
+          setSubmitting(false);
+          return;
+        }
+        const { data: event, error: eventError } = await supabase.rpc('create_creator_screening', {
+          p_content_id: submission.content_id,
+          p_screening_date: scheduledDate.toISOString(),
+          p_location_pricing: { nigeria: Number(form.live_price_ngn), international: Number(form.live_price_usd) },
+          p_event_type: 'live',
+          p_slug: form.project_title,
+        });
+        if (eventError || !(event as { screening_id?: string } | null)?.screening_id) {
+          toast.error('The live event could not be published. Your draft is safe; correct the schedule or pricing and retry.');
+          setSubmitting(false);
+          return;
+        }
+        setPublished(true);
+        toast.success('Live event published and scheduled. Open Go Live to provision its secure encoder.');
+      } else {
+        const { data: publication, error: publishError } = await supabase.rpc('publish_creator_content', { p_content_id: submission.content_id });
+        if (!publishError && (publication as { status?: string } | null)?.status === 'published') {
+          setPublished(true);
+        } else toast.info('Your content draft is saved. Add the required assets and rights declaration, then publish when ready.');
+      }
     }
 
     setSubmitted(true);
