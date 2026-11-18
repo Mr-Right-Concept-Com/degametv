@@ -78,9 +78,9 @@ export default function BuyTicket() {
   useEffect(() => {
     if (!screening) return;
     const reference = new URLSearchParams(window.location.search).get('reference');
-    const savedEmail = sessionStorage.getItem('degame_checkout_email');
+    const savedEmail = sessionStorage.getItem('degame_checkout_email') || '';
     const savedLocation = sessionStorage.getItem('degame_checkout_location') === 'international' ? 'international' : 'nigeria';
-    if (!reference || !savedEmail) return;
+    if (!reference) return;
     setLocation(savedLocation);
     setStep('payment');
     let active = true;
@@ -88,9 +88,10 @@ export default function BuyTicket() {
     setProcessing(true);
     const poll = async () => {
       for (let i = 0; i < 6 && active; i += 1) {
-        const result = await supabase.functions.invoke('payment-status', { body: { reference, email: savedEmail } });
+        const result = await supabase.functions.invoke('payment-status', { body: { reference } });
         if (!active) return;
         if (!result.error && result.data?.status === 'paid' && result.data.watchCode && result.data.ticketCode) {
+          setEmail(result.data.email || savedEmail);
           setConfirmation(result.data);
           setStep('confirmation');
           sessionStorage.removeItem('degame_checkout_email');
