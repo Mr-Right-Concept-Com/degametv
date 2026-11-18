@@ -52,10 +52,10 @@ Deno.serve(async req=>{
   }
   if(typeof result.provider_reference!=="string"||typeof result.ingest_url!=="string"||typeof result.stream_key!=="string"||!result.stream_key.trim())return json({error:"Media provider returned an incomplete live-stream contract."},502);
   let ingest:URL;try{ingest=new URL(result.ingest_url);if(ingest.protocol!=="rtmp:"&&ingest.protocol!=="rtmps:")throw new Error();}catch{return json({error:"Provider returned an invalid ingest endpoint."},502);}
-  const {data:screening,error:screeningError}=await db.from("screenings").select("id,tenant_id,content:content!inner(creator_id)").eq("id",p.screeningId).maybeSingle();
+  const {data:screening,error:screeningError}=await db.from("screenings").select("id,tenant_id,content_id").eq("id",p.screeningId).maybeSingle();
   if(screeningError||!screening)return json({error:"Creator event not found."},404);
-  const ownedContent=screening.content as unknown as {creator_id:string|null};
-  if(ownedContent?.creator_id!==user.id)return json({error:"You do not own this event."},403);
+  const {data:ownedContent,error:contentError}=await db.from("content").select("creator_id,tenant_id").eq("id",screening.content_id).maybeSingle();
+  if(contentError||!ownedContent||ownedContent.creator_id!==user.id||ownedContent.tenant_id!==screening.tenant_id)return json({error:"You do not own this event in its tenant."},403);
   const {data:membership,error:membershipError}=await db.from("user_roles").select("tenant_id").eq("user_id",user.id).eq("role","creator").eq("tenant_id",screening.tenant_id).maybeSingle();
   if(membershipError||!membership?.tenant_id)return json({error:"Your creator account is not authorized for this event tenant."},403);
   const {data:stream,error:insertError}=await db.from("live_streams").insert({
