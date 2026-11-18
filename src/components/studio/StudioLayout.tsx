@@ -17,7 +17,7 @@ export function StudioLayout({ children, title, description, actions }: StudioLa
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background safe-top safe-bottom">
       <div className="hidden md:block">
         <StudioSidebar />
       </div>
@@ -28,7 +28,7 @@ export function StudioLayout({ children, title, description, actions }: StudioLa
       </Sheet>
 
       <div className="md:pl-64">
-        <header className="h-14 md:h-16 border-b border-border bg-card/80 backdrop-blur-sm flex items-center justify-between px-4 md:px-6">
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-card/90 px-3 backdrop-blur-xl md:h-16 md:px-6">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" aria-label="Open menu" className="md:hidden" onClick={() => setOpen(true)}>
               <Menu className="h-5 w-5" aria-hidden="true" />
@@ -47,7 +47,7 @@ export function StudioLayout({ children, title, description, actions }: StudioLa
             </div>
           </div>
         </header>
-        <main className="p-4 md:p-6">{children}</main>
+        <main className="min-w-0 p-3 sm:p-4 md:p-6 lg:p-8">{children}</main>
       </div>
     </div>
   );
