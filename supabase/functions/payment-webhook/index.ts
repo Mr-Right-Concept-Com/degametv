@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json"}});
 const hex=(bytes:ArrayBuffer)=>Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,"0")).join("");
-async function hmac(secret:string,body:string){const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-512"},false,["sign"]);return hex(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(body)));}
+async function hmac(secret:string,body:string,algorithm:"SHA-256"|"SHA-512"){const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:algorithm},false,["sign"]);return hex(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(body)));}
 function equal(a:string,b:string){if(a.length!==b.length)return false;let mismatch=0;for(let i=0;i<a.length;i++)mismatch|=a.charCodeAt(i)^b.charCodeAt(i);return mismatch===0;}
 async function sendTicketEmail(admin:ReturnType<typeof createClient>,url:string,service:string,reference:string){
  const {data:order}=await admin.from("guest_payment_orders").select("id,ticket_id,email,currency,app_origin,email_sent_at").eq("provider_reference",reference).maybeSingle();
@@ -23,19 +23,28 @@ if(import.meta.main)serve(async(req:Request)=>{
  const raw=await req.text();
  try{
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
-  const {data:configs,error}=await admin.rpc("get_payment_provider_runtime_config",{p_provider:"paystack"});
-  if(error||!Array.isArray(configs)||!configs.length||!configs[0].secret_key)return json(503,{error:"Webhook verification is not configured."});
-  const signature=req.headers.get("x-paystack-signature")||"",expected=await hmac(configs[0].secret_key,raw);
-  if(!equal(signature.toLowerCase(),expected.toLowerCase()))return json(401,{error:"Invalid webhook signature."});
+  const {data:configs,error}=await admin.rpc("get_service_provider_runtime_config",{p_capability:"payments"});
+  if(error||!Array.isArray(configs)||!configs.length||!configs[0].credential||!configs[0].webhook_secret)return json(503,{error:"Active payment provider or webhook secret is not configured."});
+  const config=configs[0],settings=config.settings||{};
+  const signatureHeader=typeof settings.signature_header==="string"?settings.signature_header:"x-provider-signature";
+  const algorithm=settings.signature_algorithm==="SHA-256"?"SHA-256":"SHA-512";
+  const signature=req.headers.get(signatureHeader)||"",expected=await hmac(config.webhook_secret,raw,algorithm);
+  const normalized=signature.toLowerCase().replace(/^sha256=/,"").replace(/^sha512=/,"");
+  if(!equal(normalized,expected.toLowerCase()))return json(401,{error:"Invalid webhook signature."});
   const event=JSON.parse(raw);
-  if(event?.event!=="charge.success")return json(200,{received:true,ignored:true});
-  const reference=event?.data?.reference;
+  if(event?.type!==(settings.success_event||"payment.succeeded"))return json(200,{received:true,ignored:true});
+  const reference=event?.reference;
   if(typeof reference!=="string"||!reference.startsWith("DTV_"))return json(400,{error:"Invalid payment reference."});
-  const verification=await fetch("https://api.paystack.co/transaction/verify/"+encodeURIComponent(reference),{headers:{"Authorization":"Bearer "+configs[0].secret_key}});
+  const verifyPath=config.endpoints?.payment_verify;
+  if(typeof verifyPath!=="string"||!verifyPath.startsWith("/")||verifyPath.startsWith("//"))return json(503,{error:"Payment verification endpoint is not configured."});
+  const verifyUrl=new URL(verifyPath,config.base_url);
+  if(verifyUrl.origin!==new URL(config.base_url).origin)return json(503,{error:"Invalid payment verification endpoint."});
+  const authHeader=typeof settings.credential_header==="string"?settings.credential_header:"Authorization";
+  const authPrefix=typeof settings.credential_prefix==="string"?settings.credential_prefix:"Bearer ";
+  const verification=await fetch(verifyUrl,{method:"POST",headers:{[authHeader]:authPrefix+config.credential,"Content-Type":"application/json"},body:JSON.stringify({reference}),signal:AbortSignal.timeout(15000)});
   const result=await verification.json().catch(()=>null);
-  if(!verification.ok||result?.status!==true||result?.data?.status!=="success")return json(202,{received:true,verified:false});
-  const data=result.data;
-  const {data:completed,error:completeError}=await admin.rpc("complete_guest_payment_order",{p_reference:reference,p_transaction_id:String(data.id),p_amount_minor:Number(data.amount),p_currency:String(data.currency)});
+  if(!verification.ok||result?.verified!==true||result?.status!=="paid")return json(202,{received:true,verified:false});
+  const {data:completed,error:completeError}=await admin.rpc("complete_guest_payment_order",{p_reference:reference,p_transaction_id:String(result.transaction_id||reference),p_amount_minor:Number(result.amount_minor),p_currency:String(result.currency)});
   if(completeError)return json(409,{error:"Payment verification did not match the pending order."});
   const emailSent=await sendTicketEmail(admin,url,service,reference);
   return json(200,{received:true,verified:true,fulfillment:completed,emailSent});
