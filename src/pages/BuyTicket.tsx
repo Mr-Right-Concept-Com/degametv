@@ -292,7 +292,15 @@ export default function BuyTicket() {
           </div>
 
           {/* Step: Location */}
-          {step === 'location' && !freeStreamId && ((isReplay && screening.replay_access_model === 'FREE_REPLAY') || (!isReplay && screening.access_model === 'FREE')) ? (
+          {step === 'location' && !freeStreamId && isReplay && screening.replay_access_model === 'INCLUDED_WITH_TICKET' ? (
+            <Card className="animate-fade-in border-primary/30">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Replay included with your live ticket</CardTitle>
+                <CardDescription>If you purchased or claimed live admission, your replay entitlement is already attached to that ticket.</CardDescription>
+              </CardHeader>
+              <CardContent><Button asChild className="w-full rounded-full"><Link to="/tickets">Open My Tickets</Link></Button></CardContent>
+            </Card>
+          ) : step === 'location' && !freeStreamId && ((isReplay && screening.replay_access_model === 'FREE_REPLAY') || (!isReplay && screening.access_model === 'FREE')) ? (
             <Card className="animate-fade-in border-success/30">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base"><Check className="h-4 w-4 text-success"/> Free admission</CardTitle>
