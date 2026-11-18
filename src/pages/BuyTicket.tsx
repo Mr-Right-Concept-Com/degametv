@@ -44,7 +44,7 @@ export default function BuyTicket() {
   const [screening, setScreening] = useState<Screening | null>(null);
   const [loadingScreening, setLoadingScreening] = useState(true);
   usePageTitle(screening?.title ? `Buy Ticket — ${screening.title}` : 'Buy Ticket');
-  const [confirmation, setConfirmation] = useState<{ticketCode:string;watchCode:string;expiresAt?:string;emailSent?:boolean}|null>(null);
+  const [confirmation, setConfirmation] = useState<{ticketCode:string;watchCode:string;expiresAt?:string;emailSent?:boolean;location?:'nigeria'|'international';price?:number;currency?:string}|null>(null);
 
   useEffect(() => {
     const fetchScreening = async () => {
@@ -92,6 +92,7 @@ export default function BuyTicket() {
         if (!active) return;
         if (!result.error && result.data?.status === 'paid' && result.data.watchCode && result.data.ticketCode) {
           setEmail(result.data.email || savedEmail);
+          if (result.data.location === 'nigeria' || result.data.location === 'international') setLocation(result.data.location);
           setConfirmation(result.data);
           setStep('confirmation');
           sessionStorage.removeItem('degame_checkout_email');
