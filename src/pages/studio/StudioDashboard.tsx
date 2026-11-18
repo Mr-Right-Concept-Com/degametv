@@ -22,7 +22,7 @@ export default function StudioDashboard(){
    supabase.from('screenings').select('id,title,screening_date,event_type,status').eq('creator_id',user.id).order('screening_date',{ascending:true}).limit(10),
    supabase.from('wallet_ledger').select('net,currency').eq('user_id',user.id).eq('kind','sale')
   ]);
-  if(!active)return;setItems((content.data||[]) as ContentRow[]);setEvents((screenings.data||[]) as EventRow[]);
+  if(!active)return;setItems((content.data||[]) as unknown as ContentRow[]);setEvents((screenings.data||[]) as EventRow[]);
   setEarnings((ledger.data||[]).reduce((a,row)=>{if(row.currency==='NGN'||row.currency==='USD')a[row.currency]+=Number(row.net)||0;return a;},{NGN:0,USD:0}));setLoading(false);
   })();return()=>{active=false;};},[user?.id]);
  const published=items.filter(x=>x.status==='published').length;
