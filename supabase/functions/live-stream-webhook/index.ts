@@ -14,10 +14,14 @@ Deno.serve(async req=>{
   const {data:stream,error}=await db.from("live_streams").select("id,tenant_id,metadata,status").eq("metadata->>provider_reference",reference).maybeSingle();
   if(error||!stream)return json(404,{error:"Stream not found"});
   const providerKey=stream.metadata?.provider;
-  const {data:providers,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:"live_streaming"});
-  if(providerError||!Array.isArray(providers))return json(503,{error:"Live provider registry unavailable"});
-  const provider=providers.find((p:any)=>p.provider_key===providerKey);
-  if(!provider?.webhook_secret)return json(503,{error:"Webhook secret unavailable for stream provider"});
+  const [{data:binding,error:bindingError},{data:secrets,error:secretError}]=await Promise.all([
+   db.from("service_provider_bindings").select("provider_key,settings").eq("capability","live_streaming").eq("provider_key",providerKey).maybeSingle(),
+   db.rpc("get_service_provider_admin_secret",{p_capability:"live_streaming",p_provider_key:providerKey})
+  ]);
+  const vault=Array.isArray(secrets)?secrets[0]:null,mode=stream.metadata?.provider_mode==="live"?"live":"test";
+  const webhookSecret=mode==="live"?(vault?.live_webhook_secret||vault?.test_webhook_secret):(vault?.test_webhook_secret||vault?.live_webhook_secret);
+  if(bindingError||secretError||!binding||!webhookSecret)return json(503,{error:"Webhook secret unavailable for stream provider"});
+  const provider={settings:binding.settings,webhook_secret:webhookSecret};
   const settings=provider.settings||{},header=typeof settings.signature_header==="string"?settings.signature_header:"x-provider-signature";
   const algorithm=settings.signature_algorithm==="SHA-256"?"SHA-256":"SHA-512";
   const supplied=(req.headers.get(header)||"").toLowerCase().replace(/^sha256=/,"").replace(/^sha512=/,"");
