@@ -27,9 +27,10 @@ Deno.serve(async req => {
     const event = JSON.parse(raw);
     if (!event || typeof event !== "object" || Array.isArray(event)) return json(400, { error: "Invalid event" });
     const reference = event.provider_reference;
-    const eventId = event.id || event.event_id;
+    const rawEventId = event.id ?? event.event_id;
+    const eventId = typeof rawEventId === "string" || typeof rawEventId === "number" ? String(rawEventId) : "";
     if (typeof reference !== "string" || reference.length < 1 || reference.length > 240
-      || typeof eventId !== "string" || eventId.length < 1 || eventId.length > 255)
+      || !eventId || eventId.length > 255)
       return json(400, { error: "Provider reference and stable event id are required" });
 
     const db = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
