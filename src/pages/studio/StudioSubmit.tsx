@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -60,7 +61,14 @@ const step3Schema = z.object({
 export default function StudioSubmit() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const liveFlow = searchParams.get('flow') === 'live';
+  const selectCreateFlow = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value === 'live') { next.set('flow', 'live'); next.set('type', 'live'); }
+    else { next.delete('flow'); next.delete('type'); }
+    setSearchParams(next, { replace: true });
+  };
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
