@@ -31,8 +31,16 @@ if(import.meta.main)serve(async(req:Request)=>{
   const {data:latest,error:latestError}=await admin.from("guest_payment_orders").select("ticket_id,status").eq("id",order.id).maybeSingle();
   if(latestError||!latest)return json(503,{error:"Payment status could not be refreshed."});
   if(latest.status!=="paid")return json(200,{status:latest.status});
-  const {data:ticket,error:ticketError}=await admin.from("screening_tickets").select("ticket_code,watch_code,expires_at,screening_id").eq("id",latest.ticket_id).maybeSingle();
+  const {data:ticket,error:ticketError}=await admin.from("screening_tickets").select("ticket_code,watch_code,expires_at,screening_id,location,price").eq("id",latest.ticket_id).maybeSingle();
   if(ticketError||!ticket)return json(503,{error:"Your payment is confirmed, but ticket retrieval is delayed. Contact support with your reference."});
-  return json(200,{status:"paid",ticketCode:ticket.ticket_code,watchCode:ticket.watch_code,expiresAt:ticket.expires_at,screeningId:ticket.screening_id});
+  const {data:emailClaim}=await admin.from("guest_payment_orders").update({email_sent_at:new Date().toISOString()}).eq("id",order.id).is("email_sent_at",null).select("id").maybeSingle();
+  let emailSent=false;
+  if(emailClaim){
+   const {data:screening}=await admin.from("screenings").select("title").eq("id",ticket.screening_id).maybeSingle();
+   const mailResponse=await fetch(url+"/functions/v1/send-watch-email",{method:"POST",headers:{"Authorization":"Bearer "+service,"apikey":service,"Content-Type":"application/json"},body:JSON.stringify({email:order.email,movieTitle:screening?.title||"Your DeGameTV screening",watchUrl:"https://"+new URL(req.url).host.replace(".supabase.co","")+".supabase.co/watch/"+ticket.watch_code+"?email="+encodeURIComponent(order.email),ticketCode:ticket.ticket_code,expiresAt:ticket.expires_at,location:ticket.location,price:Number(ticket.price),currency:order.currency})}).catch(()=>null);
+   emailSent=Boolean(mailResponse?.ok);
+   if(!emailSent)await admin.from("guest_payment_orders").update({email_sent_at:null}).eq("id",order.id);
+  }
+  return json(200,{status:"paid",ticketCode:ticket.ticket_code,watchCode:ticket.watch_code,expiresAt:ticket.expires_at,screeningId:ticket.screening_id,emailSent});
  }catch{return json(500,{error:"Payment status could not be retrieved. Retry shortly."});}
 });
