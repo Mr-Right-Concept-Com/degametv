@@ -42,8 +42,58 @@ Deno.serve(async req=>{
    const response=await fetch(endpoint(provider.base_url,provider.endpoints.live_stop),{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+provider.credential},body:JSON.stringify({stream_id:p.streamId,provider_reference:stream.metadata?.provider_reference}),signal:AbortSignal.timeout(15000)});
    const result=await response.json().catch(()=>null);
    if(!response.ok||result?.stopped!==true)return json({error:"Provider could not confirm stream termination."},502);
-   await db.from("live_streams").update({status:"ended",actual_end:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",p.streamId);
-   return json({success:true,status:"ended"});
+   const endedAt=new Date().toISOString();
+   const {data:endedStream,error:endError}=await db.from("live_streams")
+    .update({status:"ended",actual_end:endedAt,updated_at:endedAt})
+    .eq("id",p.streamId).eq("creator_id",user.id)
+    .select("id,tenant_id,creator_id,metadata").single();
+   if(endError||!endedStream)return json({error:"Provider ended the stream, but DeGameTV could not reconcile its event record. Contact support before creating a replay."},503);
+
+   // A confirmed end always creates a replay draft in the same creator catalogue.
+   // Recording media is attached only when the provider returns a ready asset and
+   // its URL origin is explicitly allowlisted by the provider binding.
+   const screeningId=typeof endedStream.metadata?.screening_id==="string"?endedStream.metadata.screening_id:null;
+   let replayDraft:{contentId:string;recordingStatus:string}|null=null;
+   if(screeningId){
+    const {data:screening}=await db.from("screenings").select("id,tenant_id,content_id")
+     .eq("id",screeningId).eq("tenant_id",endedStream.tenant_id).maybeSingle();
+    if(screening){
+     const {data:content}=await db.from("content").select("id,creator_id,tenant_id,metadata")
+      .eq("id",screening.content_id).eq("creator_id",user.id).eq("tenant_id",screening.tenant_id).maybeSingle();
+     if(content){
+      const providerAssetId=typeof result.recording_asset_id==="string"&&result.recording_asset_id.trim()?result.recording_asset_id.trim():null;
+      const rawRecordingUrl=typeof result.recording_url==="string"?result.recording_url:null;
+      let approvedRecordingUrl:string|null=null;
+      if(rawRecordingUrl){
+       try{
+        const recordingUrl=new URL(rawRecordingUrl);
+        const allowed=Array.isArray(binding?.settings?.allowed_recording_origins)?binding.settings.allowed_recording_origins:[];
+        if(recordingUrl.protocol==="https:"&&allowed.includes(recordingUrl.origin))approvedRecordingUrl=recordingUrl.toString();
+       }catch{/* untrusted provider URL is ignored */}
+      }
+      const recordingStatus=result.recording_status==="failed"?"failed":
+       result.recording_status==="ready"&&approvedRecordingUrl?"ready":"processing";
+      const {error:screeningUpdateError}=await db.from("screenings").update({
+       lifecycle:"ended",live_ended_at:endedAt,live_recording_status:recordingStatus,
+       live_provider_asset_id:providerAssetId,
+       live_replay_ready_at:recordingStatus==="ready"?endedAt:null,updated_at:endedAt,
+      }).eq("id",screening.id).eq("tenant_id",screening.tenant_id);
+      const metadata={...(content.metadata&&typeof content.metadata==="object"?content.metadata:{}),
+       replay_from_live:{source_screening_id:screening.id,source_stream_id:endedStream.id,
+        provider:stream.metadata?.provider??null,provider_asset_id:providerAssetId,
+        recording_status:recordingStatus,ended_at:endedAt}};
+      const contentUpdate:{type:"vod";status:"draft";metadata:Record<string,unknown>;video_url?:string}={
+       type:"vod",status:"draft",metadata,
+      };
+      if(approvedRecordingUrl)contentUpdate.video_url=approvedRecordingUrl;
+      const {error:contentUpdateError}=await db.from("content").update(contentUpdate)
+       .eq("id",content.id).eq("creator_id",user.id).eq("tenant_id",content.tenant_id);
+      if(!screeningUpdateError&&!contentUpdateError)replayDraft={contentId:content.id,recordingStatus};
+     }
+    }
+   }
+   return json({success:true,status:"ended",replayDraft,
+    message:replayDraft?"Replay draft added to your creator catalogue.":"Stream ended; replay draft could not be reconciled automatically."});
   }
   if(!providers.length)return json({error:"No active provider is configured for this media capability."},503);
   const payload=p.action==="create_upload"
