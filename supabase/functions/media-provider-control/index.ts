@@ -3,7 +3,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3";
 const schema=z.discriminatedUnion("action",[
  z.object({action:z.literal("create_upload"),fileName:z.string().trim().min(1).max(240),contentType:z.string().min(1).max(120),sizeBytes:z.number().int().positive().max(20*1024*1024*1024),contentId:z.string().uuid().optional()}),
- z.object({action:z.literal("create_live"),title:z.string().trim().min(2).max(180),description:z.string().max(2000).optional(),scheduledStart:z.string().datetime({offset:true}).optional(),recordingEnabled:z.boolean().default(true)}),
+ z.object({action:z.literal("create_live"),screeningId:z.string().uuid(),title:z.string().trim().min(2).max(180),description:z.string().max(2000).optional(),scheduledStart:z.string().datetime({offset:true}).optional(),recordingEnabled:z.boolean().default(true)}),
  z.object({action:z.literal("stop_live"),streamId:z.string().uuid()}),
 ]);
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json"}});
@@ -52,14 +52,18 @@ Deno.serve(async req=>{
   }
   if(typeof result.provider_reference!=="string"||typeof result.ingest_url!=="string"||typeof result.stream_key!=="string"||!result.stream_key.trim())return json({error:"Media provider returned an incomplete live-stream contract."},502);
   let ingest:URL;try{ingest=new URL(result.ingest_url);if(ingest.protocol!=="rtmp:"&&ingest.protocol!=="rtmps:")throw new Error();}catch{return json({error:"Provider returned an invalid ingest endpoint."},502);}
-  const {data:membership,error:membershipError}=await db.from("user_roles").select("tenant_id").eq("user_id",user.id).eq("role","creator").not("tenant_id","is",null).limit(1).maybeSingle();
-  if(membershipError||!membership?.tenant_id)return json({error:"Your creator account is not attached to an active tenant."},403);
+  const {data:screening,error:screeningError}=await db.from("screenings").select("id,tenant_id,content:content!inner(creator_id)").eq("id",p.screeningId).maybeSingle();
+  if(screeningError||!screening)return json({error:"Creator event not found."},404);
+  const ownedContent=screening.content as unknown as {creator_id:string|null};
+  if(ownedContent?.creator_id!==user.id)return json({error:"You do not own this event."},403);
+  const {data:membership,error:membershipError}=await db.from("user_roles").select("tenant_id").eq("user_id",user.id).eq("role","creator").eq("tenant_id",screening.tenant_id).maybeSingle();
+  if(membershipError||!membership?.tenant_id)return json({error:"Your creator account is not authorized for this event tenant."},403);
   const {data:stream,error:insertError}=await db.from("live_streams").insert({
-   tenant_id:membership.tenant_id,creator_id:user.id,title:p.title,description:p.description??null,status:"scheduled",
+   tenant_id:screening.tenant_id,creator_id:user.id,title:p.title,description:p.description??null,status:"scheduled",
    stream_key:null,rtmp_url:ingest.toString(),playback_url:typeof result.playback_url==="string"?result.playback_url:null,
    scheduled_start:p.scheduledStart??null,recording_enabled:p.recordingEnabled,
    monetization:"free",ticket_price:0,is_ticketed:false,
-   metadata:{provider:provider.provider_key,provider_reference:result.provider_reference,provisioned_at:new Date().toISOString(),stream_key_delivery:"one_time"},
+   metadata:{provider:provider.provider_key,provider_reference:result.provider_reference,screening_id:p.screeningId,provisioned_at:new Date().toISOString(),stream_key_delivery:"one_time"},
   }).select("id").single();
   if(insertError||!stream){console.error("live_stream_insert",insertError);return json({error:"Live stream was provisioned but could not be reconciled to the creator account."},503);}
   return json({success:true,streamId:stream.id,ingestUrl:ingest.toString(),streamKey:result.stream_key,playbackUrl:result.playback_url??null,ingestProtocol:ingest.protocol.slice(0,-1),provider:provider.provider_key,credentialDelivery:"one_time"});
