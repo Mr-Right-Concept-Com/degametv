@@ -133,7 +133,31 @@ export default function Godmode() {
           <TabsTrigger value="audit">Audit log</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="settings" className="grid md:grid-cols-2 gap-4 mt-4">
+        <TabsContent value="settings" className="mt-4 space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="text-base">Creator & identity approval policy</CardTitle><CardDescription>Changes take effect at runtime. Automatic approval is only safe after a verified KYC/KYB provider is connected in the Vault.</CardDescription></CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-3">
+              {[
+                { key: 'creator_approval_mode', label: 'Creator activation', options: [{value:'manual',label:'Manual review'},{value:'automatic',label:'Automatic after verified checks'},{value:'hybrid',label:'Hybrid: auto-pass verified, queue exceptions'}] },
+                { key: 'kyc_verification_mode', label: 'Identity verification', options: [{value:'manual',label:'Manual review'},{value:'automatic',label:'Provider verified only'},{value:'hybrid',label:'Hybrid review'}] },
+                { key: 'kyb_verification_mode', label: 'Business verification', options: [{value:'manual',label:'Manual review'},{value:'automatic',label:'Provider verified only'},{value:'hybrid',label:'Hybrid review'}] },
+              ].map(policy => {
+                const current = settings.find(item => item.setting_key === policy.key)?.setting_value;
+                const selected = typeof current === 'string' ? current : 'manual';
+                return <div key={policy.key} className="space-y-2">
+                  <Label>{policy.label}</Label>
+                  <Select value={selected} onValueChange={value => {
+                    setDrafts(d => ({...d,[policy.key]:JSON.stringify(value)}));
+                    run('s-'+policy.key,{action:'setting_update',key:policy.key,value},'Approval policy updated');
+                  }}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{policy.options.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>;
+              })}
+            </CardContent>
+          </Card>
+          <div className="grid md:grid-cols-2 gap-4">
           {settings.map(s => (
             <Card key={s.setting_key}>
               <CardHeader className="pb-2">
@@ -149,6 +173,7 @@ export default function Godmode() {
               </CardContent>
             </Card>
           ))}
+          </div>
         </TabsContent>
 
         <TabsContent value="users" className="mt-4 space-y-3">
