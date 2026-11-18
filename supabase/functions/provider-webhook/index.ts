@@ -55,8 +55,9 @@ Deno.serve(async req => {
       return json({ error: "Provider webhook secret is not configured in Vault." }, 503);
 
     const signatureHeader = typeof settings.webhook_signature_header === "string"
-      ? settings.webhook_signature_header : "x-provider-signature";
-    const algorithm = settings.webhook_signature_algorithm === "SHA-256" ? "SHA-256" : "SHA-512";
+      ? settings.webhook_signature_header
+      : typeof settings.signature_header === "string" ? settings.signature_header : "x-provider-signature";
+    const algorithm = (settings.webhook_signature_algorithm || settings.signature_algorithm) === "SHA-256" ? "SHA-256" : "SHA-512";
     const received = (req.headers.get(signatureHeader) || "").toLowerCase()
       .replace(/^sha256=/, "").replace(/^sha512=/, "");
     const expected = await hmac(webhookSecret, raw, algorithm);
