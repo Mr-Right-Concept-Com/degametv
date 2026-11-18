@@ -1,0 +1,1 @@
+alter table public.guest_payment_orders add column if not exists email_sent_at timestamptz;
