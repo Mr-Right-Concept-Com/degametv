@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -12,55 +13,55 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ProtectedCreatorRoute } from "@/components/auth/ProtectedCreatorRoute";
 
 // End-user pages
-import Index from "./pages/Index";
-import Cinema from "./pages/Cinema";
-import Auth from "./pages/Auth";
-import NotFound from "./pages/NotFound";
-import MovieLanding from "./pages/MovieLanding";
-import ContentLanding from "./pages/ContentLanding";
-import RefundPolicy from "./pages/RefundPolicy";
-import Terms from "./pages/Terms";
-import Privacy from "./pages/Privacy";
-import FAQ from "./pages/FAQ";
-import Contact from "./pages/Contact";
-import ResetPassword from "./pages/ResetPassword";
-import Producers from "./pages/Producers";
-import ApplyFilmmaker from "./pages/ApplyFilmmaker";
+const Index = lazy(() => import("./pages/Index"));
+const Cinema = lazy(() => import("./pages/Cinema"));
+const Auth = lazy(() => import("./pages/Auth"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const MovieLanding = lazy(() => import("./pages/MovieLanding"));
+const ContentLanding = lazy(() => import("./pages/ContentLanding"));
+const RefundPolicy = lazy(() => import("./pages/RefundPolicy"));
+const Terms = lazy(() => import("./pages/Terms"));
+const Privacy = lazy(() => import("./pages/Privacy"));
+const FAQ = lazy(() => import("./pages/FAQ"));
+const Contact = lazy(() => import("./pages/Contact"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const Producers = lazy(() => import("./pages/Producers"));
+const ApplyFilmmaker = lazy(() => import("./pages/ApplyFilmmaker"));
 
 // Admin pages
-import Dashboard from "./pages/admin/Dashboard";
-import Users from "./pages/admin/Users";
-import Screenings from "./pages/admin/Screenings";
-import PromoCodes from "./pages/admin/PromoCodes";
-import PaymentGatewaySettings from "./pages/admin/PaymentGatewaySettings";
-import ProducerDashboard from "./pages/admin/ProducerDashboard";
-import FilmmakerPortal from "./pages/admin/filmmaker/FilmmakerPortal";
-import FilmmakerApplications from "./pages/admin/FilmmakerApplications";
-import StudioApplications from "./pages/admin/StudioApplications";
-import EmailSettings from "./pages/admin/settings/EmailSettings";
-import WhiteLabel from "./pages/admin/settings/WhiteLabel";
-import TicketManagement from "./pages/admin/ticketing/TicketManagement";
-import Payouts from "./pages/admin/Payouts";
-import Godmode from "./pages/admin/Godmode";
+const Dashboard = lazy(() => import("./pages/admin/Dashboard"));
+const Users = lazy(() => import("./pages/admin/Users"));
+const Screenings = lazy(() => import("./pages/admin/Screenings"));
+const PromoCodes = lazy(() => import("./pages/admin/PromoCodes"));
+const PaymentGatewaySettings = lazy(() => import("./pages/admin/PaymentGatewaySettings"));
+const ProducerDashboard = lazy(() => import("./pages/admin/ProducerDashboard"));
+const FilmmakerPortal = lazy(() => import("./pages/admin/filmmaker/FilmmakerPortal"));
+const FilmmakerApplications = lazy(() => import("./pages/admin/FilmmakerApplications"));
+const StudioApplications = lazy(() => import("./pages/admin/StudioApplications"));
+const EmailSettings = lazy(() => import("./pages/admin/settings/EmailSettings"));
+const WhiteLabel = lazy(() => import("./pages/admin/settings/WhiteLabel"));
+const TicketManagement = lazy(() => import("./pages/admin/ticketing/TicketManagement"));
+const Payouts = lazy(() => import("./pages/admin/Payouts"));
+const Godmode = lazy(() => import("./pages/admin/Godmode"));
 
 // Virtual Cinema Funnel
-import BuyTicket from "./pages/BuyTicket";
-import WatchMovie from "./pages/WatchMovie";
-import LiveWatch from "./pages/LiveWatch";
-import LiveGuestClaim from "./pages/LiveGuestClaim";
-import PaymentReturn from "./pages/PaymentReturn";
-import UserDashboard from "./pages/UserDashboard";
+const BuyTicket = lazy(() => import("./pages/BuyTicket"));
+const WatchMovie = lazy(() => import("./pages/WatchMovie"));
+const LiveWatch = lazy(() => import("./pages/LiveWatch"));
+const LiveGuestClaim = lazy(() => import("./pages/LiveGuestClaim"));
+const PaymentReturn = lazy(() => import("./pages/PaymentReturn"));
+const UserDashboard = lazy(() => import("./pages/UserDashboard"));
 
 // Studio pages
-import StudioDashboard from "./pages/studio/StudioDashboard";
-import StudioCreate from "./pages/studio/StudioCreate";
-import StudioMovies from "./pages/studio/StudioMovies";
-import StudioScreenings from "./pages/studio/StudioScreenings";
-import StudioEarnings from "./pages/studio/StudioEarnings";
-import StudioAnalytics from "./pages/studio/StudioAnalytics";
-import StudioLive from "./pages/studio/StudioLive";
-import StudioFanBlast from "./pages/studio/StudioFanBlast";
-import StudioTeam from "./pages/studio/StudioTeam";
+const StudioDashboard = lazy(() => import("./pages/studio/StudioDashboard"));
+const StudioCreate = lazy(() => import("./pages/studio/StudioCreate"));
+const StudioMovies = lazy(() => import("./pages/studio/StudioMovies"));
+const StudioScreenings = lazy(() => import("./pages/studio/StudioScreenings"));
+const StudioEarnings = lazy(() => import("./pages/studio/StudioEarnings"));
+const StudioAnalytics = lazy(() => import("./pages/studio/StudioAnalytics"));
+const StudioLive = lazy(() => import("./pages/studio/StudioLive"));
+const StudioFanBlast = lazy(() => import("./pages/studio/StudioFanBlast"));
+const StudioTeam = lazy(() => import("./pages/studio/StudioTeam"));
 
 const queryClient = new QueryClient();
 
@@ -74,6 +75,7 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <ReleaseDomainRouter />
+            <Suspense fallback={<div className="min-h-screen bg-background text-foreground grid place-items-center"><span className="text-sm text-muted-foreground">Loading DeGameTV…</span></div>}>
             <Routes>
               {/* ============ END-USER EXPERIENCE ============ */}
               <Route path="/" element={<Index />} />
@@ -136,6 +138,7 @@ const App = () => (
               
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
           </BrowserRouter>
         </TooltipProvider>
       </TenantProvider>
