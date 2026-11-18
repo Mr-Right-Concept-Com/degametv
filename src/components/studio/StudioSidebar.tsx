@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Film, LayoutDashboard, DollarSign, ExternalLink, Clapperboard, BarChart3, Megaphone, Users, PlusCircle, CalendarDays } from 'lucide-react';
+import { Film, LayoutDashboard, DollarSign, ExternalLink, BarChart3, Megaphone, Users, PlusCircle, CalendarDays } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBranding } from '@/components/branding/BrandingProvider';
 
