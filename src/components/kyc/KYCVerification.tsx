@@ -110,21 +110,19 @@ export function KYCVerification({ onVerified, compact }: Props) {
     }
     setErrors({});
     setSubmitting(true);
-    const { data, error } = await supabase.functions.invoke('submit-kyc', {
-      body: {
-        full_name: result.data.kyc_full_name,
-        country_code: form.country_code,
-        document_type: result.data.kyc_id_type,
-        document_path: result.data.kyc_id_url,
-        selfie_video_path: result.data.kyc_selfie_url,
-        date_of_birth: form.date_of_birth || null,
-        address_line: form.address_line || null,
-        address_city: form.address_city || null,
-        address_region: form.address_region || null,
-        address_postal_code: form.address_postal_code || null,
-      },
-    });
-    if (error || !data?.success) {
+    const { data, error } = await supabase.rpc('submit_identity_verification' as never, {
+      p_country_code: form.country_code,
+      p_document_type: result.data.kyc_id_type,
+      p_full_name: result.data.kyc_full_name,
+      p_document_path: result.data.kyc_id_url,
+      p_selfie_video_path: result.data.kyc_selfie_url,
+      p_date_of_birth: form.date_of_birth || null,
+      p_address_line: form.address_line || null,
+      p_address_city: form.address_city || null,
+      p_address_region: form.address_region || null,
+      p_address_postal_code: form.address_postal_code || null,
+    } as never);
+    if (error || !(data as { success?: boolean } | null)?.success) {
       toast.error(data?.error || 'Submission failed. Your application has not been submitted.');
       setSubmitting(false);
       return;
