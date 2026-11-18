@@ -116,3 +116,40 @@ Next build must validate profile settings regression, test unauthorized and auth
 - Database RPC explicitly rejects NULL identity type/MIME and object paths above 512 characters; verify direct RPC invocation tests as well as Edge validation.
 - Supabase config and deployed metadata require JWT verification for submit-kyc and review-kyc. Preserve explicit getUser validation in handlers.
 - Consolidate CI into a single workflow, use immutable `npm ci`, and do not auto-commit generated lockfile changes. First run must complete typecheck, lint, build and axe before quality bar status can be upgraded.
+
+
+## 18 November 2026 — re-audit additions from observed CI and live competitor refresh
+
+### P0 — Restore a green quality gate without weakening rules
+**Observed baseline:** GitHub Actions run 44239321887 installed 695 packages, typecheck passed, lint failed with 81 errors / 17 warnings; build and axe were skipped. npm audit reported 50 vulnerabilities (1 low, 6 moderate, 43 high).
+**Build:** eliminate unsafe explicit `any` from the reported files using generated database row types, discriminated unions and unknown-safe boundary parsing; fix the 17 hook/refresh warnings where semantically correct; inspect and remediate dependency advisories with lockfile-reviewed upgrades.
+**Acceptance:** latest main SHA has clean npm ci, typecheck, zero lint errors, build and axe all green; dependency scan has no unresolved critical/high exploitable finding or a documented, approved risk treatment.
+**Reuse:** `eslint.config.js` strict no-explicit-any rule, current quality-gate workflow, generated Supabase types, Zod.
+**Do not:** disable no-explicit-any, blanket-disable lint, or auto-apply npm audit fix --force.
+
+### P0 — Payment credential containment and payment system
+**Current evidence:** live SQL count shows 3 payment_gateway rows with non-null legacy test_secret_key; values were not retrieved. Vault migration remains unapplied after safety checks blocked it.
+**Build:** complete approved non-destructive Vault migration and credential reference model; expose secrets only through server-side adapter configuration; add provider adapters and sandbox/webhook/idempotency/reconciliation tests.
+**Dependencies:** migration safety approval, merchant sandbox credentials, webhook secret, legal/tax/refund policy.
+**Acceptance:** no plaintext credentials remain in application-readable columns; gateway enablement fails closed until adapter health and webhook verification succeed; replay/tamper/duplicate/refund/ledger tests pass.
+
+### P1 — Media security and rights enforcement
+**Reference primitive:** Eventive documents multi-DRM, per-session forensic watermarking, geoblocking, availability windows and stream caps (official sources linked in COMPETITOR_AND_PRIMITIVE_REGISTER.md).
+**Build:** native provider-neutral delivery port; origin-verified ticket/session/territory/time authorization; DRM and forensic watermark adapter selection by rights profile; failover and provider removal drill.
+**Acceptance:** forged, expired, replayed, wrong-ticket, wrong-region and out-of-window requests are rejected at the origin; no source URL leaks; low-end Android/slow-network startup and rebuffer metrics collected.
+
+### P1 — Creator distribution primitives
+**Reference primitive:** Filmhub documents title ingestion, channel insights, statements/schedules and rights avails by territory/license/date.
+**Build:** one native asset-QC and rights-avails model integrated with existing content, screening, revenue ledger and creator tenant; no parallel catalog or billing.
+**Acceptance:** asset QC blocks invalid deliverables; overlapping rights conflicts are rejected; territory/date/license restrictions affect sale and playback; creator statements reconcile exactly to ledger.
+
+### P1 — Cross-device accessibility
+**Reference primitive:** Netflix publicly documents keyboard, screen-reader, voice, caption customization and audio-description controls; W3C WCAG 2.2 AA remains the normative floor.
+**Build:** accessible shared playback controls, caption/audio-description tracks, persistent user preferences and keyboard/screen-reader behavior.
+**Acceptance:** WCAG 2.2 AA manual + automated checks across mobile and desktop; captions/audio description verified on real media; reduced motion, large text and RTL checks.
+
+### Foundations / current blockers
+- Reuse: private identity bucket and atomic KYC RPC; caller-authenticated submit/review functions; strict profile privilege boundary; atomic creator submission; private creator master bucket; fail-closed playback; payment ledger/ticket foundations; CI typecheck and lint gate.
+- Build first: clean quality gate; vault migration and secure credential handling; origin-verified media adapter; payment provider adapters; full tenant/RLS negative tests.
+- Human/provider dependencies: merchant sandbox and webhook credentials; streaming/DRM origin configuration; approved identity evidence retention/legal basis; qualified security/fraud/legal sign-off; real iOS/Android/desktop device access.
+- No provider credentials or legal policy may be fabricated.
