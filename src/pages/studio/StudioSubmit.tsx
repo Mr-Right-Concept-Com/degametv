@@ -55,7 +55,7 @@ export default function StudioSubmit() {
     submitter_email: user?.email || '',
     company_name: '',
     project_title: '',
-    project_type: ['series', 'live', 'vod'].includes(searchParams.get('type') || '') ? (searchParams.get('type') as string) : 'movie',
+    project_type: ['movie', 'series', 'episode', 'short', 'trailer', 'live', 'vod'].includes(searchParams.get('type') || '') ? (searchParams.get('type') as string) : 'movie',
     description: '',
     genres: [] as string[],
     duration_minutes: '',
@@ -120,7 +120,7 @@ export default function StudioSubmit() {
       .eq('user_id', user?.id || '')
       .maybeSingle();
     if (identityError || identity?.kyc_status !== 'verified') {
-      toast.error('Verified identity is required before submitting content. Nothing was created.');
+      toast.error('Verified identity is required before publishing creator content. Nothing was created.');
       setSubmitting(false);
       return;
     }
@@ -154,7 +154,7 @@ export default function StudioSubmit() {
     });
 
     if (error || !submission?.content_id) {
-      toast.error('Submission failed: ' + (error?.message || 'The application could not be saved.'));
+      toast.error('Content could not be created: ' + (error?.message || 'Please retry.'));
       setSubmitting(false);
       return;
     }
