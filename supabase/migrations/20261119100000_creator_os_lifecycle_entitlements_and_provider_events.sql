@@ -402,3 +402,7 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.claim_free_replay_ticket(uuid) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.claim_free_replay_ticket(uuid) TO authenticated;
+
+
+-- Creator identity is managed once in the creator profile, not on each release.
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS company_name text;
