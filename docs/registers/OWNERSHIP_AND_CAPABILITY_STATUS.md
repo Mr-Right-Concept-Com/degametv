@@ -56,3 +56,9 @@ No capability is certified L2/L3 based on this audit. Product baseline maturity 
 - All 36 public tables were confirmed RLS-enabled by SQL RUN. This does not establish policy correctness or tenant isolation; those remain unproven.
 - CI ownership: GitHub Actions workflow now defines the web quality pipeline; no successful run has yet been observed.
 - Supabase remains current managed database, auth, object storage and Edge runtime. Neon remains an unimplemented evaluation candidate; native infrastructure ownership is not claimed.
+
+
+### Final implementation update — 18 November 2026
+- KYC Edge Function configuration now requires gateway JWT verification for both submit and review endpoints, with explicit in-handler user verification retained.
+- KYC database RPC now performs strict null/path-length checks in addition to owner, MIME, size, state and row-lock validation.
+- CI is consolidated into one quality-gate workflow; execution evidence is pending.
