@@ -59,7 +59,7 @@ if(import.meta.main)serve(async(req:Request)=>{
    }catch{continue;}
   }
   if(!selected||!checkoutUrl){await db.from("live_payment_orders").update({status:"failed"}).eq("provider_reference",reference);return json(502,{error:"No configured payment provider accepted checkout. No charge was made."});}
-  await db.from("live_payment_orders").update({provider:selected.provider_key,checkout_url:checkoutUrl}).eq("provider_reference",reference);
+  await db.from("live_payment_orders").update({provider:selected.provider_key,checkout_url:checkoutUrl,metadata:{created_from:"viewer_checkout",guest_checkout:!user,provider_mode:selected.is_live===true?"live":"test"}}).eq("provider_reference",reference);
   return json(200,{success:true,reference,checkoutUrl,amount,currency,ticketType,provider:selected.provider_key});
  }catch{return json(502,{error:"Checkout could not be initialized. No ticket has been issued."});}
 });
