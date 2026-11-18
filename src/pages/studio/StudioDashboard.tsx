@@ -17,12 +17,14 @@ export default function StudioDashboard(){
  const [items,setItems]=useState<ContentRow[]>([]);const [events,setEvents]=useState<EventRow[]>([]);
  const [earnings,setEarnings]=useState({NGN:0,USD:0});const [loading,setLoading]=useState(true);
  useEffect(()=>{if(!user?.id){setLoading(false);return;}let active=true;
-  (async()=>{const [content,screenings,ledger]=await Promise.all([
+  (async()=>{const [content,ledger]=await Promise.all([
    supabase.from('content').select('id,title,type,status,created_at,view_count').eq('creator_id',user.id).order('created_at',{ascending:false}).limit(100),
-   supabase.from('screenings').select('id,title,screening_date,event_type,status').eq('creator_id',user.id).order('screening_date',{ascending:true}).limit(10),
    supabase.from('wallet_ledger').select('net,currency').eq('user_id',user.id).eq('kind','sale')
   ]);
-  if(!active)return;setItems((content.data||[]) as unknown as ContentRow[]);setEvents((screenings.data||[]) as EventRow[]);
+  if(!active)return;
+  const titles=(content.data||[]) as unknown as ContentRow[];setItems(titles);
+  const ids=titles.map(item=>item.id);
+  if(ids.length){const {data:screenings}=await supabase.from('screenings').select('id,title,screening_date,event_type,status').in('content_id',ids).order('screening_date',{ascending:true}).limit(10);if(active)setEvents((screenings||[]) as EventRow[]);}else setEvents([]);
   setEarnings((ledger.data||[]).reduce((a,row)=>{if(row.currency==='NGN'||row.currency==='USD')a[row.currency]+=Number(row.net)||0;return a;},{NGN:0,USD:0}));setLoading(false);
   })();return()=>{active=false;};},[user?.id]);
  const published=items.filter(x=>x.status==='published').length;
