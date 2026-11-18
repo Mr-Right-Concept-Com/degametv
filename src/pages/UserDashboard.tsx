@@ -50,7 +50,7 @@ export default function UserDashboard() {
       if (roleSet.has('creator')) {
         const { data, error } = await supabase.rpc('get_my_studio_account' as never);
         if (error) throw error;
-        const account = Array.isArray(data) ? data[0] : data;
+        const account = Array.isArray(data ?? []) ? (data ?? [])[0] : data ?? null;
         setStudioAccess(account?.status === 'approved' ? 'approved' : 'not-approved');
         return;
       }
