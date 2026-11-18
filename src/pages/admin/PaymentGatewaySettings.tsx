@@ -104,7 +104,7 @@ export default function PaymentGatewaySettings() {
       <div className="space-y-6">
         <Alert>
           <ShieldCheck className="h-4 w-4" />
-          <AlertDescription>Secret credentials are written directly to Supabase Vault. They are never read back into this page or stored in browser state after saving. Only adapters with a deployed server-side checkout and verified webhook can be enabled. Paystack is currently supported.</AlertDescription>
+          <AlertDescription>Secret credentials are written directly to Supabase Vault. They are never read back into this page or stored in browser state after saving. Paystack test checkout is wired through Vault and signed verification. Live charges remain blocked until origin-verified secure playback is operational; switching to live is not yet available.</AlertDescription>
         </Alert>
         {error && <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertDescription>{error}</AlertDescription></Alert>}
         <div className="grid gap-4 md:grid-cols-3">
@@ -152,8 +152,8 @@ export default function PaymentGatewaySettings() {
               <Button variant={selectedConfig?.enabled ? 'destructive' : 'default'} onClick={() => void save(selected, { enabled: !selectedConfig?.enabled })} disabled={saving || (selected !== 'paystack' && !selectedConfig?.enabled)}>
                 {selectedConfig?.enabled ? 'Disable checkout' : selected === 'paystack' ? 'Enable test checkout' : 'Adapter not deployed'}
               </Button>
-              <Button variant="outline" onClick={() => void save(selected, { live: !selectedConfig?.live, enabled: true })} disabled={saving || selected !== 'paystack' || (!selectedConfig?.live && (!selectedConfig?.hasLiveSecret))}>
-                {selectedConfig?.live ? 'Switch back to test' : 'Switch to live'}
+              <Button variant="outline" onClick={() => void save(selected, { live: !selectedConfig?.live, enabled: true })} disabled={saving || selected !== 'paystack' || !selectedConfig?.live}>
+                {selectedConfig?.live ? 'Switch back to test' : 'Live mode unavailable'}
               </Button>
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
             </div>
