@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:video_player/video_player.dart';
 import '../data/catalogue_repository.dart';
 import '../degame_app.dart';
 import '../models/screening.dart';
@@ -243,6 +244,42 @@ class _TicketWallet extends StatefulWidget {
 
 class _TicketWalletState extends State<_TicketWallet> {
   late Future<List<Map<String, dynamic>>> tickets;
+  final watchCode = TextEditingController();
+  final watchEmail = TextEditingController();
+  bool authorizing = false;
+  String? playbackError;
+  String? playbackUrl;
+  String? playbackExpiresAt;
+
+  @override
+  void dispose() {
+    watchCode.dispose();
+    watchEmail.dispose();
+    super.dispose();
+  }
+
+  Future<void> _authorizePlayback() async {
+    FocusScope.of(context).unfocus();
+    setState(() { authorizing = true; playbackError = null; playbackUrl = null; });
+    try {
+      final response = await Supabase.instance.client.functions.invoke(
+        'get-playback-url',
+        body: {'watchCode': watchCode.text.trim(), 'email': watchEmail.text.trim()},
+      );
+      final data = response.data;
+      if (response.status != 200 || data is! Map || data['success'] != true || data['playbackUrl'] is! String) {
+        throw Exception(data is Map ? (data['error']?.toString() ?? 'Playback could not be authorized.') : 'Playback could not be authorized.');
+      }
+      setState(() {
+        playbackUrl = data['playbackUrl'] as String;
+        playbackExpiresAt = data['expiresAt']?.toString();
+      });
+    } catch (e) {
+      setState(() => playbackError = e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => authorizing = false);
+    }
+  }
   @override
   void initState() { super.initState(); tickets = _load(); }
   Future<List<Map<String, dynamic>>> _load() async {
@@ -280,6 +317,39 @@ class _TicketWalletState extends State<_TicketWallet> {
           const SizedBox(height: 8),
           Text('${data.length} ticket(s)', style: const TextStyle(color: Colors.white60)),
           const SizedBox(height: 16),
+          Card(
+            color: panel,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Watch with a ticket', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+                const SizedBox(height: 6),
+                const Text('Enter the watch code and email from your ticket confirmation. Playback is issued only after the secure delivery service verifies your entitlement.', style: TextStyle(color: Colors.white60, fontSize: 12)),
+                const SizedBox(height: 12),
+                TextField(controller: watchCode, decoration: const InputDecoration(labelText: 'Watch code')),
+                const SizedBox(height: 10),
+                TextField(controller: watchEmail, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Ticket email')),
+                if (playbackError != null) Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Text(playbackError!, style: const TextStyle(color: Colors.redAccent)),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(width: double.infinity, child: FilledButton(
+                  onPressed: authorizing ? null : _authorizePlayback,
+                  child: Text(authorizing ? 'Verifying ticket…' : 'Verify & watch'),
+                )),
+                if (playbackUrl != null) ...[
+                  const SizedBox(height: 14),
+                  SecureVideoPlayer(url: playbackUrl!),
+                  if (playbackExpiresAt != null) Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text('Secure playback grant expires: $playbackExpiresAt', style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                  ),
+                ],
+              ]),
+            ),
+          ),
+          const SizedBox(height: 16),
           if (data.isEmpty) const Padding(
             padding: EdgeInsets.all(30),
             child: Center(child: Text('Your tickets will appear here after a successful purchase.')),
@@ -308,6 +378,55 @@ class _TicketWalletState extends State<_TicketWallet> {
           ),
         ]),
       );
+    },
+  );
+}
+
+
+class SecureVideoPlayer extends StatefulWidget {
+  const SecureVideoPlayer({super.key, required this.url});
+  final String url;
+  @override State<SecureVideoPlayer> createState() => _SecureVideoPlayerState();
+}
+
+class _SecureVideoPlayerState extends State<SecureVideoPlayer> {
+  late final VideoPlayerController controller;
+  late final Future<void> initialized;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    initialized = controller.initialize().then((_) {
+      controller.setLooping(false);
+      controller.play();
+    });
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<void>(
+    future: initialized,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return const AspectRatio(aspectRatio: 16 / 9, child: Center(child: CircularProgressIndicator(color: red)));
+      }
+      if (snapshot.hasError) {
+        return const Text('Secure video could not be opened on this device.');
+      }
+      return Column(children: [
+        AspectRatio(aspectRatio: controller.value.aspectRatio, child: VideoPlayer(controller)),
+        VideoProgressIndicator(controller, allowScrubbing: true, padding: const EdgeInsets.symmetric(vertical: 10)),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          IconButton(onPressed: () => setState(() => controller.value.isPlaying ? controller.pause() : controller.play()), icon: Icon(controller.value.isPlaying ? Icons.pause : Icons.play_arrow)),
+          Text('${(controller.value.position.inMinutes).toString().padLeft(2, '0')}:${(controller.value.position.inSeconds % 60).toString().padLeft(2, '0')}'),
+        ]),
+      ]);
     },
   );
 }
