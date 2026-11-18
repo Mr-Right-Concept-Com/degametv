@@ -53,19 +53,23 @@ Deno.serve(async req => {
     return json({providers:(data||[]).map(({test_credential_secret_ref,live_credential_secret_ref,test_webhook_secret_ref,live_webhook_secret_ref,credential_secret_ref,webhook_secret_ref,...row})=>({...row,hasTestCredential:Boolean(test_credential_secret_ref)||Boolean(credential_secret_ref&&!row.is_live),hasLiveCredential:Boolean(live_credential_secret_ref)||Boolean(credential_secret_ref&&row.is_live),hasTestWebhookSecret:Boolean(test_webhook_secret_ref)||Boolean(webhook_secret_ref&&!row.is_live),hasLiveWebhookSecret:Boolean(live_webhook_secret_ref)||Boolean(webhook_secret_ref&&row.is_live)}))});
   }
   if(p.action==="test"){
-    const {data:rows,error}=await admin.rpc("get_service_provider_runtime_config",{p_capability:p.capability});
-    if(error)return json({error:"Provider runtime configuration could not be loaded."},503);
-    const provider=Array.isArray(rows)?rows.find((row:any)=>row.provider_key===p.providerKey):null;
-    if(!provider?.credential||!provider?.base_url)return json({error:"Save a provider credential and HTTPS base URL before testing."},409);
-    const healthPath=provider.endpoints?.health_check;
+    const [{data:binding,error:bindingError},{data:secrets,error:secretError}]=await Promise.all([
+      admin.from("service_provider_bindings").select("base_url,endpoints,settings,is_live").eq("capability",p.capability).eq("provider_key",p.providerKey).is("removed_at",null).maybeSingle(),
+      admin.rpc("get_service_provider_admin_secret",{p_capability:p.capability,p_provider_key:p.providerKey})
+    ]);
+    const vault=Array.isArray(secrets)?secrets[0]:null;
+    const mode=binding?.is_live===true?"live":"test";
+    const credential=mode==="live"?vault?.live_credential:vault?.test_credential;
+    if(bindingError||secretError||!binding?.base_url||!credential)return json({error:"Save the selected test/live credential and HTTPS base URL before testing."},409);
+    const healthPath=binding.endpoints?.health_check;
     if(typeof healthPath!=="string"||!healthPath.startsWith("/")||healthPath.startsWith("//"))return json({error:"Configure a relative health_check endpoint in the provider contract."},409);
-    const target=new URL(healthPath,provider.base_url);
-    if(target.origin!==new URL(provider.base_url).origin)return json({error:"Provider health endpoint must remain on the configured host."},400);
+    const target=new URL(healthPath,binding.base_url);
+    if(target.origin!==new URL(binding.base_url).origin)return json({error:"Provider health endpoint must remain on the configured host."},400);
     try{
-      const response=await fetch(target,{method:"GET",headers:{Authorization:"Bearer "+provider.credential,Accept:"application/json"},signal:AbortSignal.timeout(10000)});
+      const response=await fetch(target,{method:"GET",headers:{Authorization:"Bearer "+credential,Accept:"application/json"},signal:AbortSignal.timeout(10000)});
       const body=await response.json().catch(()=>null);
       if(!response.ok||(body?.ok!==true&&body?.status!==true))return json({success:false,error:"Provider health check failed. Binding has not been changed."},502);
-      return json({success:true,provider:p.providerKey,capability:p.capability,mode:provider.is_live?"live":"test",checkedAt:new Date().toISOString()});
+      return json({success:true,provider:p.providerKey,capability:p.capability,mode,checkedAt:new Date().toISOString()});
     }catch{return json({success:false,error:"Provider health endpoint did not respond. Binding has not been changed."},502);}
   }
   if(p.action==="configure"&&p.live&&!p.enabled)return json({error:"Live mode requires the provider binding to be enabled."},400);
