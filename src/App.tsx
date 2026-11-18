@@ -48,6 +48,7 @@ import FilmmakerSubmit from "./pages/FilmmakerSubmit";
 
 // Studio pages
 import StudioDashboard from "./pages/studio/StudioDashboard";
+import StudioCreate from "./pages/studio/StudioCreate";
 import StudioMovies from "./pages/studio/StudioMovies";
 import StudioSubmit from "./pages/studio/StudioSubmit";
 import StudioScreenings from "./pages/studio/StudioScreenings";
@@ -96,6 +97,7 @@ const App = () => (
               
               {/* ============ STUDIO (Protected - Approved Filmmakers Only) ============ */}
               <Route path="/studio" element={<ProtectedCreatorRoute><StudioDashboard /></ProtectedCreatorRoute>} />
+              <Route path="/studio/create" element={<ProtectedCreatorRoute><StudioCreate /></ProtectedCreatorRoute>} />
               <Route path="/studio/movies" element={<ProtectedCreatorRoute><StudioMovies /></ProtectedCreatorRoute>} />
               <Route path="/studio/submit" element={<ProtectedCreatorRoute><StudioSubmit /></ProtectedCreatorRoute>} />
               <Route path="/studio/screenings" element={<ProtectedCreatorRoute><StudioScreenings /></ProtectedCreatorRoute>} />
