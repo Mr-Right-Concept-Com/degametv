@@ -66,6 +66,7 @@ Deno.serve(async req => {
       return json({success:true,provider:p.providerKey,capability:p.capability,mode:provider.is_live?"live":"test",checkedAt:new Date().toISOString()});
     }catch{return json({success:false,error:"Provider health endpoint did not respond. Binding has not been changed."},502);}
   }
+  if(p.action==="configure"&&p.live&&!p.enabled)return json({error:"Live mode requires the provider binding to be enabled."},400);
   if(p.action==="configure"&&p.enabled){
     if(p.live&&!p.webhookSecret){
       const {data:existing}=await admin.from("service_provider_bindings").select("webhook_secret_ref").eq("capability",p.capability).eq("provider_key",p.providerKey).maybeSingle();
