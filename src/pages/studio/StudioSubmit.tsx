@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { StudioLayout } from '@/components/studio/StudioLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -55,6 +55,10 @@ export default function StudioSubmit() {
   const [submitted, setSubmitted] = useState(false);
   const [published, setPublished] = useState(false);
   const [createdContentId, setCreatedContentId] = useState<string | null>(null);
+  const [createdScreeningId, setCreatedScreeningId] = useState<string | null>(null);
+  const [encoderGrant, setEncoderGrant] = useState<{ streamId: string; ingestUrl: string; streamKey: string; playbackUrl?: string | null; ingestProtocol: string; provider: string } | null>(null);
+  const [provisioningEncoder, setProvisioningEncoder] = useState(false);
+  const draftKey = `degametv:studio:create:${user?.id || 'guest'}`;
   const [uploadingPoster, setUploadingPoster] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [videoProgress, setVideoProgress] = useState(0);
@@ -84,6 +88,45 @@ export default function StudioSubmit() {
     prior_screenings: '',
     cast_crew_text: '',
   });
+
+  useEffect(() => {
+    if (!user?.id) return;
+    try {
+      const saved = localStorage.getItem(draftKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as Partial<typeof form>;
+        setForm(current => ({ ...current, ...parsed, submitter_email: user.email || '' }));
+      }
+    } catch { localStorage.removeItem(draftKey); }
+  // Restore once per authenticated creator.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || submitted) return;
+    try { localStorage.setItem(draftKey, JSON.stringify(form)); } catch { /* storage may be unavailable */ }
+  }, [draftKey, form, submitted, user?.id]);
+
+  const provisionCreatedLiveEvent = async () => {
+    if (!createdScreeningId) return;
+    setProvisioningEncoder(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('media-provider-control', {
+        body: { action: 'create_live', screeningId: createdScreeningId, title: form.project_title, description: form.description, recordingEnabled: true },
+      });
+      if (error || !data?.success || typeof data.streamKey !== 'string' || typeof data.ingestUrl !== 'string') {
+        toast.error(data?.error || 'A configured streaming provider is required before an encoder can be provisioned.');
+        return;
+      }
+      setEncoderGrant({ streamId: data.streamId, ingestUrl: data.ingestUrl, streamKey: data.streamKey, playbackUrl: data.playbackUrl, ingestProtocol: data.ingestProtocol, provider: data.provider });
+      toast.success('Secure encoder provisioned by the streaming provider.');
+    } finally { setProvisioningEncoder(false); }
+  };
+
+  const copyEncoderValue = async (value: string) => {
+    try { await navigator.clipboard.writeText(value); toast.success('Copied. Keep encoder credentials private.'); }
+    catch { toast.error('Clipboard unavailable. Select and copy the value manually.'); }
+  };
 
   const validateStep1 = () => {
     const result = step1Schema.safeParse({ submitter_name: form.submitter_name });
@@ -275,7 +318,7 @@ export default function StudioSubmit() {
 
   if (submitted) {
     return (
-      <StudioLayout title={published ? "Content published" : "Content saved"}>
+      <StudioLayout title={published ? "Published to Studio" : "Draft saved"}>
         <div className="max-w-lg mx-auto py-12 text-center">
           <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-10 h-10 text-green-500" />
@@ -285,9 +328,9 @@ export default function StudioSubmit() {
             {published ? `"${form.project_title}" is now live on DeGameTV and can be shared.` : `"${form.project_title}" is saved as a draft. Add required assets and complete its content-specific assets and rights declaration, then publish whenever you are ready.`}
           </p>
           <div className="flex flex-col gap-3">
-            <Button variant="outline" className="rounded-full" onClick={() => navigate('/studio/movies')}>View My Content</Button>
-            <Button variant="ghost" className="rounded-full" onClick={() => { setSubmitted(false); setStep(1); setCreatedContentId(null); setForm(f => ({ ...f, project_title: '', description: '', genres: [], duration_minutes: '', poster_url: '' })); }}>
-              Submit Another
+            {form.project_type === 'live' && createdScreeningId && <Card className="text-left"><CardHeader><CardTitle className="text-base">Go live · Secure encoder</CardTitle><CardDescription>Provisioning is performed by your configured streaming provider. The stream key is shown only after provider confirmation.</CardDescription></CardHeader><CardContent className="space-y-3">{encoderGrant ? <><Badge>Encoder provisioned · {encoderGrant.provider}</Badge><div><Label>Ingest server</Label><div className="flex gap-2"><Input readOnly value={encoderGrant.ingestUrl}/><Button type="button" variant="outline" onClick={() => copyEncoderValue(encoderGrant.ingestUrl)}>Copy</Button></div></div><div><Label>One-time stream key</Label><div className="flex gap-2"><Input readOnly type="password" value={encoderGrant.streamKey}/><Button type="button" variant="outline" onClick={() => copyEncoderValue(encoderGrant.streamKey)}>Copy</Button></div></div><p className="text-xs text-muted-foreground">Add the server and key to OBS, vMix or another supported encoder. Never share the stream key.</p></> : <Button className="w-full" disabled={provisioningEncoder} onClick={provisionCreatedLiveEvent}>{provisioningEncoder ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Film className="mr-2 h-4 w-4"/>}{provisioningEncoder ? 'Provisioning…' : 'Provision secure encoder'}</Button>}</CardContent></Card>}\n            <Button variant="outline" className="rounded-full" onClick={() => navigate('/studio/movies')}>View My Content</Button>
+            <Button variant="ghost" className="rounded-full" onClick={() => { setSubmitted(false); setStep(1); setCreatedContentId(null); setCreatedScreeningId(null); setEncoderGrant(null); setForm(f => ({ ...f, project_title: '', description: '', genres: [], duration_minutes: '', poster_url: '' })); }}>
+              Create another
             </Button>
           </div>
         </div>
@@ -299,8 +342,8 @@ export default function StudioSubmit() {
 
 
   return (
-    <StudioLayout title="Create Content" description="Publish films, series, shorts, trailers, VOD and live cinema events from one creator workspace.">
-      <div className="max-w-2xl mx-auto">
+    <StudioLayout title="Create" description="Publish films, series, shorts, trailers, VOD and live cinema events from one creator workspace.">
+      <div className="max-w-3xl mx-auto">
         {/* Steps */}
         <div className="flex items-center gap-2 mb-8">
           {[1, 2, 3].map(s => (
@@ -321,7 +364,7 @@ export default function StudioSubmit() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2"><Users className="w-4 h-4" /> Your Info</CardTitle>
-                <CardDescription>Your email is pre-filled from your account</CardDescription>
+                <CardDescription>Your creator identity is attached to this publishing draft. Your work is autosaved in this browser as you go.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -504,7 +547,7 @@ export default function StudioSubmit() {
                   <Button type="button" variant="outline" className="flex-1 rounded-full" onClick={() => setStep(2)}>Back</Button>
                   <Button type="submit" className="flex-1 rounded-full" disabled={submitting}>
                     {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
-                    {submitting ? 'Submitting...' : 'Create & Publish'}
+                    {submitting ? 'Publishing...' : 'Save draft / Publish'}
                   </Button>
                 </div>
               </CardContent>
