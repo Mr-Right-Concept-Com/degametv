@@ -68,8 +68,8 @@ const step3Schema = z.object({
 }).superRefine((value, ctx) => {
   if (value.release_strategy === 'premiere' || value.release_strategy === 'live') {
     if (!value.premiere_date) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['premiere_date'], message: 'Choose the event date.' });
-    if (!value.live_price_ngn || Number(value.live_price_ngn) <= 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['live_price_ngn'], message: 'Set a positive NGN admission price.' });
-    if (!value.live_price_usd || Number(value.live_price_usd) <= 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['live_price_usd'], message: 'Set a positive USD admission price.' });
+    if (value.live_price_ngn && Number(value.live_price_ngn) < 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['live_price_ngn'], message: 'Admission price cannot be negative.' });
+    if (value.live_price_usd && Number(value.live_price_usd) < 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['live_price_usd'], message: 'Admission price cannot be negative.' });
   }
 });
 
@@ -212,10 +212,6 @@ export default function StudioSubmit() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep3()) return;
-    if ((form.project_type === 'live' || form.release_strategy === 'premiere') && (!Number.isFinite(Number(form.live_price_ngn)) || Number(form.live_price_ngn) <= 0 || !Number.isFinite(Number(form.live_price_usd)) || Number(form.live_price_usd) <= 0)) {
-      toast.error('Set positive Nigeria (NGN) and international (USD) ticket prices before scheduling this event.');
-      return;
-    }
 
     setSubmitting(true);
 
