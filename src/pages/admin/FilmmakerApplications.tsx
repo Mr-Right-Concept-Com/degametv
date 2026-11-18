@@ -97,7 +97,7 @@ export default function FilmmakerApplications() {
   };
 
   return (
-    <AdminLayout title="Filmmaker Applications" description="Review KYC submissions and grant studio access">
+    <AdminLayout title="Filmmaker Applications" description="Review identity evidence and grant Creator eligibility; studio approval is a separate step">
       <div className="flex flex-col sm:flex-row gap-3 mb-5">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -188,7 +188,7 @@ export default function FilmmakerApplications() {
                   </Button>
                   <Button size="sm" disabled={working || note.trim().length < 10} onClick={() => review(selected, 'verified')}>
                     {working ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Check className="w-4 h-4 mr-1" />}
-                    Approve & Grant Studio Access
+                    Approve identity & grant Creator role
                   </Button>
                 </DialogFooter>
               )}
