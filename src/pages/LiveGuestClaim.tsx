@@ -29,7 +29,7 @@ export default function LiveGuestClaim(){
    setBusy(true);
    const {data,error}=await supabase.rpc('claim_live_guest_ticket',{p_token_hash:await sha256(token)});
    if(!active)return;
-   if(error||!data?.claimed)setMessage('This ticket could not be claimed. Sign in with the purchase email and try again, or contact support.');
+   if(error||!(data as { claimed?: boolean } | null)?.claimed)setMessage('This ticket could not be claimed. Sign in with the purchase email and try again, or contact support.');
    else{setDone(true);setMessage('Your ticket is now attached to your account.');}
    setBusy(false);
   };
