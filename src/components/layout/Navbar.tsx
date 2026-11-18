@@ -38,7 +38,7 @@ export function Navbar() {
         <div className="flex items-center justify-between h-14 sm:h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2">
-            <img src={branding.logoUrl || '/brand/degametv-lockup.svg'} alt={branding.platformName || 'DeGameTV'} className="h-8 sm:h-10 w-auto max-w-[170px] object-contain" />
+            <img src={branding.logoUrl || '/brand/degametv-lockup.svg'} alt={branding.platformName || 'DeGameTV'} className="h-auto w-[132px] sm:w-[164px] max-w-[42vw] object-contain" />
           </Link>
 
           {/* Desktop Navigation */}
