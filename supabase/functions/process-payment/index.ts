@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { z } from "npm:zod@3.25.76";
 
 const schema = z.object({
-  method: z.literal("paystack"),
+  method: z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/),
   email: z.string().trim().email().max(254).transform(value => value.toLowerCase()),
   screeningId: z.string().uuid(),
   location: z.enum(["nigeria", "international"]),
@@ -51,16 +51,20 @@ if (import.meta.main) serve(async (req: Request) => {
       return json(503, { success: false, error: "Secure payment return URL is invalid. Contact platform support." });
     }
 
-    const { data: configs, error: configError } = await admin.rpc("get_payment_provider_runtime_config", { p_provider: method });
-    if (configError || !Array.isArray(configs) || !configs.length) {
-      return json(503, { success: false, error: "This payment method is not enabled or its secure credentials are incomplete." });
+    const { data: configs, error: configError } = await admin.rpc("get_service_provider_runtime_config", { p_capability: "payments" });
+    if (configError || !Array.isArray(configs) || !configs.length || configs[0].provider_key !== method) {
+      return json(503, { success: false, error: "The selected payment adapter is not active or its Vault credentials are incomplete." });
     }
     const config = configs[0];
-    if (!config.secret_key || !config.public_key) {
-      return json(503, { success: false, error: "Payment provider credentials are incomplete." });
+    const checkoutEndpoint = config.endpoints?.checkout_initialize;
+    if (!config.credential || typeof checkoutEndpoint !== "string" || !checkoutEndpoint.startsWith("/") || checkoutEndpoint.startsWith("//")) {
+      return json(503, { success: false, error: "The active payment adapter is missing its checkout contract." });
     }
     if (config.is_live) {
-      return json(503, { success: false, error: "Live ticket sales are paused until secure origin-verified playback is enabled. No charge was made." });
+      const { data: delivery } = await admin.rpc("get_service_provider_runtime_config", { p_capability: "video_delivery" });
+      if (!Array.isArray(delivery) || !delivery.length || !delivery[0].endpoints?.playback_authorize) {
+        return json(503, { success: false, error: "Live sales require configured secure playback entitlement. No charge was made." });
+      }
     }
 
     const { data: screening, error: screeningError } = await admin.from("screenings")
@@ -90,24 +94,33 @@ if (import.meta.main) serve(async (req: Request) => {
     });
     if (orderError || !ticketId) return json(503, { success: false, error: "A secure ticket order could not be created. No charge was made." });
 
+    const checkoutUrl = new URL(checkoutEndpoint, config.base_url);
+    if (checkoutUrl.origin !== new URL(config.base_url).origin) throw new Error("invalid_payment_endpoint");
+    const authHeader = typeof config.settings?.credential_header === "string" ? config.settings.credential_header : "Authorization";
+    const authPrefix = typeof config.settings?.credential_prefix === "string" ? config.settings.credential_prefix : "Bearer ";
     const callback = new URL("/buy/" + encodeURIComponent(screening.slug), siteOrigin).toString();
-    const response = await fetch("https://api.paystack.co/transaction/initialize", {
+    const response = await fetch(checkoutUrl, {
       method: "POST",
-      headers: { "Authorization": "Bearer " + config.secret_key, "Content-Type": "application/json" },
+      headers: { [authHeader]: authPrefix + config.credential, "Content-Type": "application/json" },
       body: JSON.stringify({
-        email, amount: amountMinor, currency, reference, callback_url: callback,
+        customer: { email }, amount_minor: amountMinor, currency, reference, callback_url: callback,
         metadata: { screening_id: screening.id, ticket_id: ticketId, platform: "degame_tv" },
       }),
+      signal: AbortSignal.timeout(15000),
     });
     const result = await response.json().catch(() => null);
-    if (!response.ok || result?.status !== true || typeof result?.data?.authorization_url !== "string") {
+    if (!response.ok || result?.authorized !== true || typeof result?.checkout_url !== "string") {
       await admin.from("guest_payment_orders").update({ status: "failed" }).eq("provider_reference", reference);
       await admin.from("screening_tickets").update({ payment_status: "failed" }).eq("id", ticketId);
       return json(502, { success: false, error: "The payment provider could not start checkout. You have not been charged." });
     }
 
-    await admin.from("guest_payment_orders").update({ checkout_url: result.data.authorization_url, app_origin: siteOrigin }).eq("provider_reference", reference);
-    return json(200, { success: true, authorizationUrl: result.data.authorization_url, reference, screeningTitle: screening.title });
+    const returnedCheckout = new URL(result.checkout_url);
+    if (returnedCheckout.protocol !== "https:") throw new Error("invalid_checkout_url");
+    const allowedCheckoutOrigins = Array.isArray(config.settings?.allowed_checkout_origins) ? config.settings.allowed_checkout_origins : [];
+    if (!allowedCheckoutOrigins.includes(returnedCheckout.origin)) throw new Error("untrusted_checkout_origin");
+    await admin.from("guest_payment_orders").update({ checkout_url: returnedCheckout.toString(), app_origin: siteOrigin }).eq("provider_reference", reference);
+    return json(200, { success: true, authorizationUrl: returnedCheckout.toString(), reference, screeningTitle: screening.title });
   } catch {
     return json(500, { success: false, error: "Checkout could not be started. Please retry or contact support." });
   }
