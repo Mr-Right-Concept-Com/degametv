@@ -22,7 +22,7 @@ interface PublicContent {
   release_date: string | null;
   genres: string[] | null;
 }
-interface PublicScreening { id: string; title: string; slug: string; screening_date: string | null; live_price_ngn:number|null; replay_price_ngn:number|null; live_replay_ready_at:string|null; live_recording_status:string|null; }
+interface PublicScreening { id: string; title: string; slug: string; screening_date: string | null; live_price_ngn:number|null; live_price_usd:number|null; replay_price_ngn:number|null; replay_price_usd:number|null; live_replay_ready_at:string|null; live_recording_status:string|null; }
 
 export default function ContentLanding() {
   const { id } = useParams<{id:string}>();
@@ -30,6 +30,7 @@ export default function ContentLanding() {
   const [screenings,setScreenings]=useState<PublicScreening[]>([]);
   const [loading,setLoading]=useState(true);
   const [guestEmail,setGuestEmail]=useState('');
+  const [currency,setCurrency]=useState<'NGN'|'USD'>('NGN');
   const [checkoutBusy,setCheckoutBusy]=useState<string|null>(null);
   const {user}=useAuth();
   usePageTitle(content?.title ? content.title + ' — DeGameTV' : 'DeGameTV');
@@ -41,7 +42,7 @@ export default function ContentLanding() {
       if(!active)return;
       if(error||!data){setContent(null);setLoading(false);return;}
       setContent(data as PublicContent);
-      const {data:events}=await supabase.from('screenings').select('id,title,slug,screening_date,live_price_ngn,replay_price_ngn,live_replay_ready_at,live_recording_status').eq('content_id',id).eq('status','published').order('screening_date',{ascending:true});
+      const {data:events}=await supabase.from('screenings').select('id,title,slug,screening_date,live_price_ngn,live_price_usd,replay_price_ngn,replay_price_usd,live_replay_ready_at,live_recording_status').eq('content_id',id).eq('status','published').order('screening_date',{ascending:true});
       if(active)setScreenings((events??[]) as PublicScreening[]);
       setLoading(false);
     };
@@ -51,7 +52,7 @@ export default function ContentLanding() {
   const purchaseLive=async(event:PublicScreening,ticketType:'live'|'replay')=>{
     if(!user&&!guestEmail.trim()){toast.error('Enter your email to receive your ticket and secure access link.');return;}
     setCheckoutBusy(event.id+ticketType);
-    const {data,error}=await supabase.functions.invoke('process-live-payment',{body:{screeningId:event.id,ticketType,currency:'NGN',...(!user?{email:guestEmail.trim()}: {})}});
+    const {data,error}=await supabase.functions.invoke('process-live-payment',{body:{screeningId:event.id,ticketType,currency,...(!user?{email:guestEmail.trim()}: {})}});
     setCheckoutBusy(null);
     if(error||!data?.success||!data.checkoutUrl){toast.error(data?.error||error?.message||'Checkout could not be started.');return;}
     window.location.assign(data.checkoutUrl);
@@ -86,9 +87,24 @@ export default function ContentLanding() {
       </div>
       {content.type==='live'&&!user&&<div className="mt-8 max-w-md space-y-2"><label htmlFor="live-ticket-email" className="text-sm font-medium">Email for ticket delivery</label><Input id="live-ticket-email" type="email" autoComplete="email" placeholder="you@example.com" value={guestEmail} onChange={e=>setGuestEmail(e.target.value)}/><p className="text-xs text-muted-foreground">Your secure ticket claim link will be sent to this address after payment is confirmed.</p></div>}
       <section className="mt-12 space-y-4">
-        <h2 className="text-xl font-semibold">Upcoming screenings</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-semibold">Upcoming screenings</h2>{content.type==='live'&&<div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">Ticket currency</span><Button size="sm" variant={currency==='NGN'?'default':'outline'} onClick={()=>setCurrency('NGN')}>NGN ₦</Button><Button size="sm" variant={currency==='USD'?'default':'outline'} onClick={()=>setCurrency('USD')}>USD $</Button></div>}</div>
         {screenings.length===0?<Card><CardContent className="py-8 text-center text-sm text-muted-foreground">This title is published. No ticketed screenings are available yet.</CardContent></Card>:
-          <div className="grid gap-3 sm:grid-cols-2">{screenings.map(event=><Card key={event.id}><CardContent className="flex items-center justify-between gap-3 p-4"><div><p className="font-medium">{event.title}</p><p className="text-xs text-muted-foreground">{event.screening_date?new Date(event.screening_date).toLocaleString():'Date to be announced'}</p></div>{content.type==='live'?<div className="flex flex-col items-end gap-2"><Button size="sm" disabled={checkoutBusy===event.id+'live'||!event.live_price_ngn||event.live_price_ngn<=0} onClick={()=>void purchaseLive(event,'live')}>{checkoutBusy===event.id+'live'?<Loader2 className="mr-2 h-4 w-4 animate-spin"/>:<Ticket className="mr-2 h-4 w-4"/>}Buy live pass</Button>{event.live_recording_status==='ready'&&event.live_replay_ready_at&&<Button size="sm" variant="outline" disabled={checkoutBusy===event.id+'replay'||!event.replay_price_ngn||event.replay_price_ngn<=0} onClick={()=>void purchaseLive(event,'replay')}>Buy replay</Button>}</div>:<Button asChild size="sm"><Link to={'/buy/'+event.slug}><Ticket className="mr-2 h-4 w-4"/>Get ticket</Link></Button>}</CardContent></Card>)}</div>}
+          <div className="grid gap-3 sm:grid-cols-2">{screenings.map(event=><Card key={event.id}><CardContent className="flex items-center justify-between gap-3 p-4"><div><p className="font-medium">{event.title}</p><p className="text-xs text-muted-foreground">{event.screening_date?new Date(event.screening_date).toLocaleString():'Date to be announced'}</p></div>{content.type==='live'?<div className="flex flex-col items-end gap-2"><Button size="sm" disabled={checkoutBusy===event.id+'live'||!(currency==='NGN'?event.live_price_ngn:event.live_price_usd)||Number(currency==='NGN'?event.live_price_ngn:event.live_price_usd)<=0} onClick={()=>void purchaseLive(event,'live')}>{checkoutBusy===event.id+'live'?<Loader2 className="mr-2 h-4 w-4 animate-spin"/>:<Ticket className="mr-2 h-4 w-4"/>}Buy live pass · {currency==='NGN'?'₦'+Number(event.live_price_ngn).toLocaleString():'{event.live_recording_status==='ready'&&event.live_replay_ready_at&&<Button size="sm" variant="outline" disabled={checkoutBusy===event.id+'replay'||!(currency==='NGN'?event.replay_price_ngn:event.replay_price_usd)||Number(currency==='NGN'?event.replay_price_ngn:event.replay_price_usd)<=0} onClick={()=>void purchaseLive(event,'replay')}>Buy replay · {currency==='NGN'?'₦'+Number(event.replay_price_ngn).toLocaleString():'}</div>:<Button asChild size="sm"><Link to={'/buy/'+event.slug}><Ticket className="mr-2 h-4 w-4"/>Get ticket</Link></Button>}</CardContent></Card>)}</div>}
+      </section>
+    </article>
+  </MainLayout>;
+}
++Number(event.live_price_usd).toLocaleString()}</Button>{event.live_recording_status==='ready'&&event.live_replay_ready_at&&<Button size="sm" variant="outline" disabled={checkoutBusy===event.id+'replay'||!event.replay_price_ngn||event.replay_price_ngn<=0} onClick={()=>void purchaseLive(event,'replay')}>Buy replay</Button>}</div>:<Button asChild size="sm"><Link to={'/buy/'+event.slug}><Ticket className="mr-2 h-4 w-4"/>Get ticket</Link></Button>}</CardContent></Card>)}</div>}
+      </section>
+    </article>
+  </MainLayout>;
+}
++Number(event.replay_price_usd).toLocaleString()}</Button>}</div>:<Button asChild size="sm"><Link to={'/buy/'+event.slug}><Ticket className="mr-2 h-4 w-4"/>Get ticket</Link></Button>}</CardContent></Card>)}</div>}
+      </section>
+    </article>
+  </MainLayout>;
+}
++Number(event.live_price_usd).toLocaleString()}</Button>{event.live_recording_status==='ready'&&event.live_replay_ready_at&&<Button size="sm" variant="outline" disabled={checkoutBusy===event.id+'replay'||!event.replay_price_ngn||event.replay_price_ngn<=0} onClick={()=>void purchaseLive(event,'replay')}>Buy replay</Button>}</div>:<Button asChild size="sm"><Link to={'/buy/'+event.slug}><Ticket className="mr-2 h-4 w-4"/>Get ticket</Link></Button>}</CardContent></Card>)}</div>}
       </section>
     </article>
   </MainLayout>;
