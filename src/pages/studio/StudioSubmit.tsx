@@ -68,6 +68,8 @@ export default function StudioSubmit() {
     if (value === 'live') { next.set('flow', 'live'); next.set('type', 'live'); }
     else { next.delete('flow'); next.delete('type'); }
     setSearchParams(next, { replace: true });
+    setStep(value === 'live' ? 2 : 1);
+    setForm(current => ({ ...current, project_type: value === 'live' ? 'live' : (current.project_type === 'live' ? 'movie' : current.project_type), release_strategy: value === 'live' ? 'live' : (current.release_strategy === 'live' ? 'on_demand' : current.release_strategy) }));
   };
   const [step, setStep] = useState(searchParams.get('flow') === 'live' ? 2 : 1);
   const [submitting, setSubmitting] = useState(false);
@@ -474,7 +476,7 @@ export default function StudioSubmit() {
                     <Input type="number" value={form.release_year} onChange={e => setForm(f => ({ ...f, release_year: e.target.value }))} />
                     {errors.release_year && <p className="text-xs text-destructive">{errors.release_year}</p>}
                   </div>
-                </div>
+                </div>}
                 {!liveFlow && <div className="space-y-2">
                   <Label>Genres</Label>
                   <div className="flex flex-wrap gap-2">
@@ -484,7 +486,7 @@ export default function StudioSubmit() {
                       </button>
                     ))}
                   </div>
-                </div>
+                </div>}
                 {!liveFlow && <div className="space-y-2">
                   <Label>Cast & Crew</Label>
                   <Textarea value={form.cast_crew_text} onChange={e => setForm(f => ({ ...f, cast_crew_text: e.target.value }))} rows={3} placeholder={'Name — Role, one person per line'} />
