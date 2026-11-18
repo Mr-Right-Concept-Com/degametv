@@ -4,6 +4,7 @@ import { z } from "npm:zod@3";
 
 const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("list") }),
+  z.object({ action: z.literal("test"), capability: z.enum(["payments","identity","bank_verification","video_delivery","email","live_streaming"]), providerKey: z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/) }),
   z.object({
     action: z.literal("configure"),
     capability: z.enum(["payments","identity","bank_verification","video_delivery","email","live_streaming"]),
@@ -44,10 +45,26 @@ Deno.serve(async req => {
   const p=parsed.data;
   if(p.action==="list"){
     const {data,error}=await admin.from("service_provider_bindings")
-      .select("id,capability,provider_key,enabled,is_live,base_url,endpoints,settings,updated_at,removed_at")
-      .order("capability").order("provider_key");
+      .select("id,capability,provider_key,enabled,is_live,base_url,endpoints,settings,updated_at,removed_at,priority,credential_secret_ref,webhook_secret_ref")
+      .order("capability").order("priority").order("provider_key");
     if(error)return json({error:"Provider registry could not be loaded."},503);
-    return json({providers:data||[]});
+    return json({providers:(data||[]).map(({credential_secret_ref,webhook_secret_ref,...row})=>({...row,hasCredential:Boolean(credential_secret_ref),hasWebhookSecret:Boolean(webhook_secret_ref)}))});
+  }
+  if(p.action==="test"){
+    const {data:rows,error}=await admin.rpc("get_service_provider_runtime_config",{p_capability:p.capability});
+    if(error)return json({error:"Provider runtime configuration could not be loaded."},503);
+    const provider=Array.isArray(rows)?rows.find((row:any)=>row.provider_key===p.providerKey):null;
+    if(!provider?.credential||!provider?.base_url)return json({error:"Save a provider credential and HTTPS base URL before testing."},409);
+    const healthPath=provider.endpoints?.health_check;
+    if(typeof healthPath!=="string"||!healthPath.startsWith("/")||healthPath.startsWith("//"))return json({error:"Configure a relative health_check endpoint in the provider contract."},409);
+    const target=new URL(healthPath,provider.base_url);
+    if(target.origin!==new URL(provider.base_url).origin)return json({error:"Provider health endpoint must remain on the configured host."},400);
+    try{
+      const response=await fetch(target,{method:"GET",headers:{Authorization:"Bearer "+provider.credential,Accept:"application/json"},signal:AbortSignal.timeout(10000)});
+      const body=await response.json().catch(()=>null);
+      if(!response.ok||body?.ok!==true)return json({success:false,error:"Provider health check failed. Binding has not been changed."},502);
+      return json({success:true,provider:p.providerKey,capability:p.capability,mode:provider.is_live?"live":"test",checkedAt:new Date().toISOString()});
+    }catch{return json({success:false,error:"Provider health endpoint did not respond. Binding has not been changed."},502);}
   }
   const args=p.action==="remove"
     ? {p_capability:p.capability,p_provider_key:p.providerKey,p_enabled:false,p_is_live:false,p_remove:true}
