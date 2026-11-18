@@ -17,7 +17,7 @@ const kycSchema = z.object({
     errorMap: () => ({ message: 'Select an ID type' }),
   }),
   kyc_id_url: z.string().min(1, 'Upload your government-issued ID'),
-  kyc_selfie_url: z.string().min(1, 'Upload a selfie holding your ID'),
+  kyc_selfie_url: z.string().min(1, 'Upload your selfie liveness video'),
 });
 
 interface Profile {
@@ -47,7 +47,7 @@ export function KYCVerification({ onVerified, compact }: Props) {
     kyc_full_name: '',
     kyc_id_type: '',
     kyc_id_url: '',
-    kyc_selfie_url: '',
+    kyc_selfie_url: '', country_code: 'NG', date_of_birth: '', address_line: '', address_city: '', address_region: '', address_postal_code: '',
   });
 
   const load = async () => {
@@ -75,11 +75,10 @@ export function KYCVerification({ onVerified, compact }: Props) {
 
   const upload = async (file: File, kind: 'id' | 'selfie') => {
     if (!user) { toast.error('Sign in before uploading identity documents.'); return; }
-    const allowed = kind === 'id'
-      ? ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
-      : ['image/jpeg', 'image/png', 'image/webp'];
-    if (!allowed.includes(file.type) || file.size > 10 * 1024 * 1024) {
-      toast.error('Use a supported image or PDF under 10 MB.');
+    const allowed = kind === 'id' ? ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] : ['video/mp4', 'video/webm', 'video/quicktime'];
+    const maxSize = kind === 'id' ? 10 * 1024 * 1024 : 100 * 1024 * 1024;
+    if (!allowed.includes(file.type) || file.size <= 0 || file.size > maxSize) {
+      toast.error(kind === 'id' ? 'Use a supported ID image or PDF under 10 MB.' : 'Use an MP4, WebM or MOV selfie video under 100 MB.');
       return;
     }
     const setUploading = kind === 'id' ? setUploadingId : setUploadingSelfie;
@@ -92,7 +91,7 @@ export function KYCVerification({ onVerified, compact }: Props) {
       });
       if (error) throw error;
       setForm(current => ({ ...current, [kind === 'id' ? 'kyc_id_url' : 'kyc_selfie_url']: path }));
-      toast.success(kind === 'id' ? 'Identity document uploaded securely.' : 'Selfie uploaded securely.');
+      toast.success(kind === 'id' ? 'Identity document uploaded securely.' : 'Selfie liveness video uploaded securely.');
     } catch {
       toast.error('Upload failed. Your document was not submitted; please retry.');
     } finally {
@@ -114,9 +113,15 @@ export function KYCVerification({ onVerified, compact }: Props) {
     const { data, error } = await supabase.functions.invoke('submit-kyc', {
       body: {
         full_name: result.data.kyc_full_name,
-        id_type: result.data.kyc_id_type,
-        id_path: result.data.kyc_id_url,
-        selfie_path: result.data.kyc_selfie_url,
+        country_code: form.country_code,
+        document_type: result.data.kyc_id_type,
+        document_path: result.data.kyc_id_url,
+        selfie_video_path: result.data.kyc_selfie_url,
+        date_of_birth: form.date_of_birth || null,
+        address_line: form.address_line || null,
+        address_city: form.address_city || null,
+        address_region: form.address_region || null,
+        address_postal_code: form.address_postal_code || null,
       },
     });
     if (error || !data?.success) {
@@ -187,17 +192,31 @@ export function KYCVerification({ onVerified, compact }: Props) {
         )}
 
         <div className="space-y-2">
+          <Label>Country of document</Label>
+          <Select value={form.country_code} onValueChange={v => setForm(f => ({ ...f, country_code: v, kyc_id_type: '' }))}>
+            <SelectTrigger><SelectValue /></SelectTrigger><SelectContent>
+              {['NG','GH','KE','ZA','UG','TZ','RW','US','GB','CA','IN','AE'].map(code => <SelectItem key={code} value={code}>{({NG:'Nigeria',GH:'Ghana',KE:'Kenya',ZA:'South Africa',UG:'Uganda',TZ:'Tanzania',RW:'Rwanda',US:'United States',GB:'United Kingdom',CA:'Canada',IN:'India',AE:'United Arab Emirates'} as Record<string,string>)[code]}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Label>Date of birth</Label><Input type="date" value={form.date_of_birth} onChange={e => setForm(f => ({...f,date_of_birth:e.target.value}))} />
+          <Label>Residential address</Label><Input value={form.address_line} onChange={e => setForm(f => ({...f,address_line:e.target.value}))} />
+          <div className="grid grid-cols-2 gap-2">
+            <Input placeholder="City" value={form.address_city} onChange={e => setForm(f => ({...f,address_city:e.target.value}))} />
+            <Input placeholder="State / Region" value={form.address_region} onChange={e => setForm(f => ({...f,address_region:e.target.value}))} />
+          </div>
+          <Input placeholder="Postal code" value={form.address_postal_code} onChange={e => setForm(f => ({...f,address_postal_code:e.target.value}))} />
           <Label>Full Legal Name <span className="text-destructive">*</span></Label>
           <Input value={form.kyc_full_name} onChange={e => setForm(f => ({ ...f, kyc_full_name: e.target.value }))} placeholder="As it appears on your ID" />
           {errors.kyc_full_name && <p className="text-xs text-destructive">{errors.kyc_full_name}</p>}
         </div>
 
         <div className="space-y-2">
-          <Label>ID Type <span className="text-destructive">*</span></Label>
+          <Label>Country: {form.country_code} — ID Type <span className="text-destructive">*</span></Label>
           <Select value={form.kyc_id_type} onValueChange={v => setForm(f => ({ ...f, kyc_id_type: v }))}>
             <SelectTrigger><SelectValue placeholder="Select ID" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="nin">National ID (NIN)</SelectItem>
+              {form.country_code === 'NG' && <SelectItem value="nin">National ID (NIN)</SelectItem>}
+              <SelectItem value="national_id">National identity card</SelectItem>
               <SelectItem value="passport">International Passport</SelectItem>
               <SelectItem value="drivers_license">Driver's License</SelectItem>
               <SelectItem value="voters_card">Voter's Card</SelectItem>
@@ -222,15 +241,15 @@ export function KYCVerification({ onVerified, compact }: Props) {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs">Selfie with ID <span className="text-destructive">*</span></Label>
+            <Label className="text-xs">Selfie liveness video <span className="text-destructive">*</span></Label>
             <div className="w-full h-28 rounded-lg border-2 border-dashed border-border flex items-center justify-center text-muted-foreground text-xs px-2 text-center">
-              {form.kyc_selfie_url ? 'Selfie uploaded securely' : 'No selfie uploaded'}
+              {form.kyc_selfie_url ? 'Selfie video uploaded securely' : 'No selfie uploaded'}
             </div>
             <label>
               <Button type="button" variant="outline" size="sm" className="w-full" disabled={uploadingSelfie} asChild>
-                <span>{uploadingSelfie ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Upload className="w-3 h-3 mr-2" />}{form.kyc_selfie_url ? 'Replace' : 'Upload Selfie'}</span>
+                <span>{uploadingSelfie ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Upload className="w-3 h-3 mr-2" />}{form.kyc_selfie_url ? 'Replace' : 'Upload selfie video'}</span>
               </Button>
-              <input type="file" accept="image/jpeg,image/png,image/webp" capture="user" className="hidden" disabled={uploadingSelfie} onChange={e => e.target.files?.[0] && upload(e.target.files[0], 'selfie')} />
+              <input type="file" accept="video/mp4,video/webm,video/quicktime" capture="user" className="hidden" disabled={uploadingSelfie} onChange={e => e.target.files?.[0] && upload(e.target.files[0], 'selfie')} />
             </label>
             {errors.kyc_selfie_url && <p className="text-xs text-destructive">{errors.kyc_selfie_url}</p>}
           </div>
