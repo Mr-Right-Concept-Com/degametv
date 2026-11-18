@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
         }),
       });
       const refundResult = await refundResponse.json().catch(() => null);
-      if (!refundResponse.ok || refundResult?.status !== true || !refundResult?.data) {
+      if (!refundResponse.ok || refundResult?.status !== true || refundResult?.data?.status !== "processed") {
         pendingRefunds.push(ticket.id);
         continue;
       }
