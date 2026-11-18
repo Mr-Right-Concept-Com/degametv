@@ -1,6 +1,6 @@
 import { useState, FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Menu, X, Search, User, Ticket, LayoutDashboard, Film, Clapperboard } from 'lucide-react';
+import { Menu, X, Search, User, Ticket, LayoutDashboard, Clapperboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
@@ -46,12 +46,7 @@ export function Navbar() {
         <div className="flex items-center justify-between h-14 sm:h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-primary flex items-center justify-center">
-              <Film className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />
-            </div>
-            <span className="text-base sm:text-lg font-bold text-foreground tracking-tight">
-              DeGameTV
-            </span>
+            <img src={branding.logoUrl || '/brand/degametv-lockup.svg'} alt={branding.platformName || 'DeGameTV'} className="h-8 sm:h-10 w-auto max-w-[170px] object-contain" />
           </Link>
 
           {/* Desktop Navigation */}
