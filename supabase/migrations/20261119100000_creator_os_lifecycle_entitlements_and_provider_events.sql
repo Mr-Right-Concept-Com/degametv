@@ -340,3 +340,55 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.claim_free_live_ticket(uuid) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.claim_free_live_ticket(uuid) TO authenticated;
+
+
+CREATE OR REPLACE FUNCTION public.claim_free_replay_ticket(p_screening_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,auth,pg_temp AS $$
+DECLARE
+  v_user uuid := auth.uid();
+  v_screening public.screenings%rowtype;
+  v_stream public.live_streams%rowtype;
+  v_ticket public.tickets%rowtype;
+  v_expiry timestamptz;
+BEGIN
+  IF v_user IS NULL THEN RAISE EXCEPTION 'authentication_required' USING ERRCODE='42501'; END IF;
+  SELECT * INTO v_screening FROM public.screenings
+    WHERE id=p_screening_id AND status='published' FOR SHARE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'screening_unavailable'; END IF;
+  IF v_screening.replay_access_model<>'FREE_REPLAY'
+     OR v_screening.live_recording_status<>'ready'
+     OR v_screening.live_replay_ready_at IS NULL THEN
+    RAISE EXCEPTION 'free_replay_not_available';
+  END IF;
+  SELECT * INTO v_stream FROM public.live_streams
+    WHERE tenant_id=v_screening.tenant_id
+      AND metadata->>'screening_id'=v_screening.id::text
+    ORDER BY created_at DESC LIMIT 1 FOR SHARE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'stream_not_found'; END IF;
+  SELECT * INTO v_ticket FROM public.tickets
+    WHERE stream_id=v_stream.id AND user_id=v_user AND ticket_type IN ('replay','combo')
+      AND revoked_at IS NULL AND valid_until>now()
+    ORDER BY created_at DESC LIMIT 1;
+  IF FOUND THEN
+    RETURN jsonb_build_object('claimed',true,'already_claimed',true,
+      'ticket_id',v_ticket.id,'ticket_code',v_ticket.ticket_code,'stream_id',v_stream.id);
+  END IF;
+  v_expiry := CASE WHEN v_screening.replay_access_hours IS NULL THEN now()+interval '10 years'
+    ELSE v_screening.live_replay_ready_at+make_interval(hours=>v_screening.replay_access_hours) END;
+  IF v_expiry<=now() THEN RAISE EXCEPTION 'free_replay_window_expired'; END IF;
+  INSERT INTO public.tickets(
+    user_id,tenant_id,content_id,stream_id,ticket_type,ticket_code,price,currency,
+    valid_from,valid_until,metadata
+  ) VALUES (
+    v_user,v_screening.tenant_id,v_screening.content_id,v_stream.id,'replay',
+    upper(substr(encode(gen_random_bytes(12),'hex'),1,16)),0,'NGN',
+    now(),v_expiry,
+    jsonb_build_object('screening_id',v_screening.id,'admission_model','FREE_REPLAY','source','free_replay_claim')
+  ) RETURNING * INTO v_ticket;
+  RETURN jsonb_build_object('claimed',true,'already_claimed',false,
+    'ticket_id',v_ticket.id,'ticket_code',v_ticket.ticket_code,'stream_id',v_stream.id,
+    'valid_until',v_ticket.valid_until);
+END $$;
+REVOKE ALL ON FUNCTION public.claim_free_replay_ticket(uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.claim_free_replay_ticket(uuid) TO authenticated;
