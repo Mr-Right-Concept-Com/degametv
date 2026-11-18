@@ -65,28 +65,15 @@ export default function WhiteLabel() {
   }, []);
 
   const handleSave = async () => {
-    setSaving(true);
-    // Upsert into platform_settings
-    const { data: existing } = await supabase
-      .from('platform_settings')
-      .select('id')
-      .eq('setting_key', 'branding')
-      .maybeSingle();
-
-    if (existing) {
-      const { error } = await supabase
-        .from('platform_settings')
-        .update({ setting_value: branding as unknown as import('@/integrations/supabase/types').Json })
-        .eq('id', existing.id);
-      if (error) toast.error('Save failed: ' + error.message);
-      else toast.success('Branding saved');
-    } else {
-      const { error } = await supabase
-        .from('platform_settings')
-        .insert({ setting_key: 'branding', setting_value: branding as any, is_public: true });
-      if (error) toast.error('Save failed: ' + error.message);
-      else toast.success('Branding saved');
-    }
+    const validDomain = (value: string) => /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$/i.test(value.trim());\n    if (!validDomain(domains.controlDomain) || !validDomain(domains.releaseDomain)) { toast.error('Enter valid domain names without https:// or paths.'); return; }\n    setSaving(true);
+    const { error: brandingError } = await supabase.from('platform_settings').upsert({
+      setting_key: 'branding',
+      setting_value: branding as unknown as import('@/integrations/supabase/types').Json,
+      is_public: true,
+      description: 'Runtime platform identity, logo and design tokens'
+    }, { onConflict: 'setting_key' });
+    if (brandingError) toast.error('Branding save failed: ' + brandingError.message);
+    else toast.success('Branding saved and published.');
     const { error: domainError } = await supabase.from('platform_settings').upsert({ setting_key: 'domain_settings', setting_value: domains as unknown as import('@/integrations/supabase/types').Json, is_public: true, description: 'Canonical control domain and dedicated release subdomain root' }, { onConflict: 'setting_key' });
     if (domainError) toast.error('Domain settings could not be saved: ' + domainError.message);
     else toast.success('Domain settings saved.');
