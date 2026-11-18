@@ -58,7 +58,6 @@ export function TierUpgradeCard() {
       toast.message('Your studio is already approved. Contact support to change your studio tier.');
       return;
     }
-    let payload: Record<string, unknown> = { user_id: user.id, tier, status: 'pending' };
     let businessData: z.infer<typeof businessSchema> | null = null;
     if (tier === 'business') {
       const r = businessSchema.safeParse(f);
@@ -70,7 +69,6 @@ export function TierUpgradeCard() {
       if (!file) { setErrors({ cac_doc: 'Upload your CAC certificate' }); return; }
       if (file.size > 10 * 1024 * 1024) { setErrors({ cac_doc: 'Max 10MB' }); return; }
       businessData = r.data;
-      payload = { user_id: user.id, tier, status: 'pending' };
     }
     setBusy(true);
     try {
@@ -101,9 +99,9 @@ export function TierUpgradeCard() {
         if (verificationError) throw verificationError;
         businessVerificationId = (verificationData as { verification_id?: string } | null)?.verification_id;
       }
-      const { error } = acct
-        ? await supabase.from('studio_accounts').update(payload).eq('user_id', user.id)
-        : await supabase.from('studio_accounts').insert(payload as never);
+      const { error } = await supabase.rpc('submit_my_studio_account' as never, {
+        p_tier: tier,
+      } as never);
       if (error) throw error;
       if (tier === 'business' && businessVerificationId) {
         const providerRun = await invokeFn<{ status?: string; providerConfigured?: boolean; studioActivated?: boolean }>('run-business-provider', { verificationId: businessVerificationId });
