@@ -41,6 +41,6 @@ if(import.meta.main)serve(async(req:Request)=>{
    emailSent=Boolean(mailResponse?.ok);
    if(!emailSent)await admin.from("guest_payment_orders").update({email_sent_at:null}).eq("id",order.id);
   }
-  return json(200,{status:"paid",email:order.email,ticketCode:ticket.ticket_code,watchCode:ticket.watch_code,expiresAt:ticket.expires_at,screeningId:ticket.screening_id,emailSent});
+  return json(200,{status:"paid",email:order.email,location:ticket.location,price:Number(ticket.price),currency:order.currency,ticketCode:ticket.ticket_code,watchCode:ticket.watch_code,expiresAt:ticket.expires_at,screeningId:ticket.screening_id,emailSent});
  }catch{return json(500,{error:"Payment status could not be retrieved. Retry shortly."});}
 });
