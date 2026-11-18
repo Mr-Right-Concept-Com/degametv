@@ -270,7 +270,7 @@ export default function StudioSubmit() {
     }
     setCreatedContentId(submission.content_id);
 
-    if (form.poster_url && (form.video_url || ['live', 'series'].includes(form.project_type) || (form.project_type === 'trailer' && form.trailer_url))) {
+    if (form.project_type === 'live' || (form.poster_url && (form.video_url || ['series'].includes(form.project_type) || (form.project_type === 'trailer' && form.trailer_url)))) {
       const needsScreening = form.project_type === 'live' || form.release_strategy === 'premiere';
       if (needsScreening) {
         if (!form.premiere_date) {
