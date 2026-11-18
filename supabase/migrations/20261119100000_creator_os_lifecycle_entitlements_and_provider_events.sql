@@ -206,3 +206,49 @@ DROP TRIGGER IF EXISTS screenings_access_model_from_price ON public.screenings;
 CREATE TRIGGER screenings_access_model_from_price
 BEFORE INSERT OR UPDATE OF live_price_ngn,live_price_usd ON public.screenings
 FOR EACH ROW EXECUTE FUNCTION public.set_screening_access_model();
+
+
+-- Preserve the adaptive preset metadata in the canonical content row. The existing
+-- creator submission RPC remains the authenticated entry point.
+CREATE OR REPLACE FUNCTION public.sync_content_preset_contract()
+RETURNS trigger LANGUAGE plpgsql SET search_path=public,pg_temp AS $$
+DECLARE v_preset text;
+BEGIN
+  NEW.dynamic_metadata := CASE
+    WHEN jsonb_typeof(NEW.metadata->'dynamic_metadata')='object' THEN NEW.metadata->'dynamic_metadata'
+    WHEN jsonb_typeof(NEW.dynamic_metadata)='object' THEN NEW.dynamic_metadata
+    ELSE '{}'::jsonb END;
+  v_preset := coalesce(nullif(NEW.dynamic_metadata->>'contentType',''), '');
+  IF v_preset = '' THEN
+    v_preset := CASE NEW.type::text
+      WHEN 'movie' THEN 'FILM' WHEN 'film' THEN 'FILM'
+      WHEN 'series' THEN 'SERIES' WHEN 'episode' THEN 'EPISODE'
+      WHEN 'short' THEN 'SHORT' WHEN 'trailer' THEN 'TRAILER'
+      WHEN 'live' THEN 'RECORDED_EVENT' ELSE 'FILM' END;
+  END IF;
+  IF v_preset IN ('FILM','SERIES','EPISODE','SHORT','TRAILER','MUSIC_VIDEO','PODCAST',
+      'DOCUMENTARY','EDUCATIONAL','GAMING','SPORTS','RECORDED_EVENT') THEN
+    NEW.preset_type := v_preset::public.content_preset_type;
+  ELSE
+    RAISE EXCEPTION 'unsupported_content_preset';
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS content_preset_contract_sync ON public.content;
+CREATE TRIGGER content_preset_contract_sync
+BEFORE INSERT OR UPDATE OF type,metadata,dynamic_metadata,preset_type ON public.content
+FOR EACH ROW EXECUTE FUNCTION public.sync_content_preset_contract();
+
+DO $$
+DECLARE v_definition text; v_updated text;
+BEGIN
+  SELECT pg_get_functiondef('public.create_creator_submission(jsonb)'::regprocedure) INTO v_definition;
+  IF v_definition IS NULL THEN RAISE EXCEPTION 'create_creator_submission RPC is missing'; END IF;
+  v_updated := replace(v_definition,
+    '''submission_source'',''creator_studio''',
+    '''submission_source'',''creator_studio'',''dynamic_metadata'',coalesce(_application->''dynamic_metadata'',''{}''::jsonb)');
+  IF v_updated=v_definition AND position('dynamic_metadata' in v_definition)=0 THEN
+    RAISE EXCEPTION 'Could not extend creator submission metadata contract safely';
+  END IF;
+  EXECUTE v_updated;
+END $$;
