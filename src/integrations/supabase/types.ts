@@ -239,6 +239,8 @@ export type Database = {
           is_featured?: boolean | null
           like_count?: number | null
           dynamic_metadata?: Json
+          dynamic_metadata?: Json
+          preset_type?: Database["public"]["Enums"]["content_preset_type"] | null
           metadata?: Json | null
           preset_type?: Database["public"]["Enums"]["content_preset_type"] | null
           monetization?: Database["public"]["Enums"]["monetization_type"]
@@ -277,6 +279,8 @@ export type Database = {
           is_drm_protected?: boolean | null
           is_featured?: boolean | null
           like_count?: number | null
+          dynamic_metadata?: Json
+          preset_type?: Database["public"]["Enums"]["content_preset_type"] | null
           metadata?: Json | null
           monetization?: Database["public"]["Enums"]["monetization_type"]
           parent_id?: string | null
@@ -609,6 +613,13 @@ export type Database = {
           provider_stream_id?: string | null
           reconnect_grace_expires_at?: string | null
           vod_replay_asset_url?: string | null
+          actual_ended_at?: string | null
+          actual_started_at?: string | null
+          encoder_connected_at?: string | null
+          lifecycle_status?: Database["public"]["Enums"]["broadcast_lifecycle_status"]
+          provider_stream_id?: string | null
+          reconnect_grace_expires_at?: string | null
+          vod_replay_asset_url?: string | null
           actual_end?: string | null
           actual_start?: string | null
           banner_url?: string | null
@@ -638,6 +649,13 @@ export type Database = {
           viewer_count?: number | null
         }
         Update: {
+          actual_ended_at?: string | null
+          actual_started_at?: string | null
+          encoder_connected_at?: string | null
+          lifecycle_status?: Database["public"]["Enums"]["broadcast_lifecycle_status"]
+          provider_stream_id?: string | null
+          reconnect_grace_expires_at?: string | null
+          vod_replay_asset_url?: string | null
           actual_end?: string | null
           actual_start?: string | null
           banner_url?: string | null
@@ -892,6 +910,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          company_name?: string | null
           bio?: string | null
           country?: string | null
           created_at?: string
@@ -1353,6 +1372,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          access_model?: string
+          auto_convert_to_vod?: boolean
+          replay_access_model?: string
           age_rating?: string | null
           allowed_countries?: string[] | null
           banner_url?: string | null
