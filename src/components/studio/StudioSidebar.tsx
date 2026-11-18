@@ -1,9 +1,10 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Film, LayoutDashboard, Upload, Calendar, DollarSign, ExternalLink, Clapperboard, BarChart3, Radio, Megaphone, Users } from 'lucide-react';
+import { Film, LayoutDashboard, Upload, Calendar, DollarSign, ExternalLink, Clapperboard, BarChart3, Radio, Megaphone, Users, PlusCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { label: 'Dashboard', href: '/studio', icon: LayoutDashboard },
+  { label: 'Create', href: '/studio/create', icon: PlusCircle },
   { label: 'My Movies', href: '/studio/movies', icon: Film },
   { label: 'Submit Film', href: '/studio/submit', icon: Upload },
   { label: 'My Screenings', href: '/studio/screenings', icon: Calendar },
