@@ -105,7 +105,7 @@ export default function PaymentGatewaySettings() {
       <div className="space-y-6">
         <Alert>
           <ShieldCheck className="h-4 w-4" />
-          <AlertDescription>Secret credentials are written directly to Supabase Vault. They are never read back into this page or stored in browser state after saving. Live mode is blocked until live keys and a webhook signing secret exist.</AlertDescription>
+          <AlertDescription>Secret credentials are written directly to Supabase Vault. They are never read back into this page or stored in browser state after saving. Only adapters with a deployed server-side checkout and verified webhook can be enabled. Paystack is currently supported.</AlertDescription>
         </Alert>
         {error && <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertDescription>{error}</AlertDescription></Alert>}
         <div className="grid gap-4 md:grid-cols-3">
@@ -144,16 +144,16 @@ export default function PaymentGatewaySettings() {
               </div>
             </section>
             <section className="space-y-2 rounded-lg border p-4">
-              <Label>Webhook signing secret</Label>
-              <Input type="password" autoComplete="new-password" value={selectedDraft.webhookSecret} onChange={e => updateDraft('webhookSecret', e.target.value)} placeholder={selectedConfig?.hasWebhookSecret ? 'Stored securely — enter only to rotate' : 'Provider webhook signing secret'} />
-              <p className="text-xs text-muted-foreground">Used by the server-side callback verifier. Never paste a publishable key into this field.</p>
+              <Label>Provider webhook URL</Label>
+              <Input readOnly value="https://dxijsbbdtwtbwdaajiyn.supabase.co/functions/v1/payment-webhook" />
+              <p className="text-xs text-muted-foreground">Add this endpoint in Paystack Dashboard → Settings → API Keys & Webhooks. Paystack signs callbacks with the provider secret key already stored in Vault.</p>
             </section>
             <div className="flex flex-wrap items-center gap-3">
               <Button onClick={() => void save(selected, {})} disabled={saving}><Save className="mr-2 h-4 w-4" />{saving ? 'Saving to Vault…' : 'Save credentials'}</Button>
-              <Button variant={selectedConfig?.enabled ? 'destructive' : 'default'} onClick={() => void save(selected, { enabled: !selectedConfig?.enabled })} disabled={saving}>
-                {selectedConfig?.enabled ? 'Disable checkout' : 'Enable test checkout'}
+              <Button variant={selectedConfig?.enabled ? 'destructive' : 'default'} onClick={() => void save(selected, { enabled: !selectedConfig?.enabled })} disabled={saving || (selected !== 'paystack' && !selectedConfig?.enabled)}>
+                {selectedConfig?.enabled ? 'Disable checkout' : selected === 'paystack' ? 'Enable test checkout' : 'Adapter not deployed'}
               </Button>
-              <Button variant="outline" onClick={() => void save(selected, { live: !selectedConfig?.live, enabled: true })} disabled={saving || (!selectedConfig?.live && (!selectedConfig?.hasLiveSecret))}>
+              <Button variant="outline" onClick={() => void save(selected, { live: !selectedConfig?.live, enabled: true })} disabled={saving || selected !== 'paystack' || (!selectedConfig?.live && (!selectedConfig?.hasLiveSecret))}>
                 {selectedConfig?.live ? 'Switch back to test' : 'Switch to live'}
               </Button>
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
