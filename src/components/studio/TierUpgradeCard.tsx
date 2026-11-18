@@ -47,7 +47,7 @@ export function TierUpgradeCard() {
     setAccountError(false);
     const account = Array.isArray(data) ? data[0] : data;
     setAcct(account ? { tier: account.tier, status: account.status } : null);
-    if (data?.tier === 'business') setTier('business');
+    if (account?.tier === 'business') setTier('business');
   };
   useEffect(() => { load(); }, [user?.id]);
 
