@@ -44,7 +44,7 @@ export default function BuyTicket() {
   const [screening, setScreening] = useState<Screening | null>(null);
   const [loadingScreening, setLoadingScreening] = useState(true);
   usePageTitle(screening?.title ? `Buy Ticket — ${screening.title}` : 'Buy Ticket');
-  const [confirmation, setConfirmation] = useState<{ticketCode:string;watchCode:string;expiresAt?:string}|null>(null);
+  const [confirmation, setConfirmation] = useState<{ticketCode:string;watchCode:string;expiresAt?:string;emailSent?:boolean}|null>(null);
 
   useEffect(() => {
     const fetchScreening = async () => {
@@ -95,7 +95,8 @@ export default function BuyTicket() {
           sessionStorage.removeItem('degame_checkout_email');
           sessionStorage.removeItem('degame_checkout_location');
           window.history.replaceState({}, '', window.location.pathname);
-          toast.success('Payment confirmed. Your ticket is ready.');
+          if (result.data.emailSent) toast.success('Payment confirmed. Your ticket is ready and the email has been sent.');
+          else toast.message('Payment confirmed. Your ticket is ready below; email delivery is not configured yet.');
           setProcessing(false);
           return;
         }
@@ -367,7 +368,7 @@ export default function BuyTicket() {
                 </div>
                 <h2 className="text-xl font-bold mb-1">You're In! 🎉</h2>
                 <p className="text-sm text-muted-foreground mb-5">
-                  Check your email ({email}) for your "Watch Now" link.
+                  {confirmation.emailSent ? `A watch link was sent to ${email}.` : `Email delivery is not configured. Use the secure watch link below for ${email}.`}
                 </p>
 
                 <div className="bg-secondary/50 p-4 rounded-xl mb-5 text-left space-y-2 text-sm">
