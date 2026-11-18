@@ -54,12 +54,14 @@ Deno.serve(async (req) => {
     if (ticketError) return json(503, { error: "Paid tickets could not be loaded; cancellation was not applied." });
 
     const { data: paymentConfigs, error: configError } = await admin.rpc(
-      "get_payment_provider_runtime_config",
-      { p_provider: "paystack" },
+      "get_service_provider_runtime_config",
+      { p_capability: "payments" },
     );
-    const paystack = Array.isArray(paymentConfigs) ? paymentConfigs[0] : null;
-    const canRefund = !configError && paystack?.is_enabled === true &&
-      typeof paystack.secret_key === "string" && paystack.secret_key.length > 0;
+    const paymentProvider = Array.isArray(paymentConfigs) ? paymentConfigs[0] : null;
+    const refundPath = paymentProvider?.endpoints?.refund;
+    const canRefund = !configError && typeof paymentProvider?.credential === "string" &&
+      paymentProvider.credential.length > 0 && typeof refundPath === "string" &&
+      refundPath.startsWith("/") && !refundPath.startsWith("//");
 
     let refunded = 0;
     const pendingRefunds: string[] = [];
@@ -69,28 +71,34 @@ Deno.serve(async (req) => {
         .eq("ticket_id", ticket.id)
         .eq("status", "paid")
         .maybeSingle();
-      if (orderError || !order || order.provider !== "paystack" || !canRefund ||
+      if (orderError || !order || order.provider !== paymentProvider?.provider_key || !canRefund ||
           (!order.provider_transaction_id && !order.provider_reference)) {
         pendingRefunds.push(ticket.id);
         continue;
       }
 
-      const refundResponse = await fetch("https://api.paystack.co/refund", {
+      const refundUrl = new URL(refundPath, paymentProvider.base_url);
+      if (refundUrl.origin !== new URL(paymentProvider.base_url).origin) {
+        pendingRefunds.push(ticket.id);
+        continue;
+      }
+      const settings = paymentProvider.settings || {};
+      const authHeader = typeof settings.credential_header === "string" ? settings.credential_header : "Authorization";
+      const authPrefix = typeof settings.credential_prefix === "string" ? settings.credential_prefix : "Bearer ";
+      const refundResponse = await fetch(refundUrl, {
         method: "POST",
-        headers: {
-          Authorization: "Bearer " + paystack.secret_key,
-          "Content-Type": "application/json",
-        },
+        headers: { [authHeader]: authPrefix + paymentProvider.credential, "Content-Type": "application/json" },
         body: JSON.stringify({
-          transaction: order.provider_transaction_id || order.provider_reference,
-          amount: Number(order.amount_minor),
+          transaction_id: order.provider_transaction_id || order.provider_reference,
+          reference: order.provider_reference,
+          amount_minor: Number(order.amount_minor),
           currency: order.currency,
-          customer_note: p.reason || "Event cancelled",
-          merchant_note: "DeGameTV screening cancellation",
+          reason: p.reason || "Event cancelled",
         }),
+        signal: AbortSignal.timeout(15000),
       });
       const refundResult = await refundResponse.json().catch(() => null);
-      if (!refundResponse.ok || refundResult?.status !== true || refundResult?.data?.status !== "processed") {
+      if (!refundResponse.ok || refundResult?.accepted !== true || refundResult?.status !== "processed") {
         pendingRefunds.push(ticket.id);
         continue;
       }
