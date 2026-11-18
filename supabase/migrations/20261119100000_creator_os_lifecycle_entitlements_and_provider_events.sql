@@ -269,3 +269,61 @@ BEGIN
   END IF;
   EXECUTE v_updated;
 END $$;
+
+
+-- Free events issue the same canonical ticket entitlement as paid live admission.
+-- A creator cannot mint tickets: only an authenticated viewer can claim a published,
+-- explicitly free event that already has a provider-provisioned stream.
+CREATE OR REPLACE FUNCTION public.claim_free_live_ticket(p_screening_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,auth,pg_temp AS $$
+DECLARE
+  v_user uuid := auth.uid();
+  v_screening public.screenings%rowtype;
+  v_stream public.live_streams%rowtype;
+  v_ticket public.tickets%rowtype;
+  v_expiry timestamptz;
+BEGIN
+  IF v_user IS NULL THEN RAISE EXCEPTION 'authentication_required' USING ERRCODE='42501'; END IF;
+  SELECT * INTO v_screening FROM public.screenings
+    WHERE id=p_screening_id AND status='published' FOR SHARE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'screening_unavailable'; END IF;
+  IF v_screening.access_model<>'FREE'
+     OR coalesce(v_screening.live_price_ngn,0)<>0
+     OR coalesce(v_screening.live_price_usd,0)<>0 THEN
+    RAISE EXCEPTION 'free_admission_not_enabled';
+  END IF;
+  SELECT * INTO v_stream FROM public.live_streams
+    WHERE tenant_id=v_screening.tenant_id
+      AND metadata->>'screening_id'=v_screening.id::text
+      AND status IN ('scheduled','live')
+    ORDER BY created_at DESC LIMIT 1 FOR SHARE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'stream_not_provisioned'; END IF;
+
+  SELECT * INTO v_ticket FROM public.tickets
+    WHERE stream_id=v_stream.id AND user_id=v_user
+      AND ticket_type IN ('live','combo') AND revoked_at IS NULL
+      AND valid_until>now()
+    ORDER BY created_at DESC LIMIT 1;
+  IF FOUND THEN
+    RETURN jsonb_build_object('claimed',true,'already_claimed',true,
+      'ticket_id',v_ticket.id,'ticket_code',v_ticket.ticket_code,'stream_id',v_stream.id);
+  END IF;
+
+  v_expiry := coalesce(v_screening.screening_date,now()) + interval '24 hours';
+  IF v_expiry<=now() THEN RAISE EXCEPTION 'free_live_admission_expired'; END IF;
+  INSERT INTO public.tickets(
+    user_id,tenant_id,content_id,stream_id,ticket_type,ticket_code,price,currency,
+    valid_from,valid_until,metadata
+  ) VALUES (
+    v_user,v_screening.tenant_id,v_screening.content_id,v_stream.id,'live',
+    upper(substr(encode(gen_random_bytes(12),'hex'),1,16)),0,'NGN',
+    now(),v_expiry,
+    jsonb_build_object('screening_id',v_screening.id,'admission_model','FREE','source','free_live_claim')
+  ) RETURNING * INTO v_ticket;
+  RETURN jsonb_build_object('claimed',true,'already_claimed',false,
+    'ticket_id',v_ticket.id,'ticket_code',v_ticket.ticket_code,'stream_id',v_stream.id,
+    'valid_until',v_ticket.valid_until);
+END $$;
+REVOKE ALL ON FUNCTION public.claim_free_live_ticket(uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.claim_free_live_ticket(uuid) TO authenticated;
