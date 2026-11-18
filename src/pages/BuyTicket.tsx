@@ -27,6 +27,7 @@ interface Screening {
   duration: number;
   location_pricing: { nigeria: number; international: number };
   status: string;
+  event_type?: string;
   access_model?: 'FREE' | 'TICKETED';
   live_price_ngn?: number | null;
   live_price_usd?: number | null;
@@ -51,6 +52,7 @@ export default function BuyTicket() {
   const { user } = useAuth();
   const [freeClaimBusy, setFreeClaimBusy] = useState(false);
   const [freeStreamId, setFreeStreamId] = useState<string | null>(null);
+  const [livePaid, setLivePaid] = useState(false);
   usePageTitle(screening?.title ? `Buy Ticket — ${screening.title}` : 'Buy Ticket');
   const [confirmation, setConfirmation] = useState<{ticketCode:string;watchCode:string;expiresAt?:string;emailSent?:boolean;location?:'nigeria'|'international';price?:number;currency?:string}|null>(null);
 
@@ -98,6 +100,16 @@ export default function BuyTicket() {
       for (let i = 0; i < 6 && active; i += 1) {
         const result = await supabase.functions.invoke('payment-status', { body: { reference } });
         if (!active) return;
+        if (!result.error && result.data?.status === 'paid' && reference.startsWith('DTVL_')) {
+          setLivePaid(true);
+          setStep('confirmation');
+          sessionStorage.removeItem('degame_checkout_email');
+          sessionStorage.removeItem('degame_checkout_location');
+          window.history.replaceState({}, '', window.location.pathname);
+          toast.success('Payment confirmed. Your event ticket is ready in My Tickets or via the secure email claim link.');
+          setProcessing(false);
+          return;
+        }
         if (!result.error && result.data?.status === 'paid' && result.data.watchCode && result.data.ticketCode) {
           setEmail(result.data.email || savedEmail);
           if (result.data.location === 'nigeria' || result.data.location === 'international') setLocation(result.data.location);
@@ -191,6 +203,19 @@ export default function BuyTicket() {
     }
     setProcessing(true);
     try {
+      if (screening.event_type === 'live') {
+        const { data, error } = await supabase.functions.invoke('process-live-payment', {
+          body: { screeningId: screening.id, ticketType: isReplay ? 'replay' : 'live', currency, email: emailCheck.data },
+        });
+        if (error || !data?.success || typeof data.checkoutUrl !== 'string' || typeof data.reference !== 'string') {
+          const message = data?.error || error?.message || 'Live event checkout could not be started. No charge was made.';
+          setPaymentError(message); toast.error(message); return;
+        }
+        sessionStorage.setItem('degame_checkout_email', emailCheck.data);
+        sessionStorage.setItem('degame_checkout_location', location);
+        window.location.assign(data.checkoutUrl);
+        return;
+      }
       const { data, error } = await supabase.functions.invoke('process-payment', { body: { method: selectedPayment, email: emailCheck.data, screeningId: screening.id, location } });
       if (error || !data?.success || typeof data?.authorizationUrl !== 'string') {
         const message = data?.error || error?.message || 'Checkout could not be started. No charge was made.';
@@ -412,6 +437,19 @@ export default function BuyTicket() {
                     Pay {symbol}{total.toLocaleString()}
                   </Button>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Live payment confirmation */}
+          {step === 'confirmation' && livePaid && (
+            <Card className="animate-fade-in border-success/30">
+              <CardContent className="p-6 sm:p-8 text-center space-y-4">
+                <Check className="mx-auto h-10 w-10 text-success" />
+                <h2 className="text-xl font-bold">You're in!</h2>
+                <p className="text-sm text-muted-foreground">Payment is verified. Your live event ticket is attached to your account, or a secure claim link has been sent to your email if you checked out as a guest.</p>
+                <Button asChild className="w-full rounded-full"><Link to="/tickets">Open My Tickets</Link></Button>
+                <Button asChild variant="outline" className="w-full rounded-full"><Link to="/cinema">Browse screenings</Link></Button>
               </CardContent>
             </Card>
           )}
