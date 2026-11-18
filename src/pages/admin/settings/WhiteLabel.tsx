@@ -17,14 +17,14 @@ export default function WhiteLabel() {
   const [branding, setBranding] = useState({
     platformName: '',
     tagline: '',
-    primaryColor: '#8b5cf6',
-    secondaryColor: '#06b6d4',
-    accentColor: '#f97316',
-    backgroundColor: '#0a0a0a',
+    primaryColor: '#ed1c18',
+    secondaryColor: '#171717',
+    accentColor: '#ffffff',
+    backgroundColor: '#080808',
     fontFamily: 'Inter',
     customDomain: '',
     supportEmail: '',
-    logoUrl: '',
+    logoUrl: '/brand/degametv.svg',
     faviconUrl: '',
   });
   const [loading, setLoading] = useState(true);
@@ -87,11 +87,8 @@ export default function WhiteLabel() {
   };
 
   const colorPresets = [
-    { name: 'Purple Dream', primary: '#8b5cf6', secondary: '#06b6d4', accent: '#f97316' },
-    { name: 'Ocean Blue', primary: '#3b82f6', secondary: '#14b8a6', accent: '#f59e0b' },
-    { name: 'Sunset', primary: '#f97316', secondary: '#ec4899', accent: '#8b5cf6' },
-    { name: 'Forest', primary: '#22c55e', secondary: '#14b8a6', accent: '#f59e0b' },
-    { name: 'Midnight', primary: '#6366f1', secondary: '#8b5cf6', accent: '#ec4899' },
+    { name: 'DeGame', primary: '#ed1c18', secondary: '#171717', accent: '#ffffff' },
+    { name: 'Monochrome', primary: '#ed1c18', secondary: '#171717', accent: '#f5f5f5' },
   ];
 
   if (loading) {
