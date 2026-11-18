@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { StudioLayout } from '@/components/studio/StudioLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,7 @@ export default function StudioLive() {
   const [grant, setGrant] = useState<EncoderGrant | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<'idle' | 'scheduled' | 'ended'>('idle');
+  const [replayDraftId, setReplayDraftId] = useState<string | null>(null);
   const [liveNgn, setLiveNgn] = useState('');
   const [liveUsd, setLiveUsd] = useState('');
   const [replayNgn, setReplayNgn] = useState('');
@@ -101,6 +103,7 @@ export default function StudioLive() {
         return;
       }
       setStatus('ended');
+      setReplayDraftId(data.replayDraft?.contentId || null);
       setGrant(null);
       if (data.replayDraft?.contentId) toast.success(data.replayDraft.recordingStatus === 'ready' ? 'Live ended. A replay draft is ready in your catalogue.' : 'Live ended. A replay draft was added to your catalogue; recording is processing.');
       else toast.success(data.message || 'Live ended. The replay draft could not be reconciled automatically.');
@@ -123,6 +126,7 @@ export default function StudioLive() {
               <div className="flex items-center gap-2">
                 <Badge variant={status === 'ended' ? 'secondary' : status === 'scheduled' ? 'default' : 'outline'}>{status === 'scheduled' ? 'Provisioned — awaiting encoder ingest' : status === 'ended' ? 'Provider confirmed ended' : 'Not provisioned'}</Badge>
               </div>
+              {replayDraftId && <Button asChild variant="outline"><Link to="/studio/movies">Open replay draft in catalogue</Link></Button>}
               {grant ? <div className="space-y-3 rounded-xl border p-4">
                 <div className="flex items-center justify-between"><Label>Encoder server URL</Label><Button size="sm" variant="outline" onClick={() => copy(grant.ingestUrl, 'Server URL')}><Copy className="mr-1 h-4 w-4" />Copy</Button></div>
                 <Input readOnly value={grant.ingestUrl} />
