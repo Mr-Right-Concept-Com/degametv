@@ -74,7 +74,7 @@ Deno.serve(async req => {
     const existing=Array.isArray(stored)?stored[0]:null;
     const credential=p.live?(p.liveCredential||existing?.live_credential):(p.testCredential||existing?.test_credential);
     const webhook=p.live?(p.liveWebhookSecret||existing?.live_webhook_secret):(p.testWebhookSecret||existing?.test_webhook_secret);
-    if(p.live&&["live_streaming","payments"].includes(p.capability)&&!webhook)return json({error:"A live webhook signing secret is required before enabling live streaming."},409);
+    if(["live_streaming","payments"].includes(p.capability)&&!webhook)return json({error:"A webhook signing secret for the selected test/live mode is required before enabling this provider."},409);
     const healthPath=p.endpoints.health_check;
     if(typeof healthPath!=="string"||!healthPath.startsWith("/")||healthPath.startsWith("//"))return json({error:"Configure a relative health_check endpoint before enabling this provider."},409);
     if(!credential)return json({error:"A Vault credential for the selected test/live mode is required."},409);
