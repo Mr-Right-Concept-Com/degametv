@@ -37,3 +37,20 @@ This file records the changes made after the 18 November re-audit. It supersedes
 6. Configure a media provider/origin that validates short-lived entitlement tokens; prove direct-origin bypass is denied.
 7. Run real Android, iOS, desktop and mobile-browser checks.
 8. Complete selective GraphQL/table grant hardening after classifying public catalogue surfaces.
+
+
+## Additional identity hardening and admin wiring
+
+| Change | Commit / migration | Evidence |
+|---|---|---|
+| Revoke authenticated table-level profile UPDATE; grant only ordinary profile fields; verification columns cannot be updated by the authenticated role | f8b0a7139009e3bcd58d561194fc18d804b9c69a | RUN: auth table UPDATE=false; auth KYC status UPDATE=false; safe full_name UPDATE=true |
+| Prevent authenticated profile INSERT/DELETE/TRUNCATE | 097811b1a4fc9e411aaca0e3afa1fde3f1fc60b1 | RUN: migration applied |
+| Atomic SECURITY DEFINER review RPC checks caller role, locks pending application, writes decision + audit log, and grants creator role on approval in the same transaction | 0bf3547de308eb46f0b765b1233f49b48f54b73d + ef96e7084b9dbbd39baaba92026c2d206db02cce | RUN: anon EXECUTE=false; authenticated EXECUTE=true; SQL migration applied |
+| Admin filmmaker application UI now uses short-lived signed URLs for private evidence and calls the audited review endpoint with a required reason | d3d6bd3398405e15aef2231635a417d27d6140c2 | SOURCE; browser workflow NOT TESTED |
+| Review Edge Function redeployed using caller JWT and atomic RPC | 1dbfc9d159c7d949ea01f6b57a7ef59295e7f2e9 | RUN: deployment ACTIVE version 3 |
+
+### Security result
+
+The authenticated role can no longer set `kyc_status`, `kyc_verified_at`, identity document paths, or insert/delete profile rows directly. Safe profile fields remain editable. The approval transaction and creator-role grant are now one database transaction with an audit record.
+
+Remaining: validate existing profile settings and admin user-edit workflows in a real browser; verify function CORS and auth on preview/production origins; run a real test applicant and reviewer account; add document malware quarantine and approved evidence retention.
