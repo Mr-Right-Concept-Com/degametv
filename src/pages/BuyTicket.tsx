@@ -36,6 +36,7 @@ export default function BuyTicket() {
   const [location, setLocation] = useState<'nigeria' | 'international'>('nigeria');
   const [email, setEmail] = useState('');
   const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
+  const [paymentMethods, setPaymentMethods] = useState<Array<{id:string;name:string;mode:string;available:boolean}>>([]);
   const [processing, setProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState('');
   const [screening, setScreening] = useState<Screening | null>(null);
@@ -71,6 +72,50 @@ export default function BuyTicket() {
     };
     fetchScreening();
   }, [slug]);
+
+  useEffect(() => {
+    let active = true;
+    void supabase.functions.invoke('list-payment-methods', { method: 'GET' }).then(({ data, error }) => {
+      if (active) setPaymentMethods(!error && Array.isArray(data?.methods) ? data.methods : []);
+    });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!screening) return;
+    const reference = new URLSearchParams(window.location.search).get('reference');
+    const savedEmail = sessionStorage.getItem('degame_checkout_email');
+    if (!reference || !savedEmail) return;
+    let active = true;
+    setEmail(savedEmail);
+    setProcessing(true);
+    const poll = async () => {
+      for (let i = 0; i < 6 && active; i += 1) {
+        const result = await supabase.functions.invoke('payment-status', { body: { reference, email: savedEmail } });
+        if (!active) return;
+        if (!result.error && result.data?.status === 'paid' && result.data.watchCode && result.data.ticketCode) {
+          setConfirmation(result.data);
+          setStep('confirmation');
+          sessionStorage.removeItem('degame_checkout_email');
+          window.history.replaceState({}, '', window.location.pathname);
+          await supabase.functions.invoke('send-watch-email', { body: { email: savedEmail, movieTitle: screening.title, watchUrl: window.location.origin + '/watch/' + result.data.watchCode + '?email=' + encodeURIComponent(savedEmail), ticketCode: result.data.ticketCode, expiresAt: result.data.expiresAt, location, price: total, currency } });
+          toast.success('Payment confirmed. Your ticket is ready.');
+          setProcessing(false);
+          return;
+        }
+        if (!result.error && result.data?.status === 'failed') {
+          setPaymentError('Payment was not completed. You can retry checkout.');
+          sessionStorage.removeItem('degame_checkout_email');
+          setProcessing(false);
+          return;
+        }
+        await new Promise(resolve => window.setTimeout(resolve, 2000));
+      }
+      if (active) { setPaymentError('Payment is still awaiting provider confirmation. Retry shortly; no ticket is issued until verification completes.'); setProcessing(false); }
+    };
+    void poll();
+    return () => { active = false; };
+  }, [screening]);
 
   if (loadingScreening) {
     return (
@@ -132,12 +177,6 @@ export default function BuyTicket() {
     setValidatingPromo(false);
   };
 
-  const paymentMethods = [
-    { id: 'stripe', name: 'Credit/Debit Card', icon: '💳', available: false },
-    { id: 'paystack', name: 'Paystack', icon: '🔗', available: false },
-    { id: 'flutterwave', name: 'Flutterwave', icon: '⚡', available: false },
-    { id: 'bank', name: 'Bank Transfer', icon: '🏦', available: false },
-  ];
 
   const steps = ['location', 'email', 'payment', 'confirmation'] as const;
   const currentIdx = steps.indexOf(step);
@@ -153,63 +192,15 @@ export default function BuyTicket() {
     }
     setProcessing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('process-payment', {
-        body: {
-          method: selectedPayment,
-          email: emailCheck.data,
-          amount: total,
-          currency,
-          screeningId: screening.id,
-          location,
-          promoCode: promoDiscount ? promoCode : undefined,
-          addons: addons.filter(a => a.selected).map(a => ({ name: a.name, price: a.price })),
-        },
-      });
-
-      if (error || !data?.success) {
-        let message = data?.error || error?.message || 'Payment failed. Please try again.';
-        if (error instanceof FunctionsHttpError) {
-          try {
-            const details = await error.context.json();
-            message = details?.error || message;
-          } catch {
-            // Retain the invocation message when the response is not JSON.
-          }
-        }
-        setPaymentError(message);
-        toast.error(message);
-        return;
+      const { data, error } = await supabase.functions.invoke('process-payment', { body: { method: selectedPayment, email: emailCheck.data, screeningId: screening.id, location } });
+      if (error || !data?.success || typeof data?.authorizationUrl !== 'string') {
+        const message = data?.error || error?.message || 'Checkout could not be started. No charge was made.';
+        setPaymentError(message); toast.error(message); return;
       }
-
-      setConfirmation(data);
-      setStep('confirmation');
-      const instant = ['live', 'replay'].includes((screening as any).lifecycle);
-
-      // Send email with watch link
-      const watchUrl = `${window.location.origin}/watch/${data.watchCode}?email=${encodeURIComponent(email)}`;
-      await supabase.functions.invoke('send-watch-email', {
-        body: {
-          email,
-          movieTitle: screening.title,
-          watchUrl,
-          ticketCode: data.ticketCode,
-          expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
-          location,
-          price: total,
-          currency,
-        },
-
-      }).catch(() => toast.message('Ticket saved — the email copy could not be sent, but your pass works now.'));
-
-      toast.success(instant ? 'Checked in! Taking you to the screen…' : 'Ticket confirmed! Your pass is also saved under My Tickets.');
-      if (instant && data.watchCode) {
-        setTimeout(() => navigate(`/watch/${data.watchCode}?email=${encodeURIComponent(email)}&checkin=1`), 1200);
-      }
-    } catch (err) {
-      toast.error('Something went wrong. Please try again.');
-    } finally {
-      setProcessing(false);
-    }
+      sessionStorage.setItem('degame_checkout_email', emailCheck.data);
+      window.location.assign(data.authorizationUrl);
+    } catch { setPaymentError('Could not reach payment service. No charge was made.'); }
+    finally { setProcessing(false); }
   };
 
   return (
@@ -424,9 +415,7 @@ export default function BuyTicket() {
 
                 {/* Methods */}
                 <div className="space-y-2">
-                  <div role="status" className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-muted-foreground">
-                    Secure payment processing is not connected yet. No payment will be taken and no ticket will be issued.
-                  </div>
+                  {paymentMethods.length === 0 && <div role="status" className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-muted-foreground">No payment method is enabled for this screening.</div>}
                   {paymentMethods.map((m) => (
                     <button
                       key={m.id}
@@ -438,9 +427,9 @@ export default function BuyTicket() {
                           : 'border-border opacity-60 cursor-not-allowed'
                       }`}
                     >
-                      <span className="text-xl">{m.icon}</span>
+                      <span className="text-xl">🔗</span>
                       <span className="flex-1 text-left text-sm font-medium">{m.name}</span>
-                      <span className="text-xs text-muted-foreground">Not connected</span>
+                      <span className="text-xs text-muted-foreground">{m.mode === 'live' ? 'Live' : 'Test'}</span>
                       {selectedPayment === m.id && <Check className="w-4 h-4 text-primary" />}
                     </button>
                   ))}
@@ -451,7 +440,7 @@ export default function BuyTicket() {
                   <Button
                     className="flex-1 rounded-full h-10"
                     onClick={handlePayment}
-                    disabled={!selectedPayment || processing || !paymentMethods.some(method => method.available)}
+                    disabled={!selectedPayment || processing || !paymentMethods.some(method => method.id === selectedPayment && method.available)}
                   >
                     {processing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                     Pay {symbol}{total.toLocaleString()}
