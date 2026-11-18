@@ -20,6 +20,6 @@ jobs:
           cache: true
       - run: flutter create --platforms=android,ios,windows,macos,linux --org com.degametv --project-name degametv_native .
       - run: flutter pub get
-      - run: dart format --output=none --set-exit-if-changed lib
+      - run: dart format lib test
       - run: flutter analyze
       - run: flutter test
