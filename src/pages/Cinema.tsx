@@ -74,10 +74,10 @@ export default function Cinema() {
   return (
     <MainLayout>
       <PromoBanner placement="cinema" />
-      <div className="container mx-auto px-5 py-6 sm:py-10">
-        <div className="mb-5 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-0.5 sm:mb-1">Virtual Cinema</h1>
-          <p className="text-sm text-muted-foreground">Exclusive premieres and cinema experiences</p>
+      <div className="container mx-auto px-4 py-7 sm:px-5 sm:py-12">
+        <div className="mb-7 rounded-[2rem] border border-border/60 bg-gradient-to-br from-card via-card to-primary/10 p-6 shadow-sm sm:mb-10 sm:p-10">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[.2em] text-primary">Explore DeGameTV</p><h1 className="mb-2 text-3xl font-extrabold tracking-tight sm:text-4xl md:text-5xl">Stories worth gathering for.</h1>
+          <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">Discover African films, original series, ticketed premieres and live experiences — all in one virtual cinema.</p>
         </div>
 
         <div className="mb-6 sm:mb-10">
@@ -99,9 +99,9 @@ export default function Cinema() {
               <span className="text-xs text-muted-foreground">{filteredTitles.length} titles</span>
             </div>
             {filteredTitles.length ? <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {filteredTitles.map(title => <Link key={title.id} to={`/content/${title.id}`} className="group overflow-hidden rounded-xl border bg-card transition hover:-translate-y-0.5 hover:shadow-lg">
+              {filteredTitles.map(title => <Link key={title.id} to={`/content/${title.id}`} className="group overflow-hidden rounded-[1.4rem] border border-border/70 bg-card shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl">
                 <div className="aspect-[2/3] overflow-hidden bg-secondary">{title.poster_url ? <img src={title.poster_url} alt={title.title} loading="lazy" className="h-full w-full object-cover transition-transform group-hover:scale-105"/> : <div className="flex h-full items-center justify-center"><Film className="h-10 w-10 text-muted-foreground/50"/></div>}</div>
-                <div className="p-3"><Badge variant="secondary" className="mb-2 capitalize">{title.type}</Badge><h3 className="line-clamp-1 text-sm font-semibold">{title.title}</h3><p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{title.description || (title.genres || []).join(' · ') || 'Explore this title'}</p></div>
+                <div className="p-4"><Badge variant="secondary" className="mb-2 capitalize">{title.type}</Badge><h3 className="line-clamp-1 text-sm font-semibold">{title.title}</h3><p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{title.description || (title.genres || []).join(' · ') || 'Explore this title'}</p></div>
               </Link>)}
             </div> : <p className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">No published titles match this search.</p>}
           </section>
@@ -118,7 +118,7 @@ export default function Cinema() {
               <Link
                 key={s.id}
                 to={s.event_type === 'live' && s.content_id ? `/content/${s.content_id}` : `/movie/${s.slug}`}
-                className="monzo-card group flex flex-row sm:flex-col gap-4 sm:gap-0"
+                className="monzo-card group flex flex-row gap-4 rounded-[1.5rem] p-4 sm:flex-col sm:gap-0 sm:p-5"
               >
                 <div className="w-24 h-32 sm:w-full sm:h-auto sm:aspect-video flex-shrink-0 rounded-xl overflow-hidden bg-secondary sm:mb-4">
                   <img
