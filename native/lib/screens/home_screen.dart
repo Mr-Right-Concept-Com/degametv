@@ -57,14 +57,36 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const BrandMark(),
         actions: [
-          IconButton(
-            tooltip: Supabase.instance.client.auth.currentUser == null ? 'Sign in' : 'Account',
-            onPressed: () => showModalBottomSheet(
-              isScrollControlled: true,
-              context: context,
-              builder: (_) => const SignInSheet(),
-            ),
+          PopupMenuButton<String>(
+            tooltip: 'Account and services',
             icon: const Icon(Icons.person_outline),
+            onSelected: (value) async {
+              if (value == 'signin') {
+                await showModalBottomSheet(
+                  isScrollControlled: true,
+                  context: context,
+                  builder: (_) => const SignInSheet(),
+                );
+              } else if (value == 'signout') {
+                await Supabase.instance.client.auth.signOut();
+              } else if (value == 'tickets') {
+                setState(() => tab = 3);
+              } else if (value == 'dashboard') {
+                await _openWeb('https://degametv.vercel.app/dashboard');
+              } else if (value == 'studio') {
+                await _openWeb('https://degametv.vercel.app/studio');
+              }
+            },
+            itemBuilder: (context) {
+              final signedIn = Supabase.instance.client.auth.currentUser != null;
+              return [
+                if (!signedIn) const PopupMenuItem(value: 'signin', child: Text('Sign in / Create account')),
+                if (signedIn) const PopupMenuItem(value: 'dashboard', child: Text('My Dashboard')),
+                if (signedIn) const PopupMenuItem(value: 'tickets', child: Text('My Tickets')),
+                if (signedIn) const PopupMenuItem(value: 'studio', child: Text('Creator Studio')),
+                if (signedIn) const PopupMenuItem(value: 'signout', child: Text('Sign out')),
+              ];
+            },
           ),
         ],
       ),
