@@ -17,7 +17,7 @@
     --popover-foreground: 220 20% 10%;
 
     /* Hot Coral / Warm accent — Monzo signature */
-    --primary: 350 82% 38%;
+    --primary: 1 86% 51%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 220 14% 96%;
@@ -41,17 +41,17 @@
 
     --border: 220 13% 91%;
     --input: 220 13% 91%;
-    --ring: 350 85% 55%;
+    --ring: 1 86% 51%;
 
     --radius: 1rem;
 
     /* DeGameTV Brand Colors */
-    --degame-burgundy: 350 85% 55%;
-    --degame-wine: 345 80% 40%;
-    --degame-gold: 43 90% 55%;
-    --degame-amber: 38 92% 50%;
-    --degame-bronze: 25 70% 35%;
-    --degame-cream: 40 33% 97%;
+    --degame-burgundy: 1 86% 51%;
+    --degame-wine: 0 0% 9%;
+    --degame-gold: 0 0% 100%;
+    --degame-amber: 0 0% 88%;
+    --degame-bronze: 0 0% 18%;
+    --degame-cream: 0 0% 96%;
 
     /* Sidebar — clean light */
     --sidebar-background: 0 0% 100%;
@@ -74,7 +74,7 @@
     --popover: 220 18% 12%;
     --popover-foreground: 0 0% 96%;
 
-    --primary: 350 82% 68%;
+    --primary: 1 86% 58%;
     --primary-foreground: 350 90% 10%;
 
     --secondary: 220 14% 14%;
@@ -91,7 +91,7 @@
 
     --border: 220 14% 18%;
     --input: 220 14% 18%;
-    --ring: 350 85% 58%;
+    --ring: 1 86% 58%;
 
     --sidebar-background: 220 18% 8%;
     --sidebar-foreground: 0 0% 96%;
@@ -111,7 +111,7 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: var(--font-brand, 'Inter'), system-ui, -apple-system, sans-serif;
   }
 
   html {
