@@ -210,7 +210,7 @@ export default function StudioSubmit() {
       if (error) throw error;
       setForm(current => ({ ...current, video_url: data.path }));
       setVideoProgress(100);
-      toast.success('Private master uploaded. It is not public or playable until distribution review and secure playback are configured.');
+      toast.success('Private master uploaded to your creator vault. Publishing is enabled for approved creators when required assets and delivery checks pass.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Private master upload failed.');
     } finally {
@@ -401,7 +401,7 @@ export default function StudioSubmit() {
                       <Button type="button" variant="outline" className="w-full" disabled={uploadingVideo} asChild>
                         <span>
                           <Upload className="w-4 h-4 mr-2" />
-                          Secure upload unavailable
+                          Upload master video
                         </span>
                       </Button>
                       <input aria-label="Master video file" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-matroska,video/mpeg" className="hidden" disabled={uploadingVideo} onChange={e => e.target.files?.[0] && handleVideoUpload(e.target.files[0])} />
