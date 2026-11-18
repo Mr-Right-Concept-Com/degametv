@@ -44,7 +44,11 @@ export function TierUpgradeCard() {
   const submit = async () => {
     if (!user) return;
     setErrors({});
-    let payload: Record<string, unknown> = { user_id: user.id, tier, status: 'pending' };
+    if (acct?.status === 'approved') {
+      toast.message('Your studio is already approved. Contact support to change your studio tier.');
+      return;
+    }
+    let payload: Record<string, unknown> = { user_id: user.id, tier, status: 'pending', review_notes: null, reviewed_by: null, reviewed_at: null };
     if (tier === 'business') {
       const r = businessSchema.safeParse(f);
       if (!r.success) {
@@ -127,9 +131,9 @@ export function TierUpgradeCard() {
           </div>
         )}
 
-        <Button onClick={submit} disabled={busy} className="rounded-full w-full sm:w-auto">
+        <Button onClick={submit} disabled={busy || acct?.status === 'approved'} className="rounded-full w-full sm:w-auto">
           {busy && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-          {acct ? (acct.tier === tier ? 'Resubmit' : tier === 'business' ? 'Upgrade to Business' : 'Switch to Creator') : 'Submit tier'}
+          {acct?.status === 'approved' ? 'Studio approved' : acct ? 'Resubmit for review' : 'Submit tier'}
         </Button>
       </CardContent>
     </Card>
