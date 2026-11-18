@@ -20,7 +20,7 @@ ALTER TABLE public.content
   ADD COLUMN IF NOT EXISTS dynamic_metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
 
 UPDATE public.content SET preset_type = CASE
-  WHEN type IN ('movie','film') THEN 'FILM'::public.content_preset_type
+  WHEN type::text IN ('movie','film') THEN 'FILM'::public.content_preset_type
   WHEN type='series' THEN 'SERIES'::public.content_preset_type
   WHEN type='episode' THEN 'EPISODE'::public.content_preset_type
   WHEN type='short' THEN 'SHORT'::public.content_preset_type
