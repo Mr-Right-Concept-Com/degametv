@@ -322,6 +322,7 @@ BEGIN
       AND status IN ('scheduled','live')
     ORDER BY created_at DESC LIMIT 1 FOR SHARE;
   IF NOT FOUND THEN RAISE EXCEPTION 'stream_not_provisioned'; END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended(v_user::text||':'||v_stream.id::text,0));
 
   SELECT * INTO v_ticket FROM public.tickets
     WHERE stream_id=v_stream.id AND user_id=v_user
@@ -376,6 +377,7 @@ BEGIN
       AND metadata->>'screening_id'=v_screening.id::text
     ORDER BY created_at DESC LIMIT 1 FOR SHARE;
   IF NOT FOUND THEN RAISE EXCEPTION 'stream_not_found'; END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended(v_user::text||':'||v_stream.id::text,0));
   SELECT * INTO v_ticket FROM public.tickets
     WHERE stream_id=v_stream.id AND user_id=v_user AND ticket_type IN ('replay','combo')
       AND revoked_at IS NULL AND valid_until>now()
