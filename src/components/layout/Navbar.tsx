@@ -1,6 +1,6 @@
 import { useState, FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Menu, X, Search, User, Ticket, LayoutDashboard, Film, Upload, Clapperboard } from 'lucide-react';
+import { Menu, X, Search, User, Ticket, LayoutDashboard, Film, Clapperboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
@@ -36,7 +36,6 @@ export function Navbar() {
   const navLinks = [
     { label: 'Now Showing', href: '/' },
     { label: 'Upcoming', href: '/cinema' },
-    { label: 'Submit Film', href: '/filmmaker' },
   ];
 
   const isAdmin = isSuperAdmin || isPlatformAdmin;
@@ -126,10 +125,6 @@ export function Navbar() {
                     <DropdownMenuItem onClick={() => navigate('/tickets')} className="text-sm">
                       <Ticket className="w-4 h-4 mr-2" />
                       My Tickets
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate('/filmmaker')} className="text-sm">
-                      <Upload className="w-4 h-4 mr-2" />
-                      Submit a Film
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate('/studio')} className="text-sm">
                       <Clapperboard className="w-4 h-4 mr-2" />
