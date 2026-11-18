@@ -1,0 +1,2 @@
+alter table public.guest_payment_orders drop constraint if exists guest_payment_orders_provider_check;
+alter table public.guest_payment_orders add constraint guest_payment_orders_provider_check check (provider ~ '^[a-z][a-z0-9_-]{1,63}$');
