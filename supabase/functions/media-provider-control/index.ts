@@ -25,13 +25,14 @@ Deno.serve(async req=>{
  const capability=p.action==="create_live"||p.action==="stop_live"?"live_streaming":"video_delivery";
  const {data:providers,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:capability});
  if(providerError||!Array.isArray(providers)||!providers.length)return json({error:"No active provider is configured for this media capability."},503);
- const provider=providers[0];
+ let provider=providers[0];
  const operation=p.action==="create_upload"?"upload_create":p.action==="create_live"?"live_create":"live_stop";
- if(!provider.credential||!provider.endpoints?.[operation])return json({error:"The active provider is missing the required operation contract."},503);
  try{
   if(p.action==="stop_live"){
    const {data:stream,error}=await db.from("live_streams").select("id,creator_id,metadata").eq("id",p.streamId).eq("creator_id",user.id).maybeSingle();
    if(error||!stream)return json({error:"Live stream not found."},404);
+   provider=providers.find((candidate:any)=>candidate.provider_key===stream.metadata?.provider);
+   if(!provider?.credential||!provider.endpoints?.live_stop)return json({error:"The provider that created this stream is no longer configured. Restore that binding to stop it safely."},503);
    const response=await fetch(endpoint(provider.base_url,provider.endpoints.live_stop),{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+provider.credential},body:JSON.stringify({stream_id:p.streamId,provider_reference:stream.metadata?.provider_reference}),signal:AbortSignal.timeout(15000)});
    const result=await response.json().catch(()=>null);
    if(!response.ok||result?.stopped!==true)return json({error:"Provider could not confirm stream termination."},502);
@@ -41,9 +42,16 @@ Deno.serve(async req=>{
   const payload=p.action==="create_upload"
    ? {owner_id:user.id,file_name:p.fileName,content_type:p.contentType,size_bytes:p.sizeBytes,content_id:p.contentId??null,transcode:true,delivery_profile:"adaptive"}
    : {owner_id:user.id,title:p.title,description:p.description??null,scheduled_start:p.scheduledStart??null,recording_enabled:p.recordingEnabled};
-  const response=await fetch(endpoint(provider.base_url,provider.endpoints[operation]),{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+provider.credential},body:JSON.stringify(payload),signal:AbortSignal.timeout(20000)});
-  const result=await response.json().catch(()=>null);
-  if(!response.ok||!result)return json({error:"Media provider could not provision the requested resource."},502);
+  let response:Response|null=null,result:any=null;
+  for(const candidate of providers){
+   if(!candidate.credential||!candidate.endpoints?.[operation])continue;
+   try{
+    const attempt=await fetch(endpoint(candidate.base_url,candidate.endpoints[operation]),{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+candidate.credential},body:JSON.stringify(payload),signal:AbortSignal.timeout(20000)});
+    const body=await attempt.json().catch(()=>null);
+    if(attempt.ok&&body){provider=candidate;response=attempt;result=body;break;}
+   }catch{continue;}
+  }
+  if(!response||!result)return json({error:"No configured media provider could provision this resource. Check provider health and contracts."},502);
   if(p.action==="create_upload"){
    let uploadUrl:URL;try{uploadUrl=new URL(result.upload_url);if(uploadUrl.protocol!=="https:")throw new Error();}catch{return json({error:"Media provider returned an invalid upload URL."},502);}
    const allowed=Array.isArray(provider.settings?.allowed_upload_origins)?provider.settings.allowed_upload_origins:[];
