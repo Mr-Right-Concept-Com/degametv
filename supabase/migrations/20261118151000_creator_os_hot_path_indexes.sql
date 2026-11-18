@@ -10,8 +10,8 @@ CREATE INDEX IF NOT EXISTS idx_live_streams_creator_created
   ON public.live_streams (creator_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_live_streams_tenant_created
   ON public.live_streams (tenant_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_stream_provider_event_logs_stream_created
-  ON public.stream_provider_event_logs (stream_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_stream_provider_event_logs_stream
+  ON public.stream_provider_event_logs (stream_id);
 
 CREATE INDEX IF NOT EXISTS idx_content_creator_created
   ON public.content (creator_id, created_at DESC);
