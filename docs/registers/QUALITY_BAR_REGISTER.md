@@ -80,3 +80,25 @@ Browser profile editing and admin review journeys remain NOT TESTED; database gr
 - KYC RPC database boundary now explicitly rejects NULL identity type, MIME and oversized object paths; SQL RUN confirms function grants and these guards.
 - Both KYC Edge Functions are configured in `supabase/config.toml` for gateway JWT verification and deployed metadata currently confirms `verify_jwt=true` (submit v9, review v8).
 - CI is consolidated in one `quality-gate.yml`; it uses `npm ci` without auto-mutating or pushing package-lock changes. Run was queued/in progress; all test gates remain NOT TESTED until successful completion.
+
+
+## Re-audit measurement — 18 November 2026 (run 44239321887, commit 4d2e8829159b75ea58067314998b491b25ecd702)
+
+Observed GitHub Actions output (RUN):
+- `npm ci`: PASS; 695 packages installed. npm reported **50 dependency vulnerabilities (1 low, 6 moderate, 43 high)**. No automatic remediation was applied because breaking changes and transitive impact require review.
+- `npm run typecheck`: PASS.
+- `npm run lint`: FAIL — **81 errors and 17 warnings**, primarily `@typescript-eslint/no-explicit-any` across application and Edge Function source.
+- Production build, Chromium installation and axe audit: SKIPPED because lint failed. They are not PASS.
+- Workflow job: `134583060714`, conclusion failure. This is the first observed full CI execution; earlier “NOT TESTED” statements are superseded for the above steps only.
+
+A follow-up main commit `0d8627bf48709d3955e10e2f97c59669c4697a70` replaces unsafe `any` usage in `src/lib/invokeFn.ts` with unknown-safe response narrowing. It has not yet been re-run by CI at the time of this register update.
+
+Fresh Supabase security advisor RUN (2026-11-18 04:46 UTC): 12 anon GraphQL-visible objects, 36 authenticated GraphQL-visible objects, and `pg_net` in public schema. The 12 anon-visible objects have public-catalog/read policies in part; advisor visibility is not itself proof of disclosure. SQL policy inspection found anon and authenticated table-level DML grants across these tables, while RLS is relied upon to deny unauthorized writes. Least-privilege grant review and negative role tests remain OPEN.
+
+Live SQL RUN: three rows in `public.payment_gateways` still have non-null legacy `test_secret_key` values. Values were not read. Vault migration remains unapplied because the migration safety gate blocked it. Treat this as an unresolved secret-at-rest finding; do not activate payment gateways.
+
+Source correction: `src/components/kyc/KYCVerification.tsx` does upload ID/selfie objects to the private `identity-documents` bucket and invokes `submit-kyc`; it is not a no-op. `submit-kyc` validates the caller and invokes the atomic RPC. Real applicant/reviewer browser E2E, malware scanning, retention/deletion and provider-portability remain NOT TESTED/PARTIAL.
+
+Lovable/GitHub SHA equality was observed at `4d2e8829159b75ea58067314998b491b25ecd702` before the follow-up commit. Recheck after the latest commit; do not infer synchronization.
+
+Thresholds remain unchanged. No L2/L3 certification or launch approval is granted.
