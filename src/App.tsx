@@ -15,6 +15,7 @@ import Cinema from "./pages/Cinema";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import MovieLanding from "./pages/MovieLanding";
+import ContentLanding from "./pages/ContentLanding";
 import RefundPolicy from "./pages/RefundPolicy";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
@@ -75,7 +76,7 @@ const App = () => (
               <Route path="/cinema" element={<Cinema />} />
               <Route path="/cinema/:id" element={<Navigate to="/cinema" replace />} />
               <Route path="/movie/:slug" element={<MovieLanding />} />
-              <Route path="/content/:id" element={<Navigate to="/cinema" replace />} />
+              <Route path="/content/:id" element={<ContentLanding />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               
