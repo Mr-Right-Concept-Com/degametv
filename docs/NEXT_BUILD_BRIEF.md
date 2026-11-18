@@ -85,3 +85,11 @@ Completed prerequisites that the next build must reuse:
 - Playback: provider-unconfigured request returns 503 without stream-count/session mutation or origin URL; configured origin rejects expired, forged, wrong-ticket and replayed entitlement tokens.
 - CI: clean checkout plus locked install succeeds; typecheck, lint, build and axe finish green; no skipped security/E2E tests.
 - Cost: duplicate index remains absent; query/egress/compute baselines are recorded; Neon is benchmarked only in isolated staging before any production decision.
+
+
+### Newly completed identity security boundary
+- Profile self-service updates are column-allowlisted; clients cannot insert/delete profiles or modify KYC status and identity fields.
+- `review_kyc_application` is an authenticated-only SECURITY DEFINER RPC with fixed search_path, role check, row lock, atomic creator-role grant and audit log.
+- Admin filmmaker review screen now obtains short-lived signed URLs for private identity evidence and invokes `review-kyc` with a required reason.
+
+Next build must validate profile settings regression, test unauthorized and authorized reviewers, add reviewer step-up/MFA policy, add two-person approval for exceptional overrides, malware quarantine, evidence retention and data-subject deletion workflow.
