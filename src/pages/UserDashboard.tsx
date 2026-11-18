@@ -32,11 +32,35 @@ export default function UserDashboard() {
   const [profile, setProfile] = useState<any>(null);
   const [displayName, setDisplayName] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
+  const [studioAccess, setStudioAccess] = useState<'checking' | 'approved' | 'not-approved'>('checking');
 
   useEffect(() => {
     if (!user) { navigate('/auth'); return; }
     fetchAll();
+    checkStudioAccess();
   }, [user]);
+
+  const checkStudioAccess = async () => {
+    if (!user) return;
+    try {
+      const { data: roles, error: roleError } = await supabase.from('user_roles').select('role').eq('user_id', user.id).in('role', ['creator', 'super_admin', 'platform_admin']);
+      if (roleError) throw roleError;
+      const roleSet = new Set((roles ?? []).map((row: any) => row.role));
+      if (roleSet.has('super_admin') || roleSet.has('platform_admin')) { setStudioAccess('approved'); return; }
+      if (roleSet.has('creator')) {
+        const { data, error } = await supabase.rpc('get_my_studio_account');
+        if (error) throw error;
+        const account = Array.isArray(data) ? data[0] : data;
+        setStudioAccess(account?.status === 'approved' ? 'approved' : 'not-approved');
+        return;
+      }
+      const { data: member, error: memberError } = await supabase.rpc('is_studio_member' as never, { _user_id: user.id } as never);
+      if (memberError) throw memberError;
+      setStudioAccess(member === true ? 'approved' : 'not-approved');
+    } catch {
+      setStudioAccess('not-approved');
+    }
+  };
 
   const fetchAll = async () => {
     setLoading(true);
@@ -133,14 +157,18 @@ export default function UserDashboard() {
           </Button>
         </div>
 
-        {/* Studio upgrade */}
-        <div className="mb-6 p-4 rounded-2xl border border-primary/30 bg-primary/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <p className="font-semibold">Premiere your film or live event</p>
-            <p className="text-xs text-muted-foreground">Upgrade to Creator (KYC, 10% fee) or Business (KYB + KYC, 7.5% fee, team seats).</p>
+        {/* Studio access is surfaced here only after approval. */}
+        {studioAccess === 'approved' ? (
+          <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/10 to-secondary/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div><p className="font-semibold">Your Creator Studio is ready</p><p className="text-xs text-muted-foreground">Manage your catalogue, publish content and host ticketed live events.</p></div>
+            <Button asChild className="rounded-full"><Link to="/studio"><Film className="mr-2 h-4 w-4"/>Open Studio Portal</Link></Button>
           </div>
-          <Button asChild size="sm" className="rounded-full shrink-0"><Link to="/apply-filmmaker">Upgrade to Studio</Link></Button>
-        </div>
+        ) : (
+          <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-border bg-card/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div><p className="font-semibold">Become a DeGameTV creator</p><p className="text-xs text-muted-foreground">Apply for Creator or Business access to premiere films and host ticketed live events.</p></div>
+            <Button asChild size="sm" variant="outline" className="rounded-full"><Link to="/apply-filmmaker">Apply for Studio access</Link></Button>
+          </div>
+        )}
 
         {/* Quick Stats */}
         <div className="grid grid-cols-3 gap-3 mb-8">
