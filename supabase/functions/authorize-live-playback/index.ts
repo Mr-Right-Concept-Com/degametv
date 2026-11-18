@@ -23,12 +23,12 @@ if(import.meta.main)serve(async(req:Request)=>{
   if(screeningError||!screening)return json(404,{error:"Screening not found"});
   if(input.data.mode==="live"&&stream.status!=="live")return json(409,{error:"This stream is not live"});
   if(input.data.mode==="replay"&&(screening.live_recording_status!=="ready"||!screening.live_replay_ready_at))return json(409,{error:"Replay is not ready"});
-  const {data:tickets,error:ticketError}=await db.from("screening_tickets").select("id,ticket_kind,expires_at,refunded_at,payment_status,stream_count").eq("screening_id",screening.id).eq("user_id",user.id).eq("payment_status","completed").is("refunded_at",null).order("created_at",{ascending:false});
+  const {data:tickets,error:ticketError}=await db.from("tickets").select("id,ticket_type,valid_from,valid_until,revoked_at,stream_count").eq("stream_id",stream.id).eq("user_id",user.id).is("revoked_at",null).lte("valid_from",new Date().toISOString()).gt("valid_until",new Date().toISOString()).order("created_at",{ascending:false});
   if(ticketError)return json(503,{error:"Ticket entitlement could not be checked"});
   const entitlement=tickets?.find(ticket=>{
-   const kind=String(ticket.ticket_kind||"live");
+   const kind=String(ticket.ticket_type||"");
    const correct=input.data.mode==="live"?["live","combo","premiere"].includes(kind):["replay","combo","vod"].includes(kind);
-   return correct&&(!ticket.expires_at||new Date(ticket.expires_at).getTime()>Date.now());
+   return correct&&new Date(ticket.valid_until).getTime()>Date.now();
   });
   if(!entitlement)return json(403,{error:"A valid paid ticket for this event is required"});
   const providerKey=typeof stream.metadata?.provider==="string"?stream.metadata.provider:"";
@@ -47,13 +47,13 @@ if(import.meta.main)serve(async(req:Request)=>{
   const prefix=typeof binding.settings?.credential_prefix==="string"?binding.settings.credential_prefix:"Bearer ";
   const rawSession=Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,"0")).join("");
   const tokenHash=await sha256(rawSession);
-  const response=await fetch(endpoint,{method:"POST",headers:{[header]:prefix+credential,"Content-Type":"application/json"},body:JSON.stringify({entitlement:{ticket_id:entitlement.id,screening_id:screening.id,stream_id:stream.id,user_id:user.id,mode,valid_until:entitlement.expires_at},asset:{provider_reference:stream.metadata?.provider_reference,recording_asset_id:stream.metadata?.recording_asset_id??null,playback_url:stream.playback_url},session:{token_hash:tokenHash,issued_at:new Date().toISOString()},request:{country:req.headers.get("cf-ipcountry")||null}}),signal:AbortSignal.timeout(12000)});
+  const response=await fetch(endpoint,{method:"POST",headers:{[header]:prefix+credential,"Content-Type":"application/json"},body:JSON.stringify({entitlement:{ticket_id:entitlement.id,screening_id:screening.id,stream_id:stream.id,user_id:user.id,mode,valid_until:entitlement.valid_until},asset:{provider_reference:stream.metadata?.provider_reference,recording_asset_id:stream.metadata?.recording_asset_id??null,playback_url:stream.playback_url},session:{token_hash:tokenHash,issued_at:new Date().toISOString()},request:{country:req.headers.get("cf-ipcountry")||null}}),signal:AbortSignal.timeout(12000)});
   const grant=await response.json().catch(()=>null);
   if(!response.ok||grant?.authorized!==true||typeof grant.playback_url!=="string"||typeof grant.expires_at!=="string")return json(503,{error:"Provider refused playback authorization"});
   const playback=new URL(grant.playback_url),grantExpiry=new Date(grant.expires_at);
   const origins=Array.isArray(binding.settings?.allowed_playback_origins)?binding.settings.allowed_playback_origins:[];
   if(playback.protocol!=="https:"||!origins.includes(playback.origin)||!Number.isFinite(grantExpiry.getTime())||grantExpiry.getTime()<=Date.now()||grantExpiry.getTime()>Date.now()+3600000)return json(502,{error:"Provider returned an invalid playback grant"});
-  const {data:sessions,error:sessionError}=await userClient.rpc("authorize_screening_ticket_playback",{p_screening_id:screening.id,p_session_token_hash:tokenHash,p_country_code:req.headers.get("cf-ipcountry")||null});
+  const {data:sessions,error:sessionError}=await userClient.rpc("authorize_screening_ticket_playback",{p_screening_id:screening.id,p_session_token_hash:tokenHash,p_country_code:req.headers.get("cf-ipcountry")||null,p_mode:input.data.mode});
   if(sessionError||!Array.isArray(sessions)||!sessions[0])return json(403,{error:sessionError?.message||"Ticket access or playback limits prevented this session"});
   const session=sessions[0];
   if(grantExpiry.getTime()>new Date(session.session_expires_at).getTime())return json(502,{error:"Provider grant exceeds the authorized ticket session window"});
