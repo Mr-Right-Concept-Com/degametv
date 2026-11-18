@@ -39,9 +39,4 @@ BEGIN
   END LOOP;
 END $$;
 
-ALTER TABLE public.payment_gateways
-  DROP COLUMN IF EXISTS test_secret_key,
-  DROP COLUMN IF EXISTS live_secret_key,
-  DROP COLUMN IF EXISTS webhook_secret;
-
 REVOKE SELECT ON TABLE public.payment_gateways FROM anon;
