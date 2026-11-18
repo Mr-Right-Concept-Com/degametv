@@ -64,8 +64,6 @@ Deno.serve(async req=>{
   if(screeningError||!screening)return json({error:"Creator event not found."},404);
   const {data:ownedContent,error:contentError}=await db.from("content").select("creator_id,tenant_id").eq("id",screening.content_id).maybeSingle();
   if(contentError||!ownedContent||ownedContent.creator_id!==user.id||ownedContent.tenant_id!==screening.tenant_id)return json({error:"You do not own this event in its tenant."},403);
-  const {data:membership,error:membershipError}=await db.from("user_roles").select("tenant_id").eq("user_id",user.id).eq("role","creator").eq("tenant_id",screening.tenant_id).maybeSingle();
-  if(membershipError||!membership?.tenant_id)return json({error:"Your creator account is not authorized for this event tenant."},403);
   const {data:stream,error:insertError}=await db.from("live_streams").insert({
    tenant_id:screening.tenant_id,creator_id:user.id,title:p.title,description:p.description??null,status:"scheduled",
    stream_key:null,rtmp_url:ingest.toString(),playback_url:typeof result.playback_url==="string"?result.playback_url:null,
