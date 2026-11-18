@@ -68,7 +68,9 @@ export default function StudioMovies() {
     }
     setMovies(current => current.map(movie => movie.content_id === contentId ? { ...movie, content_status: 'published' } : movie));
     toast.success('Your content listing is published. You can now share its public page.');
-    if (data?.share_path) await navigator.clipboard?.writeText(window.location.origin + data.share_path).catch(() => undefined);
+    if (data && typeof data === 'object' && !Array.isArray(data) && 'share_path' in data && typeof data.share_path === 'string') {
+      await navigator.clipboard?.writeText(window.location.origin + data.share_path).catch(() => undefined);
+    }
   };
 
   const statusColor: Record<string, string> = {
