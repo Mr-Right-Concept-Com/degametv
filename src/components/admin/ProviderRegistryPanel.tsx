@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { Loader2, RefreshCw, Trash2 } from 'lucide-react';
 
 type Capability = 'payments'|'identity'|'bank_verification'|'video_delivery'|'email'|'live_streaming';
-type Provider = { id:string; capability:Capability; provider_key:string; enabled:boolean; is_live:boolean; base_url:string|null; endpoints:Record<string,unknown>; settings:Record<string,unknown>; updated_at:string; removed_at:string|null };
+type Provider = { id:string; capability:Capability; provider_key:string; enabled:boolean; is_live:boolean; base_url:string|null; endpoints:Record<string,unknown>; settings:Record<string,unknown>; updated_at:string; removed_at:string|null; priority:number; hasCredential:boolean; hasWebhookSecret:boolean };
 const capabilities: {value:Capability;label:string}[] = [
   {value:'payments',label:'Payments'},{value:'identity',label:'Identity & liveness'},
   {value:'bank_verification',label:'Bank verification'},{value:'video_delivery',label:'Video delivery'},
@@ -48,6 +48,11 @@ export function ProviderRegistryPanel(){
       setCredential('');setWebhookSecret('');await load();
     }catch(e){toast.error((e as Error).message);}finally{setSaving(false);}
   };
+  const test=async(row:Provider)=>{
+    setSaving(true);
+    try{const r=await invokeFn<{success:boolean;mode:string}>('admin-provider-control',{action:'test',capability:row.capability,providerKey:row.provider_key});if(!r.ok)throw new Error(r.error);toast.success('Provider health check passed ('+(r.data?.mode||'configured')+' mode).');}
+    catch(e){toast.error((e as Error).message);}finally{setSaving(false);}
+  };
   const remove=async(row:Provider)=>{
     setSaving(true);
     try{const r=await invokeFn('admin-provider-control',{action:'remove',capability:row.capability,providerKey:row.provider_key});if(!r.ok)throw new Error(r.error);toast.success('Provider detached from the active registry.');await load();}
@@ -63,12 +68,12 @@ export function ProviderRegistryPanel(){
         <div className="space-y-2"><Label>Webhook verification secret</Label><Input type="password" autoComplete="new-password" value={webhookSecret} onChange={e=>setWebhookSecret(e.target.value)} placeholder="Stored in Vault"/></div>
         <div className="space-y-2"><Label>Endpoint contract JSON</Label><Textarea value={endpoints} onChange={e=>setEndpoints(e.target.value)} rows={5} className="font-mono text-xs"/></div>
         <div className="space-y-2"><Label>Provider settings JSON</Label><Textarea value={settings} onChange={e=>setSettings(e.target.value)} rows={5} className="font-mono text-xs"/></div>
-        <div className="flex items-center gap-3"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/> Enable binding</label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={live} onChange={e=>setLive(e.target.checked)}/> Live mode</label></div>
+        <div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/> Enable binding</label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={live} onChange={e=>setLive(e.target.checked)}/> Live mode</label><p className="w-full text-xs text-muted-foreground">Priority can be set in Provider settings JSON as {"priority": 1}. Lower numbers win when a capability has multiple providers.</p></div>
         <div className="flex justify-end"><Button onClick={save} disabled={saving||!providerKey||!baseUrl}>{saving&&<Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Save provider</Button></div>
       </CardContent>
     </Card>
     <Card><CardHeader className="flex flex-row items-center justify-between"><div><CardTitle className="text-base">Configured providers</CardTitle><CardDescription>Active provider selection and detached integrations.</CardDescription></div><Button variant="outline" size="sm" onClick={load} disabled={busy}><RefreshCw className="mr-2 h-4 w-4"/>Refresh</Button></CardHeader>
-      <CardContent className="space-y-3">{busy?<Loader2 className="h-5 w-5 animate-spin"/>:rows.length===0?<p className="text-sm text-muted-foreground">No provider bindings configured.</p>:rows.map(row=><div key={row.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><div className="min-w-0"><p className="font-medium">{capabilities.find(c=>c.value===row.capability)?.label} · {row.provider_key}</p><p className="truncate text-xs text-muted-foreground">{row.base_url||'No API base URL'}</p><div className="mt-1 flex gap-2"><Badge variant={row.enabled&&!row.removed_at?'default':'secondary'}>{row.enabled&&!row.removed_at?'Enabled':'Detached'}</Badge>{row.is_live&&<Badge variant="outline">Live</Badge>}</div></div><Button size="sm" variant="destructive" disabled={saving||!!row.removed_at} onClick={()=>remove(row)}><Trash2 className="mr-2 h-4 w-4"/>Remove</Button></div>)}</CardContent>
+      <CardContent className="space-y-3">{busy?<Loader2 className="h-5 w-5 animate-spin"/>:rows.length===0?<p className="text-sm text-muted-foreground">No provider bindings configured.</p>:rows.map(row=><div key={row.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><div className="min-w-0"><p className="font-medium">{capabilities.find(c=>c.value===row.capability)?.label} · {row.provider_key}</p><p className="truncate text-xs text-muted-foreground">{row.base_url||'No API base URL'}</p><div className="mt-1 flex flex-wrap gap-2"><Badge variant={row.enabled&&!row.removed_at?'default':'secondary'}>{row.enabled&&!row.removed_at?'Enabled':'Detached'}</Badge>{row.is_live&&<Badge variant="outline">Live</Badge>}<Badge variant={row.hasCredential?'outline':'destructive'}>{row.hasCredential?'Vault credential saved':'Missing credential'}</Badge><Badge variant="outline">Priority {row.priority}</Badge></div></div><div className="flex gap-2"><Button size="sm" variant="outline" disabled={saving||!row.enabled||!!row.removed_at} onClick={()=>void test(row)}>Test</Button><Button size="sm" variant="destructive" disabled={saving||!!row.removed_at} onClick={()=>remove(row)}><Trash2 className="mr-2 h-4 w-4"/>Remove</Button></div></div>)}</CardContent>
     </Card>
   </div>;
 }
