@@ -32,11 +32,8 @@ export function ProtectedCreatorRoute({ children }: { children: ReactNode }) {
         }
 
         if (roleSet.has('creator')) {
-          const { data: studio, error: studioError } = await supabase
-            .from('studio_accounts')
-            .select('status')
-            .eq('user_id', user.id)
-            .maybeSingle();
+          const { data: studioRows, error: studioError } = await supabase.rpc('get_my_studio_account');
+          const studio = Array.isArray(studioRows) ? studioRows[0] : studioRows;
           if (studioError) throw studioError;
           if (active) setAccess(studio?.status === 'approved' ? 'allowed' : 'apply');
           return;
