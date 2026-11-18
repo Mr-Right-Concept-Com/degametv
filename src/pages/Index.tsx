@@ -76,7 +76,7 @@ export default function Index() {
         <div className="absolute inset-0 -z-20 bg-cover bg-center opacity-55" style={{ backgroundImage: `url(${featuredScreening?.banner_url || featuredScreening?.poster_url || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1800&auto=format&fit=crop'})` }} />
         <div className="absolute inset-0 -z-10 bg-gradient-to-r from-black via-black/85 to-black/35" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black via-transparent to-black/20" />
-        <div className="container relative z-10 mx-auto flex min-h-[560px] items-center px-5 py-16 sm:min-h-[620px] sm:py-20">
+        <div className="container relative z-10 mx-auto flex min-h-[560px] flex-col items-start justify-center px-5 py-16 sm:min-h-[620px] sm:py-20">
           <Badge className="mb-5 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-[10px] font-semibold tracking-[.18em] text-white backdrop-blur sm:mb-7 sm:text-xs">
             🎬 VIRTUAL PREMIERE
           </Badge>
