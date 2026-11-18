@@ -50,3 +50,16 @@ No numeric competitor superiority claims until comparable measurements and sourc
 - Browser/device visual QA, WCAG 2.2 AA full conformance, performance budgets and low-end device metrics remain NOT TESTED.
 
 Thresholds are not lowered. A wired CI command is not evidence of a passing run.
+
+
+### Identity privilege regression gate — 18 November 2026
+RUN evidence:
+- `has_table_privilege('anon','public.profiles','select') = false`
+- `has_table_privilege('anon','public.profiles','update') = false`
+- `has_table_privilege('authenticated','public.profiles','update') = false`
+- `has_column_privilege('authenticated','public.profiles','kyc_status','update') = false`
+- `has_column_privilege('authenticated','public.profiles','full_name','update') = true`
+- `has_function_privilege('anon','public.review_kyc_application(uuid,text,text,text,text)','execute') = false`
+- `has_function_privilege('authenticated','public.review_kyc_application(uuid,text,text,text,text)','execute') = true`
+
+Browser profile editing and admin review journeys remain NOT TESTED; database grants passing does not establish frontend compatibility.
