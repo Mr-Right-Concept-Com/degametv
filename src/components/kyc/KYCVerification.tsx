@@ -124,8 +124,8 @@ export function KYCVerification({ onVerified, compact }: Props) {
       p_address_region: form.address_region || null,
       p_address_postal_code: form.address_postal_code || null,
     } as never);
-    if (error || !(data as { success?: boolean } | null)?.success) {
-      toast.error(data?.error || 'Submission failed. Your application has not been submitted.');
+    if (error || !data || !(data as { success?: boolean } | null)?.success) {
+      toast.error((data as { error?: string } | null)?.error || error?.message || 'Submission failed. Your application has not been submitted.');
       setSubmitting(false);
       return;
     }
