@@ -78,6 +78,21 @@ Deno.serve(async req=>{
        live_provider_asset_id:providerAssetId,
        live_replay_ready_at:recordingStatus==="ready"?endedAt:null,updated_at:endedAt,
       }).eq("id",screening.id).eq("tenant_id",screening.tenant_id);
+      if(recordingStatus==="ready"||recordingStatus==="failed"){
+       const {error:replayLifecycleError}=await db.rpc("apply_stream_provider_event",{
+        p_provider_key:String(endedStream.metadata?.provider||""),
+        p_provider_reference:String(endedStream.metadata?.provider_reference||""),
+        p_event_id:`stop-response:${endedStream.id}:${providerAssetId||endedAt}`,
+        p_event_type:recordingStatus==="ready"?"recording.ready":"recording.failed",
+        p_payload:recordingStatus==="ready"&&approvedRecordingUrl
+         ? {replay_url:approvedRecordingUrl,source_event:"stop_live_response"}
+         : {source_event:"stop_live_response"},
+       });
+       if(replayLifecycleError){
+        console.error("live_replay_lifecycle_reconcile",replayLifecycleError);
+        return json({error:"The provider stopped the stream, but replay lifecycle reconciliation failed. The event remains in processing."},503);
+       }
+      }
       const metadata={...(content.metadata&&typeof content.metadata==="object"?content.metadata:{}),
        content_context:"vod",release_strategy:"on_demand",
        replay_from_live:{source_screening_id:screening.id,source_stream_id:endedStream.id,
@@ -124,7 +139,7 @@ Deno.serve(async req=>{
   if(contentError||!ownedContent||ownedContent.creator_id!==user.id||ownedContent.tenant_id!==screening.tenant_id)return json({error:"You do not own this event in its tenant."},403);
   const {data:stream,error:insertError}=await db.from("live_streams").insert({
    tenant_id:screening.tenant_id,creator_id:user.id,title:p.title,description:p.description??null,status:"scheduled",lifecycle_status:"WAITING_FOR_ENCODER",provider_stream_id:result.provider_reference,
-   stream_key:null,rtmp_url:ingest.toString(),playback_url:typeof result.playback_url==="string"?result.playback_url:null,
+   stream_key:null,rtmp_url:ingest.toString(),rtmp_ingest_url:ingest.toString(),playback_url:typeof result.playback_url==="string"?result.playback_url:null,
    scheduled_start:p.scheduledStart??null,recording_enabled:p.recordingEnabled,
    monetization:"free",ticket_price:0,is_ticketed:false,
    metadata:{provider:provider.provider_key,provider_mode:provider.is_live===true?"live":"test",provider_reference:result.provider_reference,screening_id:p.screeningId,provisioned_at:new Date().toISOString(),stream_key_delivery:"one_time"},
