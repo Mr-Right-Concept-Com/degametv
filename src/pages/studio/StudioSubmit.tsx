@@ -54,7 +54,7 @@ export default function StudioSubmit() {
     submitter_email: user?.email || '',
     company_name: '',
     project_title: '',
-    project_type: searchParams.get('type') === 'series' ? 'series' : 'movie',
+    project_type: ['series', 'live', 'vod'].includes(searchParams.get('type') || '') ? (searchParams.get('type') as string) : 'movie',
     description: '',
     genres: [] as string[],
     duration_minutes: '',
@@ -119,7 +119,7 @@ export default function StudioSubmit() {
       .eq('user_id', user?.id || '')
       .maybeSingle();
     if (identityError || identity?.kyc_status !== 'verified') {
-      toast.error('Verified identity is required before submitting a film. No film was created.');
+      toast.error('Verified identity is required before submitting content. Nothing was created.');
       setSubmitting(false);
       return;
     }
@@ -162,7 +162,7 @@ export default function StudioSubmit() {
     if (form.poster_url && form.video_url) {
       const { data: publication, error: publishError } = await supabase.rpc('publish_creator_content', { p_content_id: submission.content_id });
       if (!publishError && publication?.status === 'published') setPublished(true);
-      else toast.info('Your film is saved in Studio. Complete creator approval or required assets before publishing.');
+      else toast.info('Your submission is saved in Studio. Complete creator approval or required assets before publishing.');
     }
 
     setSubmitted(true);
@@ -318,8 +318,8 @@ export default function StudioSubmit() {
                       <SelectContent>
                         <SelectItem value="movie">Feature Film</SelectItem>
                         <SelectItem value="series">Series</SelectItem>
-                        <SelectItem value="short">Short Film</SelectItem>
-                        <SelectItem value="documentary">Documentary</SelectItem>
+                        <SelectItem value="live">Live Event / Premiere</SelectItem>
+                        <SelectItem value="vod">Video on Demand</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
