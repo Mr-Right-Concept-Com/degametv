@@ -50,3 +50,28 @@ No competitor capability is marked ABSORBED based solely on the new commits. The
 | Database cost controls | PARTIAL | Duplicate index removed; Neon not benchmarked and cost attribution absent |
 
 Neon reference update: official documentation describes compute scale-to-zero after inactivity, autoscaling bounds and cold-start behavior. These are useful primitives for staging and bursty workloads, but not a measured reason to move production. The migration gate is documented in `docs/operations/neon-postgres-cost-optimization.md`.
+
+
+## Trigger refresh — public-source verification on 18 November 2026
+
+The monthly register is current as of this refresh. No new direct competitor was found that displaces the existing comparison set during this bounded pass. The live source review reconfirmed and sharpened these primitives:
+
+- **Eventive — secure virtual cinema:** official help describes FairPlay/Widevine/PlayReady DRM, per-session forensic watermarking, encrypted/transcoded delivery, availability windows, geographic restrictions and stream-count limits. This confirms that our “signed URL”/HLS client is not parity. Source: https://help.eventive.org/en/articles/4198649-drm-security (published 2024-09-06; accessed 2026-11-18), https://help.eventive.org/en/articles/4704563-geographic-restrictions (published 2024-09-04; accessed 2026-11-18), https://eventive.org/virtual (accessed 2026-11-18).
+- **Vimeo OTT — monetization and distribution packaging:** current official pricing page lists Starter at $1/subscriber/month plus 10% of one-time purchases, web-only and prerecorded; Enterprise adds branded apps/API, AVOD/FVOD, live/linear, analytics and DRM. Do not compare price directly without matching bandwidth, transaction, tax, app and support assumptions. Source: https://vimeo.com/ott/pricing (accessed 2026-11-18); fee detail: https://help.vimeo.com/hc/en-us/articles/12425768622481-Vimeo-OTT-pricing-breakdown (accessed 2026-11-18).
+- **Filmhub — rights-aware distribution operations:** dashboard exposes title submission, channel performance, statements, payment schedules and title updates; licensing views expose format, territory and date-window avails. Source: https://help.filmhub.com/filmhub-dashboard (accessed 2026-11-18), https://help.filmhub.com/en/articles/8365280-licensing-title-page (accessed 2026-11-18), https://help.filmhub.com/en/articles/3031183-title-discovery-licensing (accessed 2026-11-18).
+- **Netflix — accessibility reference:** public help documents screen-reader support, keyboard shortcuts, voice control, subtitle customization and audio descriptions. Source: https://help.netflix.com/en/node/116022 (accessed 2026-11-18), https://help.netflix.com/en/node/25079 (accessed 2026-11-18). This is a reference for playback accessibility, not a claim that Netflix meets every WCAG criterion.
+
+### Updated capability comparison (evidence-based)
+| Dimension | Eventive | Vimeo OTT | Filmhub | Netflix reference | DeGameTV |
+|---|---|---|---|---|---|
+| Secure virtual cinema | DRM, watermark, geo/time/stream controls documented | DRM on Enterprise | not its primary product | mature consumer playback controls | MISSING: no origin-verifying adapter |
+| Monetization | tickets, passes, memberships | SVOD/TVOD; enterprise AVOD/FVOD/live PPV | distribution statements/schedules | subscription | PARTIAL: checkout returns 503 |
+| Rights and avails | screening-level availability/geo | packaged content distribution | territory/license/date avails | catalog licensing not publicly comparable | PARTIAL: rights metadata; enforcement unproven |
+| Creator operations | organizer and filmmaker workflows | branded OTT channel operations | ingestion, QC, channel insights, statements | not a creator distribution platform | PARTIAL: submission foundations; no complete release/settlement |
+| Accessibility | captions/descriptive audio documented | captions/accessible player claims require separate audit | metadata includes caption languages | screen reader, keyboard, voice, captions, audio description documented | UNVERIFIED: no device/AT conformance run |
+| API/ecosystem | integrations and organizer embeds | API/SSO at Enterprise | channel/distribution network | closed consumer platform | MISSING/PARTIAL: no complete public API/SDK/webhook surface |
+
+Metrics such as time-to-first-play, startup latency, rebuffer ratio, conversion, creator net revenue, uptime and support response remain UNVERIFIED for our product and are not published comparably by these competitors. Do not claim parity or superiority without instrumented matched-cohort measurements.
+
+### Primitive absorption correction
+No competitor primitive is marked ABSORBED until our own implementation is end-to-end RUN/BROWSER proven. Prior statuses remain PARTIAL or MISSING. Priority order: (1) secure origin-verified playback + rights enforcement; (2) complete payment, ledger and settlement; (3) ingestion/QC/avails/release lifecycle; (4) creator analytics/statements; (5) accessible cross-device playback and apps; (6) audience CRM/consent and event engagement.
