@@ -39,7 +39,7 @@ export default function Producers() {
             </p>
             <div className="flex flex-wrap gap-3">
               <Button asChild size="lg" className="rounded-full">
-                <Link to="/filmmaker">Submit Your Film</Link>
+                <Link to="/apply-filmmaker">Submit Your Film</Link>
               </Button>
               <Button asChild variant="outline" size="lg" className="rounded-full">
                 <Link to="/studio">Producer Sign In</Link>
@@ -85,7 +85,7 @@ export default function Producers() {
           </ul>
           <div className="mt-8">
             <Button asChild size="lg" className="rounded-full">
-              <Link to="/filmmaker">Get Started — Free</Link>
+              <Link to="/apply-filmmaker">Get Started — Free</Link>
             </Button>
           </div>
         </div>
