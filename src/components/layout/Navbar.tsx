@@ -13,6 +13,7 @@ import {
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
 import { useTenant } from '@/hooks/useTenant';
+import { useBranding } from '@/components/branding/BrandingProvider';
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -21,6 +22,7 @@ export function Navbar() {
   const { user, signOut } = useAuth();
   const { isSuperAdmin, isPlatformAdmin } = useTenant();
   const navigate = useNavigate();
+  const branding = useBranding();
 
   const handleSearch = (e: FormEvent) => {
     e.preventDefault();
