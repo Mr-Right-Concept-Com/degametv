@@ -56,7 +56,6 @@ import UserDashboard from "./pages/UserDashboard";
 import StudioDashboard from "./pages/studio/StudioDashboard";
 import StudioCreate from "./pages/studio/StudioCreate";
 import StudioMovies from "./pages/studio/StudioMovies";
-import StudioSubmit from "./pages/studio/StudioSubmit";
 import StudioScreenings from "./pages/studio/StudioScreenings";
 import StudioEarnings from "./pages/studio/StudioEarnings";
 import StudioAnalytics from "./pages/studio/StudioAnalytics";
@@ -110,13 +109,14 @@ const App = () => (
               <Route path="/studio" element={<ProtectedCreatorRoute><StudioDashboard /></ProtectedCreatorRoute>} />
               <Route path="/studio/create" element={<ProtectedCreatorRoute><StudioCreate /></ProtectedCreatorRoute>} />
               <Route path="/studio/movies" element={<ProtectedCreatorRoute><StudioMovies /></ProtectedCreatorRoute>} />
-              <Route path="/studio/submit" element={<ProtectedCreatorRoute><StudioSubmit /></ProtectedCreatorRoute>} />
+              <Route path="/studio/submit" element={<ProtectedCreatorRoute><Navigate to="/studio/create" replace /></ProtectedCreatorRoute>} />
               <Route path="/studio/screenings" element={<ProtectedCreatorRoute><StudioScreenings /></ProtectedCreatorRoute>} />
               <Route path="/studio/earnings" element={<ProtectedCreatorRoute><StudioEarnings /></ProtectedCreatorRoute>} />
               <Route path="/studio/analytics" element={<ProtectedCreatorRoute><StudioAnalytics /></ProtectedCreatorRoute>} />
               <Route path="/studio/analytics/:screeningId" element={<ProtectedCreatorRoute><StudioAnalytics /></ProtectedCreatorRoute>} />
               
-              <Route path="/studio/live" element={<ProtectedCreatorRoute><StudioLive /></ProtectedCreatorRoute>} />
+              <Route path="/studio/live" element={<ProtectedCreatorRoute><Navigate to="/studio/create?flow=live&type=live" replace /></ProtectedCreatorRoute>} />
+              <Route path="/studio/live/manage" element={<ProtectedCreatorRoute><StudioLive /></ProtectedCreatorRoute>} />
               <Route path="/studio/team" element={<ProtectedCreatorRoute><StudioTeam /></ProtectedCreatorRoute>} />
               <Route path="/studio/fan-blast" element={<ProtectedCreatorRoute><StudioFanBlast /></ProtectedCreatorRoute>} />
               {/* ============ ADMIN (Protected) ============ */}
