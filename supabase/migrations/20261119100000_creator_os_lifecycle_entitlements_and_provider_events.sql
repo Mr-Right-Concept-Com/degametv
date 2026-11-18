@@ -166,6 +166,19 @@ BEGIN
       AND tenant_id=v_stream.tenant_id;
   END IF;
 
+  IF p_event_type='recording.ready' THEN
+    UPDATE public.tickets t SET valid_until=v_now+make_interval(hours=>coalesce((
+      SELECT s.replay_access_hours FROM public.screenings s
+      WHERE s.id=(v_stream.metadata->>'screening_id')::uuid
+        AND s.replay_access_model='INCLUDED_WITH_TICKET'
+    ),0))
+    WHERE t.stream_id=v_stream.id AND t.ticket_type='live'
+      AND t.revoked_at IS NULL
+      AND EXISTS(SELECT 1 FROM public.screenings s
+        WHERE s.id=(v_stream.metadata->>'screening_id')::uuid
+          AND s.replay_access_model='INCLUDED_WITH_TICKET');
+  END IF;
+
   UPDATE public.stream_provider_event_logs SET processed_at=v_now WHERE id=v_log_id;
   RETURN jsonb_build_object('received',true,'duplicate',false,'lifecycle_status',v_next,'stream_id',v_stream.id);
 END $$;
