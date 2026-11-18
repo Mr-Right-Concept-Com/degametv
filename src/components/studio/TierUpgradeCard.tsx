@@ -53,6 +53,7 @@ export function TierUpgradeCard() {
       return;
     }
     let payload: Record<string, unknown> = { user_id: user.id, tier, status: 'pending' };
+    let businessData: z.infer<typeof businessSchema> | null = null;
     if (tier === 'business') {
       const r = businessSchema.safeParse(f);
       if (!r.success) {
@@ -62,21 +63,41 @@ export function TierUpgradeCard() {
       }
       if (!file) { setErrors({ cac_doc: 'Upload your CAC certificate' }); return; }
       if (file.size > 10 * 1024 * 1024) { setErrors({ cac_doc: 'Max 10MB' }); return; }
+      businessData = r.data;
       payload = { user_id: user.id, tier, status: 'pending' };
     }
     setBusy(true);
     try {
-      if (tier === 'business' && file) {
-        const path = `${user.id}/${Date.now()}-${file.name.replace(/[^\w.-]/g, '_')}`;
-        const { error: upErr } = await supabase.storage.from('kyb-docs').upload(path, file);
+      if (tier === 'business' && file && businessData) {
+        const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+        if (!allowed.includes(file.type) || file.size <= 0 || file.size > 10 * 1024 * 1024) throw new Error('Upload a PDF or clear image under 10 MB.');
+        const path = `${user.id}/registration/${crypto.randomUUID()}-${file.name.replace(/[^\\w.-]/g, '_')}`;
+        const { error: upErr } = await supabase.storage.from('kyb-docs').upload(path, file, {
+          contentType: file.type, cacheControl: '0', upsert: false,
+        });
         if (upErr) throw upErr;
-        payload.cac_doc_path = path;
+        const { error: verificationError } = await supabase.rpc('submit_business_verification' as never, {
+          p_legal_business_name: businessData.company_name,
+          p_registration_country: 'NG',
+          p_registration_number: businessData.cac_number,
+          p_registration_document_path: path,
+          p_business_address: businessData.business_address,
+          p_business_city: businessData.business_city,
+          p_business_region: businessData.business_region || null,
+          p_business_postal_code: businessData.business_postal_code || null,
+          p_bank_name: businessData.bank_name,
+          p_bank_account_number: businessData.bank_account_number,
+          p_bank_account_name: businessData.bank_account_name,
+          p_bank_country: 'NG',
+          p_tax_identifier: businessData.tax_id,
+        } as never);
+        if (verificationError) throw verificationError;
       }
       const { error } = acct
         ? await supabase.from('studio_accounts').update(payload).eq('user_id', user.id)
         : await supabase.from('studio_accounts').insert(payload as never);
       if (error) throw error;
-      toast.success(tier === 'business' ? 'Business documents submitted. Bank and tax numbers are stored in the secure Vault; verification is pending.' : 'Creator tier selected — pending review');
+      toast.success(tier === 'business' ? 'Business verification submitted securely for review.' : 'Creator tier selected — pending review');
       load();
     } catch (e) {
       toast.error((e as Error).message);
