@@ -165,9 +165,13 @@ export default function StudioSubmit() {
       if (!publishError && publication?.status === 'published') {
         setPublished(true);
         if (form.project_type === 'live') {
-          const scheduledAt = form.premiere_date
-            ? new Date(`${form.premiere_date}T20:00:00`).toISOString()
-            : new Date(Date.now() + 30 * 60 * 1000).toISOString();
+          const scheduledDate = form.premiere_date ? new Date(`${form.premiere_date}T20:00:00`) : new Date(Date.now() + 30 * 60 * 1000);
+          if (!Number.isFinite(scheduledDate.getTime()) || scheduledDate.getTime() < Date.now() + 15 * 60 * 1000) {
+            toast.error('Choose a premiere date at least 15 minutes in the future.');
+            setSubmitting(false);
+            return;
+          }
+          const scheduledAt = scheduledDate.toISOString();
           const { data: event, error: eventError } = await supabase.rpc('create_creator_screening', {
             p_content_id: submission.content_id,
             p_screening_date: scheduledAt,
@@ -176,7 +180,6 @@ export default function StudioSubmit() {
             p_slug: form.project_title,
           });
           if (eventError || !event?.screening_id) {
-            setPublished(false);
             toast.error('The live title is published, but its event could not be scheduled. Open Go Live and create the event before provisioning a stream.');
           } else {
             toast.success('Live event published and scheduled. Set admission and replay prices, then provision its secure encoder in Go Live.');
