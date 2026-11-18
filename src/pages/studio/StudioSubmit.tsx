@@ -31,6 +31,7 @@ const step2Schema = z.object({
 });
 
 const step3Schema = z.object({
+  distribution_rights: z.string().trim().min(1, 'A rights declaration is required before publishing.'),
   trailer_url: z.string().url('Invalid URL').optional().or(z.literal('')),
   screener_url: z.string().url('Invalid URL').optional().or(z.literal('')),
 });
@@ -96,7 +97,7 @@ export default function StudioSubmit() {
   };
 
   const validateStep3 = () => {
-    const result = step3Schema.safeParse({ trailer_url: form.trailer_url, screener_url: form.screener_url });
+    const result = step3Schema.safeParse({ distribution_rights: form.distribution_rights, trailer_url: form.trailer_url, screener_url: form.screener_url });
     if (!result.success) {
       const errs: Record<string, string> = {};
       result.error.errors.forEach(e => { errs[e.path[0] as string] = e.message; });
@@ -318,6 +319,9 @@ export default function StudioSubmit() {
                       <SelectContent>
                         <SelectItem value="movie">Feature Film</SelectItem>
                         <SelectItem value="series">Series</SelectItem>
+                        <SelectItem value="episode">Episode</SelectItem>
+                        <SelectItem value="short">Short</SelectItem>
+                        <SelectItem value="trailer">Trailer</SelectItem>
                         <SelectItem value="live">Live Event / Premiere</SelectItem>
                         <SelectItem value="vod">Video on Demand</SelectItem>
                       </SelectContent>
@@ -411,7 +415,7 @@ export default function StudioSubmit() {
                 </div>
                 <div className="space-y-2">
                   <Label>Trailer URL</Label>
-                  <Input value={form.trailer_url} onChange={e => setForm(f => ({ ...f, trailer_url: e.target.value }))} placeholder="https://youtu.be/..." />
+                  <Input value={form.trailer_url} onChange={e => setForm(f => ({ ...f, trailer_url: e.target.value }))} placeholder="https://..." />
                   {errors.trailer_url && <p className="text-xs text-destructive">{errors.trailer_url}</p>}
                 </div>
 
@@ -429,7 +433,7 @@ export default function StudioSubmit() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Distribution Rights</Label>
+                    <Label>Rights Declaration <span className="text-destructive">*</span></Label>
                     <Select value={form.distribution_rights} onValueChange={v => setForm(f => ({ ...f, distribution_rights: v }))}>
                       <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>{RIGHTS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
