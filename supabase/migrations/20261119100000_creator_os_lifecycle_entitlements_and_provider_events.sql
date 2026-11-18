@@ -157,10 +157,20 @@ BEGIN
     updated_at=v_now
   WHERE id=v_stream.id;
 
-  IF p_event_type IN ('recording.ready','recording.failed') THEN
+  IF p_event_type IN ('stream.active','stream.ended','recording.ready','recording.failed') THEN
     UPDATE public.screenings SET
-      live_recording_status=CASE WHEN p_event_type='recording.ready' THEN 'ready' ELSE 'failed' END,
-      live_replay_ready_at=CASE WHEN p_event_type='recording.ready' THEN v_now ELSE NULL END,
+      lifecycle=CASE
+        WHEN p_event_type='stream.active' THEN 'live'
+        WHEN p_event_type='stream.ended' THEN 'ended'
+        WHEN p_event_type='recording.ready' THEN 'replay'
+        ELSE lifecycle END,
+      live_started_at=CASE WHEN p_event_type='stream.active' THEN coalesce(live_started_at,v_now) ELSE live_started_at END,
+      live_ended_at=CASE WHEN p_event_type='stream.ended' THEN v_now ELSE live_ended_at END,
+      live_recording_status=CASE
+        WHEN p_event_type='recording.ready' THEN 'ready'
+        WHEN p_event_type='recording.failed' THEN 'failed'
+        ELSE live_recording_status END,
+      live_replay_ready_at=CASE WHEN p_event_type='recording.ready' THEN v_now ELSE live_replay_ready_at END,
       updated_at=v_now
     WHERE id=(v_stream.metadata->>'screening_id')::uuid
       AND tenant_id=v_stream.tenant_id;
