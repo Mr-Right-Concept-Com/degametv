@@ -27,6 +27,7 @@ const step1Schema = z.object({
 const step2Schema = z.object({
   project_title: z.string().trim().min(2, 'Enter a production title').max(200),
   project_type: z.enum(['movie', 'series', 'episode', 'short', 'trailer', 'live', 'vod']),
+  release_strategy: z.enum(['on_demand', 'premiere', 'live']),
   description: z.string().trim().max(5000, 'Synopsis must be 5,000 characters or fewer').optional(),
   genres: z.array(z.string().trim().min(1)).max(5, 'Choose no more than five primary genres'),
   duration_minutes: z.string().optional().refine(v => !v || (/^\d+$/.test(v) && Number(v) > 0 && Number(v) < 1000), 'Duration must be a whole number between 1 and 999 minutes'),
@@ -70,6 +71,7 @@ export default function StudioSubmit() {
     company_name: '',
     project_title: '',
     project_type: ['movie', 'series', 'episode', 'short', 'trailer', 'live', 'vod'].includes(searchParams.get('type') || '') ? (searchParams.get('type') as string) : 'movie',
+    release_strategy: searchParams.get('flow') === 'live' ? 'live' : 'on_demand',
     description: '',
     genres: [] as string[],
     duration_minutes: '',
@@ -141,7 +143,7 @@ export default function StudioSubmit() {
   };
 
   const validateStep2 = () => {
-    const result = step2Schema.safeParse({ project_title: form.project_title, project_type: form.project_type, description: form.description, genres: form.genres, duration_minutes: form.duration_minutes, release_year: form.release_year, cast_crew_text: form.cast_crew_text, budget_range: form.budget_range });
+    const result = step2Schema.safeParse({ project_title: form.project_title, project_type: form.project_type, release_strategy: form.release_strategy, description: form.description, genres: form.genres, duration_minutes: form.duration_minutes, release_year: form.release_year, cast_crew_text: form.cast_crew_text, budget_range: form.budget_range });
     if (!result.success) {
       const errs: Record<string, string> = {};
       result.error.errors.forEach(e => { errs[e.path[0] as string] = e.message; });
@@ -167,8 +169,8 @@ export default function StudioSubmit() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep3()) return;
-    if (form.project_type === 'live' && (!Number.isFinite(Number(form.live_price_ngn)) || Number(form.live_price_ngn) <= 0 || !Number.isFinite(Number(form.live_price_usd)) || Number(form.live_price_usd) <= 0)) {
-      toast.error('Set a positive Nigeria (NGN) and international (USD) live admission price before publishing.');
+    if ((form.project_type === 'live' || form.release_strategy === 'premiere') && (!Number.isFinite(Number(form.live_price_ngn)) || Number(form.live_price_ngn) <= 0 || !Number.isFinite(Number(form.live_price_usd)) || Number(form.live_price_usd) <= 0)) {
+      toast.error('Set positive Nigeria (NGN) and international (USD) ticket prices before scheduling this event.');
       return;
     }
 
@@ -221,37 +223,39 @@ export default function StudioSubmit() {
     setCreatedContentId(submission.content_id);
 
     if (form.poster_url && (form.video_url || ['live', 'series'].includes(form.project_type) || (form.project_type === 'trailer' && form.trailer_url))) {
-      if (form.project_type === 'live') {
-        const scheduledDate = form.premiere_date ? new Date(`${form.premiere_date}T${form.premiere_time}:00`) : new Date(Date.now() + 30 * 60 * 1000);
+      const needsScreening = form.project_type === 'live' || form.release_strategy === 'premiere';
+      if (needsScreening) {
+        if (!form.premiere_date) {
+          toast.error('Choose the event date before scheduling.');
+          setSubmitting(false);
+          return;
+        }
+        const scheduledDate = new Date(`${form.premiere_date}T${form.premiere_time}:00`);
         if (!Number.isFinite(scheduledDate.getTime()) || scheduledDate.getTime() < Date.now() + 15 * 60 * 1000) {
-          toast.error('Choose a premiere date and time at least 15 minutes in the future.');
+          toast.error('Choose an event date and time at least 15 minutes in the future.');
           setSubmitting(false);
           return;
         }
-        if (!Number.isFinite(Number(form.live_price_ngn)) || Number(form.live_price_ngn) <= 0 || !Number.isFinite(Number(form.live_price_usd)) || Number(form.live_price_usd) <= 0) {
-          toast.error('Set valid Nigeria and international admission prices before scheduling this live event.');
-          setSubmitting(false);
-          return;
-        }
+        const eventType = form.project_type === 'live' ? 'live' : form.project_type === 'series' ? 'series' : 'film';
         const { data: event, error: eventError } = await supabase.rpc('create_creator_screening', {
           p_content_id: submission.content_id,
           p_screening_date: scheduledDate.toISOString(),
           p_location_pricing: { nigeria: Number(form.live_price_ngn), international: Number(form.live_price_usd) },
-          p_event_type: 'live',
+          p_event_type: eventType,
           p_slug: form.project_title,
         });
         if (eventError || !(event as { screening_id?: string } | null)?.screening_id) {
-          toast.error('The live event could not be published. Your draft is safe; correct the schedule or pricing and retry.');
+          toast.error('The scheduled release could not be published. Your draft is safe; check rights, assets, pricing and event timing.');
           setSubmitting(false);
           return;
         }
+        setCreatedScreeningId((event as { screening_id: string }).screening_id);
         setPublished(true);
-        toast.success('Live event published and scheduled. Open Go Live to provision its secure encoder.');
+        toast.success(form.project_type === 'live' ? 'Live event published. Continue below to provision its secure encoder.' : 'Ticketed premiere published and scheduled.');
       } else {
         const { data: publication, error: publishError } = await supabase.rpc('publish_creator_content', { p_content_id: submission.content_id });
-        if (!publishError && (publication as { status?: string } | null)?.status === 'published') {
-          setPublished(true);
-        } else toast.info('Your content draft is saved. Add the required assets and rights declaration, then publish when ready.');
+        if (!publishError && (publication as { status?: string } | null)?.status === 'published') setPublished(true);
+        else toast.info('Your draft is saved. Complete the required master, artwork and rights declaration before publishing.');
       }
     }
 
@@ -403,7 +407,7 @@ export default function StudioSubmit() {
                   </div>
                   <div className="space-y-2">
                     <Label>Type</Label>
-                    <Select value={form.project_type} onValueChange={v => setForm(f => ({ ...f, project_type: v }))}>
+                    <Select value={form.project_type} onValueChange={v => setForm(f => ({ ...f, project_type: v, release_strategy: v === 'live' ? 'live' : f.release_strategy === 'live' ? 'on_demand' : f.release_strategy }))}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="movie">Feature Film</SelectItem>
@@ -416,6 +420,18 @@ export default function StudioSubmit() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Release strategy</Label>
+                  <Select value={form.release_strategy} onValueChange={v => setForm(f => ({ ...f, release_strategy: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="on_demand">Publish to on-demand catalogue</SelectItem>
+                      {(form.project_type === 'movie' || form.project_type === 'series') && <SelectItem value="premiere">Ticketed virtual premiere</SelectItem>}
+                      {form.project_type === 'live' && <SelectItem value="live">Live broadcast / virtual event</SelectItem>}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Your release choice controls scheduling, ticket pricing and the publishing steps.</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Synopsis</Label>
@@ -529,16 +545,13 @@ export default function StudioSubmit() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>{form.project_type === 'live' ? 'Live Event Date' : 'Planned Premiere Date'}</Label>
-                    <Input type={form.project_type === 'live' ? 'date' : 'date'} value={form.premiere_date} onChange={e => setForm(f => ({ ...f, premiere_date: e.target.value }))} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Rights Territories</Label>
-                    <Input value={form.rights_territories} onChange={e => setForm(f => ({ ...f, rights_territories: e.target.value }))} placeholder="NG, GH, GB, US" />
-                  </div>
-                </div>
+                {form.project_type === 'live' || form.release_strategy === 'premiere' ? <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Event date</Label><Input type="date" required value={form.premiere_date} onChange={e => setForm(f => ({ ...f, premiere_date: e.target.value }))} /></div>
+                  <div className="space-y-2"><Label>Start time</Label><Input type="time" required value={form.premiere_time} onChange={e => setForm(f => ({ ...f, premiere_time: e.target.value }))} /></div>
+                  <div className="space-y-2"><Label>Admission price (NGN)</Label><Input inputMode="decimal" required value={form.live_price_ngn} onChange={e => setForm(f => ({ ...f, live_price_ngn: e.target.value }))} placeholder="e.g. 2500" /></div>
+                  <div className="space-y-2"><Label>International admission (USD)</Label><Input inputMode="decimal" required value={form.live_price_usd} onChange={e => setForm(f => ({ ...f, live_price_usd: e.target.value }))} placeholder="e.g. 5" /></div>
+                </div> : null}
+                <div className="space-y-2"><Label>Rights Territories</Label><Input value={form.rights_territories} onChange={e => setForm(f => ({ ...f, rights_territories: e.target.value }))} placeholder="NG, GH, GB, US" /></div>
                 <div className="space-y-2">
                   <Label>Prior Screenings</Label>
                   <Textarea value={form.prior_screenings} onChange={e => setForm(f => ({ ...f, prior_screenings: e.target.value }))} rows={2} placeholder="Festivals, cinemas, or previous digital releases" />
