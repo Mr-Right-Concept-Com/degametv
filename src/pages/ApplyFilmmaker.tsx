@@ -47,10 +47,10 @@ export default function ApplyFilmmaker() {
 
   return (
     <MainLayout>
-      <div className="bg-primary text-primary-foreground py-12 px-4 text-center">
-        <Badge className="bg-primary-foreground text-primary border-0 mb-3 text-xs">CREATOR APPLICATION</Badge>
+      <div className="relative isolate overflow-hidden border-b border-border bg-[#090909] px-4 py-16 text-center text-white sm:py-20"><div className="absolute inset-0 -z-20 bg-[url(https://images.unsplash.com/photo-1485846234645-a62644f84728?w=1600&auto=format&fit=crop)] bg-cover bg-center opacity-25"/><div className="absolute inset-0 -z-10 bg-gradient-to-r from-black via-black/85 to-primary/20"/>
+        <Badge className="mb-3 border border-white/20 bg-white/10 text-white text-xs">CREATOR APPLICATION</Badge>
         <h1 className="text-3xl md:text-4xl font-extrabold mb-3">Become a DeGameTV Creator</h1>
-        <p className="text-primary-foreground max-w-xl mx-auto text-sm">
+        <p className="mx-auto max-w-xl text-sm text-white/75">
           Complete identity verification, select your Creator or Business studio tier, and submit your studio for approval. Your viewer account stays the same.
         </p>
       </div>
@@ -63,7 +63,7 @@ export default function ApplyFilmmaker() {
             { icon: DollarSign, label: 'Ticket revenue' },
             { icon: Users, label: 'Live audience' },
           ].map(item => (
-            <Card key={item.label}><CardContent className="p-3 flex flex-col items-center gap-1.5">
+            <Card key={item.label} className="rounded-[1.4rem] border-border/70 shadow-sm"><CardContent className="p-4 flex flex-col items-center gap-1.5">
               <item.icon className="w-5 h-5 text-primary" />
               <p className="text-xs font-medium">{item.label}</p>
             </CardContent></Card>
