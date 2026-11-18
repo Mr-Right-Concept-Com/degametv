@@ -33,8 +33,8 @@ if(import.meta.main)serve(async(req:Request)=>{
   const amount=Number(price);if(!Number.isFinite(amount)||amount<=0)return json(409,{error:"This ticket price is not configured."});
   const {data:providers,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:"payments"});
   if(providerError||!Array.isArray(providers)||!providers.length)return json(503,{error:"No payment provider is enabled in Admin Provider Vault."});
-  const provider=providers[0],endpoint=provider.endpoints?.checkout_initialize;
-  if(!provider.credential||typeof endpoint!=="string"||!endpoint.startsWith("/")||endpoint.startsWith("//"))return json(503,{error:"The active payment provider checkout adapter is incomplete."});
+  const usable=providers.filter((p:any)=>p.credential&&typeof p.endpoints?.checkout_initialize==="string"&&p.endpoints.checkout_initialize.startsWith("/")&&!p.endpoints.checkout_initialize.startsWith("//"));
+  if(!usable.length)return json(503,{error:"No enabled payment provider has a complete checkout adapter contract."});
   const {data:profile}=user?await db.auth.admin.getUserById(user.id):{data:null};
   const email=user?.email||profile?.user?.email||parsed.data.email;
   if(!email)return json(400,{error:"An email address is required for ticket delivery."});
@@ -42,16 +42,24 @@ if(import.meta.main)serve(async(req:Request)=>{
   const parsedOrigin=new URL(origin);if(parsedOrigin.protocol!=="https:"&&!["localhost","127.0.0.1"].includes(parsedOrigin.hostname))return json(503,{error:"Secure return URL is not configured."});
   const reference="DTVL_"+crypto.randomUUID().replaceAll("-","");
   const minor=Math.round(amount*100);
-  const {error:insertError}=await db.from("live_payment_orders").insert({tenant_id:screening.tenant_id,user_id:user?.id??null,guest_checkout:!user,screening_id:screening.id,stream_id:stream.id,ticket_type:ticketType,provider:provider.provider_key,provider_reference:reference,email,amount_minor:minor,currency,metadata:{created_from:"viewer_checkout",guest_checkout:!user}});
+  const {error:insertError}=await db.from("live_payment_orders").insert({tenant_id:screening.tenant_id,user_id:user?.id??null,guest_checkout:!user,screening_id:screening.id,stream_id:stream.id,ticket_type:ticketType,provider:usable[0].provider_key,provider_reference:reference,email,amount_minor:minor,currency,metadata:{created_from:"viewer_checkout",guest_checkout:!user}});
   if(insertError)return json(503,{error:"Could not create a secure ticket order. No charge was made."});
-  const target=new URL(endpoint,provider.base_url);if(target.origin!==new URL(provider.base_url).origin)throw new Error("invalid_provider_endpoint");
-  const h=provider.settings?.credential_header||"Authorization",prefix=provider.settings?.credential_prefix??"Bearer ";
-  const response=await fetch(target,{method:"POST",headers:{[h]:prefix+provider.credential,"Content-Type":"application/json"},body:JSON.stringify({customer:{email},amount_minor:minor,currency,reference,callback_url:new URL("/payment/return?reference="+reference,parsedOrigin).toString(),metadata:{screening_id:screening.id,stream_id:stream.id,ticket_type:ticketType}}),signal:AbortSignal.timeout(15000)});
-  const result=await response.json().catch(()=>null);
-  if(!response.ok||result?.authorized!==true||typeof result.checkout_url!=="string"){await db.from("live_payment_orders").update({status:"failed"}).eq("provider_reference",reference);return json(502,{error:"Payment provider rejected checkout. No charge was made."});}
-  const checkout=new URL(result.checkout_url),allowed=provider.settings?.allowed_checkout_origins;
-  if(checkout.protocol!=="https:"||!Array.isArray(allowed)||!allowed.includes(checkout.origin))throw new Error("untrusted_checkout_url");
-  await db.from("live_payment_orders").update({checkout_url:checkout.toString()}).eq("provider_reference",reference);
-  return json(200,{success:true,reference,checkoutUrl:checkout.toString(),amount,currency,ticketType});
+  let selected:any=null,checkoutUrl:string|null=null;
+  for(const candidate of usable){
+   try{
+    const target=new URL(candidate.endpoints.checkout_initialize,candidate.base_url);
+    if(target.origin!==new URL(candidate.base_url).origin)continue;
+    const h=candidate.settings?.credential_header||"Authorization",prefix=candidate.settings?.credential_prefix??"Bearer ";
+    const response=await fetch(target,{method:"POST",headers:{[h]:prefix+candidate.credential,"Content-Type":"application/json"},body:JSON.stringify({customer:{email},amount_minor:minor,currency,reference,callback_url:new URL("/payment/return?reference="+reference,parsedOrigin).toString(),metadata:{screening_id:screening.id,stream_id:stream.id,ticket_type:ticketType}}),signal:AbortSignal.timeout(15000)});
+    const result=await response.json().catch(()=>null);
+    if(!response.ok||result?.authorized!==true||typeof result.checkout_url!=="string")continue;
+    const checkout=new URL(result.checkout_url),allowed=candidate.settings?.allowed_checkout_origins;
+    if(checkout.protocol!=="https:"||!Array.isArray(allowed)||!allowed.includes(checkout.origin))continue;
+    selected=candidate;checkoutUrl=checkout.toString();break;
+   }catch{continue;}
+  }
+  if(!selected||!checkoutUrl){await db.from("live_payment_orders").update({status:"failed"}).eq("provider_reference",reference);return json(502,{error:"No configured payment provider accepted checkout. No charge was made."});}
+  await db.from("live_payment_orders").update({provider:selected.provider_key,checkout_url:checkoutUrl}).eq("provider_reference",reference);
+  return json(200,{success:true,reference,checkoutUrl,amount,currency,ticketType,provider:selected.provider_key});
  }catch{return json(502,{error:"Checkout could not be initialized. No ticket has been issued."});}
 });
