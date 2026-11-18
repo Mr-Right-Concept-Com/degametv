@@ -26,6 +26,10 @@ interface Screening {
   duration: number;
   location_pricing: { nigeria: number; international: number };
   status: string;
+  lifecycle?: string;
+  replay_price_ngn?: number | null;
+  replay_price_usd?: number | null;
+  refund_policy?: string | null;
 }
 
 export default function BuyTicket() {
@@ -41,7 +45,7 @@ export default function BuyTicket() {
   const [screening, setScreening] = useState<Screening | null>(null);
   const [loadingScreening, setLoadingScreening] = useState(true);
   usePageTitle(screening?.title ? `Buy Ticket — ${screening.title}` : 'Buy Ticket');
-  const [confirmation, setConfirmation] = useState<any>(null);
+  const [confirmation, setConfirmation] = useState<{ticketCode:string;watchCode:string;expiresAt?:string}|null>(null);
 
   useEffect(() => {
     const fetchScreening = async () => {
@@ -89,7 +93,7 @@ export default function BuyTicket() {
           setStep('confirmation');
           sessionStorage.removeItem('degame_checkout_email');
           window.history.replaceState({}, '', window.location.pathname);
-          await supabase.functions.invoke('send-watch-email', { body: { email: savedEmail, movieTitle: screening.title, watchUrl: window.location.origin + '/watch/' + result.data.watchCode + '?email=' + encodeURIComponent(savedEmail), ticketCode: result.data.ticketCode, expiresAt: result.data.expiresAt, location, price: total, currency } });
+          await supabase.functions.invoke('send-watch-email', { body: { email: savedEmail, movieTitle: screening.title, watchUrl: window.location.origin + '/watch/' + result.data.watchCode + '?email=' + encodeURIComponent(savedEmail), ticketCode: result.data.ticketCode , expiresAt: result.data.expiresAt } });
           toast.success('Payment confirmed. Your ticket is ready.');
           setProcessing(false);
           return;
@@ -106,7 +110,7 @@ export default function BuyTicket() {
     };
     void poll();
     return () => { active = false; };
-  }, [screening, location, basePrice, currency, total]);
+  }, [screening]);
 
   if (loadingScreening) {
     return (
@@ -133,8 +137,8 @@ export default function BuyTicket() {
   }
 
   const pricing = screening.location_pricing;
-  const isReplay = (screening as any).lifecycle === 'replay';
-  const replayPrice = location === 'nigeria' ? (screening as any).replay_price_ngn : (screening as any).replay_price_usd;
+  const isReplay = screening.lifecycle === 'replay';
+  const replayPrice = location === 'nigeria' ? screening.replay_price_ngn : screening.replay_price_usd;
   const basePrice = isReplay && replayPrice ? Number(replayPrice) : pricing[location];
   const currency = location === 'nigeria' ? 'NGN' : 'USD';
   const symbol = location === 'nigeria' ? '₦' : '$';
@@ -246,10 +250,10 @@ export default function BuyTicket() {
                     </span>
                   </button>
                 ))}
-                {(screening as any).refund_policy && (
+                {screening.refund_policy && (
                   <div className="rounded-xl bg-secondary/40 border border-border/50 p-3 text-[11px] text-muted-foreground">
                     <p className="font-medium text-foreground mb-1 text-xs">Refund Policy</p>
-                    {(screening as any).refund_policy}
+                    {screening.refund_policy}
                   </div>
                 )}
                 <Button className="w-full rounded-full mt-4 h-11" onClick={() => setStep('email')}>
