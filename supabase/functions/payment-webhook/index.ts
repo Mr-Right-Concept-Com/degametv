@@ -24,7 +24,7 @@ if(import.meta.main)serve(async(req:Request)=>{
  try{
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
   const event=JSON.parse(raw);
-  const reference=event?.reference;
+  const reference=event?.reference||event?.data?.reference;
   if(typeof reference!=="string"||!/^DTV_[A-Za-z0-9]+$/.test(reference)&&!/^DTVL_[A-Za-z0-9]+$/.test(reference))return json(400,{error:"Invalid payment reference."});
   const liveOrder=reference.startsWith("DTVL_");
   const orderLookup=liveOrder
@@ -48,12 +48,14 @@ if(import.meta.main)serve(async(req:Request)=>{
   if(event?.type!==(settings.success_event||"payment.succeeded"))return json(200,{received:true,ignored:true});
   const verifyPath=config.endpoints?.payment_verify;
   if(typeof verifyPath!=="string"||!verifyPath.startsWith("/")||verifyPath.startsWith("//"))return json(503,{error:"Payment verification endpoint is not configured."});
-  const verifyUrl=new URL(verifyPath,config.base_url);
+  const paystack=settings.adapter==="paystack";
+  const verifyUrl=new URL(paystack?verifyPath.replace(/\/$/,"")+"/"+encodeURIComponent(reference):verifyPath,config.base_url);
   if(verifyUrl.origin!==new URL(config.base_url).origin)return json(503,{error:"Invalid payment verification endpoint."});
   const authHeader=typeof settings.credential_header==="string"?settings.credential_header:"Authorization";
   const authPrefix=typeof settings.credential_prefix==="string"?settings.credential_prefix:"Bearer ";
-  const verification=await fetch(verifyUrl,{method:"POST",headers:{[authHeader]:authPrefix+config.credential,"Content-Type":"application/json"},body:JSON.stringify({reference}),signal:AbortSignal.timeout(15000)});
-  const result=await verification.json().catch(()=>null);
+  const verification=await fetch(verifyUrl,{method:paystack?"GET":"POST",headers:{[authHeader]:authPrefix+config.credential,...(paystack?{}:{"Content-Type":"application/json"})},...(paystack?{}:{body:JSON.stringify({reference})}),signal:AbortSignal.timeout(15000)});
+  const providerResult=await verification.json().catch(()=>null);
+  const result=paystack?{verified:providerResult?.status===true&&providerResult?.data?.status==="success",status:providerResult?.data?.status==="success"?"paid":"unpaid",transaction_id:providerResult?.data?.id,amount_minor:providerResult?.data?.amount,currency:providerResult?.data?.currency}:providerResult;
   if(!verification.ok||result?.verified!==true||result?.status!=="paid")return json(202,{received:true,verified:false});
   const {data:liveOrderRow}=liveOrder?await admin.from("live_payment_orders").select("user_id").eq("provider_reference",reference).maybeSingle():{data:null};
   const claimToken=liveOrder&&liveOrderRow?.user_id===null?Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,"0")).join(""):null;
