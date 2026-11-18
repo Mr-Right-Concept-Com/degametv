@@ -52,26 +52,31 @@ Deno.serve(async (req) => {
       audience: p.audience, recipients_count: list.length, status: "sending",
     }).select("id").single();
 
-    const key = Deno.env.get("RESEND_API_KEY");
-    if (!key) {
-      await admin.from("fan_blasts").update({ status: "failed", error: "Email service not configured" }).eq("id", blast!.id);
-      return json({ error: "Email service is not configured yet (missing RESEND_API_KEY)." }, 503);
+    const { data: emailConfigs, error: emailConfigError } = await admin.rpc("get_email_provider_runtime_config");
+    const emailConfig = Array.isArray(emailConfigs) ? emailConfigs[0] : null;
+    if (emailConfigError || !emailConfig?.api_key || !emailConfig.from_email) {
+      await admin.from("fan_blasts").update({ status: "failed", error: "Vault email provider is disabled or incomplete" }).eq("id", blast!.id);
+      return json({ error: "Email delivery is not enabled. Contact the platform administrator." }, 503);
     }
+    const key = emailConfig.api_key;
     if (list.length === 0) {
       await admin.from("fan_blasts").update({ status: "sent" }).eq("id", blast!.id);
       return json({ success: true, sent: 0 });
     }
 
-    const { data: from } = await admin.from("platform_settings").select("setting_value").eq("setting_key", "email_from").maybeSingle();
-    const sender = (from?.setting_value as string) || "DeGameTV <onboarding@resend.dev>";
-    const origin = req.headers.get("origin") || "";
+    const sender = emailConfig.from_name + " <" + emailConfig.from_email + ">";
+    const origin = (Deno.env.get("PUBLIC_APP_URL") || req.headers.get("origin") || "").replace(/\/$/, "");
+    if (!origin.startsWith("https://")) {
+      await admin.from("fan_blasts").update({ status: "failed", error: "Public app URL is not configured" }).eq("id", blast!.id);
+      return json({ error: "Public event URL is not configured." }, 503);
+    }
     const link = `${origin}/movie/${s.slug}`;
     const html = `<div style="font-family:sans-serif;max-width:560px;margin:auto"><h2>${esc(s.title)}</h2><p style="white-space:pre-line">${esc(p.message)}</p><p><a href="${link}" style="background:#EB6062;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none">Open event</a></p></div>`;
 
     let sent = 0;
     let lastError: string | null = null;
     for (let i = 0; i < list.length; i += 100) {
-      const batch = list.slice(i, i + 100).map((to) => ({ from: sender, to: [to], subject: p.subject, html }));
+      const batch = list.slice(i, i + 100).map((to) => ({ from: sender, reply_to: emailConfig.reply_to || undefined, to: [to], subject: p.subject, html }));
       const r = await fetch("https://api.resend.com/emails/batch", {
         method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify(batch),
       });
