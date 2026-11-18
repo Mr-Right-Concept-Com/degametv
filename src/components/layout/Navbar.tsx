@@ -95,7 +95,6 @@ export function Navbar() {
                     <span aria-hidden="true" className="text-xs font-bold text-primary">{user.email?.charAt(0).toUpperCase()}</span>
                   </div>
                 </Button>
- </DropdownMenu>
               </>
             ) : (
               <div className="flex items-center gap-1.5 sm:gap-2">
@@ -157,7 +156,6 @@ export function Navbar() {
                 <Link to="/dashboard" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground" onClick={() => setIsMenuOpen(false)}>
                   <User className="h-4 w-4" /> My Dashboard
                 </Link>
-         </Link>
                 {isAdmin && (
                   <Link
                     to="/admin"
