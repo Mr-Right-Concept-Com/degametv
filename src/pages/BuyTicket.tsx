@@ -301,7 +301,7 @@ export default function BuyTicket() {
               </CardHeader>
               <CardContent><Button asChild className="w-full rounded-full"><Link to="/tickets">Open My Tickets</Link></Button></CardContent>
             </Card>
-          ) : step === 'location' && !freeStreamId && ((isReplay && screening.replay_access_model === 'FREE_REPLAY') || (!isReplay && screening.access_model === 'FREE')) ? (
+          ) : step === 'location' && !freeStreamId && ((screening.event_type === 'live' && isReplay && screening.replay_access_model === 'FREE_REPLAY') || (screening.event_type === 'live' && !isReplay && screening.access_model === 'FREE')) ? (
             <Card className="animate-fade-in border-success/30">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base"><Check className="h-4 w-4 text-success"/> Free admission</CardTitle>
