@@ -45,8 +45,8 @@ const step2Schema = z.object({
   production_country: z.string().min(1).max(80),
   content_rating: z.enum(['G', 'PG', 'PG-13', '16', '18', 'Not rated']),
   aspect_ratio: z.enum(['16:9', '2.39:1', '1.85:1', '4:3', '9:16', '1:1']),
-  season_number: z.string().optional().refine(v => !v || (/^\\d+$/.test(v) && Number(v) > 0 && Number(v) <= 100), 'Season must be between 1 and 100'),
-  episode_number: z.string().optional().refine(v => !v || (/^\\d+$/.test(v) && Number(v) > 0 && Number(v) <= 500), 'Episode must be between 1 and 500'),
+  season_number: z.string().optional().refine(v => !v || (/^\d+$/.test(v) && Number(v) > 0 && Number(v) <= 100), 'Season must be between 1 and 100'),
+  episode_number: z.string().optional().refine(v => !v || (/^\d+$/.test(v) && Number(v) > 0 && Number(v) <= 500), 'Episode must be between 1 and 500'),
 }).superRefine((value, ctx) => {
   if (['series', 'episode'].includes(value.project_type) && !value.season_number) ctx.addIssue({code:z.ZodIssueCode.custom,path:['season_number'],message:'Add a season number for series content.'});
   if (value.project_type === 'episode' && !value.episode_number) ctx.addIssue({code:z.ZodIssueCode.custom,path:['episode_number'],message:'Add the episode number.'});
