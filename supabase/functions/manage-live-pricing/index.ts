@@ -27,11 +27,12 @@ Deno.serve(async req => {
   if (!parsed.success) return json({ error: "Check the admission and replay prices.", details: parsed.error.flatten() }, 400);
   const db = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: screening, error: lookupError } = await db.from("screenings")
-    .select("id,tenant_id,content:content_id!inner(creator_id)")
-    .eq("id", parsed.data.screeningId).maybeSingle();
+    .select("id,tenant_id,content_id").eq("id", parsed.data.screeningId).maybeSingle();
   if (lookupError || !screening) return json({ error: "Event not found." }, 404);
-  const content = screening.content as unknown as { creator_id: string | null };
-  if (content?.creator_id !== user.id) return json({ error: "You do not own this event." }, 403);
+  const { data: content, error: contentError } = await db.from("content")
+    .select("creator_id,tenant_id").eq("id", screening.content_id).maybeSingle();
+  if (contentError || !content || content.creator_id !== user.id || content.tenant_id !== screening.tenant_id)
+    return json({ error: "You do not own this event in its tenant." }, 403);
   const { data: approved } = await db.rpc("is_approved_creator", { p_user_id: user.id });
   if (!approved) return json({ error: "Approved creator access is required." }, 403);
   const { data, error } = await db.from("screenings").update({
