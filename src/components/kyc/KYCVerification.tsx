@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { ShieldCheck, Upload, Loader2, CheckCircle, Clock, AlertCircle, ScanFace } from 'lucide-react';
 import { toast } from 'sonner';
+import { invokeFn } from '@/lib/invokeFn';
 import { z } from 'zod';
 
 const kycSchema = z.object({
@@ -128,7 +129,22 @@ export function KYCVerification({ onVerified, compact }: Props) {
       setSubmitting(false);
       return;
     }
-    toast.success('Application submitted for identity review.');
+    const verificationId = (data as { verification_id?: string }).verification_id;
+    if (verificationId) {
+      const providerRun = await invokeFn<{ status?: string; providerConfigured?: boolean; creatorActivated?: boolean }>(
+        'run-identity-provider',
+        { verificationId },
+      );
+      if (providerRun.ok && providerRun.data?.creatorActivated) {
+        toast.success('Identity verified. Creator Studio access is now active.');
+      } else if (providerRun.ok && providerRun.data?.providerConfigured) {
+        toast.message('Identity checks completed. Your application is awaiting the configured review policy.');
+      } else {
+        toast.success('Application submitted. It is safely queued for manual review until an identity provider is configured.');
+      }
+    } else {
+      toast.success('Application submitted for identity review.');
+    }
     await load();
     setSubmitting(false);
   };
