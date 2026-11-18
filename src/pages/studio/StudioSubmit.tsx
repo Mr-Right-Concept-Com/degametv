@@ -176,8 +176,38 @@ export default function StudioSubmit() {
   };
 
   const handleVideoUpload = async (file: File) => {
-    void file;
-    toast.error('Private master-video storage is not configured. The video was not uploaded.');
+    if (!user?.id) {
+      toast.error('Sign in again before uploading media.');
+      return;
+    }
+    const allowed = new Set(['video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska', 'video/mpeg']);
+    if (!allowed.has(file.type)) {
+      toast.error('Upload an MP4, MOV, WebM, MKV or MPEG master file.');
+      return;
+    }
+    if (file.size <= 0 || file.size > 2 * 1024 * 1024 * 1024) {
+      toast.error('Master video must be smaller than 2 GB.');
+      return;
+    }
+    setUploadingVideo(true);
+    setVideoProgress(0);
+    const extension = file.name.split('.').pop()?.toLowerCase() || 'mp4';
+    const path = `${user.id}/masters/${crypto.randomUUID()}.${extension}`;
+    try {
+      const { data, error } = await supabase.storage.from('creator-masters').upload(path, file, {
+        cacheControl: '0',
+        contentType: file.type,
+        upsert: false,
+      });
+      if (error) throw error;
+      setForm(current => ({ ...current, video_url: data.path }));
+      setVideoProgress(100);
+      toast.success('Private master uploaded. It is not public or playable until distribution review and secure playback are configured.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Private master upload failed.');
+    } finally {
+      setUploadingVideo(false);
+    }
   };
 
 
@@ -354,22 +384,22 @@ export default function StudioSubmit() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Master Video File (MP4/MOV) <span className="text-muted-foreground text-xs font-normal">— private delivery is not configured</span></Label>
+                  <Label>Private Master Video (MP4/MOV/WebM/MKV)</Label>
                   <div className="flex items-center gap-3">
                     <div className={`w-16 h-24 rounded-lg flex items-center justify-center ${form.video_url ? 'bg-primary/10 text-primary' : 'bg-secondary text-muted-foreground'}`}>
                       <Film className="w-6 h-6" />
                     </div>
                     <label className="flex-1">
-                      <Button type="button" variant="outline" className="w-full" disabled asChild>
+                      <Button type="button" variant="outline" className="w-full" disabled={uploadingVideo} asChild>
                         <span>
                           <Upload className="w-4 h-4 mr-2" />
                           Secure upload unavailable
                         </span>
                       </Button>
-                      <input aria-label="Master video file" type="file" accept="video/mp4,video/quicktime,video/x-matroska,video/*" className="hidden" disabled onChange={e => e.target.files?.[0] && handleVideoUpload(e.target.files[0])} />
+                      <input aria-label="Master video file" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-matroska,video/mpeg" className="hidden" disabled={uploadingVideo} onChange={e => e.target.files?.[0] && handleVideoUpload(e.target.files[0])} />
                     </label>
                   </div>
-                  <p className="text-xs text-muted-foreground">The master file is not accepted until private storage and protected playback are available.</p>
+                  <p className="text-xs text-muted-foreground">Stored in a private, owner-scoped bucket. The master is never exposed through a public URL; playback remains disabled until a secure delivery provider is configured.</p>{videoProgress > 0 && <div className="h-1.5 rounded-full bg-secondary overflow-hidden"><div className="h-full bg-primary" style={{ width: `${videoProgress}%` }} /></div>}
                 </div>
                 <div className="space-y-2">
                   <Label>Trailer URL</Label>
