@@ -140,7 +140,7 @@ export default function StudioSubmit() {
     company_name: '',
     project_title: '',
     project_type: searchParams.get('flow') === 'live' ? 'live' : ['movie', 'series', 'episode', 'short', 'trailer', 'live', 'vod'].includes(searchParams.get('type') || '') ? (searchParams.get('type') as string) : 'movie',
-    preset_type: 'FILM',
+    preset_type: searchParams.get('flow') === 'live' ? 'RECORDED_EVENT' : ({ movie: 'FILM', series: 'SERIES', episode: 'EPISODE', short: 'SHORT', trailer: 'TRAILER' } as Record<string,string>)[searchParams.get('type') || 'movie'] || 'FILM',
     release_strategy: searchParams.get('flow') === 'live' ? 'live' : 'on_demand',
     live_event_format: 'broadcast',
     original_language: 'English',
