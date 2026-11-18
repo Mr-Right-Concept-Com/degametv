@@ -39,6 +39,3 @@ verify_jwt = true
 
 [functions.review-kyc]
 verify_jwt = true
-
-[functions.provider-webhook]
-verify_jwt = false
