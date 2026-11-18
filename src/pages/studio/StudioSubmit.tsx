@@ -12,7 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Film, Upload, CheckCircle, ChevronRight, Loader2,
-  Image as ImageIcon, Link2, ArrowRight, Users
+  Image as ImageIcon, Link2, ArrowRight
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -83,10 +83,10 @@ export default function StudioSubmit() {
     if (value === 'live') { next.set('flow', 'live'); next.set('type', 'live'); }
     else { next.delete('flow'); next.delete('type'); }
     setSearchParams(next, { replace: true });
-    setStep(value === 'live' ? 2 : 1);
+    setStep(2);
     setForm(current => ({ ...current, project_type: value === 'live' ? 'live' : (current.project_type === 'live' ? 'movie' : current.project_type), release_strategy: value === 'live' ? 'live' : (current.release_strategy === 'live' ? 'on_demand' : current.release_strategy) }));
   };
-  const [step, setStep] = useState(searchParams.get('flow') === 'live' ? 2 : 1);
+  const [step, setStep] = useState(2);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [published, setPublished] = useState(false);
@@ -101,7 +101,7 @@ export default function StudioSubmit() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [form, setForm] = useState({
-    submitter_name: String(user?.user_metadata?.full_name || user?.email?.split('@')[0] || ''),
+    submitter_name: String(user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Creator'),
     submitter_email: user?.email || '',
     company_name: '',
     project_title: '',
@@ -397,7 +397,7 @@ export default function StudioSubmit() {
           </p>
           <div className="flex flex-col gap-3">
             {form.project_type === 'live' && createdScreeningId && <Card className="text-left"><CardHeader><CardTitle className="text-base">Go live · Secure encoder</CardTitle><CardDescription>Provisioning is performed by your configured streaming provider. The stream key is shown only after provider confirmation.</CardDescription></CardHeader><CardContent className="space-y-3">{encoderGrant ? <><Badge>Encoder provisioned · {encoderGrant.provider}</Badge><div><Label>Ingest server</Label><div className="flex gap-2"><Input readOnly value={encoderGrant.ingestUrl}/><Button type="button" variant="outline" onClick={() => copyEncoderValue(encoderGrant.ingestUrl)}>Copy</Button></div></div><div><Label>One-time stream key</Label><div className="flex gap-2"><Input readOnly type="password" value={encoderGrant.streamKey}/><Button type="button" variant="outline" onClick={() => copyEncoderValue(encoderGrant.streamKey)}>Copy</Button></div></div><p className="text-xs text-muted-foreground">Add the server and key to OBS, vMix or another supported encoder. Never share the stream key.</p></> : <Button className="w-full" disabled={provisioningEncoder} onClick={provisionCreatedLiveEvent}>{provisioningEncoder ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Film className="mr-2 h-4 w-4"/>}{provisioningEncoder ? 'Provisioning…' : 'Provision secure encoder'}</Button>}</CardContent></Card>}\n            <Button variant="outline" className="rounded-full" onClick={() => navigate('/studio/movies')}>View My Content</Button>
-            <Button variant="ghost" className="rounded-full" onClick={() => { setSubmitted(false); setStep(1); setCreatedContentId(null); setCreatedScreeningId(null); setEncoderGrant(null); setForm(f => ({ ...f, project_title: '', description: '', genres: [], duration_minutes: '', poster_url: '' })); }}>
+            <Button variant="ghost" className="rounded-full" onClick={() => { setSubmitted(false); setStep(2); setCreatedContentId(null); setCreatedScreeningId(null); setEncoderGrant(null); setForm(f => ({ ...f, project_title: '', description: '', genres: [], duration_minutes: '', poster_url: '' })); }}>
               Create another
             </Button>
           </div>
@@ -421,13 +421,13 @@ export default function StudioSubmit() {
         <div className="max-w-3xl mx-auto">
         {/* Steps */}
         <div className="flex items-center gap-2 mb-8">
-          {[1, 2, 3].map(s => (
+          {[2, 3].map(s => (
             <div key={s} className="flex items-center gap-2">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${step >= s ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground'}`}>
                 {step > s ? '✓' : s}
               </div>
               <span className={`text-xs font-medium hidden sm:block ${step === s ? 'text-foreground' : 'text-muted-foreground'}`}>
-                {s === 1 ? 'Your Info' : s === 2 ? 'Project' : 'Assets'}
+                {s === 2 ? 'Project' : 'Assets'}
               </span>
               {s < 3 && <ChevronRight className="w-4 h-4 text-muted-foreground" />}
             </div>
@@ -435,35 +435,6 @@ export default function StudioSubmit() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {!liveFlow && step === 1 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2"><Users className="w-4 h-4" /> Your Info</CardTitle>
-                <CardDescription>Your creator identity is attached to this publishing draft. Your work is autosaved in this browser as you go.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Full Name <span className="text-destructive">*</span></Label>
-                    <Input value={form.submitter_name} onChange={e => setForm(f => ({ ...f, submitter_name: e.target.value }))} placeholder="e.g. Kemi Adeyemi" />
-                    {errors.submitter_name && <p className="text-xs text-destructive">{errors.submitter_name}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Email</Label>
-                    <Input value={user?.email || ''} disabled className="bg-muted" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Company / Studio</Label>
-                  <Input value={form.company_name} onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))} placeholder="e.g. Nile Pictures" />
-                </div>
-                <Button type="button" className="w-full rounded-full" onClick={() => { if (validateStep1()) setStep(2); }}>
-                  Next: Project Details <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
           {step === 2 && (
             <Card>
               <CardHeader>
