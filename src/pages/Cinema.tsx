@@ -23,7 +23,6 @@ interface ScreeningRow {
   id: string;
   content_id?: string | null;
   event_type?: string | null;
-  id: string;
   title: string;
   slug: string;
   description: string | null;
