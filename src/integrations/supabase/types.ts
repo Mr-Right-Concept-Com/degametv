@@ -2027,6 +2027,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_creator_submission: {
+        Args: { _application: Json }
+        Returns: { content_id: string; submission_id: string }
+      }
       accept_studio_invites: { Args: never; Returns: number }
       get_user_tenant_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
