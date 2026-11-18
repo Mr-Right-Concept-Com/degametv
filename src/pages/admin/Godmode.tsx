@@ -55,8 +55,9 @@ export default function Godmode() {
       supabase.from('screenings').select('id, title, lifecycle').order('created_at', { ascending: false }).limit(200),
       supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(100),
     ]);
-    setSettings(s.data || []);
-    setDrafts(Object.fromEntries((s.data || []).map(x => [x.setting_key, JSON.stringify(x.setting_value, null, 2)])));
+    const editableSettings = (s.data || []).filter(item => item.setting_key !== 'email_provider');
+    setSettings(editableSettings);
+    setDrafts(Object.fromEntries(editableSettings.map(x => [x.setting_key, JSON.stringify(x.setting_value, null, 2)])));
     setProfiles((p.data as Profile[]) || []);
     setRoles(r.data || []);
     setTiers(t.data || []);
