@@ -28,11 +28,21 @@ export default function Payouts() {
 
   const setW = async (id: string, status: string) => {
     const { error } = await supabase.from('withdrawal_requests').update({ status }).eq('id', id);
-    error ? toast.error(error.message) : (toast.success(`Marked ${status}`), load());
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(`Marked ${status}`);
+    await load();
   };
   const setA = async (id: string, status: string) => {
     const { error } = await supabase.from('studio_accounts').update({ status }).eq('id', id);
-    error ? toast.error(error.message) : (toast.success(`Tier ${status}`), load());
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(`Tier ${status}`);
+    await load();
   };
 
   return (
