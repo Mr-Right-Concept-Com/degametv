@@ -11,8 +11,15 @@ if(import.meta.main)serve(async(req:Request)=>{
  const authorization=req.headers.get("Authorization")||"";
  if(!url||!service||!anon)return json(503,{error:"Checkout is unavailable."});
  const parsed=schema.safeParse(await req.json().catch(()=>null));if(!parsed.success)return json(400,{error:"Invalid event checkout request."});
- const userClient=createClient(url,anon,{global:{headers:{Authorization:authorization}},auth:{persistSession:false,autoRefreshToken:false}});
- const {data:{user},error:userError}=await userClient.auth.getUser();if(userError||!user)return json(401,{error:"Sign in before purchasing a live event ticket."});
+ let user=null;
+ if(authorization) {
+  const userClient=createClient(url,anon,{global:{headers:{Authorization:authorization}},auth:{persistSession:false,autoRefreshToken:false}});
+  const {data,error:userError}=await userClient.auth.getUser();
+  if(userError||!data.user)return json(401,{error:"Your sign-in session is invalid. Sign in again or use guest checkout."});
+  user=data.user;
+ } else if(!parsed.data.email) {
+  return json(400,{error:"Enter an email address for guest ticket delivery."});
+ }
  const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
  try{
   const {screeningId,ticketType,currency}=parsed.data;
@@ -28,8 +35,9 @@ if(import.meta.main)serve(async(req:Request)=>{
   if(providerError||!Array.isArray(providers)||!providers.length)return json(503,{error:"No payment provider is enabled in Admin Provider Vault."});
   const provider=providers[0],endpoint=provider.endpoints?.checkout_initialize;
   if(!provider.credential||typeof endpoint!=="string"||!endpoint.startsWith("/")||endpoint.startsWith("//"))return json(503,{error:"The active payment provider checkout adapter is incomplete."});
-  const {data:profile}=await db.auth.admin.getUserById(user.id);
-  const email=user.email||profile.user?.email;if(!email)return json(400,{error:"A verified account email is required."});
+  const {data:profile}=user?await db.auth.admin.getUserById(user.id):{data:null};
+  const email=user?.email||profile?.user?.email||parsed.data.email;
+  if(!email)return json(400,{error:"An email address is required for ticket delivery."});
   const origin=Deno.env.get("SITE_URL")||req.headers.get("origin")||"";
   const parsedOrigin=new URL(origin);if(parsedOrigin.protocol!=="https:"&&!["localhost","127.0.0.1"].includes(parsedOrigin.hostname))return json(503,{error:"Secure return URL is not configured."});
   const reference="DTVL_"+crypto.randomUUID().replaceAll("-","");
