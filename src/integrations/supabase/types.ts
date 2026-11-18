@@ -2044,6 +2044,7 @@ export type Database = {
         Args: { p_content_id: string }
         Returns: Json
       }
+      claim_guest_tickets: { Args: Record<PropertyKey, never>; Returns: number }
       create_creator_screening: {
         Args: { p_content_id: string; p_event_type: string; p_location_pricing: Json; p_screening_date: string | null; p_slug: string }
         Returns: Json
