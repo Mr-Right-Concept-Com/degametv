@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
+import type { Json, Tables } from '@/integrations/supabase/types';
 import { invokeFn } from '@/lib/invokeFn';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
@@ -32,14 +33,14 @@ interface Profile { user_id: string; email: string | null; full_name: string | n
 
 export default function Godmode() {
   usePageTitle('Godmode — Admin');
-  const [settings, setSettings] = useState<{ setting_key: string; setting_value: any; description: string | null }[]>([]);
+  const [settings, setSettings] = useState<{ setting_key: string; setting_value: Json; description: string | null }[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [roles, setRoles] = useState<{ user_id: string; role: string }[]>([]);
-  const [tiers, setTiers] = useState<any[]>([]);
-  const [screenings, setScreenings] = useState<any[]>([]);
-  const [audit, setAudit] = useState<any[]>([]);
-  const [banners, setBanners] = useState<any[]>([]);
+  const [tiers, setTiers] = useState<Tables<'studio_accounts'>[]>([]);
+  const [screenings, setScreenings] = useState<Pick<Tables<'screenings'>, 'id' | 'title' | 'lifecycle'>[]>([]);
+  const [audit, setAudit] = useState<Tables<'audit_logs'>[]>([]);
+  const [banners, setBanners] = useState<Tables<'promo_banners'>[]>([]);
   const [nb, setNb] = useState({ title: '', subtitle: '', image_url: '', link_url: '', placement: 'home' });
   const [busy, setBusy] = useState<string | null>(null);
   const [q, setQ] = useState('');
@@ -57,7 +58,7 @@ export default function Godmode() {
     setSettings(s.data || []);
     setDrafts(Object.fromEntries((s.data || []).map(x => [x.setting_key, JSON.stringify(x.setting_value, null, 2)])));
     setProfiles((p.data as Profile[]) || []);
-    setRoles((r.data as any) || []);
+    setRoles(r.data || []);
     setTiers(t.data || []);
     setScreenings(sc.data || []);
     setAudit(a.data || []);
@@ -69,11 +70,11 @@ export default function Godmode() {
   const addBanner = async () => {
     const p = bannerSchema.safeParse(nb);
     if (!p.success) { toast.error(p.error.errors[0].message); return; }
-    const { error } = await supabase.from('promo_banners').insert({ ...p.data, subtitle: p.data.subtitle || null, link_url: p.data.link_url || null, is_active: true, status: 'approved' } as any);
+    const { error } = await supabase.from('promo_banners').insert({ ...p.data, subtitle: p.data.subtitle || null, link_url: p.data.link_url || null, is_active: true, status: 'approved' });
     if (error) toast.error(error.message); else { toast.success('Banner published'); setNb({ title: '', subtitle: '', image_url: '', link_url: '', placement: 'home' }); load(); }
   };
-  const patchBanner = async (id: string, patch: Record<string, unknown>, ok: string) => {
-    const { error } = await supabase.from('promo_banners').update(patch as any).eq('id', id);
+  const patchBanner = async (id: string, patch: Partial<Tables<'promo_banners'>>, ok: string) => {
+    const { error } = await supabase.from('promo_banners').update(patch).eq('id', id);
     if (error) toast.error(error.message); else { toast.success(ok); load(); }
   };
   const deleteBanner = async (id: string) => {
@@ -109,10 +110,11 @@ export default function Godmode() {
   };
 
   const impersonate = async (userId: string) => {
-    const r: any = await run(`i-${userId}`, { action: 'impersonate', userId, redirectTo: `${window.location.origin}/studio` }, 'Sign-in link created');
-    if (r?.link) {
-      await navigator.clipboard?.writeText(r.link).catch(() => {});
-      toast.message(`Link for ${r.email} copied. Open it in a private window so your admin session stays signed in.`);
+    const result = await run(`i-${userId}`, { action: 'impersonate', userId, redirectTo: `${window.location.origin}/studio` }, 'Sign-in link created');
+    if (result && typeof result === 'object' && 'link' in result && typeof result.link === 'string') {
+      await navigator.clipboard?.writeText(result.link).catch(() => undefined);
+      const email = 'email' in result && typeof result.email === 'string' ? result.email : 'the selected user';
+      toast.message(`Link for ${email} copied. Open it in a private window so your admin session stays signed in.`);
     }
   };
 
