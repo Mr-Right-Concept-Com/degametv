@@ -7,9 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { MapPin, Mail, Zap, Check, ArrowLeft, Loader2, Clock, Calendar, Tag } from 'lucide-react';
+import { MapPin, Mail, Zap, Check, ArrowLeft, Loader2, Clock, Calendar } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { FunctionsHttpError } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -107,7 +106,7 @@ export default function BuyTicket() {
     };
     void poll();
     return () => { active = false; };
-  }, [screening]);
+  }, [screening, location, basePrice, currency, total]);
 
   if (loadingScreening) {
     return (
