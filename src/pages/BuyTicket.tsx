@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,6 @@ interface Screening {
 
 export default function BuyTicket() {
   const { slug } = useParams<{ slug: string }>();
-  const navigate = useNavigate();
   const [step, setStep] = useState<'location' | 'email' | 'payment' | 'confirmation'>('location');
   const [location, setLocation] = useState<'nigeria' | 'international'>('nigeria');
   const [email, setEmail] = useState('');
@@ -80,7 +79,9 @@ export default function BuyTicket() {
     if (!screening) return;
     const reference = new URLSearchParams(window.location.search).get('reference');
     const savedEmail = sessionStorage.getItem('degame_checkout_email');
+    const savedLocation = sessionStorage.getItem('degame_checkout_location') === 'international' ? 'international' : 'nigeria';
     if (!reference || !savedEmail) return;
+    setLocation(savedLocation);
     let active = true;
     setEmail(savedEmail);
     setProcessing(true);
@@ -92,6 +93,7 @@ export default function BuyTicket() {
           setConfirmation(result.data);
           setStep('confirmation');
           sessionStorage.removeItem('degame_checkout_email');
+          sessionStorage.removeItem('degame_checkout_location');
           window.history.replaceState({}, '', window.location.pathname);
           await supabase.functions.invoke('send-watch-email', { body: { email: savedEmail, movieTitle: screening.title, watchUrl: window.location.origin + '/watch/' + result.data.watchCode + '?email=' + encodeURIComponent(savedEmail), ticketCode: result.data.ticketCode , expiresAt: result.data.expiresAt } });
           toast.success('Payment confirmed. Your ticket is ready.');
@@ -164,6 +166,7 @@ export default function BuyTicket() {
         setPaymentError(message); toast.error(message); return;
       }
       sessionStorage.setItem('degame_checkout_email', emailCheck.data);
+      sessionStorage.setItem('degame_checkout_location', location);
       window.location.assign(data.authorizationUrl);
     } catch { setPaymentError('Could not reach payment service. No charge was made.'); }
     finally { setProcessing(false); }
