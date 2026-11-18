@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Film, LayoutDashboard, Upload, Calendar, DollarSign, ExternalLink, Clapperboard, BarChart3, Radio, Megaphone, Users, PlusCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useBranding } from '@/components/branding/BrandingProvider';
 
 const navItems = [
   { label: 'Dashboard', href: '/studio', icon: LayoutDashboard },
@@ -21,6 +22,7 @@ interface StudioSidebarProps {
 
 export function StudioSidebar({ onNavigate }: StudioSidebarProps) {
   const { pathname } = useLocation();
+  const branding = useBranding();
 
   return (
     <aside className="fixed left-0 top-0 bottom-0 w-64 bg-card border-r border-border z-40 flex flex-col">
@@ -30,7 +32,7 @@ export function StudioSidebar({ onNavigate }: StudioSidebarProps) {
         </div>
         <div>
           <span className="font-bold text-sm text-foreground">Studio Portal</span>
-          <p className="text-[10px] text-muted-foreground">DeGameTV</p>
+          <p className="text-[10px] text-muted-foreground">{branding.platformName}</p>
         </div>
       </div>
 
