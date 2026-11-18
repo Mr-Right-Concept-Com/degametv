@@ -181,7 +181,7 @@ BEGIN
       SELECT s.replay_access_hours FROM public.screenings s
       WHERE s.id=(v_stream.metadata->>'screening_id')::uuid
         AND s.replay_access_model='INCLUDED_WITH_TICKET'
-    ),0))
+    ),87600))
     WHERE t.stream_id=v_stream.id AND t.ticket_type='live'
       AND t.revoked_at IS NULL
       AND EXISTS(SELECT 1 FROM public.screenings s
@@ -406,3 +406,21 @@ GRANT EXECUTE ON FUNCTION public.claim_free_replay_ticket(uuid) TO authenticated
 
 -- Creator identity is managed once in the creator profile, not on each release.
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS company_name text;
+
+
+-- Keep a live ticket valid through the scheduled broadcast even when purchased well
+-- before its start; the recording-ready transition later extends included replay access.
+DO $$
+DECLARE v_definition text; v_updated text;
+BEGIN
+  SELECT pg_get_functiondef('public.complete_live_payment_order(text,text,bigint,text,text)'::regprocedure)
+    INTO v_definition;
+  IF v_definition IS NULL THEN RAISE EXCEPTION 'complete_live_payment_order RPC is missing'; END IF;
+  v_updated := replace(v_definition,
+    'case when o.ticket_type=''live'' then coalesce(s.live_ended_at,now()+interval ''24 hours'') else coalesce(s.live_replay_ready_at,now())+make_interval(hours=>s.replay_access_hours) end',
+    'case when o.ticket_type=''live'' then greatest(coalesce(s.screening_date,now())+interval ''24 hours'',now()+interval ''1 hour'') else coalesce(s.live_replay_ready_at,now())+make_interval(hours=>s.replay_access_hours) end');
+  IF v_updated=v_definition AND position('greatest(coalesce(s.screening_date' in v_definition)=0 THEN
+    RAISE EXCEPTION 'Could not safely extend live ticket validity through scheduled event';
+  END IF;
+  EXECUTE v_updated;
+END $$;
