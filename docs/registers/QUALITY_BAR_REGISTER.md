@@ -63,3 +63,14 @@ RUN evidence:
 - `has_function_privilege('authenticated','public.review_kyc_application(uuid,text,text,text,text)','execute') = true`
 
 Browser profile editing and admin review journeys remain NOT TESTED; database grants passing does not establish frontend compatibility.
+
+
+## Re-audit correction — 18 November 2026
+
+- Current Supabase SQL RUN: all 36 public tables have RLS enabled.
+- Current Supabase SQL RUN: client INSERT into `audit_logs` is denied for anon and authenticated; service_role insert remains allowed.
+- Current Supabase SQL RUN: `submit_kyc_application` is not executable by anon, is executable by authenticated, checks evidence owner in `storage.objects`, and locks the applicant profile row.
+- Source/deployment: `submit-kyc` now uses pinned Zod 3.25.76 and caller-JWT RPC. Signed-in upload/submit/reviewer browser E2E remains NOT TESTED.
+- GitHub quality workflow `.github/workflows/quality.yml` now exists and runs npm ci, Playwright Chromium installation, typecheck, lint, build and axe. Workflow execution remains NOT TESTED until an Actions run is observed.
+- Supabase security advisor refreshed 2026-11-18 04:20 UTC: 34 anonymous GraphQL visibility notices, 36 authenticated GraphQL visibility notices, 9 authenticated SECURITY DEFINER functions, pg_net public-schema notice and leaked-password protection disabled. Treat visibility as discoverability warnings; prove row access through grants + RLS tests, not by counting advisor warnings alone.
+- Function deployment metadata for submit-kyc/review-kyc was inconsistent between deployment responses and subsequent list output. Gateway JWT verification is OPEN pending reconciliation; both function bodies continue explicit bearer-token user verification.
