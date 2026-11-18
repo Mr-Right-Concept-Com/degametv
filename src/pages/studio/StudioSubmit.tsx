@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 
 const GENRES = ['Action', 'Comedy', 'Drama', 'Horror', 'Thriller', 'Romance', 'Documentary', 'Animation', 'Sci-Fi', 'Fantasy', 'Crime', 'Biography', 'Musical', 'Nollywood', 'African Cinema'];
+const GENRES_BY_TYPE: Record<string, string[]> = { movie: GENRES, series: GENRES, episode: GENRES, short: ['Drama','Comedy','Horror','Romance','Animation','Documentary','Experimental','Social impact','Nollywood'], trailer: ['Drama','Action','Comedy','Horror','Romance','Documentary','Animation'], vod: ['Education','Documentary','Lifestyle','Entertainment','Business','Technology','Faith','Sports','Music'] };
 const BUDGET_RANGES = ['Under $10K', '$10K – $50K', '$50K – $250K', '$250K – $1M', '$1M – $5M', 'Over $5M'];
 const RIGHTS = ['World rights available', 'African distribution only', 'Nigeria only', 'Digital/VOD only', 'Festival rights only', 'Revenue share open'];
 const LANGUAGES = ['English', 'Yoruba', 'Igbo', 'Hausa', 'Pidgin', 'French', 'Swahili', 'Arabic', 'Portuguese', 'Other'];
@@ -453,7 +454,8 @@ export default function StudioSubmit() {
           {step === 2 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2"><Film className="w-4 h-4" /> Project Details</CardTitle>
+                <CardTitle className="text-base flex items-center gap-2"><Film className="w-4 h-4" /> {liveFlow ? "Event details" : `${form.project_type === "movie" ? "Film" : form.project_type === "series" ? "Series" : form.project_type === "episode" ? "Episode" : form.project_type === "short" ? "Short-form" : form.project_type === "trailer" ? "Trailer" : "On-demand"} details`}</CardTitle>
+                <CardDescription>{liveFlow ? "Set the event identity and format. Configure ticket access and streaming in the next step." : "Tell audiences and distribution partners what makes this production distinct. Fields adapt to your selected format."}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -464,7 +466,7 @@ export default function StudioSubmit() {
                   </div>
                   {!liveFlow ? <div className="space-y-2">
                     <Label>Content type</Label>
-                    <Select value={form.project_type} onValueChange={v => setForm(f => ({ ...f, project_type: v, release_strategy: (!['movie', 'series'].includes(v) || f.release_strategy === 'live') ? 'on_demand' : f.release_strategy }))}>
+                    <Select value={form.project_type} onValueChange={v => setForm(f => ({ ...f, project_type: v, release_strategy: (!['movie', 'series'].includes(v) || f.release_strategy === 'live') ? 'on_demand' : f.release_strategy, aspect_ratio: v === 'short' ? '9:16' : v === 'movie' ? '2.39:1' : f.aspect_ratio }))}>
                       <SelectTrigger><SelectValue placeholder="Choose a format" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="movie">Feature film</SelectItem>
@@ -517,7 +519,7 @@ export default function StudioSubmit() {
                 {!liveFlow && <div className="space-y-2">
                   <Label>Genres</Label>
                   <div className="flex flex-wrap gap-2">
-                    {GENRES.map(g => (
+                    {(GENRES_BY_TYPE[form.project_type] || GENRES).map(g => (
                       <button key={g} type="button" onClick={() => toggleGenre(g)} className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${form.genres.includes(g) ? 'bg-primary text-primary-foreground border-primary' : 'bg-transparent text-muted-foreground border-border hover:border-primary/50'}`}>
                         {g}
                       </button>
