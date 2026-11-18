@@ -14,9 +14,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { Film, Search, Loader2, Ticket, Plus, Trash2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { useTenant } from '@/hooks/useTenant';
 
 const screeningSchema = z.object({
+  content_id: z.string().uuid('Select a published title'),
   title: z.string().min(1, 'Title is required').max(200),
   slug: z.string().min(1, 'Slug is required').max(100).regex(/^[a-z0-9-]+$/, 'Slug must be lowercase with hyphens only'),
   description: z.string().max(2000).optional(),
@@ -28,7 +28,11 @@ const screeningSchema = z.object({
   blocked_countries: z.string().optional(),
   max_streams_per_ticket: z.coerce.number().int().min(1).max(50).default(5),
   max_concurrent_streams: z.coerce.number().int().min(1).max(10).default(1),
+  price_ngn: z.coerce.number().positive().max(10000000),
+  price_usd: z.coerce.number().positive().max(100000),
 });
+
+interface ContentOption { id: string; title: string; slug: string; description: string | null; poster_url: string | null; type: string; tenant_id: string; }
 
 interface ScreeningRow {
   id: string;
@@ -45,21 +49,23 @@ interface ScreeningRow {
 
 export default function ScreeningsPage() {
   const [screenings, setScreenings] = useState<ScreeningRow[]>([]);
+  const [contentOptions, setContentOptions] = useState<ContentOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const { tenant } = useTenant();
 
   const [form, setForm] = useState({
-    title: '', slug: '', description: '', poster_url: '', screening_date: '',
+    content_id: '', title: '', slug: '', description: '', poster_url: '', screening_date: '',
     status: 'draft' as 'draft' | 'published',
     refund_policy: '', allowed_countries: '', blocked_countries: '',
-    max_streams_per_ticket: 5, max_concurrent_streams: 1,
+    max_streams_per_ticket: 5, max_concurrent_streams: 1, price_ngn: 0, price_usd: 0,
   });
 
   const fetchScreenings = async () => {
     setLoading(true);
+    const { data: contentData } = await supabase.from('content').select('id,title,slug,description,poster_url,type,tenant_id').eq('status','published').order('title');
+    setContentOptions((contentData ?? []) as ContentOption[]);
     const { data: sData } = await supabase.from('screenings').select('*').order('created_at', { ascending: false });
     const { data: tData } = await supabase.from('screening_tickets').select('screening_id, price, payment_status');
 
@@ -93,51 +99,36 @@ export default function ScreeningsPage() {
       toast.error(parsed.error.errors[0].message);
       return;
     }
-
-    setSaving(true);
-    // Create a content entry first, then the screening
-    const tenantId = tenant?.id !== 'default' ? tenant?.id : null;
-    
-    // We need a content_id - create a placeholder content record
-    const { data: contentData, error: contentErr } = await supabase.from('content').insert({
-      title: parsed.data.title,
-      slug: parsed.data.slug,
-      description: parsed.data.description || null,
-      poster_url: parsed.data.poster_url || null,
-      type: 'movie' as any,
-      status: 'draft' as any,
-      tenant_id: tenantId || '00000000-0000-0000-0000-000000000000',
-    }).select('id').single();
-
-    if (contentErr) {
-      toast.error('Failed to create content: ' + contentErr.message);
-      setSaving(false);
+    const source = contentOptions.find(item => item.id === parsed.data.content_id);
+    if (!source) {
+      toast.error('Choose an existing published title. Screening creation cannot create placeholder content.');
       return;
     }
-
-    const parseList = (s: string) => s.split(',').map(x => x.trim().toUpperCase()).filter(Boolean);
+    setSaving(true);
+    const parseList = (value: string) => value.split(',').map(item => item.trim().toUpperCase()).filter(Boolean);
     const { error } = await supabase.from('screenings').insert({
       title: parsed.data.title,
       slug: parsed.data.slug,
-      description: parsed.data.description || null,
-      poster_url: parsed.data.poster_url || null,
+      description: parsed.data.description || source.description,
+      poster_url: parsed.data.poster_url || source.poster_url,
       screening_date: parsed.data.screening_date || null,
-      status: parsed.data.status,
+      status: 'draft',
       refund_policy: parsed.data.refund_policy || null,
       allowed_countries: parsed.data.allowed_countries ? parseList(parsed.data.allowed_countries) : null,
       blocked_countries: parsed.data.blocked_countries ? parseList(parsed.data.blocked_countries) : null,
       max_streams_per_ticket: parsed.data.max_streams_per_ticket,
       max_concurrent_streams: parsed.data.max_concurrent_streams,
-      content_id: contentData.id,
-      tenant_id: tenantId || '00000000-0000-0000-0000-000000000000',
+      content_id: source.id,
+      tenant_id: source.tenant_id,
+      event_type: source.type === 'series' ? 'series' : 'film',
+      location_pricing: { nigeria: parsed.data.price_ngn, international: parsed.data.price_usd },
     });
-
-    if (error) toast.error('Failed: ' + error.message);
+    if (error) toast.error('Screening draft could not be created. Check the selected title and fields.');
     else {
-      toast.success('Screening created');
+      toast.success('Screening draft created from the selected title.');
       setDialogOpen(false);
-      setForm({ title: '', slug: '', description: '', poster_url: '', screening_date: '', status: 'draft', refund_policy: '', allowed_countries: '', blocked_countries: '', max_streams_per_ticket: 5, max_concurrent_streams: 1 });
-      fetchScreenings();
+      setForm({ content_id:'',title:'',slug:'',description:'',poster_url:'',screening_date:'',status:'draft',refund_policy:'',allowed_countries:'',blocked_countries:'',max_streams_per_ticket:5,max_concurrent_streams:1,price_ngn:0,price_usd:0 });
+      await fetchScreenings();
     }
     setSaving(false);
   };
@@ -188,6 +179,17 @@ export default function ScreeningsPage() {
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="space-y-2">
+                <Label>Published title *</Label>
+                <Select value={form.content_id} onValueChange={value => {
+                  const selected = contentOptions.find(item => item.id === value);
+                  setForm(current => ({ ...current, content_id:value, title:selected?.title ?? '', slug:selected?.slug ?? autoSlug(selected?.title ?? ''), description:selected?.description ?? '', poster_url:selected?.poster_url ?? '' }));
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Select an existing published title"/></SelectTrigger>
+                  <SelectContent>{contentOptions.map(item=><SelectItem key={item.id} value={item.id}>{item.title} · {item.type}</SelectItem>)}</SelectContent>
+                </Select>
+                {contentOptions.length===0&&<p className="text-xs text-muted-foreground">No published creator titles are available yet.</p>}
+              </div>
+              <div className="space-y-2">
                 <Label>Title *</Label>
                 <Input value={form.title} onChange={e => { setForm(f => ({ ...f, title: e.target.value, slug: autoSlug(e.target.value) })); }} placeholder="My Movie Premiere" />
               </div>
@@ -204,22 +206,17 @@ export default function ScreeningsPage() {
                   <Label>Screening Date</Label>
                   <Input type="datetime-local" value={form.screening_date} onChange={e => setForm(f => ({ ...f, screening_date: e.target.value }))} />
                 </div>
-                <div className="space-y-2">
-                  <Label>Status</Label>
-                  <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v as any }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="draft">Draft</SelectItem>
-                      <SelectItem value="published">Published</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <div className="space-y-2"><Label>Status</Label><Input readOnly value="Draft — requires review" /></div>
               </div>
               <div className="space-y-2">
                 <Label>Poster URL</Label>
                 <Input value={form.poster_url} onChange={e => setForm(f => ({ ...f, poster_url: e.target.value }))} placeholder="https://..." />
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2"><Label>Nigeria ticket price (NGN) *</Label><Input type="number" min="1" value={form.price_ngn || ''} onChange={e=>setForm(current=>({...current,price_ngn:Number(e.target.value)}))}/></div>
+                <div className="space-y-2"><Label>International ticket price (USD) *</Label><Input type="number" min="0.01" step="0.01" value={form.price_usd || ''} onChange={e=>setForm(current=>({...current,price_usd:Number(e.target.value)}))}/></div>
+              </div>
               <div className="border-t border-border pt-4 space-y-3">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Geo & Access Controls</p>
                 <div className="grid grid-cols-2 gap-3">
