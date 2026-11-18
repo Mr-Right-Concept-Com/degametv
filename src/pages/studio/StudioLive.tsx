@@ -30,6 +30,7 @@ export default function StudioLive() {
   const [grant, setGrant] = useState<EncoderGrant | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<'idle' | 'scheduled' | 'ended'>('idle');
+  const [broadcastLifecycle, setBroadcastLifecycle] = useState<{ lifecycle_status: string; reconnect_grace_expires_at: string | null; actual_started_at: string | null; actual_ended_at: string | null } | null>(null);
   const [replayDraftId, setReplayDraftId] = useState<string | null>(null);
   const [liveNgn, setLiveNgn] = useState('');
   const [liveUsd, setLiveUsd] = useState('');
@@ -56,6 +57,31 @@ export default function StudioLive() {
     const event = events.find(item => item.id === screeningId);
     if (event) { setTitle(event.title); setLiveNgn(event.live_price_ngn == null ? '' : String(event.live_price_ngn)); setLiveUsd(event.live_price_usd == null ? '' : String(event.live_price_usd)); setReplayNgn(event.replay_price_ngn == null ? '' : String(event.replay_price_ngn)); setReplayUsd(event.replay_price_usd == null ? '' : String(event.replay_price_usd)); setReplayHours(String(event.replay_access_hours || 48)); }
   }, [events, screeningId]);
+
+  useEffect(() => {
+    if (!user?.id || !screeningId) { setBroadcastLifecycle(null); return; }
+    let active = true;
+    const refreshLifecycle = async () => {
+      const { data, error } = await supabase.from('live_streams')
+        .select('lifecycle_status,reconnect_grace_expires_at,actual_started_at,actual_ended_at')
+        .eq('creator_id', user.id)
+        .contains('metadata', { screening_id: screeningId })
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (active && !error) setBroadcastLifecycle(data);
+    };
+    void refreshLifecycle();
+    const timer = window.setInterval(refreshLifecycle, 5000);
+    const channel = supabase.channel(`creator-live-${screeningId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_streams', filter: `creator_id=eq.${user.id}` }, refreshLifecycle)
+      .subscribe();
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      void supabase.removeChannel(channel);
+    };
+  }, [screeningId, user?.id]);
 
   const savePricing = async () => {
     const numeric = (value: string) => value.trim() === '' ? null : Number(value);
@@ -125,6 +151,7 @@ export default function StudioLive() {
             <CardContent className="space-y-4">
               <div className="flex items-center gap-2">
                 <Badge variant={status === 'ended' ? 'secondary' : status === 'scheduled' ? 'default' : 'outline'}>{status === 'scheduled' ? 'Provisioned — awaiting encoder ingest' : status === 'ended' ? 'Provider confirmed ended' : 'Not provisioned'}</Badge>
+                {broadcastLifecycle && <Badge variant="outline" className="font-mono text-xs">{broadcastLifecycle.lifecycle_status .replace(/_/g, ' ')}</Badge>}
               </div>
               {replayDraftId && <Button asChild variant="outline"><Link to="/studio/movies">Open replay draft in catalogue</Link></Button>}
               {grant ? <div className="space-y-3 rounded-xl border p-4">

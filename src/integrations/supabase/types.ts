@@ -199,7 +199,9 @@ export type Database = {
           is_drm_protected: boolean | null
           is_featured: boolean | null
           like_count: number | null
+          dynamic_metadata: Json
           metadata: Json | null
+          preset_type: Database["public"]["Enums"]["content_preset_type"] | null
           monetization: Database["public"]["Enums"]["monetization_type"]
           parent_id: string | null
           poster_url: string | null
@@ -236,7 +238,11 @@ export type Database = {
           is_drm_protected?: boolean | null
           is_featured?: boolean | null
           like_count?: number | null
+          dynamic_metadata?: Json
+          dynamic_metadata?: Json
+          preset_type?: Database["public"]["Enums"]["content_preset_type"] | null
           metadata?: Json | null
+          preset_type?: Database["public"]["Enums"]["content_preset_type"] | null
           monetization?: Database["public"]["Enums"]["monetization_type"]
           parent_id?: string | null
           poster_url?: string | null
@@ -273,6 +279,8 @@ export type Database = {
           is_drm_protected?: boolean | null
           is_featured?: boolean | null
           like_count?: number | null
+          dynamic_metadata?: Json
+          preset_type?: Database["public"]["Enums"]["content_preset_type"] | null
           metadata?: Json | null
           monetization?: Database["public"]["Enums"]["monetization_type"]
           parent_id?: string | null
@@ -562,6 +570,13 @@ export type Database = {
       }
       live_streams: {
         Row: {
+          actual_ended_at: string | null
+          actual_started_at: string | null
+          encoder_connected_at: string | null
+          lifecycle_status: Database["public"]["Enums"]["broadcast_lifecycle_status"]
+          provider_stream_id: string | null
+          reconnect_grace_expires_at: string | null
+          vod_replay_asset_url: string | null
           actual_end: string | null
           actual_start: string | null
           banner_url: string | null
@@ -591,6 +606,20 @@ export type Database = {
           viewer_count: number | null
         }
         Insert: {
+          actual_ended_at?: string | null
+          actual_started_at?: string | null
+          encoder_connected_at?: string | null
+          lifecycle_status?: Database["public"]["Enums"]["broadcast_lifecycle_status"]
+          provider_stream_id?: string | null
+          reconnect_grace_expires_at?: string | null
+          vod_replay_asset_url?: string | null
+          actual_ended_at?: string | null
+          actual_started_at?: string | null
+          encoder_connected_at?: string | null
+          lifecycle_status?: Database["public"]["Enums"]["broadcast_lifecycle_status"]
+          provider_stream_id?: string | null
+          reconnect_grace_expires_at?: string | null
+          vod_replay_asset_url?: string | null
           actual_end?: string | null
           actual_start?: string | null
           banner_url?: string | null
@@ -620,6 +649,13 @@ export type Database = {
           viewer_count?: number | null
         }
         Update: {
+          actual_ended_at?: string | null
+          actual_started_at?: string | null
+          encoder_connected_at?: string | null
+          lifecycle_status?: Database["public"]["Enums"]["broadcast_lifecycle_status"]
+          provider_stream_id?: string | null
+          reconnect_grace_expires_at?: string | null
+          vod_replay_asset_url?: string | null
           actual_end?: string | null
           actual_start?: string | null
           banner_url?: string | null
@@ -831,6 +867,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           bio: string | null
+          company_name: string | null
           country: string | null
           created_at: string
           display_name: string | null
@@ -852,6 +889,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           bio?: string | null
+          company_name?: string | null
           country?: string | null
           created_at?: string
           display_name?: string | null
@@ -872,6 +910,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          company_name?: string | null
           bio?: string | null
           country?: string | null
           created_at?: string
@@ -1243,6 +1282,9 @@ export type Database = {
       }
       screenings: {
         Row: {
+          access_model: string
+          auto_convert_to_vod: boolean
+          replay_access_model: string
           age_rating: string | null
           allowed_countries: string[] | null
           banner_url: string | null
@@ -1285,6 +1327,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          access_model?: string
+          auto_convert_to_vod?: boolean
+          replay_access_model?: string
           age_rating?: string | null
           allowed_countries?: string[] | null
           banner_url?: string | null
@@ -1327,6 +1372,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          access_model?: string
+          auto_convert_to_vod?: boolean
+          replay_access_model?: string
           age_rating?: string | null
           allowed_countries?: string[] | null
           banner_url?: string | null
@@ -2060,6 +2108,9 @@ export type Database = {
       }
       claim_guest_tickets: { Args: Record<PropertyKey, never>; Returns: number }
       claim_live_guest_ticket: { Args: { p_token_hash: string }; Returns: Json }
+      claim_free_live_ticket: { Args: { p_screening_id: string }; Returns: Json }
+      claim_free_replay_ticket: { Args: { p_screening_id: string }; Returns: Json }
+      apply_stream_provider_event: { Args: { p_provider_key: string; p_provider_reference: string; p_event_id: string; p_event_type: string; p_payload?: Json }; Returns: Json }
       create_creator_screening: {
         Args: { p_content_id: string; p_event_type: string; p_location_pricing: Json; p_screening_date: string | null; p_slug: string }
         Returns: Json
@@ -2096,6 +2147,8 @@ export type Database = {
       }
     }
     Enums: {
+      broadcast_lifecycle_status: "DRAFT" | "SCHEDULED" | "WAITING_FOR_ENCODER" | "ENCODER_CONNECTED" | "LIVE" | "ENCODER_DISCONNECTED" | "ENDING" | "PROCESSING_REPLAY" | "REPLAY_AVAILABLE" | "ARCHIVED" | "PROVISIONING_FAILED" | "REPLAY_FAILED" | "CANCELLED"
+      content_preset_type: "FILM" | "SERIES" | "EPISODE" | "SHORT" | "TRAILER" | "MUSIC_VIDEO" | "PODCAST" | "DOCUMENTARY" | "EDUCATIONAL" | "GAMING" | "SPORTS" | "RECORDED_EVENT"
       app_role:
         | "super_admin"
         | "platform_admin"

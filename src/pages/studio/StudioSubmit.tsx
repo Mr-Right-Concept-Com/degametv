@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { StudioLayout } from '@/components/studio/StudioLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Film, Upload, CheckCircle, ChevronRight, Loader2,
-  Image as ImageIcon, Link2, ArrowRight, Users
+  Image as ImageIcon, Link2, ArrowRight
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -25,10 +26,6 @@ const LANGUAGES = ['English', 'Yoruba', 'Igbo', 'Hausa', 'Pidgin', 'French', 'Sw
 const COUNTRIES = ['Nigeria', 'Ghana', 'Kenya', 'South Africa', 'Uganda', 'Tanzania', 'Rwanda', 'United Kingdom', 'United States', 'Canada', 'Other'];
 const CONTENT_RATINGS = ['G', 'PG', 'PG-13', '16', '18', 'Not rated'];
 const ASPECT_RATIOS = ['16:9', '2.39:1', '1.85:1', '4:3', '9:16', '1:1'];
-
-const step1Schema = z.object({
-  submitter_name: z.string().trim().min(2, 'Name must be at least 2 characters').max(100),
-});
 
 const step2Schema = z.object({
   project_title: z.string().trim().min(2, 'Enter a production title').max(200),
@@ -52,6 +49,43 @@ const step2Schema = z.object({
   if (value.project_type === 'episode' && !value.episode_number) ctx.addIssue({code:z.ZodIssueCode.custom,path:['episode_number'],message:'Add the episode number.'});
 });
 
+const dynamicMetadataSchema = z.discriminatedUnion('contentType', [
+  z.object({
+    contentType: z.enum(['FILM','SHORT','DOCUMENTARY','TRAILER']),
+    genres: z.array(z.string().trim().min(1).max(60)).max(5),
+    castAndCrew: z.string().max(12000).optional(),
+    durationMinutes: z.number().int().min(1).max(999).optional(),
+    releaseYear: z.number().int().min(1900).max(new Date().getFullYear()+5).optional(),
+    audienceRating: z.string().max(20).optional(),
+    productionCountry: z.string().max(80).optional(),
+  }),
+  z.object({
+    contentType: z.enum(['SERIES','EPISODE']),
+    seasonNumber: z.number().int().min(1).max(100),
+    episodeNumber: z.number().int().min(1).max(500).optional(),
+    genres: z.array(z.string().trim().min(1).max(60)).max(5),
+  }),
+  z.object({
+    contentType: z.literal('MUSIC_VIDEO'),
+    primaryArtist: z.string().trim().min(1,'Primary artist is required').max(160),
+    featuredArtists: z.string().max(500).optional(),
+    musicGenre: z.string().max(80).optional(),
+  }),
+  z.object({
+    contentType: z.literal('PODCAST'),
+    showName: z.string().trim().min(1,'Podcast/show name is required').max(200),
+    episodeNumber: z.number().int().min(1).max(500).optional(),
+    hosts: z.string().max(500).optional(),
+    guests: z.string().max(1000).optional(),
+    mediaFormat: z.enum(['VIDEO_PODCAST','AUDIO_ONLY']),
+  }),
+  z.object({
+    contentType: z.enum(['GAMING','SPORTS','EDUCATIONAL','RECORDED_EVENT']),
+    categoryTag: z.string().max(160).optional(),
+    participants: z.string().max(1000).optional(),
+  }),
+]);
+
 const step3Schema = z.object({
   distribution_rights: z.string().trim().min(1, 'A rights declaration is required before publishing.').max(120),
   release_strategy: z.enum(['on_demand', 'premiere', 'live']),
@@ -59,8 +93,8 @@ const step3Schema = z.object({
   screener_url: z.string().url('Enter a valid screener URL').optional().or(z.literal('')),
   premiere_date: z.string().optional().refine(value => !value || /^\d{4}-\d{2}-\d{2}$/.test(value), 'Enter a valid release or premiere date'),
   premiere_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Enter a valid event start time'),
-  live_price_ngn: z.string().optional().refine(value => !value || (/^\d+(\.\d{1,2})?$/.test(value) && Number(value) > 0), 'Enter a positive NGN ticket price'),
-  live_price_usd: z.string().optional().refine(value => !value || (/^\d+(\.\d{1,2})?$/.test(value) && Number(value) > 0), 'Enter a positive USD ticket price'),
+  live_price_ngn: z.string().optional().refine(value => !value || (/^\d+(\.\d{1,2})?$/.test(value) && Number(value) >= 0), 'Enter a valid non-negative NGN ticket price'),
+  live_price_usd: z.string().optional().refine(value => !value || (/^\d+(\.\d{1,2})?$/.test(value) && Number(value) >= 0), 'Enter a valid non-negative USD ticket price'),
   rights_territories: z.string().max(500, 'Territory list is too long').optional(),
   prior_screenings: z.string().max(3000, 'Prior screening details are too long').optional(),
   poster_url: z.string().url('Artwork must be a valid URL').optional().or(z.literal('')),
@@ -68,8 +102,8 @@ const step3Schema = z.object({
 }).superRefine((value, ctx) => {
   if (value.release_strategy === 'premiere' || value.release_strategy === 'live') {
     if (!value.premiere_date) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['premiere_date'], message: 'Choose the event date.' });
-    if (!value.live_price_ngn || Number(value.live_price_ngn) <= 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['live_price_ngn'], message: 'Set a positive NGN admission price.' });
-    if (!value.live_price_usd || Number(value.live_price_usd) <= 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['live_price_usd'], message: 'Set a positive USD admission price.' });
+    if (value.live_price_ngn && Number(value.live_price_ngn) < 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['live_price_ngn'], message: 'Admission price cannot be negative.' });
+    if (value.live_price_usd && Number(value.live_price_usd) < 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['live_price_usd'], message: 'Admission price cannot be negative.' });
   }
 });
 
@@ -83,10 +117,10 @@ export default function StudioSubmit() {
     if (value === 'live') { next.set('flow', 'live'); next.set('type', 'live'); }
     else { next.delete('flow'); next.delete('type'); }
     setSearchParams(next, { replace: true });
-    setStep(value === 'live' ? 2 : 1);
+    setStep(2);
     setForm(current => ({ ...current, project_type: value === 'live' ? 'live' : (current.project_type === 'live' ? 'movie' : current.project_type), release_strategy: value === 'live' ? 'live' : (current.release_strategy === 'live' ? 'on_demand' : current.release_strategy) }));
   };
-  const [step, setStep] = useState(searchParams.get('flow') === 'live' ? 2 : 1);
+  const [step, setStep] = useState(2);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [published, setPublished] = useState(false);
@@ -101,11 +135,12 @@ export default function StudioSubmit() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [form, setForm] = useState({
-    submitter_name: String(user?.user_metadata?.full_name || user?.email?.split('@')[0] || ''),
+    submitter_name: String(user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Creator'),
     submitter_email: user?.email || '',
     company_name: '',
     project_title: '',
     project_type: searchParams.get('flow') === 'live' ? 'live' : ['movie', 'series', 'episode', 'short', 'trailer', 'live', 'vod'].includes(searchParams.get('type') || '') ? (searchParams.get('type') as string) : 'movie',
+    preset_type: searchParams.get('flow') === 'live' ? 'RECORDED_EVENT' : ({ movie: 'FILM', series: 'SERIES', episode: 'EPISODE', short: 'SHORT', trailer: 'TRAILER' } as Record<string,string>)[searchParams.get('type') || 'movie'] || 'FILM',
     release_strategy: searchParams.get('flow') === 'live' ? 'live' : 'on_demand',
     live_event_format: 'broadcast',
     original_language: 'English',
@@ -131,7 +166,37 @@ export default function StudioSubmit() {
     rights_territories: '',
     prior_screenings: '',
     cast_crew_text: '',
+    primary_artist: '',
+    featured_artists: '',
+    music_genre: '',
+    show_name: '',
+    hosts: '',
+    guests: '',
+    media_format: 'VIDEO_PODCAST',
+    category_tag: '',
+    participants: '',
+    auto_convert_to_vod: true,
+    replay_access_model: 'INCLUDED_WITH_TICKET',
+    replay_price_ngn: '',
+    replay_price_usd: '',
+    replay_access_hours: '48',
   });
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let active = true;
+    void supabase.from('profiles').select('full_name,company_name')
+      .eq('user_id', user.id).maybeSingle()
+      .then(({ data, error }) => {
+        if (!active || error || !data) return;
+        setForm(current => ({
+          ...current,
+          submitter_name: data.full_name || current.submitter_name,
+          company_name: data.company_name || current.company_name,
+        }));
+      });
+    return () => { active = false; };
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -157,7 +222,7 @@ export default function StudioSubmit() {
     setProvisioningEncoder(true);
     try {
       const { data, error } = await supabase.functions.invoke('media-provider-control', {
-        body: { action: 'create_live', screeningId: createdScreeningId, title: form.project_title, description: form.description, recordingEnabled: true },
+        body: { action: 'create_live', screeningId: createdScreeningId, title: form.project_title, description: form.description, recordingEnabled: form.auto_convert_to_vod },
       });
       if (error || !data?.success || typeof data.streamKey !== 'string' || typeof data.ingestUrl !== 'string') {
         toast.error(data?.error || 'A configured streaming provider is required before an encoder can be provisioned.');
@@ -173,24 +238,36 @@ export default function StudioSubmit() {
     catch { toast.error('Clipboard unavailable. Select and copy the value manually.'); }
   };
 
-  const validateStep1 = () => {
-    const result = step1Schema.safeParse({ submitter_name: form.submitter_name });
-    if (!result.success) {
-      const errs: Record<string, string> = {};
-      result.error.errors.forEach(e => { errs[e.path[0] as string] = e.message; });
-      setErrors(errs);
-      return false;
-    }
-    setErrors({});
-    return true;
-  };
-
   const validateStep2 = () => {
     const result = step2Schema.safeParse({ project_title: form.project_title, project_type: form.project_type, release_strategy: form.release_strategy, description: form.description, genres: form.genres, duration_minutes: form.duration_minutes, release_year: form.release_year, cast_crew_text: form.cast_crew_text, budget_range: form.budget_range, live_event_format: form.live_event_format, original_language: form.original_language, production_country: form.production_country, content_rating: form.content_rating, aspect_ratio: form.aspect_ratio, season_number: form.season_number, episode_number: form.episode_number });
     if (!result.success) {
       const errs: Record<string, string> = {};
       result.error.errors.forEach(e => { errs[e.path[0] as string] = e.message; });
       setErrors(errs);
+      return false;
+    }
+    const metadataResult = dynamicMetadataSchema.safeParse({
+      contentType: form.project_type === 'live' ? 'RECORDED_EVENT' : form.preset_type,
+      genres: form.genres,
+      castAndCrew: form.cast_crew_text,
+      durationMinutes: form.duration_minutes ? Number(form.duration_minutes) : undefined,
+      releaseYear: form.release_year ? Number(form.release_year) : undefined,
+      audienceRating: form.content_rating,
+      productionCountry: form.production_country,
+      seasonNumber: form.season_number ? Number(form.season_number) : 1,
+      episodeNumber: form.episode_number ? Number(form.episode_number) : undefined,
+      primaryArtist: form.primary_artist,
+      featuredArtists: form.featured_artists,
+      musicGenre: form.music_genre,
+      showName: form.show_name,
+      hosts: form.hosts,
+      guests: form.guests,
+      mediaFormat: form.media_format,
+      categoryTag: form.category_tag,
+      participants: form.participants,
+    });
+    if (!metadataResult.success) {
+      toast.error(metadataResult.error.errors[0]?.message || 'Check the format-specific details.');
       return false;
     }
     setErrors({});
@@ -212,9 +289,17 @@ export default function StudioSubmit() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep3()) return;
-    if ((form.project_type === 'live' || form.release_strategy === 'premiere') && (!Number.isFinite(Number(form.live_price_ngn)) || Number(form.live_price_ngn) <= 0 || !Number.isFinite(Number(form.live_price_usd)) || Number(form.live_price_usd) <= 0)) {
-      toast.error('Set positive Nigeria (NGN) and international (USD) ticket prices before scheduling this event.');
-      return;
+    if (form.project_type === 'live' && form.auto_convert_to_vod) {
+      const hours = Number(form.replay_access_hours);
+      if (!Number.isInteger(hours) || hours < 1 || hours > 8760) {
+        toast.error('Replay access must be between 1 and 8760 hours.');
+        return;
+      }
+      if (form.replay_access_model === 'SEPARATE_PRICE'
+        && Number(form.replay_price_ngn || 0) <= 0 && Number(form.replay_price_usd || 0) <= 0) {
+        toast.error('Set a positive NGN or USD replay price for separately priced replay.');
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -241,6 +326,27 @@ export default function StudioSubmit() {
         company_name: form.company_name || null,
         project_title: form.project_title,
         project_type: form.project_type,
+        dynamic_metadata: {
+          contentType: form.project_type === 'live' ? 'RECORDED_EVENT' : form.preset_type,
+          genres: form.genres,
+          castAndCrew: form.cast_crew_text,
+          durationMinutes: form.duration_minutes ? Number(form.duration_minutes) : undefined,
+          releaseYear: form.release_year ? Number(form.release_year) : undefined,
+          audienceRating: form.content_rating,
+          productionCountry: form.production_country,
+          seasonNumber: form.season_number ? Number(form.season_number) : undefined,
+          episodeNumber: form.episode_number ? Number(form.episode_number) : undefined,
+          liveEventFormat: form.live_event_format,
+          primaryArtist: form.primary_artist,
+          featuredArtists: form.featured_artists,
+          musicGenre: form.music_genre,
+          showName: form.show_name,
+          hosts: form.hosts,
+          guests: form.guests,
+          mediaFormat: form.media_format,
+          categoryTag: form.category_tag,
+          participants: form.participants,
+        },
         release_strategy: form.release_strategy,
         live_event_format: form.live_event_format,
         original_language: form.original_language,
@@ -273,7 +379,7 @@ export default function StudioSubmit() {
     }
     setCreatedContentId(submission.content_id);
 
-    if (form.poster_url && (form.video_url || ['live', 'series'].includes(form.project_type) || (form.project_type === 'trailer' && form.trailer_url))) {
+    if (form.project_type === 'live' || (form.poster_url && (form.video_url || ['series'].includes(form.project_type) || (form.project_type === 'trailer' && form.trailer_url)))) {
       const needsScreening = form.project_type === 'live' || form.release_strategy === 'premiere';
       if (needsScreening) {
         if (!form.premiere_date) {
@@ -300,7 +406,25 @@ export default function StudioSubmit() {
           setSubmitting(false);
           return;
         }
-        setCreatedScreeningId((event as { screening_id: string }).screening_id);
+        const screeningId = (event as { screening_id: string }).screening_id;
+        setCreatedScreeningId(screeningId);
+        if (form.project_type === 'live') {
+          const { data: pricingResult, error: pricingError } = await supabase.functions.invoke('manage-live-pricing', {
+            body: {
+              screeningId,
+              livePriceNgn: Number(form.live_price_ngn || 0),
+              livePriceUsd: Number(form.live_price_usd || 0),
+              replayPriceNgn: form.replay_price_ngn.trim() ? Number(form.replay_price_ngn) : null,
+              replayPriceUsd: form.replay_price_usd.trim() ? Number(form.replay_price_usd) : null,
+              replayAccessHours: Number(form.replay_access_hours || 48),
+              replayAccessModel: form.replay_access_model,
+              autoConvertToVod: form.auto_convert_to_vod,
+            },
+          });
+          if (pricingError || !pricingResult?.success) {
+            toast.error(pricingResult?.error || 'Event is published, but replay settings could not be saved. Update them in Go Live settings.');
+          }
+        }
         setPublished(true);
         toast.success(form.project_type === 'live' ? 'Live event published. Continue below to provision its secure encoder.' : 'Ticketed premiere published and scheduled.');
       } else {
@@ -384,7 +508,7 @@ export default function StudioSubmit() {
           </p>
           <div className="flex flex-col gap-3">
             {form.project_type === 'live' && createdScreeningId && <Card className="text-left"><CardHeader><CardTitle className="text-base">Go live · Secure encoder</CardTitle><CardDescription>Provisioning is performed by your configured streaming provider. The stream key is shown only after provider confirmation.</CardDescription></CardHeader><CardContent className="space-y-3">{encoderGrant ? <><Badge>Encoder provisioned · {encoderGrant.provider}</Badge><div><Label>Ingest server</Label><div className="flex gap-2"><Input readOnly value={encoderGrant.ingestUrl}/><Button type="button" variant="outline" onClick={() => copyEncoderValue(encoderGrant.ingestUrl)}>Copy</Button></div></div><div><Label>One-time stream key</Label><div className="flex gap-2"><Input readOnly type="password" value={encoderGrant.streamKey}/><Button type="button" variant="outline" onClick={() => copyEncoderValue(encoderGrant.streamKey)}>Copy</Button></div></div><p className="text-xs text-muted-foreground">Add the server and key to OBS, vMix or another supported encoder. Never share the stream key.</p></> : <Button className="w-full" disabled={provisioningEncoder} onClick={provisionCreatedLiveEvent}>{provisioningEncoder ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Film className="mr-2 h-4 w-4"/>}{provisioningEncoder ? 'Provisioning…' : 'Provision secure encoder'}</Button>}</CardContent></Card>}\n            <Button variant="outline" className="rounded-full" onClick={() => navigate('/studio/movies')}>View My Content</Button>
-            <Button variant="ghost" className="rounded-full" onClick={() => { setSubmitted(false); setStep(1); setCreatedContentId(null); setCreatedScreeningId(null); setEncoderGrant(null); setForm(f => ({ ...f, project_title: '', description: '', genres: [], duration_minutes: '', poster_url: '' })); }}>
+            <Button variant="ghost" className="rounded-full" onClick={() => { setSubmitted(false); setStep(2); setCreatedContentId(null); setCreatedScreeningId(null); setEncoderGrant(null); setForm(f => ({ ...f, project_title: '', description: '', genres: [], duration_minutes: '', poster_url: '' })); }}>
               Create another
             </Button>
           </div>
@@ -408,13 +532,13 @@ export default function StudioSubmit() {
         <div className="max-w-3xl mx-auto">
         {/* Steps */}
         <div className="flex items-center gap-2 mb-8">
-          {[1, 2, 3].map(s => (
+          {[2, 3].map(s => (
             <div key={s} className="flex items-center gap-2">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${step >= s ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground'}`}>
                 {step > s ? '✓' : s}
               </div>
               <span className={`text-xs font-medium hidden sm:block ${step === s ? 'text-foreground' : 'text-muted-foreground'}`}>
-                {s === 1 ? 'Your Info' : s === 2 ? 'Project' : 'Assets'}
+                {s === 2 ? 'Project' : 'Assets'}
               </span>
               {s < 3 && <ChevronRight className="w-4 h-4 text-muted-foreground" />}
             </div>
@@ -422,35 +546,6 @@ export default function StudioSubmit() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {!liveFlow && step === 1 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2"><Users className="w-4 h-4" /> Your Info</CardTitle>
-                <CardDescription>Your creator identity is attached to this publishing draft. Your work is autosaved in this browser as you go.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Full Name <span className="text-destructive">*</span></Label>
-                    <Input value={form.submitter_name} onChange={e => setForm(f => ({ ...f, submitter_name: e.target.value }))} placeholder="e.g. Kemi Adeyemi" />
-                    {errors.submitter_name && <p className="text-xs text-destructive">{errors.submitter_name}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Email</Label>
-                    <Input value={user?.email || ''} disabled className="bg-muted" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Company / Studio</Label>
-                  <Input value={form.company_name} onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))} placeholder="e.g. Nile Pictures" />
-                </div>
-                <Button type="button" className="w-full rounded-full" onClick={() => { if (validateStep1()) setStep(2); }}>
-                  Next: Project Details <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
           {step === 2 && (
             <Card>
               <CardHeader>
@@ -466,15 +561,28 @@ export default function StudioSubmit() {
                   </div>
                   {!liveFlow ? <div className="space-y-2">
                     <Label>Content type</Label>
-                    <Select value={form.project_type} onValueChange={v => setForm(f => ({ ...f, project_type: v, release_strategy: (!['movie', 'series'].includes(v) || f.release_strategy === 'live') ? 'on_demand' : f.release_strategy, aspect_ratio: v === 'short' ? '9:16' : v === 'movie' ? '2.39:1' : f.aspect_ratio }))}>
+                    <Select value={form.preset_type} onValueChange={preset => {
+                      const baseType = preset === 'FILM' ? 'movie' : preset === 'SERIES' ? 'series'
+                        : preset === 'EPISODE' ? 'episode' : preset === 'SHORT' ? 'short'
+                        : preset === 'TRAILER' ? 'trailer' : 'vod';
+                      setForm(f => ({ ...f, preset_type: preset, project_type: baseType,
+                        release_strategy: (!['movie', 'series'].includes(baseType) || f.release_strategy === 'live') ? 'on_demand' : f.release_strategy,
+                        aspect_ratio: preset === 'SHORT' ? '9:16' : preset === 'FILM' ? '2.39:1' : f.aspect_ratio }));
+                    }}>
                       <SelectTrigger><SelectValue placeholder="Choose a format" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="movie">Feature film</SelectItem>
-                        <SelectItem value="series">Series</SelectItem>
-                        <SelectItem value="episode">Series episode</SelectItem>
-                        <SelectItem value="short">Short film</SelectItem>
-                        <SelectItem value="trailer">Trailer</SelectItem>
-                        <SelectItem value="vod">Video on demand</SelectItem>
+                        <SelectItem value="FILM">Feature film</SelectItem>
+                        <SelectItem value="SERIES">Series</SelectItem>
+                        <SelectItem value="EPISODE">Series episode</SelectItem>
+                        <SelectItem value="SHORT">Short film</SelectItem>
+                        <SelectItem value="TRAILER">Trailer</SelectItem>
+                        <SelectItem value="MUSIC_VIDEO">Music video</SelectItem>
+                        <SelectItem value="PODCAST">Podcast / talk show</SelectItem>
+                        <SelectItem value="DOCUMENTARY">Documentary</SelectItem>
+                        <SelectItem value="EDUCATIONAL">Educational video</SelectItem>
+                        <SelectItem value="GAMING">Gaming / esports</SelectItem>
+                        <SelectItem value="SPORTS">Sports</SelectItem>
+                        <SelectItem value="RECORDED_EVENT">Recorded event</SelectItem>
                       </SelectContent>
                     </Select>
                   </div> : <div className="space-y-2"><Label>Event type</Label><Select value={form.live_event_format} onValueChange={v => setForm(f => ({ ...f, live_event_format: v }))}><SelectTrigger><SelectValue placeholder="Choose your live event type" /></SelectTrigger><SelectContent><SelectItem value="broadcast">Live broadcast</SelectItem><SelectItem value="concert">Concert / performance</SelectItem><SelectItem value="conference">Conference / summit</SelectItem><SelectItem value="talk">Talk / podcast / interview</SelectItem><SelectItem value="gaming">Gaming / esports</SelectItem><SelectItem value="watch_party">Watch party</SelectItem><SelectItem value="sports">Sports event</SelectItem><SelectItem value="worship">Worship / community gathering</SelectItem><SelectItem value="other">Other live event</SelectItem></SelectContent></Select><p className="text-xs text-muted-foreground">Choose the event category. Configure the details, admission prices and encoder access below.</p></div>}
@@ -494,6 +602,21 @@ export default function StudioSubmit() {
                   <Label>{liveFlow ? 'Event description' : 'Synopsis'}</Label>
                   <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={4} placeholder={liveFlow ? 'Tell viewers what will happen, who is hosting and what their ticket includes.' : 'Write a short synopsis that helps audiences understand your title.'} />
                 </div>
+                {!liveFlow && form.preset_type === 'MUSIC_VIDEO' && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Primary artist</Label><Input value={form.primary_artist} onChange={e=>setForm(f=>({...f,primary_artist:e.target.value}))} placeholder="Artist name"/></div>
+                  <div className="space-y-2"><Label>Featured artists</Label><Input value={form.featured_artists} onChange={e=>setForm(f=>({...f,featured_artists:e.target.value}))} placeholder="Optional"/></div>
+                  <div className="space-y-2"><Label>Music genre</Label><Input value={form.music_genre} onChange={e=>setForm(f=>({...f,music_genre:e.target.value}))} placeholder="Afrobeats, Gospel, Hip-hop…"/></div>
+                </div>}
+                {!liveFlow && form.preset_type === 'PODCAST' && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Show name</Label><Input value={form.show_name} onChange={e=>setForm(f=>({...f,show_name:e.target.value}))} placeholder="Podcast or show name"/></div>
+                  <div className="space-y-2"><Label>Hosts</Label><Input value={form.hosts} onChange={e=>setForm(f=>({...f,hosts:e.target.value}))} placeholder="Host names"/></div>
+                  <div className="space-y-2"><Label>Guests</Label><Input value={form.guests} onChange={e=>setForm(f=>({...f,guests:e.target.value}))} placeholder="Optional guests"/></div>
+                  <div className="space-y-2"><Label>Media format</Label><Select value={form.media_format} onValueChange={v=>setForm(f=>({...f,media_format:v}))}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="VIDEO_PODCAST">Video podcast</SelectItem><SelectItem value="AUDIO_ONLY" disabled>Audio only (coming with audio ingestion)</SelectItem></SelectContent></Select></div>
+                </div>}
+                {!liveFlow && ['GAMING','SPORTS','EDUCATIONAL','RECORDED_EVENT','DOCUMENTARY'].includes(form.preset_type) && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Category / league / course</Label><Input value={form.category_tag} onChange={e=>setForm(f=>({...f,category_tag:e.target.value}))} placeholder="Category, league, game or subject"/></div>
+                  <div className="space-y-2"><Label>Participants / featured people</Label><Input value={form.participants} onChange={e=>setForm(f=>({...f,participants:e.target.value}))} placeholder="Optional"/></div>
+                </div>}
                 {!liveFlow && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2"><Label>Original language</Label><Select value={form.original_language} onValueChange={v => setForm(f => ({...f, original_language:v}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{LANGUAGES.map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select></div>
                   <div className="space-y-2"><Label>Production country</Label><Select value={form.production_country} onValueChange={v => setForm(f => ({...f, production_country:v}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{COUNTRIES.map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select></div>
@@ -531,7 +654,6 @@ export default function StudioSubmit() {
                   <Textarea value={form.cast_crew_text} onChange={e => setForm(f => ({ ...f, cast_crew_text: e.target.value }))} rows={3} placeholder={'Name — Role, one person per line'} />
                 </div>}
                 <div className="flex gap-3">
-                  {!liveFlow && <Button type="button" variant="outline" className="flex-1 rounded-full" onClick={() => setStep(1)}>Back</Button>}
                   <Button type="button" className="flex-1 rounded-full" onClick={() => { if (validateStep2()) setStep(3); }}>
                     {liveFlow ? 'Continue to event setup' : 'Next'} <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
@@ -612,6 +734,29 @@ export default function StudioSubmit() {
                     </Select>
                   </div>
                 </div>
+                {form.project_type === 'live' && <div className="space-y-4 rounded-xl border p-4">
+                  <label className="flex items-start gap-3 text-sm">
+                    <input type="checkbox" checked={form.auto_convert_to_vod} onChange={e=>setForm(f=>({...f,auto_convert_to_vod:e.target.checked}))} className="mt-1"/>
+                    <span><strong>Automatically prepare a replay</strong><span className="block text-xs text-muted-foreground">Ask the streaming provider to record the broadcast and make a replay available after processing.</span></span>
+                  </label>
+                  {form.auto_convert_to_vod && <>
+                    <div className="space-y-2"><Label>Replay access</Label>
+                      <Select value={form.replay_access_model} onValueChange={v=>setForm(f=>({...f,replay_access_model:v}))}>
+                        <SelectTrigger><SelectValue/></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="INCLUDED_WITH_TICKET">Included with live ticket</SelectItem>
+                          <SelectItem value="SEPARATE_PRICE">Sell replay separately</SelectItem>
+                          <SelectItem value="FREE_REPLAY">Free public replay (claim required)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {form.replay_access_model === 'SEPARATE_PRICE' && <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1"><Label>Replay price (NGN)</Label><Input inputMode="decimal" value={form.replay_price_ngn} onChange={e=>setForm(f=>({...f,replay_price_ngn:e.target.value}))} placeholder="e.g. 1500"/></div>
+                      <div className="space-y-1"><Label>Replay price (USD)</Label><Input inputMode="decimal" value={form.replay_price_usd} onChange={e=>setForm(f=>({...f,replay_price_usd:e.target.value}))} placeholder="e.g. 3"/></div>
+                    </div>}
+                    <div className="space-y-1"><Label>Replay access window (hours)</Label><Input type="number" min="1" max="8760" value={form.replay_access_hours} onChange={e=>setForm(f=>({...f,replay_access_hours:e.target.value}))}/></div>
+                  </>}
+                </div>}
                 {form.project_type === 'live' || form.release_strategy === 'premiere' ? <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>Event date</Label><Input type="date" required value={form.premiere_date} onChange={e => setForm(f => ({ ...f, premiere_date: e.target.value }))} /></div>
                   <div className="space-y-2"><Label>Start time</Label><Input type="time" required value={form.premiere_time} onChange={e => setForm(f => ({ ...f, premiere_time: e.target.value }))} /></div>

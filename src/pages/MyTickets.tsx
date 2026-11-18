@@ -37,7 +37,7 @@ export default function MyTickets() {
       const streamIds = [...new Set((live ?? []).map((t: any) => t.stream_id).filter(Boolean))];
       const [{ data: contentRows }, { data: streamRows }] = await Promise.all([
         contentIds.length ? supabase.from('content').select('id,title,slug,poster_url').in('id', contentIds) : Promise.resolve({ data: [] as any[] }),
-        streamIds.length ? supabase.from('live_streams').select('id,title,thumbnail_url').in('id', streamIds) : Promise.resolve({ data: [] as any[] }),
+        streamIds.length ? supabase.from('live_streams').select('id,title,thumbnail_url,lifecycle_status,status').in('id', streamIds) : Promise.resolve({ data: [] as any[] }),
       ]);
       const contentMap = new Map((contentRows ?? []).map((row: any) => [row.id, row]));
       const streamMap = new Map((streamRows ?? []).map((row: any) => [row.id, row]));
@@ -50,6 +50,7 @@ export default function MyTickets() {
           _kind: 'live',
           expires_at: ticket.valid_until,
           email: user.email ?? '',
+          stream_lifecycle_status: stream?.lifecycle_status || null,
           screening: {
             title: content?.title || stream?.title || 'Live event',
             poster_url: content?.poster_url || stream?.thumbnail_url || null,
@@ -178,7 +179,7 @@ function TicketCard({ ticket, onCopy, type }: { ticket: any; onCopy: (wc: string
         </div>
 
         {type === 'active' && ticket._kind === 'live' && (
-          <Button size="sm" className="w-full rounded-full h-9 text-xs" asChild><Link to={`/live/watch/${ticket.stream_id}?mode=${ticket.ticket_type === 'replay' ? 'replay' : 'live'}`}><Play className="w-3.5 h-3.5 mr-1" /> {ticket.ticket_type === 'replay' ? 'Watch Replay' : 'Open Event'}</Link></Button>
+          <Button size="sm" className="w-full rounded-full h-9 text-xs" asChild><Link to={`/live/watch/${ticket.stream_id}?mode=${ticket.ticket_type === 'replay' || (ticket.ticket_type === 'live' && ticket.stream_lifecycle_status === 'REPLAY_AVAILABLE') ? 'replay' : 'live'}`}><Play className="w-3.5 h-3.5 mr-1" /> {ticket.ticket_type === 'replay' || (ticket.ticket_type === 'live' && ticket.stream_lifecycle_status === 'REPLAY_AVAILABLE') ? 'Watch Replay' : 'Open Event'}</Link></Button>
         )}
         {type === 'active' && ticket._kind !== 'live' && (
           <div className="flex gap-2">

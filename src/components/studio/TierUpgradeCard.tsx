@@ -45,7 +45,7 @@ export function TierUpgradeCard() {
     const { data, error } = await supabase.rpc('get_my_studio_account' as never);
     if (error) { setAccountError(true); return; }
     setAccountError(false);
-    const account = Array.isArray(data) ? data[0] : data;
+    const account = Array.isArray(data ?? []) ? (data ?? [])[0] : data ?? null;
     setAcct(account ? { tier: account.tier, status: account.status } : null);
     if (account?.tier === 'business') setTier('business');
   };

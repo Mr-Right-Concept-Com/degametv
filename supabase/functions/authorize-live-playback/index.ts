@@ -19,7 +19,7 @@ if(import.meta.main)serve(async(req:Request)=>{
   if(streamError||!stream)return json(404,{error:"Stream not found"});
   const screeningId=typeof stream.metadata?.screening_id==="string"?stream.metadata.screening_id:null;
   if(!screeningId)return json(409,{error:"This stream is not linked to a canonical screening"});
-  const {data:screening,error:screeningError}=await db.from("screenings").select("id,status,live_recording_status,live_replay_ready_at").eq("id",screeningId).eq("tenant_id",stream.tenant_id).maybeSingle();
+  const {data:screening,error:screeningError}=await db.from("screenings").select("id,status,live_recording_status,live_replay_ready_at,replay_access_model").eq("id",screeningId).eq("tenant_id",stream.tenant_id).maybeSingle();
   if(screeningError||!screening)return json(404,{error:"Screening not found"});
   if(input.data.mode==="live"&&stream.status!=="live")return json(409,{error:"This stream is not live"});
   if(input.data.mode==="replay"&&(screening.live_recording_status!=="ready"||!screening.live_replay_ready_at))return json(409,{error:"Replay is not ready"});
@@ -27,7 +27,7 @@ if(import.meta.main)serve(async(req:Request)=>{
   if(ticketError)return json(503,{error:"Ticket entitlement could not be checked"});
   const entitlement=tickets?.find(ticket=>{
    const kind=String(ticket.ticket_type||"");
-   const correct=input.data.mode==="live"?["live","combo","premiere"].includes(kind):["replay","combo","vod"].includes(kind);
+   const correct=input.data.mode==="live"?["live","combo","premiere"].includes(kind):(["replay","combo","vod"].includes(kind)||(screening.replay_access_model==="INCLUDED_WITH_TICKET"&&kind==="live"));
    return correct&&new Date(ticket.valid_until).getTime()>Date.now();
   });
   if(!entitlement)return json(403,{error:"A valid paid ticket for this event is required"});

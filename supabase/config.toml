@@ -39,3 +39,6 @@ verify_jwt = true
 
 [functions.review-kyc]
 verify_jwt = true
+
+[functions.live-stream-webhook]
+verify_jwt = false

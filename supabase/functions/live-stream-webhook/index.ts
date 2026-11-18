@@ -1,55 +1,115 @@
-import {createClient} from "npm:@supabase/supabase-js@2";
-const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json"}});
-const hex=(b:ArrayBuffer)=>Array.from(new Uint8Array(b),x=>x.toString(16).padStart(2,"0")).join("");
-async function sign(secret:string,raw:string,hash:"SHA-256"|"SHA-512"){const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash},false,["sign"]);return hex(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(raw)));}
-function safeEqual(a:string,b:string){if(a.length!==b.length)return false;let d=0;for(let i=0;i<a.length;i++)d|=a.charCodeAt(i)^b.charCodeAt(i);return d===0;}
-Deno.serve(async req=>{
- if(req.method!=="POST")return json(405,{error:"Method not allowed"});
- const url=Deno.env.get("SUPABASE_URL"),service=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");if(!url||!service)return json(503,{error:"Webhook unavailable"});
- const raw=await req.text();
- try{
-  const event=JSON.parse(raw),reference=event?.provider_reference;
-  if(typeof reference!=="string"||reference.length<8||reference.length>240)return json(400,{error:"Invalid provider reference"});
-  const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
-  const {data:stream,error}=await db.from("live_streams").select("id,tenant_id,metadata,status").eq("metadata->>provider_reference",reference).maybeSingle();
-  if(error||!stream)return json(404,{error:"Stream not found"});
-  const providerKey=stream.metadata?.provider;
-  const [{data:binding,error:bindingError},{data:secrets,error:secretError}]=await Promise.all([
-   db.from("service_provider_bindings").select("provider_key,settings").eq("capability","live_streaming").eq("provider_key",providerKey).maybeSingle(),
-   db.rpc("get_service_provider_admin_secret",{p_capability:"live_streaming",p_provider_key:providerKey})
-  ]);
-  const vault=Array.isArray(secrets)?secrets[0]:null,mode=stream.metadata?.provider_mode==="live"?"live":"test";
-  const webhookSecret=mode==="live"?(vault?.live_webhook_secret||vault?.test_webhook_secret):(vault?.test_webhook_secret||vault?.live_webhook_secret);
-  if(bindingError||secretError||!binding||!webhookSecret)return json(503,{error:"Webhook secret unavailable for stream provider"});
-  const provider={settings:binding.settings,webhook_secret:webhookSecret};
-  const settings=provider.settings||{},header=typeof settings.signature_header==="string"?settings.signature_header:"x-provider-signature";
-  const algorithm=settings.signature_algorithm==="SHA-256"?"SHA-256":"SHA-512";
-  const supplied=(req.headers.get(header)||"").toLowerCase().replace(/^sha256=/,"").replace(/^sha512=/,"");
-  const expected=await sign(provider.webhook_secret,raw,algorithm);if(!safeEqual(supplied,expected))return json(401,{error:"Invalid provider signature"});
-  const state=event?.status;
-  const screeningId=stream.metadata?.screening_id;
-  if(state==="live"){
-   if(stream.status==="ended"||stream.status==="cancelled")return json(409,{error:"Stream is already terminal"});
-   const now=new Date().toISOString();
-   const {error:updateError}=await db.from("live_streams").update({status:"live",actual_start:now,updated_at:now}).eq("id",stream.id);
-   if(updateError)return json(503,{error:"Stream state could not be updated"});
-   if(screeningId)await db.from("screenings").update({lifecycle:"live",live_started_at:now}).eq("id",screeningId);
-   return json(200,{received:true,status:"live"});
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+const json = (status: number, body: Record<string, unknown>) =>
+  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const hex = (bytes: ArrayBuffer) =>
+  Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, "0")).join("");
+const safeEqual = (left: string, right: string) => {
+  if (!left || left.length !== right.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < left.length; i++) mismatch |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  return mismatch === 0;
+};
+const hmac = async (secret: string, raw: string, algorithm: "SHA-256" | "SHA-512") => {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret),
+    { name: "HMAC", hash: algorithm }, false, ["sign"]);
+  return hex(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(raw)));
+};
+
+Deno.serve(async req => {
+  if (req.method !== "POST") return json(405, { error: "Method not allowed" });
+  const url = Deno.env.get("SUPABASE_URL"), service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !service) return json(503, { error: "Webhook unavailable" });
+  const raw = await req.text();
+  if (raw.length > 1024 * 1024) return json(413, { error: "Webhook payload too large" });
+
+  try {
+    const event = JSON.parse(raw);
+    if (!event || typeof event !== "object" || Array.isArray(event)) return json(400, { error: "Invalid event" });
+    const reference = event.provider_reference;
+    const rawEventId = event.id ?? event.event_id;
+    const eventId = typeof rawEventId === "string" || typeof rawEventId === "number" ? String(rawEventId) : "";
+    if (typeof reference !== "string" || reference.length < 1 || reference.length > 240
+      || !eventId || eventId.length > 255)
+      return json(400, { error: "Provider reference and stable event id are required" });
+
+    const db = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { data: stream, error: streamError } = await db.from("live_streams")
+      .select("id,tenant_id,metadata,lifecycle_status")
+      .eq("metadata->>provider_reference", reference).maybeSingle();
+    if (streamError || !stream) return json(404, { error: "Stream not found" });
+    const providerKey = stream.metadata?.provider;
+    if (typeof providerKey !== "string" || !providerKey) return json(409, { error: "Stream provider is not pinned" });
+
+    const [{ data: binding, error: bindingError }, { data: secrets, error: secretError }] = await Promise.all([
+      db.from("service_provider_bindings").select("provider_key,settings")
+        .eq("capability", "live_streaming").eq("provider_key", providerKey).maybeSingle(),
+      db.rpc("get_service_provider_admin_secret", { p_capability: "live_streaming", p_provider_key: providerKey }),
+    ]);
+    const vault = Array.isArray(secrets) ? secrets[0] : null;
+    const webhookSecret = vault?.webhook_secret;
+    if (bindingError || secretError || !binding || !webhookSecret)
+      return json(503, { error: "Provider webhook secret is unavailable in Vault" });
+
+    const settings = binding.settings || {};
+    const signatureHeader = typeof settings.signature_header === "string" ? settings.signature_header : "x-provider-signature";
+    const algorithm = settings.signature_algorithm === "SHA-256" ? "SHA-256" : "SHA-512";
+    const signatureValue = req.headers.get(signatureHeader) || "";
+    let supplied = signatureValue.toLowerCase().replace(/^sha256=/, "").replace(/^sha512=/, "");
+    let signedPayload = raw;
+    if (settings.signature_format === "timestamped_v1") {
+      const timestamp = signatureValue.match(/(?:^|[, ])t=(\\d+)/)?.[1];
+      const v1 = signatureValue.match(/(?:^|[, ])v1=([a-f0-9]+)/i)?.[1];
+      const timestampSeconds = timestamp ? Number(timestamp) : NaN;
+      const tolerance = Math.min(900, Math.max(30, Number(settings.signature_timestamp_tolerance_seconds) || 300));
+      if (!Number.isFinite(timestampSeconds) || Math.abs(Date.now() / 1000 - timestampSeconds) > tolerance || !v1)
+        return json(401, { error: "Expired or malformed provider signature" });
+      supplied = v1.toLowerCase();
+      signedPayload = `${timestamp}.${raw}`;
+    }
+    if (!safeEqual(supplied, await hmac(webhookSecret, signedPayload, algorithm)))
+      return json(401, { error: "Invalid provider signature" });
+
+    const rawType = event.type || event.event || event.status;
+    const configuredMap = settings.webhook_event_map && typeof settings.webhook_event_map === "object"
+      ? settings.webhook_event_map : {};
+    const defaults: Record<string, string> = {
+      live: "stream.active", "stream.live": "stream.active",
+      connected: "stream.connected", "stream.connected": "stream.connected",
+      disconnected: "stream.disconnected", "stream.disconnected": "stream.disconnected",
+      ended: "stream.ended", "stream.ended": "stream.ended",
+      replay_ready: "recording.ready", "recording.ready": "recording.ready",
+      replay_failed: "recording.failed", "recording.failed": "recording.failed",
+    };
+    const normalized = typeof configuredMap[rawType] === "string" ? configuredMap[rawType] : defaults[rawType];
+    const allowedEvents = new Set(["stream.connected", "stream.active", "stream.disconnected",
+      "stream.ended", "recording.ready", "recording.failed"]);
+    if (!allowedEvents.has(normalized)) return json(200, { received: true, ignored: true });
+
+    const payload: Record<string, unknown> = { source_event: rawType };
+    if (normalized === "recording.ready") {
+      const recordingUrl = event.replay_playback_url || event.replay_url || event.data?.replay_url;
+      if (typeof recordingUrl !== "string") return json(400, { error: "Replay URL is required for recording-ready events" });
+      let parsedUrl: URL;
+      try { parsedUrl = new URL(recordingUrl); } catch { return json(400, { error: "Invalid replay URL" }); }
+      const allowedOrigins = Array.isArray(settings.allowed_recording_origins) ? settings.allowed_recording_origins : [];
+      if (parsedUrl.protocol !== "https:" || !allowedOrigins.includes(parsedUrl.origin))
+        return json(400, { error: "Replay URL origin is not allowlisted" });
+      payload.replay_url = parsedUrl.toString();
+    }
+
+    const { data, error } = await db.rpc("apply_stream_provider_event", {
+      p_provider_key: providerKey,
+      p_provider_reference: reference,
+      p_event_id: eventId,
+      p_event_type: normalized,
+      p_payload: payload,
+    });
+    if (error) return json(error.message?.includes("provider_stream_not_found") ? 404 : 409,
+      { error: "Provider event could not be reconciled" });
+    return json(200, data || { received: true });
+  } catch (error) {
+    console.error("live-stream-webhook", error);
+    return json(400, { error: "Invalid provider webhook payload" });
   }
-  if(state==="ended"){
-   const now=new Date().toISOString();
-   const {error:updateError}=await db.from("live_streams").update({status:"ended",actual_end:now,updated_at:now}).eq("id",stream.id);
-   if(updateError)return json(503,{error:"Stream state could not be updated"});
-   if(screeningId)await db.from("screenings").update({lifecycle:"replay",live_ended_at:now,live_recording_status:event.recording_ready===true?"ready":"processing",live_replay_ready_at:event.recording_ready===true?now:null,live_provider_asset_id:typeof event.recording_asset_id==="string"?event.recording_asset_id:null}).eq("id",screeningId);
-   return json(200,{received:true,status:"ended"});
-  }
-  if(state==="replay_ready"){
-   if(typeof event.recording_asset_id!=="string"||!event.recording_asset_id)return json(400,{error:"Recording asset identifier required"});
-   const now=new Date().toISOString();
-   if(screeningId){const {error:updateError}=await db.from("screenings").update({lifecycle:"replay",live_recording_status:"ready",live_replay_ready_at:now,live_provider_asset_id:event.recording_asset_id}).eq("id",screeningId);if(updateError)return json(503,{error:"Replay state could not be updated"});}
-   await db.from("live_streams").update({metadata:{...stream.metadata,recording_asset_id:event.recording_asset_id,recording_ready_at:now},updated_at:now}).eq("id",stream.id);
-   return json(200,{received:true,status:"replay_ready"});
-  }
-  return json(200,{received:true,ignored:true});
- }catch{return json(400,{error:"Invalid provider webhook payload"});}
 });

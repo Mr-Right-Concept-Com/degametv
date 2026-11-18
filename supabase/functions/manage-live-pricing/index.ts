@@ -9,6 +9,8 @@ const schema = z.object({
   replayPriceNgn: z.number().finite().min(0).max(100000000).nullable(),
   replayPriceUsd: z.number().finite().min(0).max(1000000).nullable(),
   replayAccessHours: z.number().int().min(1).max(8760),
+  replayAccessModel: z.enum(["INCLUDED_WITH_TICKET","SEPARATE_PRICE","FREE_REPLAY"]).optional(),
+  autoConvertToVod: z.boolean().optional(),
 }).refine(v => v.livePriceNgn !== null || v.livePriceUsd !== null, { message: "Set at least one live admission price." });
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -35,14 +37,17 @@ Deno.serve(async req => {
     return json({ error: "You do not own this event in its tenant." }, 403);
   const { data: approved } = await db.rpc("is_approved_creator", { p_user_id: user.id });
   if (!approved) return json({ error: "Approved creator access is required." }, 403);
-  const { data, error } = await db.from("screenings").update({
+  const pricingUpdate: Record<string, unknown> = {
     live_price_ngn: parsed.data.livePriceNgn,
     live_price_usd: parsed.data.livePriceUsd,
     replay_price_ngn: parsed.data.replayPriceNgn,
     replay_price_usd: parsed.data.replayPriceUsd,
     replay_access_hours: parsed.data.replayAccessHours,
     updated_at: new Date().toISOString(),
-  }).eq("id", parsed.data.screeningId).eq("tenant_id", screening.tenant_id)
+  };
+  if (parsed.data.replayAccessModel) pricingUpdate.replay_access_model = parsed.data.replayAccessModel;
+  if (parsed.data.autoConvertToVod !== undefined) pricingUpdate.auto_convert_to_vod = parsed.data.autoConvertToVod;
+  const { data, error } = await db.from("screenings").update(pricingUpdate).eq("id", parsed.data.screeningId).eq("tenant_id", screening.tenant_id)
     .select("id,live_price_ngn,live_price_usd,replay_price_ngn,replay_price_usd,replay_access_hours").single();
   if (error || !data) return json({ error: "Pricing could not be saved. No changes were confirmed." }, 503);
   return json({ success: true, pricing: data });
