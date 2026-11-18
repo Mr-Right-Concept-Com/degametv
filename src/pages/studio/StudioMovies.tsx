@@ -20,6 +20,8 @@ interface Submission {
   duration_minutes: number | null;
   release_year: number | null;
   description: string | null;
+  content_id: string | null;
+  content_status: string | null;
 }
 
 export default function StudioMovies() {
@@ -31,16 +33,42 @@ export default function StudioMovies() {
   useEffect(() => {
     if (!user?.email) return;
     const fetch = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('filmmaker_submissions')
         .select('*')
         .eq('submitter_email', user.email)
         .order('created_at', { ascending: false });
-      setMovies(data || []);
+      if (error) {
+        setMovies([]);
+        setLoading(false);
+        return;
+      }
+      const submissions = data ?? [];
+      const contentIds = submissions.map(row => row.content_id).filter((id): id is string => Boolean(id));
+      const { data: contentRows } = contentIds.length
+        ? await supabase.from('content').select('id,status').in('id', contentIds)
+        : { data: [] };
+      const statusById = new Map((contentRows ?? []).map(row => [row.id, row.status]));
+      setMovies(submissions.map(row => ({ ...row, content_status: row.content_id ? statusById.get(row.content_id) ?? null : null })) as Submission[]);
       setLoading(false);
     };
     fetch();
   }, [user?.email]);
+
+  const publishContent = async (contentId: string) => {
+    const { data, error } = await supabase.rpc('publish_creator_content', { p_content_id: contentId });
+    if (error) {
+      const message = error.message.includes('content_review_required') ? 'Your submission must be approved before publishing.'
+        : error.message.includes('content_assets_required') ? 'Add a poster and private master video before publishing.'
+        : error.message.includes('master_media_missing') ? 'The private master file is missing. Re-upload it before publishing.'
+        : 'Content could not be published. Check its review status and assets.';
+      toast.error(message);
+      return;
+    }
+    setMovies(current => current.map(movie => movie.content_id === contentId ? { ...movie, content_status: 'published' } : movie));
+    toast.success('Your content listing is published. You can now share its public page.');
+    if (data?.share_path) await navigator.clipboard?.writeText(window.location.origin + data.share_path).catch(() => undefined);
+  };
 
   const statusColor: Record<string, string> = {
     pending: 'bg-warning/15 text-warning',
@@ -104,6 +132,21 @@ export default function StudioMovies() {
                       ))}
                     </div>
                   )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {m.status === 'approved' && m.content_id && m.content_status === 'draft' && (
+                      <Button size="sm" className="h-8 rounded-full text-xs" onClick={() => void publishContent(m.content_id!)}>
+                        Publish listing
+                      </Button>
+                    )}
+                    {m.content_id && m.content_status === 'published' && (
+                      <Button size="sm" variant="outline" className="h-8 rounded-full text-xs" asChild>
+                        <Link to={`/content/${m.content_id}`}><ExternalLink className="mr-1 h-3 w-3" />Share public page</Link>
+                      </Button>
+                    )}
+                    {m.status === 'approved' && m.content_status !== 'published' && (
+                      <span className="text-[10px] text-muted-foreground">Approved · complete assets to publish</span>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
