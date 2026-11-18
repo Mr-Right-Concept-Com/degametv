@@ -5,7 +5,7 @@ export type PlatformBranding = {
   platformName:string; tagline:string; primaryColor:string; secondaryColor:string; accentColor:string;
   backgroundColor:string; fontFamily:string; customDomain:string; supportEmail:string; logoUrl:string; faviconUrl:string;
 };
-const defaults:PlatformBranding={platformName:'DeGameTV',tagline:'Your cinema. Your premiere.',primaryColor:'#ed1c18',secondaryColor:'#171717',accentColor:'#ffffff',backgroundColor:'#080808',fontFamily:'Inter',customDomain:'',supportEmail:'',logoUrl:'/brand/degametv.svg',faviconUrl:'/favicon.ico'};
+const defaults:PlatformBranding={platformName:'DeGameTV',tagline:'Your cinema. Your premiere.',primaryColor:'#ed1c18',secondaryColor:'#171717',accentColor:'#ffffff',backgroundColor:'#080808',fontFamily:'Inter',customDomain:'',supportEmail:'',logoUrl:'/brand/degametv-lockup.svg',faviconUrl:'/brand/degametv-icon.svg'};
 const Context=createContext<PlatformBranding>(defaults);
 function hsl(hex:string){const raw=hex.replace('#','');if(!/^[0-9a-f]{6}$/i.test(raw))return '0 0% 0%';const n=parseInt(raw,16),r=((n>>16)&255)/255,g=((n>>8)&255)/255,b=(n&255)/255,max=Math.max(r,g,b),min=Math.min(r,g,b);let h=0,s=0,l=(max+min)/2;if(max!==min){const d=max-min;s=l>.5?d/(2-max-min):d/(max+min);switch(max){case r:h=(g-b)/d+(g<b?6:0);break;case g:h=(b-r)/d+2;break;default:h=(r-g)/d+4;}h/=6;}return `${Math.round(h*360)} ${Math.round(s*100)}% ${Math.round(l*100)}%`;}
 export function BrandingProvider({children}:{children:ReactNode}){
