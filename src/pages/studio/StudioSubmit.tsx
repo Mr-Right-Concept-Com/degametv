@@ -115,7 +115,8 @@ export default function StudioSubmit() {
   }, [user?.id]);
 
   useEffect(() => {
-    if (!user?.id || submitted) return;
+    if (!user?.id) return;
+    if (submitted) { localStorage.removeItem(draftKey); return; }
     try { localStorage.setItem(draftKey, JSON.stringify(form)); } catch { /* storage may be unavailable */ }
   }, [draftKey, form, submitted, user?.id]);
 
@@ -559,8 +560,8 @@ export default function StudioSubmit() {
                 {form.project_type === 'live' || form.release_strategy === 'premiere' ? <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>Event date</Label><Input type="date" required value={form.premiere_date} onChange={e => setForm(f => ({ ...f, premiere_date: e.target.value }))} /></div>
                   <div className="space-y-2"><Label>Start time</Label><Input type="time" required value={form.premiere_time} onChange={e => setForm(f => ({ ...f, premiere_time: e.target.value }))} /></div>
-                  <div className="space-y-2"><Label>Admission price (NGN)</Label><Input inputMode="decimal" required value={form.live_price_ngn} onChange={e => setForm(f => ({ ...f, live_price_ngn: e.target.value }))} placeholder="e.g. 2500" /></div>
-                  <div className="space-y-2"><Label>International admission (USD)</Label><Input inputMode="decimal" required value={form.live_price_usd} onChange={e => setForm(f => ({ ...f, live_price_usd: e.target.value }))} placeholder="e.g. 5" /></div>
+                  <div className="space-y-2"><Label>Admission price (NGN)</Label><Input inputMode="decimal" required value={form.live_price_ngn} onChange={e => setForm(f => ({ ...f, live_price_ngn: e.target.value }))} placeholder="e.g. 2500" />{errors.live_price_ngn && <p className="text-xs text-destructive">{errors.live_price_ngn}</p>}</div>
+                  <div className="space-y-2"><Label>International admission (USD)</Label><Input inputMode="decimal" required value={form.live_price_usd} onChange={e => setForm(f => ({ ...f, live_price_usd: e.target.value }))} placeholder="e.g. 5" />{errors.live_price_usd && <p className="text-xs text-destructive">{errors.live_price_usd}</p>}</div>
                 </div> : null}
                 <div className="space-y-2"><Label>Rights Territories</Label><Input value={form.rights_territories} onChange={e => setForm(f => ({ ...f, rights_territories: e.target.value }))} placeholder="NG, GH, GB, US" /></div>
                 <div className="space-y-2">
