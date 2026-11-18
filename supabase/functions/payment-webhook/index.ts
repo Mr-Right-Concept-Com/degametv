@@ -45,9 +45,18 @@ if(import.meta.main)serve(async(req:Request)=>{
   const result=await verification.json().catch(()=>null);
   if(!verification.ok||result?.verified!==true||result?.status!=="paid")return json(202,{received:true,verified:false});
   const liveOrder=reference.startsWith("DTVL_");
-  const {data:completed,error:completeError}=await admin.rpc(liveOrder?"complete_live_payment_order":"complete_guest_payment_order",{p_reference:reference,p_transaction_id:String(result.transaction_id||reference),p_amount_minor:Number(result.amount_minor),p_currency:String(result.currency)});
+  const claimToken=liveOrder?Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,"0")).join(""):null;
+  const claimHash=claimToken?await crypto.subtle.digest("SHA-256",new TextEncoder().encode(claimToken)).then(b=>Array.from(new Uint8Array(b),v=>v.toString(16).padStart(2,"0")).join("")):null;
+  const args=liveOrder?{p_reference:reference,p_transaction_id:String(result.transaction_id||reference),p_amount_minor:Number(result.amount_minor),p_currency:String(result.currency),p_claim_token_hash:claimHash}:{p_reference:reference,p_transaction_id:String(result.transaction_id||reference),p_amount_minor:Number(result.amount_minor),p_currency:String(result.currency)};
+  const {data:completed,error:completeError}=await admin.rpc(liveOrder?"complete_live_payment_order":"complete_guest_payment_order",args);
   if(completeError)return json(409,{error:"Payment verification did not match the pending order."});
-  const emailSent=liveOrder?false:await sendTicketEmail(admin,url,service,reference);
+  let emailSent=false;
+  if(liveOrder&&completed?.ticket_id&&completed?.email){
+   const site=Deno.env.get("SITE_URL")||req.headers.get("origin")||"";
+   const deliveryUrl=claimToken?new URL("/live/claim?token="+encodeURIComponent(claimToken),site).toString():new URL("/tickets",site).toString();
+   const mail=await fetch(url+"/functions/v1/send-watch-email",{method:"POST",headers:{"Authorization":"Bearer "+service,"apikey":service,"Content-Type":"application/json"},body:JSON.stringify({email:completed.email,movieTitle:completed.title||"Live event",watchUrl:deliveryUrl,ticketCode:completed.ticket_code,expiresAt:completed.valid_until,location:completed.currency==="NGN"?"nigeria":"international",price:Number(completed.price),currency:completed.currency})}).catch(()=>null);
+   emailSent=Boolean(mail?.ok);
+  } else if(!liveOrder) emailSent=await sendTicketEmail(admin,url,service,reference);
   return json(200,{received:true,verified:true,fulfillment:completed,emailSent});
  }catch{return json(400,{error:"Invalid webhook payload."});}
 });
