@@ -48,7 +48,6 @@ import LiveWatch from "./pages/LiveWatch";
 import LiveGuestClaim from "./pages/LiveGuestClaim";
 import MyTickets from "./pages/MyTickets";
 import UserDashboard from "./pages/UserDashboard";
-import FilmmakerSubmit from "./pages/FilmmakerSubmit";
 
 // Studio pages
 import StudioDashboard from "./pages/studio/StudioDashboard";
