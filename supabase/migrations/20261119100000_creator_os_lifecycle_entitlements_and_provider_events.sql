@@ -252,3 +252,20 @@ BEGIN
   END IF;
   EXECUTE v_updated;
 END $$;
+
+
+-- Live event listings may use the platform's generic artwork treatment when a creator
+-- has not uploaded a poster. VOD/premiere publishing keeps the existing artwork gate.
+DO $$
+DECLARE v_definition text; v_updated text;
+BEGIN
+  SELECT pg_get_functiondef('public.publish_creator_content(uuid)'::regprocedure) INTO v_definition;
+  IF v_definition IS NULL THEN RAISE EXCEPTION 'publish_creator_content RPC is missing'; END IF;
+  v_updated := replace(v_definition,
+    'if v_content.poster_url is null then raise exception ''content_poster_required''; end if;',
+    'if v_content.poster_url is null and v_content.type::text<>''live'' then raise exception ''content_poster_required''; end if;');
+  IF v_updated=v_definition AND position('poster_url is null and v_content.type' in v_definition)=0 THEN
+    RAISE EXCEPTION 'Could not safely relax poster requirement for live events';
+  END IF;
+  EXECUTE v_updated;
+END $$;
