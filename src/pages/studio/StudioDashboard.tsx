@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Film, Upload, CalendarDays, Eye, DollarSign, Loader2, Radio } from 'lucide-react';
+import { Film, Upload, CalendarDays, Eye, DollarSign, Loader2 } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { TierUpgradeCard } from '@/components/studio/TierUpgradeCard';
 
@@ -31,7 +31,7 @@ export default function StudioDashboard(){
  const views=items.reduce((n,x)=>n+(x.view_count||0),0);
  return <StudioLayout title="Creator Studio" description="One workspace for your catalogue, releases, live events and earnings.">
   <div className="mb-6"><TierUpgradeCard/></div>
-  <div className="mb-6 flex flex-wrap gap-3"><Button asChild><Link to="/studio/submit"><Upload className="mr-2 h-4 w-4"/>Create & publish</Link></Button><Button asChild variant="outline"><Link to="/studio/live"><Radio className="mr-2 h-4 w-4"/>Go Live</Link></Button><Button asChild variant="outline"><Link to="/studio/movies"><Film className="mr-2 h-4 w-4"/>My catalogue</Link></Button></div>
+  <div className="mb-6 flex flex-wrap gap-3"><Button asChild><Link to="/studio/create"><Upload className="mr-2 h-4 w-4"/>Create & publish</Link></Button><Button asChild variant="outline"><Link to="/studio/movies"><Film className="mr-2 h-4 w-4"/>My catalogue</Link></Button></div>
   <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
    {[{label:'My titles',value:items.length,icon:Film},{label:'Published',value:published,icon:Upload},{label:'Audience views',value:views.toLocaleString(),icon:Eye},{label:'Net earnings',value:'₦'+earnings.NGN.toLocaleString()+' · $'+earnings.USD.toLocaleString(),icon:DollarSign}].map(s=><Card key={s.label}><CardContent className="pt-5"><s.icon className="mb-2 h-5 w-5 text-primary"/><p className="text-xl font-bold">{s.value}</p><p className="text-xs text-muted-foreground">{s.label}</p></CardContent></Card>)}
   </div>
