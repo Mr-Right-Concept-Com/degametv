@@ -25,10 +25,10 @@ if(import.meta.main)serve(async(req:Request)=>{
    const {data:screening}=await db.from("screenings").select("live_recording_status,live_replay_ready_at").eq("id",stream.metadata?.screening_id).maybeSingle();
    if(screening?.live_recording_status!=="ready"||!screening.live_replay_ready_at)return json(409,{error:"Replay is not ready"});
   }
-  const {data:providers,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:"video_delivery"});
-  if(providerError||!Array.isArray(providers)||!providers.length)return json(503,{error:"Video delivery provider is not configured"});
-  const p=providers[0],path=p.endpoints?.playback_authorize;
-  if(!p.credential||typeof path!=="string"||!path.startsWith("/")||path.startsWith("//"))return json(503,{error:"Playback authorization adapter is incomplete"});
+  const {data:providers,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:"live_streaming"});
+  if(providerError||!Array.isArray(providers)||!providers.length)return json(503,{error:"Live streaming provider is not configured"});
+  const p=providers.find((candidate:any)=>candidate.provider_key===stream.metadata?.provider),path=p?.endpoints?.playback_authorize;
+  if(!p?.credential||typeof path!=="string"||!path.startsWith("/")||path.startsWith("//"))return json(503,{error:"Playback authorization adapter is incomplete"});
   const endpoint=new URL(path,p.base_url);if(endpoint.origin!==new URL(p.base_url).origin)return json(503,{error:"Invalid playback endpoint"});
   const header=p.settings?.credential_header||"Authorization",prefix=p.settings?.credential_prefix??"Bearer ";
   const response=await fetch(endpoint,{method:"POST",headers:{[header]:prefix+p.credential,"Content-Type":"application/json"},body:JSON.stringify({entitlement:{ticket_id:entitlement.id,stream_id:stream.id,user_id:user.id,mode:input.data.mode,valid_until:entitlement.valid_until},asset:{provider_reference:stream.metadata?.provider_reference,playback_url:stream.playback_url}}),signal:AbortSignal.timeout(12000)});
