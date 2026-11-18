@@ -65,7 +65,12 @@ export default function WhiteLabel() {
   }, []);
 
   const handleSave = async () => {
-    const validDomain = (value: string) => /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$/i.test(value.trim());\n    if (!validDomain(domains.controlDomain) || !validDomain(domains.releaseDomain)) { toast.error('Enter valid domain names without https:// or paths.'); return; }\n    setSaving(true);
+    const validDomain = (value: string) => /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i.test(value.trim());
+    if (!validDomain(domains.controlDomain) || !validDomain(domains.releaseDomain)) {
+      toast.error('Enter valid domain names without https:// or paths.');
+      return;
+    }
+    setSaving(true);
     const { error: brandingError } = await supabase.from('platform_settings').upsert({
       setting_key: 'branding',
       setting_value: branding as unknown as import('@/integrations/supabase/types').Json,
