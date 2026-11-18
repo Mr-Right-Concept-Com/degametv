@@ -189,7 +189,7 @@ export default function UserDashboard() {
           <TabsList className="bg-secondary/50 w-full sm:w-auto">
             <TabsTrigger value="tickets">
               <Ticket className="w-4 h-4 mr-1.5" />
-              Tickets
+              My Tickets
             </TabsTrigger>
             <TabsTrigger value="history">
               <Film className="w-4 h-4 mr-1.5" />
