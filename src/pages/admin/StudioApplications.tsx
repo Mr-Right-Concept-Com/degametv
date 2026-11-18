@@ -82,6 +82,8 @@ export default function StudioApplications() {
     if (error) {
       const message = error.message.includes('self_review_forbidden') ? 'You cannot approve your own studio.'
         : error.message.includes('creator_identity_role_required') ? 'The applicant must complete identity approval first.'
+        : error.message.includes('business_evidence_required') ? 'Business approval requires a rights declaration and CAC document.'
+        : error.message.includes('business_document_missing') ? 'The private CAC document is missing or does not belong to this applicant.'
         : 'Studio review was not saved. Check your permissions and the application status.';
       toast.error(message);
     } else {
