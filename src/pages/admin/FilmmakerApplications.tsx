@@ -29,6 +29,7 @@ export default function FilmmakerApplications() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Application | null>(null);
   const [note, setNote] = useState('');
+  const [evidence, setEvidence] = useState<{ idUrl: string; selfieUrl: string } | null>(null);
   const [working, setWorking] = useState(false);
   const [tab, setTab] = useState<'pending' | 'verified' | 'rejected'>('pending');
   const [q, setQ] = useState('');
@@ -47,38 +48,42 @@ export default function FilmmakerApplications() {
 
   useEffect(() => { load(); }, []);
 
-  const approve = async (app: Application) => {
-    setWorking(true);
-    const { error: e1 } = await supabase
-      .from('profiles')
-      .update({ kyc_status: 'verified', kyc_verified_at: new Date().toISOString() })
-      .eq('user_id', app.user_id);
-    if (e1) { toast.error('Failed: ' + e1.message); setWorking(false); return; }
-    // Grant creator role (ignore conflict)
-    const { error: e2 } = await supabase
-      .from('user_roles')
-      .insert({ user_id: app.user_id, role: 'creator' as any });
-    if (e2 && !e2.message.includes('duplicate')) {
-      toast.error('Role grant failed: ' + e2.message);
-    } else {
-      toast.success('Filmmaker approved — studio access granted');
+  const review = async (app: Application, decision: 'verified' | 'rejected') => {
+    if (note.trim().length < 10) {
+      toast.error('Enter a review reason of at least 10 characters.');
+      return;
     }
+    setWorking(true);
+    const { data, error } = await supabase.functions.invoke('review-kyc', {
+      body: { user_id: app.user_id, decision, reason: note.trim() },
+    });
+    if (error || !data?.success) {
+      toast.error(data?.error || 'The review decision was not saved.');
+      setWorking(false);
+      return;
+    }
+    toast.success(decision === 'verified'
+      ? 'Identity approved and creator access granted.'
+      : 'Identity application rejected.');
     setSelected(null);
+    setEvidence(null);
     setWorking(false);
-    load();
+    await load();
   };
 
-  const reject = async (app: Application) => {
-    setWorking(true);
-    const { error } = await supabase
-      .from('profiles')
-      .update({ kyc_status: 'rejected' })
-      .eq('user_id', app.user_id);
-    if (error) toast.error('Failed: ' + error.message);
-    else toast.success('Application rejected');
-    setSelected(null);
-    setWorking(false);
-    load();
+  const openApplication = async (app: Application) => {
+    setSelected(app);
+    setNote('');
+    setEvidence(null);
+    const [id, selfie] = await Promise.all([
+      app.kyc_id_url ? supabase.storage.from('identity-documents').createSignedUrl(app.kyc_id_url, 300) : Promise.resolve({ data: null, error: new Error('Missing ID evidence') }),
+      app.kyc_selfie_url ? supabase.storage.from('identity-documents').createSignedUrl(app.kyc_selfie_url, 300) : Promise.resolve({ data: null, error: new Error('Missing selfie evidence') }),
+    ]);
+    if (id.error || selfie.error || !id.data?.signedUrl || !selfie.data?.signedUrl) {
+      toast.error('Private identity evidence could not be opened. Check reviewer permissions.');
+      return;
+    }
+    setEvidence({ idUrl: id.data.signedUrl, selfieUrl: selfie.data.signedUrl });
   };
 
   const filtered = apps.filter(a => a.kyc_status === tab && (
@@ -117,13 +122,9 @@ export default function FilmmakerApplications() {
       ) : (
         <div className="grid gap-3">
           {filtered.map(a => (
-            <Card key={a.id} className="hover:border-primary/40 cursor-pointer transition-colors" onClick={() => { setSelected(a); setNote(''); }}>
+            <Card key={a.id} className="hover:border-primary/40 cursor-pointer transition-colors" onClick={() => openApplication(a)}>
               <CardContent className="p-4 flex items-center gap-4">
-                {a.kyc_selfie_url ? (
-                  <img src={a.kyc_selfie_url} alt="" className="w-14 h-14 rounded-full object-cover border" />
-                ) : (
-                  <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center"><ScanFace className="w-6 h-6 text-muted-foreground" /></div>
-                )}
+                <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center"><ScanFace className="w-6 h-6 text-muted-foreground" /></div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm truncate">{a.kyc_full_name || a.full_name || 'Unnamed'}</p>
                   <p className="text-xs text-muted-foreground truncate">{a.email}</p>
@@ -161,31 +162,27 @@ export default function FilmmakerApplications() {
                   <div>
                     <Label className="text-xs">Government ID</Label>
                     {selected.kyc_id_url ? (
-                      <a href={selected.kyc_id_url} target="_blank" rel="noopener">
-                        <img src={selected.kyc_id_url} alt="ID" className="w-full h-48 object-cover rounded-lg border mt-1" />
-                      </a>
+                      {evidence?.idUrl ? <a href={evidence.idUrl} target="_blank" rel="noopener noreferrer"><img src={evidence.idUrl} alt="Government identity document" className="w-full h-48 object-contain rounded-lg border mt-1" /></a> : <p className="text-xs text-muted-foreground">Loading private evidence…</p>}
                     ) : <p className="text-xs text-muted-foreground">None</p>}
                   </div>
                   <div>
                     <Label className="text-xs">Selfie with ID</Label>
                     {selected.kyc_selfie_url ? (
-                      <a href={selected.kyc_selfie_url} target="_blank" rel="noopener">
-                        <img src={selected.kyc_selfie_url} alt="Selfie" className="w-full h-48 object-cover rounded-lg border mt-1" />
-                      </a>
+                      {evidence?.selfieUrl ? <a href={evidence.selfieUrl} target="_blank" rel="noopener noreferrer"><img src={evidence.selfieUrl} alt="Applicant selfie with identity document" className="w-full h-48 object-contain rounded-lg border mt-1" /></a> : <p className="text-xs text-muted-foreground">Loading private evidence…</p>}
                     ) : <p className="text-xs text-muted-foreground">None</p>}
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Internal Notes (optional)</Label>
+                  <Label className="text-xs">Review reason (required)</Label>
                   <Textarea value={note} onChange={e => setNote(e.target.value)} rows={2} />
                 </div>
               </div>
               {selected.kyc_status === 'pending' && (
                 <DialogFooter className="gap-2">
-                  <Button variant="destructive" size="sm" disabled={working} onClick={() => reject(selected)}>
+                  <Button variant="destructive" size="sm" disabled={working || note.trim().length < 10} onClick={() => review(selected, 'rejected')}>
                     <X className="w-4 h-4 mr-1" />Reject
                   </Button>
-                  <Button size="sm" disabled={working} onClick={() => approve(selected)}>
+                  <Button size="sm" disabled={working || note.trim().length < 10} onClick={() => review(selected, 'verified')}>
                     {working ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Check className="w-4 h-4 mr-1" />}
                     Approve & Grant Studio Access
                   </Button>
