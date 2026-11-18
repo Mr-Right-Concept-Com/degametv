@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { z } from "npm:zod@3.25.76";
-const schema=z.object({reference:z.string().min(20).max(80).regex(/^DTV_[A-Za-z0-9]+$/),email:z.string().trim().email().max(254).transform(value=>value.toLowerCase())}).strict();
+const schema=z.object({reference:z.string().min(20).max(80).regex(/^DTV_[A-Za-z0-9]+$/)}).strict();
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
 if(import.meta.main)serve(async(req:Request)=>{
@@ -13,7 +13,7 @@ if(import.meta.main)serve(async(req:Request)=>{
  if(!url||!service)return json(503,{error:"Payment status is temporarily unavailable."});
  try{
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
-  const {data:order,error}=await admin.from("guest_payment_orders").select("id,ticket_id,status,email,provider_reference,provider,amount_minor,currency,app_origin").eq("provider_reference",parsed.data.reference).eq("email",parsed.data.email).maybeSingle();
+  const {data:order,error}=await admin.from("guest_payment_orders").select("id,ticket_id,status,email,provider_reference,provider,amount_minor,currency,app_origin").eq("provider_reference",parsed.data.reference).maybeSingle();
   if(error||!order)return json(404,{error:"No payment could be found for those details."});
   if(order.status==="pending"&&order.provider==="paystack"){
    const {data:configs,error:configError}=await admin.rpc("get_payment_provider_runtime_config",{p_provider:"paystack"});
@@ -41,6 +41,6 @@ if(import.meta.main)serve(async(req:Request)=>{
    emailSent=Boolean(mailResponse?.ok);
    if(!emailSent)await admin.from("guest_payment_orders").update({email_sent_at:null}).eq("id",order.id);
   }
-  return json(200,{status:"paid",ticketCode:ticket.ticket_code,watchCode:ticket.watch_code,expiresAt:ticket.expires_at,screeningId:ticket.screening_id,emailSent});
+  return json(200,{status:"paid",email:order.email,ticketCode:ticket.ticket_code,watchCode:ticket.watch_code,expiresAt:ticket.expires_at,screeningId:ticket.screening_id,emailSent});
  }catch{return json(500,{error:"Payment status could not be retrieved. Retry shortly."});}
 });
