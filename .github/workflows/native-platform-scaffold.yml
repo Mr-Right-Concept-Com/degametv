@@ -1,0 +1,44 @@
+name: Generate DeGameTV Flutter platform shells
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'native/pubspec.yaml'
+      - 'native/lib/**'
+      - 'native/assets/**'
+      - 'native/test/**'
+      - 'native/tool/**'
+      - 'native/analysis_options.yaml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: degametv-native-platform-scaffold
+  cancel-in-progress: false
+jobs:
+  scaffold:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate native runners
+        working-directory: native
+        run: |
+          flutter create --platforms=android,ios,windows,macos,linux --org com.degametv --project-name degametv_native .
+          node tool/configure_platforms.mjs
+      - name: Commit generated platform projects
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add native/android native/ios native/windows native/macos native/linux
+          if git diff --cached --quiet; then
+            echo "Platform runner projects are already current."
+            exit 0
+          fi
+          git commit -m "chore(native): generate Flutter platform runner shells"
+          git push origin main
