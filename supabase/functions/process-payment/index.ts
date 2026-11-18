@@ -103,7 +103,7 @@ if (import.meta.main) serve(async (req: Request) => {
       return json(502, { success: false, error: "The payment provider could not start checkout. You have not been charged." });
     }
 
-    await admin.from("guest_payment_orders").update({ checkout_url: result.data.authorization_url }).eq("provider_reference", reference);
+    await admin.from("guest_payment_orders").update({ checkout_url: result.data.authorization_url, app_origin: siteOrigin }).eq("provider_reference", reference);
     return json(200, { success: true, authorizationUrl: result.data.authorization_url, reference, screeningTitle: screening.title });
   } catch {
     return json(500, { success: false, error: "Checkout could not be started. Please retry or contact support." });
