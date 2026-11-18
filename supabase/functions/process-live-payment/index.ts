@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { z } from "npm:zod@3.25.76";
-const schema=z.object({screeningId:z.string().uuid(),ticketType:z.enum(["live","replay","combo"]),currency:z.enum(["NGN","USD"])}).strict();
+const schema=z.object({screeningId:z.string().uuid(),ticketType:z.enum(["live","replay","combo"]),currency:z.enum(["NGN","USD"]),email:z.string().trim().email().max(254).optional()}).strict();
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, x-client-info, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
 if(import.meta.main)serve(async(req:Request)=>{
@@ -9,7 +9,7 @@ if(import.meta.main)serve(async(req:Request)=>{
  if(req.method!=="POST")return json(405,{error:"Method not allowed"});
  const url=Deno.env.get("SUPABASE_URL"),service=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),anon=Deno.env.get("SUPABASE_ANON_KEY");
  const authorization=req.headers.get("Authorization")||"";
- if(!url||!service||!anon||!authorization.startsWith("Bearer "))return json(503,{error:"Checkout is unavailable."});
+ if(!url||!service||!anon)return json(503,{error:"Checkout is unavailable."});
  const parsed=schema.safeParse(await req.json().catch(()=>null));if(!parsed.success)return json(400,{error:"Invalid event checkout request."});
  const userClient=createClient(url,anon,{global:{headers:{Authorization:authorization}},auth:{persistSession:false,autoRefreshToken:false}});
  const {data:{user},error:userError}=await userClient.auth.getUser();if(userError||!user)return json(401,{error:"Sign in before purchasing a live event ticket."});
@@ -34,7 +34,7 @@ if(import.meta.main)serve(async(req:Request)=>{
   const parsedOrigin=new URL(origin);if(parsedOrigin.protocol!=="https:"&&!["localhost","127.0.0.1"].includes(parsedOrigin.hostname))return json(503,{error:"Secure return URL is not configured."});
   const reference="DTVL_"+crypto.randomUUID().replaceAll("-","");
   const minor=Math.round(amount*100);
-  const {error:insertError}=await db.from("live_payment_orders").insert({tenant_id:screening.tenant_id,user_id:user.id,screening_id:screening.id,stream_id:stream.id,ticket_type:ticketType,provider:provider.provider_key,provider_reference:reference,email,amount_minor:minor,currency,metadata:{created_from:"viewer_checkout"}});
+  const {error:insertError}=await db.from("live_payment_orders").insert({tenant_id:screening.tenant_id,user_id:user?.id??null,guest_checkout:!user,screening_id:screening.id,stream_id:stream.id,ticket_type:ticketType,provider:provider.provider_key,provider_reference:reference,email,amount_minor:minor,currency,metadata:{created_from:"viewer_checkout",guest_checkout:!user}});
   if(insertError)return json(503,{error:"Could not create a secure ticket order. No charge was made."});
   const target=new URL(endpoint,provider.base_url);if(target.origin!==new URL(provider.base_url).origin)throw new Error("invalid_provider_endpoint");
   const h=provider.settings?.credential_header||"Authorization",prefix=provider.settings?.credential_prefix??"Bearer ";
