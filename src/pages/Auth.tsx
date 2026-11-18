@@ -45,7 +45,12 @@ export default function Auth() {
     if (!passwordResult.success) {
       newErrors.password = passwordResult.error.errors[0].message;
     }
-    
+
+    if (!isLogin) {
+      const nameResult = fullNameSchema.safeParse(fullName);
+      if (!nameResult.success) newErrors.fullName = nameResult.error.errors[0].message;
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
