@@ -75,8 +75,8 @@ Deno.serve(async req => {
     if(typeof healthPath!=="string"||!healthPath.startsWith("/")||healthPath.startsWith("//"))return json({error:"Configure a relative health_check endpoint and pass a successful provider health test before enabling this binding."},409);
     let credential=p.credential;
     if(!credential){
-      const {data:runtime}=await admin.rpc("get_service_provider_runtime_config",{p_capability:p.capability});
-      credential=Array.isArray(runtime)?runtime.find((row:any)=>row.provider_key===p.providerKey)?.credential:undefined;
+      const {data:stored}=await admin.rpc("get_service_provider_admin_secret",{p_capability:p.capability,p_provider_key:p.providerKey});
+      credential=Array.isArray(stored)?stored[0]?.credential:undefined;
     }
     if(!credential)return json({error:"A Vault credential is required before enabling this provider."},409);
     try{
