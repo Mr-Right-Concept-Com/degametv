@@ -19,9 +19,8 @@ interface PublicContent {
   duration: number | null;
   release_date: string | null;
   genres: string[] | null;
-  cast_crew: Array<{name?:string;role?:string}> | null;
 }
-interface PublicScreening { id: string; title: string; slug: string; screening_date: string | null; location_pricing: { nigeria?: number; international?: number } }
+interface PublicScreening { id: string; title: string; slug: string; screening_date: string | null; }
 
 export default function ContentLanding() {
   const { id } = useParams<{id:string}>();
@@ -33,11 +32,11 @@ export default function ContentLanding() {
     let active=true;
     const load=async()=>{
       if(!id){setLoading(false);return;}
-      const {data,error}=await supabase.from('content').select('id,title,description,type,poster_url,trailer_url,duration,release_date,genres,cast_crew').eq('id',id).eq('status','published').maybeSingle();
+      const {data,error}=await supabase.from('content').select('id,title,description,type,poster_url,trailer_url,duration,release_date,genres').eq('id',id).eq('status','published').maybeSingle();
       if(!active)return;
       if(error||!data){setContent(null);setLoading(false);return;}
       setContent(data as PublicContent);
-      const {data:events}=await supabase.from('screenings').select('id,title,slug,screening_date,location_pricing').eq('content_id',id).eq('status','published').order('screening_date',{ascending:true});
+      const {data:events}=await supabase.from('screenings').select('id,title,slug,screening_date').eq('content_id',id).eq('status','published').order('screening_date',{ascending:true});
       if(active)setScreenings((events??[]) as PublicScreening[]);
       setLoading(false);
     };
