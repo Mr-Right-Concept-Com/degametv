@@ -16,7 +16,7 @@ export function Footer() {
           {/* Brand */}
           <div className="md:col-span-1">
             <Link to="/" className="flex items-center gap-2 mb-4">
-              <img src="/brand/degametv-lockup.svg" alt="DeGameTV" className="h-10 w-auto max-w-[190px] object-contain" />
+              <img src="/brand/degametv-lockup.svg" alt="DeGameTV" className="h-auto w-[180px] max-w-full object-contain" />
             </Link>
             <p className="text-muted-foreground text-sm mb-4 max-w-sm">
               Experience exclusive African cinema premieres from anywhere in the world.
@@ -42,7 +42,7 @@ export function Footer() {
               <li><Link to="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Now Showing</Link></li>
               <li><Link to="/cinema" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Upcoming Screenings</Link></li>
               <li><Link to="/producers" className="text-sm text-muted-foreground hover:text-foreground transition-colors">For Producers</Link></li>
-              <li><Link to="/producers" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Creator Studio</Link></li>
+              <li><Link to="/dashboard" className="text-sm text-muted-foreground hover:text-foreground transition-colors">My Dashboard</Link></li>
             </ul>
           </div>
 
