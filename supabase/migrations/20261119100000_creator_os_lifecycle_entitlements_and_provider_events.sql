@@ -153,6 +153,7 @@ BEGIN
       WHEN p_event_type IN ('stream.connected','stream.active','stream.ended') THEN NULL
       ELSE reconnect_grace_expires_at END,
     vod_replay_asset_url=coalesce(v_replay_url,vod_replay_asset_url),
+    playback_url=CASE WHEN p_event_type='recording.ready' THEN coalesce(v_replay_url,playback_url) ELSE playback_url END,
     updated_at=v_now
   WHERE id=v_stream.id;
 
