@@ -16,9 +16,9 @@ import { z } from 'zod';
 import { Loader2 } from 'lucide-react';
 
 async function god(body: Record<string, unknown>) {
-  const r = await invokeFn('admin-godmode', body);
+  const r = await invokeFn<{ result?: unknown }>('admin-godmode', body);
   if (!r.ok) throw new Error(r.error);
-  return r.data.result;
+  return r.data?.result;
 }
 
 const adjustSchema = z.object({
