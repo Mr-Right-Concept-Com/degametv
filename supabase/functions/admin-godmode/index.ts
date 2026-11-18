@@ -5,8 +5,7 @@ import { z } from "npm:zod@3";
 const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("setting_update"), key: z.string().min(1).max(100), value: z.any() }),
   z.object({ action: z.literal("wallet_adjust"), userId: z.string().uuid(), amount: z.number().refine((n) => n !== 0 && Math.abs(n) <= 100_000_000), currency: z.enum(["NGN", "USD"]), reason: z.string().min(3).max(500) }),
-  z.object({ action: z.literal("tier_set"), userId: z.string().uuid(), status: z.enum(["approved", "rejected", "pending"]) }),
-  z.object({ action: z.literal("role_set"), userId: z.string().uuid(), role: z.enum(["super_admin", "platform_admin", "creator", "moderator", "viewer"]), grant: z.boolean() }),
+  z.object({ action: z.literal("role_set"), userId: z.string().uuid(), role: z.enum(["super_admin", "platform_admin", "moderator", "viewer"]), grant: z.boolean() }),
   z.object({ action: z.literal("withdrawal_set"), id: z.string().uuid(), status: z.enum(["pending", "approved", "paid", "rejected"]), note: z.string().max(500).optional() }),
   z.object({ action: z.literal("impersonate"), userId: z.string().uuid(), redirectTo: z.string().url().optional() }),
 ]);
@@ -46,14 +45,8 @@ Deno.serve(async (req) => {
         entityId = data.id;
         break;
       }
-      case "tier_set": {
-        const { error } = await admin.from("studio_accounts").update({ status: p.status }).eq("user_id", p.userId);
-        if (error) return json({ error: error.message }, 500);
-        if (p.status !== "approved") await admin.from("user_roles").delete().eq("user_id", p.userId).eq("role", "creator");
-        entityId = p.userId;
-        break;
-      }
       case "role_set": {
+        if (p.role === "creator") return json({ error: "Creator eligibility is granted only by the verified KYC review workflow." }, 403);
         if (p.userId === user.id && !p.grant && p.role === "super_admin") return json({ error: "You cannot remove your own super admin role" }, 400);
         if (p.grant) {
           const { data: ex } = await admin.from("user_roles").select("id").eq("user_id", p.userId).eq("role", p.role).maybeSingle();
