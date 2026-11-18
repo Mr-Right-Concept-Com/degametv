@@ -499,7 +499,7 @@ export default function StudioSubmit() {
                   <Textarea value={form.cast_crew_text} onChange={e => setForm(f => ({ ...f, cast_crew_text: e.target.value }))} rows={3} placeholder={'Name — Role, one person per line'} />
                 </div>}
                 <div className="flex gap-3">
-                  {!liveFlow && <Button type="button" variant="outline" className="flex-1 rounded-full" onClick={() => setStep(1)}>Back</Button>}
+                  {!liveFlow && }
                   <Button type="button" className="flex-1 rounded-full" onClick={() => { if (validateStep2()) setStep(3); }}>
                     {liveFlow ? 'Continue to event setup' : 'Next'} <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
