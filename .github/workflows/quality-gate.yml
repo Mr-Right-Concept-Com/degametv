@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: degametv-quality-${{ github.ref }}
@@ -16,28 +16,17 @@ concurrency:
 
 jobs:
   quality:
+    name: Typecheck, lint, build and accessibility
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      # Reconcile the existing manifest/lockfile drift once, then commit the
-      # generated lockfile so subsequent installs are deterministic.
-      - name: Reconcile dependency lock
-        run: |
-          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-          if ! git diff --quiet -- package-lock.json; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add package-lock.json
-            git commit -m "build(deps): reconcile npm lockfile"
-            git push
-          fi
       - name: Install locked dependencies
         run: npm ci
       - name: TypeScript
