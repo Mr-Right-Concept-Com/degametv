@@ -37,7 +37,7 @@ if(import.meta.main)serve(async(req:Request)=>{
   let emailSent=false;
   if(emailClaim){
    const {data:screening}=await admin.from("screenings").select("title").eq("id",ticket.screening_id).maybeSingle();
-   const mailResponse=await fetch(url+"/functions/v1/send-watch-email",{method:"POST",headers:{"Authorization":"Bearer "+service,"apikey":service,"Content-Type":"application/json"},body:JSON.stringify({email:order.email,movieTitle:screening?.title||"Your DeGameTV screening",watchUrl:"https://"+new URL(req.url).host.replace(".supabase.co","")+".supabase.co/watch/"+ticket.watch_code+"?email="+encodeURIComponent(order.email),ticketCode:ticket.ticket_code,expiresAt:ticket.expires_at,location:ticket.location,price:Number(ticket.price),currency:order.currency})}).catch(()=>null);
+   const mailResponse=await fetch(url+"/functions/v1/send-watch-email",{method:"POST",headers:{"Authorization":"Bearer "+service,"apikey":service,"Content-Type":"application/json"},body:JSON.stringify({email:order.email,movieTitle:screening?.title||"Your DeGameTV screening",watchUrl:(req.headers.get("origin")||"").replace(/\\/$/,"")+"/watch/"+ticket.watch_code+"?email="+encodeURIComponent(order.email),ticketCode:ticket.ticket_code,expiresAt:ticket.expires_at,location:ticket.location,price:Number(ticket.price),currency:order.currency})}).catch(()=>null);
    emailSent=Boolean(mailResponse?.ok);
    if(!emailSent)await admin.from("guest_payment_orders").update({email_sent_at:null}).eq("id",order.id);
   }
