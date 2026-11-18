@@ -159,10 +159,10 @@ export default function StudioSubmit() {
     }
     setCreatedContentId(submission.content_id);
 
-    if (form.poster_url && form.video_url) {
+    if (form.poster_url && (form.video_url || ['live', 'series'].includes(form.project_type) || (form.project_type === 'trailer' && form.trailer_url))) {
       const { data: publication, error: publishError } = await supabase.rpc('publish_creator_content', { p_content_id: submission.content_id });
       if (!publishError && publication?.status === 'published') setPublished(true);
-      else toast.info('Your submission is saved in Studio. Complete creator approval or required assets before publishing.');
+      else toast.info('Your content draft is saved. Add the required assets and rights declaration, then publish when ready.');
     }
 
     setSubmitted(true);
@@ -178,7 +178,7 @@ export default function StudioSubmit() {
     else {
       const { data: urlData } = supabase.storage.from('content-uploads').getPublicUrl(data.path);
       setForm(f => ({ ...f, poster_url: urlData.publicUrl }));
-      toast.success('Poster uploaded!');
+      toast.success('Artwork uploaded!');
     }
     setUploadingPoster(false);
   };
@@ -228,14 +228,14 @@ export default function StudioSubmit() {
 
   if (submitted) {
     return (
-      <StudioLayout title={published ? "Film published" : "Submission received"}>
+      <StudioLayout title={published ? "Content published" : "Content saved"}>
         <div className="max-w-lg mx-auto py-12 text-center">
           <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-10 h-10 text-green-500" />
           </div>
-          <h2 className="text-2xl font-bold mb-3">{published ? 'Film published' : 'Submission saved to Studio'}</h2>
+          <h2 className="text-2xl font-bold mb-3">{published ? 'Content published' : 'Draft saved to Studio'}</h2>
           <p className="text-muted-foreground mb-6">
-            {published ? `"${form.project_title}" is now live on DeGameTV and can be shared.` : `"${form.project_title}" is saved as a draft. Add required assets and complete creator approval to publish.`}
+            {published ? `"${form.project_title}" is now live on DeGameTV and can be shared.` : `"${form.project_title}" is saved as a draft. Add required assets and complete its content-specific assets and rights declaration, then publish whenever you are ready.`}
           </p>
           <div className="flex flex-col gap-3">
             <Button variant="outline" className="rounded-full" onClick={() => navigate('/studio/movies')}>View My Movies</Button>
@@ -252,7 +252,7 @@ export default function StudioSubmit() {
 
 
   return (
-    <StudioLayout title="Submit Film" description="Submit your film or series for review and distribution">
+    <StudioLayout title="Create Content" description="Publish films, series, shorts, trailers, VOD and live cinema events from one creator workspace.">
       <div className="max-w-2xl mx-auto">
         {/* Steps */}
         <div className="flex items-center gap-2 mb-8">
@@ -371,7 +371,7 @@ export default function StudioSubmit() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Movie Poster</Label>
+                  <Label>Content Artwork / Poster</Label>
                   <div className="flex items-center gap-3">
                     {form.poster_url ? (
                       <img src={form.poster_url} alt="Poster" className="w-16 h-24 object-cover rounded-lg" />
