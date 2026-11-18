@@ -50,10 +50,7 @@ Deno.serve(async req => {
     ]);
     const vault = Array.isArray(secrets) ? secrets[0] : null;
     const settings = binding?.settings && typeof binding.settings === "object" ? binding.settings : {};
-    const liveMode = binding?.is_live === true;
-    const webhookSecret = liveMode
-      ? (vault?.live_webhook_secret || vault?.test_webhook_secret)
-      : (vault?.test_webhook_secret || vault?.live_webhook_secret);
+    const webhookSecret = vault?.webhook_secret;
     if (bindingError || secretError || !binding || !webhookSecret)
       return json({ error: "Provider webhook secret is not configured in Vault." }, 503);
 
