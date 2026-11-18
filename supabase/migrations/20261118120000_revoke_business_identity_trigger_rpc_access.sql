@@ -1,0 +1,1 @@
+revoke all on function public.enforce_business_identity_name_match() from public, anon, authenticated;
