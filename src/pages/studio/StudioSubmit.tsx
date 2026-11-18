@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import { StudioLayout } from '@/components/studio/StudioLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -52,7 +53,7 @@ export default function StudioSubmit() {
     submitter_email: user?.email || '',
     company_name: '',
     project_title: '',
-    project_type: 'movie',
+    project_type: searchParams.get('type') === 'series' ? 'series' : 'movie',
     description: '',
     genres: [] as string[],
     duration_minutes: '',
