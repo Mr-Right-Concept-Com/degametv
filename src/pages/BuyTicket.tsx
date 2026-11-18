@@ -266,7 +266,7 @@ export default function BuyTicket() {
           </div>
 
           {/* Step: Location */}
-          {step === 'location' && screening.access_model === 'FREE' ? (
+          {step === 'location' && !freeStreamId && screening.access_model === 'FREE' ? (
             <Card className="animate-fade-in border-success/30">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base"><Check className="h-4 w-4 text-success"/> Free admission</CardTitle>
@@ -280,7 +280,7 @@ export default function BuyTicket() {
                 </Button>
               </CardContent>
             </Card>
-          ) : step === 'location' && (
+          ) : step === 'location' && !freeStreamId && (
             <Card className="animate-fade-in border-border/50">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
