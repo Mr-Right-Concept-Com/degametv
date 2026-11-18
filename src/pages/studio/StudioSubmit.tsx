@@ -137,6 +137,11 @@ export default function StudioSubmit() {
     media_format: 'VIDEO_PODCAST',
     category_tag: '',
     participants: '',
+    auto_convert_to_vod: true,
+    replay_access_model: 'INCLUDED_WITH_TICKET',
+    replay_price_ngn: '',
+    replay_price_usd: '',
+    replay_access_hours: '48',
   });
 
   useEffect(() => {
@@ -163,7 +168,7 @@ export default function StudioSubmit() {
     setProvisioningEncoder(true);
     try {
       const { data, error } = await supabase.functions.invoke('media-provider-control', {
-        body: { action: 'create_live', screeningId: createdScreeningId, title: form.project_title, description: form.description, recordingEnabled: true },
+        body: { action: 'create_live', screeningId: createdScreeningId, title: form.project_title, description: form.description, recordingEnabled: form.auto_convert_to_vod },
       });
       if (error || !data?.success || typeof data.streamKey !== 'string' || typeof data.ingestUrl !== 'string') {
         toast.error(data?.error || 'A configured streaming provider is required before an encoder can be provisioned.');
@@ -498,7 +503,7 @@ export default function StudioSubmit() {
                   <div className="space-y-2"><Label>Show name</Label><Input value={form.show_name} onChange={e=>setForm(f=>({...f,show_name:e.target.value}))} placeholder="Podcast or show name"/></div>
                   <div className="space-y-2"><Label>Hosts</Label><Input value={form.hosts} onChange={e=>setForm(f=>({...f,hosts:e.target.value}))} placeholder="Host names"/></div>
                   <div className="space-y-2"><Label>Guests</Label><Input value={form.guests} onChange={e=>setForm(f=>({...f,guests:e.target.value}))} placeholder="Optional guests"/></div>
-                  <div className="space-y-2"><Label>Media format</Label><Select value={form.media_format} onValueChange={v=>setForm(f=>({...f,media_format:v}))}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="VIDEO_PODCAST">Video podcast</SelectItem><SelectItem value="AUDIO_ONLY">Audio only (upload support required)</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Media format</Label><Select value={form.media_format} onValueChange={v=>setForm(f=>({...f,media_format:v}))}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="VIDEO_PODCAST">Video podcast</SelectItem><SelectItem value="AUDIO_ONLY" disabled>Audio only (coming with audio ingestion)</SelectItem></SelectContent></Select></div>
                 </div>}
                 {!liveFlow && ['GAMING','SPORTS','EDUCATIONAL','RECORDED_EVENT','DOCUMENTARY'].includes(form.preset_type) && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>Category / league / course</Label><Input value={form.category_tag} onChange={e=>setForm(f=>({...f,category_tag:e.target.value}))} placeholder="Category, league, game or subject"/></div>
@@ -541,7 +546,6 @@ export default function StudioSubmit() {
                   <Textarea value={form.cast_crew_text} onChange={e => setForm(f => ({ ...f, cast_crew_text: e.target.value }))} rows={3} placeholder={'Name — Role, one person per line'} />
                 </div>}
                 <div className="flex gap-3">
-                  {!liveFlow && }
                   <Button type="button" className="flex-1 rounded-full" onClick={() => { if (validateStep2()) setStep(3); }}>
                     {liveFlow ? 'Continue to event setup' : 'Next'} <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
@@ -622,6 +626,29 @@ export default function StudioSubmit() {
                     </Select>
                   </div>
                 </div>
+                {form.project_type === 'live' && <div className="space-y-4 rounded-xl border p-4">
+                  <label className="flex items-start gap-3 text-sm">
+                    <input type="checkbox" checked={form.auto_convert_to_vod} onChange={e=>setForm(f=>({...f,auto_convert_to_vod:e.target.checked}))} className="mt-1"/>
+                    <span><strong>Automatically prepare a replay</strong><span className="block text-xs text-muted-foreground">Ask the streaming provider to record the broadcast and make a replay available after processing.</span></span>
+                  </label>
+                  {form.auto_convert_to_vod && <>
+                    <div className="space-y-2"><Label>Replay access</Label>
+                      <Select value={form.replay_access_model} onValueChange={v=>setForm(f=>({...f,replay_access_model:v}))}>
+                        <SelectTrigger><SelectValue/></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="INCLUDED_WITH_TICKET">Included with live ticket</SelectItem>
+                          <SelectItem value="SEPARATE_PRICE">Sell replay separately</SelectItem>
+                          <SelectItem value="FREE_REPLAY">Free public replay (claim required)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {form.replay_access_model === 'SEPARATE_PRICE' && <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1"><Label>Replay price (NGN)</Label><Input inputMode="decimal" value={form.replay_price_ngn} onChange={e=>setForm(f=>({...f,replay_price_ngn:e.target.value}))} placeholder="e.g. 1500"/></div>
+                      <div className="space-y-1"><Label>Replay price (USD)</Label><Input inputMode="decimal" value={form.replay_price_usd} onChange={e=>setForm(f=>({...f,replay_price_usd:e.target.value}))} placeholder="e.g. 3"/></div>
+                    </div>}
+                    <div className="space-y-1"><Label>Replay access window (hours)</Label><Input type="number" min="1" max="8760" value={form.replay_access_hours} onChange={e=>setForm(f=>({...f,replay_access_hours:e.target.value}))}/></div>
+                  </>}
+                </div>}
                 {form.project_type === 'live' || form.release_strategy === 'premiere' ? <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>Event date</Label><Input type="date" required value={form.premiere_date} onChange={e => setForm(f => ({ ...f, premiere_date: e.target.value }))} /></div>
                   <div className="space-y-2"><Label>Start time</Label><Input type="time" required value={form.premiere_time} onChange={e => setForm(f => ({ ...f, premiere_time: e.target.value }))} /></div>
