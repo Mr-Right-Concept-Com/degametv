@@ -22,15 +22,17 @@ Only the Supabase publishable/anon key belongs in a client app. Never use a serv
 - Supabase Auth authenticates the same DeGameTV identities used on web.
 - The native catalogue reads published `screenings` under the existing Row Level Security policies.
 - Supabase Realtime listens for screening changes and refreshes the catalogue. This requires the `screenings` table to be enabled in the Supabase Realtime publication; if it is not enabled, pull-to-refresh remains available.
-- Ticket checkout, payment and protected playback should continue to use the canonical DeGameTV web/backend flows until native parity is implemented and separately certified. The native ticket destination currently provides an account sign-in gate, not a replacement ticket wallet.
+- Native sign-in, registration and password recovery use the existing Supabase Auth project.
+- The native ticket wallet reads only the signed-in user's non-revoked `tickets` rows through the existing RLS policies. Full ticket redemption, guest claims, checkout and protected playback continue through canonical DeGameTV web/backend flows until native payment and media-delivery clients are separately certified.
+- The account menu routes users to the canonical dashboard and protected Creator Studio, so creator approval and backend authorization remain authoritative.
 - Native code and plugin changes require store-distributed binaries. Content, screening and database changes do not require a new store release.
 
 ## CI and release artifacts
 
-GitHub Actions in `.github/workflows/native-flutter-validate.yml` runs formatting, analysis and tests. `.github/workflows/native-flutter-build.yml` builds Android App Bundle, iOS device build (without signing), and desktop release artifacts. Add the repository Actions secret `SUPABASE_PUBLISHABLE_KEY` before distributing builds. The project URL is public and configured in the workflow.
+GitHub Actions in `.github/workflows/native-flutter-validate.yml` runs formatting, analysis and tests. `.github/workflows/native-flutter-build.yml` builds Android App Bundle, iOS device build (without signing), and desktop release artifacts. Add the repository Actions secret `SUPABASE_PUBLISHABLE_KEY` before distributing builds. Generated platform shells are branded by `tool/configure_platforms.mjs`. The project URL is public and configured in the workflow.
 
 The current iOS artifact is intentionally unsigned and is not an App Store upload. Android release output also needs a production upload keystore and Play App Signing configuration before store submission. Configure Apple Team/certificates/profiles, Android keystore secrets, app identifiers, push-notification entitlements, privacy manifests, store metadata and policy declarations before submitting. Desktop packages need platform signing/notarization for public distribution.
 
 ## Current implementation boundary
 
-This is the first native application tranche: shared Supabase initialization, email/password sign-in, responsive navigation, live-updating published screening catalogue, branded UI and CI build scaffolding. It does not yet claim complete native parity for ticket wallet, checkout, video playback/DRM, creator studio, live broadcasting, push notifications or downloads. Those must be integrated against their existing backend contracts and tested per platform before store release.
+The current native tranche includes shared Supabase initialization, email/password sign-in, account creation, password recovery, a responsive screening catalogue, live screening refresh, a native ticket wallet, branded account navigation, and canonical web entry points for checkout, ticket redemption, dashboard and Creator Studio. It does not yet provide native checkout/payment, secure native video playback/DRM, native live broadcasting/OBS controls, push notifications, offline downloads, or full native Creator Studio workflows. These remain release blockers and must be implemented against their existing backend contracts and tested on physical devices.
