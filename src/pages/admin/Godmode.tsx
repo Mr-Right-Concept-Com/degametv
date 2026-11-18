@@ -16,6 +16,7 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { Loader2 } from 'lucide-react';
+import { ProviderRegistryPanel } from '@/components/admin/ProviderRegistryPanel';
 
 async function god(body: Record<string, unknown>) {
   const r = await invokeFn<{ result?: unknown }>('admin-godmode', body);
@@ -129,6 +130,7 @@ export default function Godmode() {
       <Tabs defaultValue="settings">
         <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="settings">Settings</TabsTrigger>
+          <TabsTrigger value="providers">Providers</TabsTrigger>
           <TabsTrigger value="users">Users & roles</TabsTrigger>
           <TabsTrigger value="wallets">Wallets</TabsTrigger>
           <TabsTrigger value="tiers">Tiers</TabsTrigger>
@@ -179,6 +181,8 @@ export default function Godmode() {
           ))}
           </div>
         </TabsContent>
+
+        <TabsContent value="providers" className="mt-4 space-y-4"><ProviderRegistryPanel /></TabsContent>
 
         <TabsContent value="users" className="mt-4 space-y-3">
           <Input placeholder="Search by email or name" value={q} onChange={e => setQ(e.target.value)} className="max-w-sm" aria-label="Search users" />
