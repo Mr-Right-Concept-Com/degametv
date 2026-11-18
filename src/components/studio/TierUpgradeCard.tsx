@@ -13,16 +13,17 @@ import { Building2, User, Loader2 } from 'lucide-react';
 
 const businessSchema = z.object({
   company_name: z.string().trim().min(2, 'Company name required').max(150),
-  cac_number: z.string().trim().regex(/^(RC|BN|IT)?\s?\d{4,10}$/i, 'Enter a valid CAC number (e.g. RC123456)'),
+  cac_number: z.string().trim().min(3).max(80),
   tax_id: z.string().trim().min(6, 'Tax ID required').max(30),
   bank_name: z.string().trim().min(2).max(100),
-  bank_account_number: z.string().trim().regex(/^\d{10}$/, 'Account number must be 10 digits'),
+  bank_account_number: z.string().trim().regex(/^\d{6,34}$/, 'Enter a valid account number'),
   bank_account_name: z.string().trim().min(2).max(150),
   seats: z.number().int().min(1).max(50),
   business_address: z.string().trim().min(5).max(240),
   business_city: z.string().trim().min(2).max(120),
   business_region: z.string().trim().max(120),
   business_postal_code: z.string().trim().max(32),
+  registration_country: z.string().regex(/^[A-Z]{2}$/), bank_country: z.string().regex(/^[A-Z]{2}$/),
   rights_declared: z.literal(true, { errorMap: () => ({ message: 'You must declare distribution rights' }) }),
 });
 
@@ -34,7 +35,7 @@ export function TierUpgradeCard() {
   const [tier, setTier] = useState<'creator' | 'business'>('creator');
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
-  const [f, setF] = useState({ company_name: '', cac_number: '', tax_id: '', bank_name: '', bank_account_number: '', bank_account_name: '', business_address: '', business_city: '', business_region: '', business_postal_code: '', seats: 1, rights_declared: false });
+  const [f, setF] = useState({ company_name: '', cac_number: '', tax_id: '', bank_name: '', bank_account_number: '', bank_account_name: '', business_address: '', business_city: '', business_region: '', business_postal_code: '', registration_country: 'NG', bank_country: 'NG', seats: 1, rights_declared: false });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const load = async () => {
@@ -78,7 +79,7 @@ export function TierUpgradeCard() {
         if (upErr) throw upErr;
         const { error: verificationError } = await supabase.rpc('submit_business_verification' as never, {
           p_legal_business_name: businessData.company_name,
-          p_registration_country: 'NG',
+          p_registration_country: businessData.registration_country,
           p_registration_number: businessData.cac_number,
           p_registration_document_path: path,
           p_business_address: businessData.business_address,
@@ -88,7 +89,7 @@ export function TierUpgradeCard() {
           p_bank_name: businessData.bank_name,
           p_bank_account_number: businessData.bank_account_number,
           p_bank_account_name: businessData.bank_account_name,
-          p_bank_country: 'NG',
+          p_bank_country: businessData.bank_country,
           p_tax_identifier: businessData.tax_id,
         } as never);
         if (verificationError) throw verificationError;
@@ -137,18 +138,20 @@ export function TierUpgradeCard() {
         {tier === 'business' && (
           <div className="grid sm:grid-cols-2 gap-3">
             {field('company_name', 'Registered company name')}
-            {field('cac_number', 'CAC registration number')}
+            {field('registration_country', 'Registration country (ISO-2)')}
+          {field('cac_number', 'Business registration number')}
             {field('tax_id', 'Tax ID (TIN)')}
             {field('seats', 'Team seats', 'number')}
           {field('business_address', 'Registered business address')}
           {field('business_city', 'City')}
           {field('business_region', 'State / Region')}
           {field('business_postal_code', 'Postal code')}
-            {field('bank_name', 'Corporate bank')}
+            {field('bank_country', 'Bank country (ISO-2)')}
+          {field('bank_name', 'Corporate bank')}
             {field('bank_account_number', 'Account number')}
             {field('bank_account_name', 'Account name')}
             <div className="space-y-1">
-              <Label htmlFor="cac_doc">CAC certificate (PDF/image)</Label>
+              <Label htmlFor="cac_doc">Business registration certificate (PDF/image)</Label>
               <Input id="cac_doc" type="file" accept=".pdf,image/*" onChange={e => setFile(e.target.files?.[0] || null)} />
               {errors.cac_doc && <p className="text-xs text-destructive">{errors.cac_doc}</p>}
             </div>
