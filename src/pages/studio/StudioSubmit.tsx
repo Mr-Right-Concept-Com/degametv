@@ -122,64 +122,40 @@ export default function StudioSubmit() {
       return;
     }
 
-    // 1) Create the content row FIRST so submission can reference it (RLS: creator_id = auth.uid())
-    const slug = form.project_title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36);
-    const { data: content, error: contentErr } = await supabase.from('content').insert({
-      tenant_id: '00000000-0000-0000-0000-000000000001',
-      creator_id: user?.id,
-      title: form.project_title,
-      slug,
-      description: form.description || '',
-      type: (form.project_type === 'series' ? 'series' : 'movie') as any,
-      status: 'draft' as any,
-      poster_url: form.poster_url || null,
-      trailer_url: form.trailer_url || null,
-      video_url: form.video_url || null,
-      duration: form.duration_minutes ? parseInt(form.duration_minutes) * 60 : null,
-      genres: form.genres.length > 0 ? form.genres : null,
-      release_date: form.release_year ? `${form.release_year}-01-01` : null,
-    } as any).select('id').single();
-
-    if (contentErr || !content) {
-      toast.error('Content record failed: ' + (contentErr?.message || 'unknown'));
-      setSubmitting(false);
-      return;
-    }
-    setCreatedContentId(content.id);
-
-    // Keep publication under review; uploading a submission does not publish the film.
-    const { error } = await supabase.from('filmmaker_submissions').insert({
-      submitter_name: form.submitter_name,
-      submitter_email: user?.email || form.submitter_email,
-      company_name: form.company_name || null,
-      project_title: form.project_title,
-      project_type: form.project_type,
-      description: form.description || null,
-      genres: form.genres.length > 0 ? form.genres : null,
-      duration_minutes: form.duration_minutes ? parseInt(form.duration_minutes) : null,
-      release_year: form.release_year ? parseInt(form.release_year) : null,
-      poster_url: form.poster_url || null,
-      trailer_url: form.trailer_url || null,
-      screener_url: form.screener_url || null,
-      video_url: form.video_url || null,
-      budget_range: form.budget_range || null,
-      distribution_rights: form.distribution_rights || null,
-      premiere_date: form.premiere_date || null,
-      rights_territories: form.rights_territories.split(',').map(value => value.trim()).filter(Boolean),
-      prior_screenings: form.prior_screenings.trim() || null,
-      cast_crew: form.cast_crew_text.split('\n').map(line => line.trim()).filter(Boolean).map(line => {
-        const [name, ...roleParts] = line.split('—');
-        return { name: name.trim(), role: roleParts.join('—').trim() };
-      }),
-      content_id: content.id,
-      status: 'pending',
+    const castCrew = form.cast_crew_text.split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+      const [name, ...roleParts] = line.split('—');
+      return { name: name.trim(), role: roleParts.join('—').trim() };
     });
 
-    if (error) {
-      toast.error('Submission failed: ' + error.message);
+    const { data: submission, error } = await supabase.rpc('create_creator_submission', {
+      _application: {
+        submitter_name: form.submitter_name,
+        company_name: form.company_name || null,
+        project_title: form.project_title,
+        project_type: form.project_type,
+        description: form.description || null,
+        genres: form.genres,
+        duration_minutes: form.duration_minutes ? parseInt(form.duration_minutes, 10) : null,
+        release_year: form.release_year ? parseInt(form.release_year, 10) : null,
+        poster_url: form.poster_url || null,
+        trailer_url: form.trailer_url || null,
+        screener_url: form.screener_url || null,
+        video_url: form.video_url || null,
+        budget_range: form.budget_range || null,
+        distribution_rights: form.distribution_rights || null,
+        premiere_date: form.premiere_date || null,
+        rights_territories: form.rights_territories.split(',').map(value => value.trim()).filter(Boolean),
+        prior_screenings: form.prior_screenings.trim() || null,
+        cast_crew: castCrew,
+      },
+    });
+
+    if (error || !submission?.content_id) {
+      toast.error('Submission failed: ' + (error?.message || 'The application could not be saved.'));
       setSubmitting(false);
       return;
     }
+    setCreatedContentId(submission.content_id);
 
     setSubmitted(true);
     setSubmitting(false);
