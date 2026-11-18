@@ -12,6 +12,19 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("impersonate"), userId: z.string().uuid(), redirectTo: z.string().url().optional() }),
 ]);
 
+const editableSettings = new Set([
+  "addons_catalog",
+  "commission_rates",
+  "creator_approval_mode",
+  "currency_rates",
+  "escrow_hold_days",
+  "kyb_verification_mode",
+  "kyc_verification_mode",
+  "public_site_url",
+  "stream_rules",
+]);
+const approvalModes = new Set(["manual", "automatic", "hybrid"]);
+
 const json = (b: unknown, status = 200) =>
   new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
@@ -33,6 +46,11 @@ Deno.serve(async (req) => {
 
     switch (p.action) {
       case "setting_update": {
+        if (!editableSettings.has(p.key)) return json({ error: "This setting is not editable through Godmode." }, 403);
+        if (["creator_approval_mode", "kyc_verification_mode", "kyb_verification_mode"].includes(p.key)
+          && (typeof p.value !== "string" || !approvalModes.has(p.value))) {
+          return json({ error: "Approval mode must be manual, automatic, or hybrid." }, 400);
+        }
         if (/(secret|api[_-]?key|password|token)/i.test(p.key) || ["email_provider", "payment_gateways"].includes(p.key)) return json({ error: "Credential and provider settings must use their Vault control plane." }, 403);
         const { error } = await admin.from("platform_settings")
           .upsert({ setting_key: p.key, setting_value: p.value, updated_at: new Date().toISOString() }, { onConflict: "setting_key" });
