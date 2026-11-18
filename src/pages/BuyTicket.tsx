@@ -181,12 +181,13 @@ export default function BuyTicket() {
     setFreeClaimBusy(true);
     try {
       const { data, error } = await supabase.rpc(isReplay ? 'claim_free_replay_ticket' : 'claim_free_live_ticket', { p_screening_id: screening.id });
-      if (error || !data?.claimed || typeof data.stream_id !== 'string') {
+      const claim = data as { claimed?: boolean; stream_id?: string; already_claimed?: boolean } | null;
+      if (error || !claim?.claimed || typeof claim.stream_id !== 'string') {
         toast.error(error?.message || 'Free admission could not be claimed.');
         return;
       }
-      setFreeStreamId(data.stream_id);
-      toast.success(data.already_claimed ? 'Your free pass is already active.' : 'Your free event pass is ready.');
+      setFreeStreamId(claim.stream_id);
+      toast.success(claim.already_claimed ? 'Your free pass is already active.' : 'Your free event pass is ready.');
     } finally {
       setFreeClaimBusy(false);
     }
