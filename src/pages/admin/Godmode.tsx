@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -190,7 +191,7 @@ export default function Godmode() {
                   <div className="flex flex-wrap gap-1 mt-1">{r.map(x => <Badge key={x} variant="secondary">{x}</Badge>)}</div>
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  {(['creator', 'platform_admin', 'super_admin'] as const).map(role => (
+                  {(['platform_admin', 'super_admin'] as const).map(role => (
                     <Button key={role} size="sm" variant={r.includes(role) ? 'default' : 'outline'} className="rounded-full text-xs"
                       disabled={!!busy} onClick={() => run(`r-${p.user_id}`, { action: 'role_set', userId: p.user_id, role, grant: !r.includes(role) }, 'Roles updated')}>
                       {r.includes(role) ? `Revoke ${role}` : `Grant ${role}`}
@@ -231,10 +232,9 @@ export default function Godmode() {
             <Card key={t.id}><CardContent className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div><p className="text-sm font-medium">{nameOf(t.user_id)} · <span className="capitalize">{t.tier}</span></p>
                 <p className="text-xs text-muted-foreground">{t.company_name || '—'} · <Badge variant="outline">{t.status}</Badge></p></div>
-              <div className="flex gap-1">
-                <Button size="sm" className="rounded-full" disabled={!!busy || t.status === 'approved'} onClick={() => run(`t-${t.id}`, { action: 'tier_set', userId: t.user_id, status: 'approved' }, 'Tier approved, Studio access granted')}>Force approve</Button>
-                <Button size="sm" variant="outline" className="rounded-full" disabled={!!busy || t.status === 'rejected'} onClick={() => run(`t-${t.id}`, { action: 'tier_set', userId: t.user_id, status: 'rejected' }, 'Tier revoked')}>Revoke</Button>
-              </div>
+              <Button size="sm" variant="outline" className="rounded-full" asChild>
+                <Link to="/admin/studio-applications">Review application</Link>
+              </Button>
             </CardContent></Card>
           ))}
         </TabsContent>
