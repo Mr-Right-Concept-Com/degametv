@@ -72,7 +72,7 @@ export function TierUpgradeCard() {
       if (tier === 'business' && file && businessData) {
         const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
         if (!allowed.includes(file.type) || file.size <= 0 || file.size > 10 * 1024 * 1024) throw new Error('Upload a PDF or clear image under 10 MB.');
-        const path = `${user.id}/registration/${crypto.randomUUID()}-${file.name.replace(/[^\\w.-]/g, '_')}`;
+        const path = `${user.id}/registration/${crypto.randomUUID()}-${file.name.replace(/[^\w.-]/g, '_')}`;
         const { error: upErr } = await supabase.storage.from('kyb-docs').upload(path, file, {
           contentType: file.type, cacheControl: '0', upsert: false,
         });
