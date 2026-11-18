@@ -77,7 +77,7 @@ export default function StudioLive() {
     setBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke('media-provider-control', {
-        body: { action: 'create_live', title: parsed.data.title, description: parsed.data.description, recordingEnabled: true },
+        body: { action: 'create_live', screeningId, title: parsed.data.title, description: parsed.data.description, recordingEnabled: true },
       });
       if (error || !data?.success || typeof data.streamKey !== 'string' || typeof data.ingestUrl !== 'string') {
         toast.error(data?.error || 'A configured streaming provider is required before an encoder can be provisioned.');
