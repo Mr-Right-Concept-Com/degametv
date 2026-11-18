@@ -12,6 +12,7 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 
 const emailSchema = z.string().email('Please enter a valid email address');
 const passwordSchema = z.string().min(6, 'Password must be at least 6 characters');
+const fullNameSchema = z.string().trim().min(2, 'Enter your full name').max(100, 'Name must be 100 characters or fewer');
 
 export default function Auth() {
   usePageTitle('Sign In');
@@ -21,7 +22,7 @@ export default function Auth() {
   const [fullName, setFullName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; password?: string; fullName?: string }>({});
   
   const { user, signIn, signUp } = useAuth();
   const navigate = useNavigate();
@@ -33,7 +34,7 @@ export default function Auth() {
   }, [user, navigate]);
 
   const validateForm = () => {
-    const newErrors: { email?: string; password?: string } = {};
+    const newErrors: { email?: string; password?: string; fullName?: string } = {};
     
     const emailResult = emailSchema.safeParse(email);
     if (!emailResult.success) {
@@ -58,7 +59,7 @@ export default function Auth() {
 
     try {
       if (isLogin) {
-        const { error } = await signIn(email, password);
+        const { error } = await signIn(email.trim().toLowerCase(), password);
         if (error) {
           if (error.message.includes('Invalid login credentials')) {
             toast.error('Invalid email or password');
@@ -70,7 +71,7 @@ export default function Auth() {
           navigate('/');
         }
       } else {
-        const { error } = await signUp(email, password, fullName);
+        const { error } = await signUp(email.trim().toLowerCase(), password, fullName.trim());
         if (error) {
           if (error.message.includes('already registered')) {
             toast.error('This email is already registered');
@@ -128,9 +129,10 @@ export default function Auth() {
                     placeholder="John Doe"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    className="pl-10"
+                    className={`pl-10 ${errors.fullName ? 'border-destructive' : ''}`}
                   />
                 </div>
+                {errors.fullName && <p className="text-sm text-destructive">{errors.fullName}</p>}
               </div>
             )}
 
