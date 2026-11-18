@@ -19,6 +19,10 @@ const businessSchema = z.object({
   bank_account_number: z.string().trim().regex(/^\d{10}$/, 'Account number must be 10 digits'),
   bank_account_name: z.string().trim().min(2).max(150),
   seats: z.number().int().min(1).max(50),
+  business_address: z.string().trim().min(5).max(240),
+  business_city: z.string().trim().min(2).max(120),
+  business_region: z.string().trim().max(120),
+  business_postal_code: z.string().trim().max(32),
   rights_declared: z.literal(true, { errorMap: () => ({ message: 'You must declare distribution rights' }) }),
 });
 
@@ -30,7 +34,7 @@ export function TierUpgradeCard() {
   const [tier, setTier] = useState<'creator' | 'business'>('creator');
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
-  const [f, setF] = useState({ company_name: '', cac_number: '', tax_id: '', bank_name: '', bank_account_number: '', bank_account_name: '', seats: 1, rights_declared: false });
+  const [f, setF] = useState({ company_name: '', cac_number: '', tax_id: '', bank_name: '', bank_account_number: '', bank_account_name: '', business_address: '', business_city: '', business_region: '', business_postal_code: '', seats: 1, rights_declared: false });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const load = async () => {
@@ -58,7 +62,7 @@ export function TierUpgradeCard() {
       }
       if (!file) { setErrors({ cac_doc: 'Upload your CAC certificate' }); return; }
       if (file.size > 10 * 1024 * 1024) { setErrors({ cac_doc: 'Max 10MB' }); return; }
-      payload = { ...payload, ...r.data };
+      payload = { user_id: user.id, tier, status: 'pending' };
     }
     setBusy(true);
     try {
@@ -72,7 +76,7 @@ export function TierUpgradeCard() {
         ? await supabase.from('studio_accounts').update(payload).eq('user_id', user.id)
         : await supabase.from('studio_accounts').insert(payload as never);
       if (error) throw error;
-      toast.success(tier === 'business' ? 'Business verification submitted for review' : 'Creator tier selected — pending review');
+      toast.success(tier === 'business' ? 'Business documents submitted. Bank and tax numbers are stored in the secure Vault; verification is pending.' : 'Creator tier selected — pending review');
       load();
     } catch (e) {
       toast.error((e as Error).message);
@@ -115,6 +119,10 @@ export function TierUpgradeCard() {
             {field('cac_number', 'CAC registration number')}
             {field('tax_id', 'Tax ID (TIN)')}
             {field('seats', 'Team seats', 'number')}
+          {field('business_address', 'Registered business address')}
+          {field('business_city', 'City')}
+          {field('business_region', 'State / Region')}
+          {field('business_postal_code', 'Postal code')}
             {field('bank_name', 'Corporate bank')}
             {field('bank_account_number', 'Account number')}
             {field('bank_account_name', 'Account name')}
