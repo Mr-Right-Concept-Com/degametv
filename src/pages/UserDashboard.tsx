@@ -48,7 +48,7 @@ export default function UserDashboard() {
       const roleSet = new Set((roles ?? []).map((row: any) => row.role));
       if (roleSet.has('super_admin') || roleSet.has('platform_admin')) { setStudioAccess('approved'); return; }
       if (roleSet.has('creator')) {
-        const { data, error } = await supabase.rpc('get_my_studio_account');
+        const { data, error } = await supabase.rpc('get_my_studio_account' as never);
         if (error) throw error;
         const account = Array.isArray(data) ? data[0] : data;
         setStudioAccess(account?.status === 'approved' ? 'approved' : 'not-approved');
