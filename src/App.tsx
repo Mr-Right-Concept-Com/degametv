@@ -33,6 +33,7 @@ import PaymentGatewaySettings from "./pages/admin/PaymentGatewaySettings";
 import ProducerDashboard from "./pages/admin/ProducerDashboard";
 import FilmmakerPortal from "./pages/admin/filmmaker/FilmmakerPortal";
 import FilmmakerApplications from "./pages/admin/FilmmakerApplications";
+import StudioApplications from "./pages/admin/StudioApplications";
 import EmailSettings from "./pages/admin/settings/EmailSettings";
 import WhiteLabel from "./pages/admin/settings/WhiteLabel";
 import TicketManagement from "./pages/admin/ticketing/TicketManagement";
@@ -119,6 +120,7 @@ const App = () => (
               <Route path="/admin/godmode" element={<ProtectedAdminRoute><Godmode /></ProtectedAdminRoute>} />
               <Route path="/admin/filmmaker" element={<ProtectedAdminRoute><FilmmakerPortal /></ProtectedAdminRoute>} />
               <Route path="/admin/filmmaker-applications" element={<ProtectedAdminRoute><FilmmakerApplications /></ProtectedAdminRoute>} />
+              <Route path="/admin/studio-applications" element={<ProtectedAdminRoute><StudioApplications /></ProtectedAdminRoute>} />
               <Route path="/admin/settings/payment-gateways" element={<ProtectedAdminRoute><PaymentGatewaySettings /></ProtectedAdminRoute>} />
               <Route path="/admin/settings/email" element={<ProtectedAdminRoute><EmailSettings /></ProtectedAdminRoute>} />
               <Route path="/admin/settings/branding" element={<ProtectedAdminRoute><WhiteLabel /></ProtectedAdminRoute>} />
