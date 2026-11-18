@@ -20,6 +20,10 @@ import { z } from 'zod';
 const GENRES = ['Action', 'Comedy', 'Drama', 'Horror', 'Thriller', 'Romance', 'Documentary', 'Animation', 'Sci-Fi', 'Fantasy', 'Crime', 'Biography', 'Musical', 'Nollywood', 'African Cinema'];
 const BUDGET_RANGES = ['Under $10K', '$10K – $50K', '$50K – $250K', '$250K – $1M', '$1M – $5M', 'Over $5M'];
 const RIGHTS = ['World rights available', 'African distribution only', 'Nigeria only', 'Digital/VOD only', 'Festival rights only', 'Revenue share open'];
+const LANGUAGES = ['English', 'Yoruba', 'Igbo', 'Hausa', 'Pidgin', 'French', 'Swahili', 'Arabic', 'Portuguese', 'Other'];
+const COUNTRIES = ['Nigeria', 'Ghana', 'Kenya', 'South Africa', 'Uganda', 'Tanzania', 'Rwanda', 'United Kingdom', 'United States', 'Canada', 'Other'];
+const CONTENT_RATINGS = ['G', 'PG', 'PG-13', '16', '18', 'Not rated'];
+const ASPECT_RATIOS = ['16:9', '2.39:1', '1.85:1', '4:3', '9:16', '1:1'];
 
 const step1Schema = z.object({
   submitter_name: z.string().trim().min(2, 'Name must be at least 2 characters').max(100),
@@ -36,6 +40,15 @@ const step2Schema = z.object({
   cast_crew_text: z.string().max(12000, 'Cast and crew details are too long').optional(),
   budget_range: z.string().max(80).optional(),
   live_event_format: z.enum(['broadcast', 'concert', 'conference', 'talk', 'gaming', 'watch_party', 'sports', 'worship', 'other']),
+  original_language: z.string().min(1).max(80),
+  production_country: z.string().min(1).max(80),
+  content_rating: z.enum(['G', 'PG', 'PG-13', '16', '18', 'Not rated']),
+  aspect_ratio: z.enum(['16:9', '2.39:1', '1.85:1', '4:3', '9:16', '1:1']),
+  season_number: z.string().optional().refine(v => !v || (/^\\d+$/.test(v) && Number(v) > 0 && Number(v) <= 100), 'Season must be between 1 and 100'),
+  episode_number: z.string().optional().refine(v => !v || (/^\\d+$/.test(v) && Number(v) > 0 && Number(v) <= 500), 'Episode must be between 1 and 500'),
+}).superRefine((value, ctx) => {
+  if (['series', 'episode'].includes(value.project_type) && !value.season_number) ctx.addIssue({code:z.ZodIssueCode.custom,path:['season_number'],message:'Add a season number for series content.'});
+  if (value.project_type === 'episode' && !value.episode_number) ctx.addIssue({code:z.ZodIssueCode.custom,path:['episode_number'],message:'Add the episode number.'});
 });
 
 const step3Schema = z.object({
@@ -94,6 +107,12 @@ export default function StudioSubmit() {
     project_type: searchParams.get('flow') === 'live' ? 'live' : ['movie', 'series', 'episode', 'short', 'trailer', 'live', 'vod'].includes(searchParams.get('type') || '') ? (searchParams.get('type') as string) : 'movie',
     release_strategy: searchParams.get('flow') === 'live' ? 'live' : 'on_demand',
     live_event_format: 'broadcast',
+    original_language: 'English',
+    production_country: 'Nigeria',
+    content_rating: 'Not rated' as 'G' | 'PG' | 'PG-13' | '16' | '18' | 'Not rated',
+    aspect_ratio: '16:9' as '16:9' | '2.39:1' | '1.85:1' | '4:3' | '9:16' | '1:1',
+    season_number: '',
+    episode_number: '',
     description: '',
     genres: [] as string[],
     duration_minutes: '',
@@ -166,7 +185,7 @@ export default function StudioSubmit() {
   };
 
   const validateStep2 = () => {
-    const result = step2Schema.safeParse({ project_title: form.project_title, project_type: form.project_type, release_strategy: form.release_strategy, description: form.description, genres: form.genres, duration_minutes: form.duration_minutes, release_year: form.release_year, cast_crew_text: form.cast_crew_text, budget_range: form.budget_range, live_event_format: form.live_event_format });
+    const result = step2Schema.safeParse({ project_title: form.project_title, project_type: form.project_type, release_strategy: form.release_strategy, description: form.description, genres: form.genres, duration_minutes: form.duration_minutes, release_year: form.release_year, cast_crew_text: form.cast_crew_text, budget_range: form.budget_range, live_event_format: form.live_event_format, original_language: form.original_language, production_country: form.production_country, content_rating: form.content_rating, aspect_ratio: form.aspect_ratio, season_number: form.season_number, episode_number: form.episode_number });
     if (!result.success) {
       const errs: Record<string, string> = {};
       result.error.errors.forEach(e => { errs[e.path[0] as string] = e.message; });
@@ -223,6 +242,12 @@ export default function StudioSubmit() {
         project_type: form.project_type,
         release_strategy: form.release_strategy,
         live_event_format: form.live_event_format,
+        original_language: form.original_language,
+        production_country: form.production_country,
+        content_rating: form.content_rating,
+        aspect_ratio: form.aspect_ratio,
+        season_number: form.season_number ? Number(form.season_number) : null,
+        episode_number: form.episode_number ? Number(form.episode_number) : null,
         description: form.description || null,
         genres: form.genres,
         duration_minutes: form.duration_minutes ? parseInt(form.duration_minutes, 10) : null,
@@ -467,6 +492,16 @@ export default function StudioSubmit() {
                   <Label>{liveFlow ? 'Event description' : 'Synopsis'}</Label>
                   <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={4} placeholder={liveFlow ? 'Tell viewers what will happen, who is hosting and what their ticket includes.' : 'Write a short synopsis that helps audiences understand your title.'} />
                 </div>
+                {!liveFlow && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2"><Label>Original language</Label><Select value={form.original_language} onValueChange={v => setForm(f => ({...f, original_language:v}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{LANGUAGES.map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Production country</Label><Select value={form.production_country} onValueChange={v => setForm(f => ({...f, production_country:v}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{COUNTRIES.map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Audience rating</Label><Select value={form.content_rating} onValueChange={v => setForm(f => ({...f, content_rating:v as typeof f.content_rating}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTENT_RATINGS.map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Master aspect ratio</Label><Select value={form.aspect_ratio} onValueChange={v => setForm(f => ({...f, aspect_ratio:v as typeof f.aspect_ratio}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ASPECT_RATIOS.map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select></div>
+                </div>}
+                {!liveFlow && ['series','episode'].includes(form.project_type) && <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Season number</Label><Input inputMode="numeric" value={form.season_number} onChange={e=>setForm(f=>({...f,season_number:e.target.value}))} placeholder="e.g. 1"/>{errors.season_number&&<p className="text-xs text-destructive">{errors.season_number}</p>}</div>
+                  {form.project_type === 'episode' && <div className="space-y-2"><Label>Episode number</Label><Input inputMode="numeric" value={form.episode_number} onChange={e=>setForm(f=>({...f,episode_number:e.target.value}))} placeholder="e.g. 3"/>{errors.episode_number&&<p className="text-xs text-destructive">{errors.episode_number}</p>}</div>}
+                </div>}
                 {!liveFlow && <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Duration (mins)</Label>
