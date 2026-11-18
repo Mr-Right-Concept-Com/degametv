@@ -39,14 +39,50 @@ if (import.meta.main) {
       if (ticket.refunded_at) return json(403, { success: false, error: "This ticket has been refunded." });
       if (!ticket.expires_at || new Date(ticket.expires_at).getTime() <= Date.now()) return json(403, { success: false, error: "This ticket has expired." });
 
-      // Deliberately fail closed until a configured delivery adapter can verify
-      // entitlement tokens at the media origin. Never return the raw origin URL,
-      // issue a token that the origin may ignore, or consume a stream allowance.
-      return json(503, {
-        success: false,
-        code: "PLAYBACK_PROVIDER_NOT_CONFIGURED",
-        error: "Secure streaming is not configured for this screening. Your ticket remains valid and your stream allowance has not been used.",
+      const { data: delivery, error: providerError } = await db.rpc("get_service_provider_runtime_config", { p_capability: "video_delivery" });
+      if (providerError || !Array.isArray(delivery) || !delivery.length) {
+        return json(503, { success: false, code: "PLAYBACK_PROVIDER_NOT_CONFIGURED", error: "Secure playback is not configured. Your ticket remains valid." });
+      }
+      const provider = delivery[0];
+      const endpoint = provider.endpoints?.playback_authorize;
+      if (!provider.credential || typeof endpoint !== "string" || !endpoint.startsWith("/") || endpoint.startsWith("//")) {
+        return json(503, { success: false, code: "PLAYBACK_PROVIDER_INCOMPLETE", error: "The active video provider is missing its playback authorization contract." });
+      }
+      const providerUrl = new URL(endpoint, provider.base_url);
+      if (providerUrl.origin !== new URL(provider.base_url).origin) {
+        return json(503, { success: false, code: "PLAYBACK_PROVIDER_INVALID", error: "The configured playback endpoint is invalid." });
+      }
+      const authorizationHeader = typeof provider.settings?.credential_header === "string" ? provider.settings.credential_header : "Authorization";
+      const authorizationPrefix = typeof provider.settings?.credential_prefix === "string" ? provider.settings.credential_prefix : "Bearer ";
+      const providerResponse = await fetch(providerUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", [authorizationHeader]: authorizationPrefix + provider.credential },
+        body: JSON.stringify({
+          entitlement: { ticket_id: ticket.id, screening_id: ticket.screening_id, email, expires_at: ticket.expires_at },
+          request: { issued_at: new Date().toISOString(), country: req.headers.get("cf-ipcountry") || null },
+        }),
+        signal: AbortSignal.timeout(10000),
       });
+      const deliveryResult = await providerResponse.json().catch(() => null);
+      if (!providerResponse.ok || deliveryResult?.authorized !== true ||
+          typeof deliveryResult?.playback_url !== "string" || typeof deliveryResult?.expires_at !== "string") {
+        return json(503, { success: false, code: "PLAYBACK_AUTHORIZATION_FAILED", error: "The delivery provider could not authorize this ticket. Please retry." });
+      }
+      let playbackUrl: URL, expiresAt: Date;
+      try {
+        playbackUrl = new URL(deliveryResult.playback_url);
+        expiresAt = new Date(deliveryResult.expires_at);
+        if (playbackUrl.protocol !== "https:" || Number.isNaN(expiresAt.getTime()) ||
+            expiresAt.getTime() <= Date.now() || expiresAt.getTime() > Date.now() + 4 * 60 * 60 * 1000 ||
+            expiresAt.getTime() > new Date(ticket.expires_at).getTime()) throw new Error("invalid_delivery_grant");
+      } catch {
+        return json(502, { success: false, code: "INVALID_PLAYBACK_GRANT", error: "The delivery provider returned an invalid playback grant." });
+      }
+      const allowedOrigins = Array.isArray(provider.settings?.allowed_playback_origins) ? provider.settings.allowed_playback_origins : [];
+      if (!allowedOrigins.includes(playbackUrl.origin)) {
+        return json(502, { success: false, code: "UNTRUSTED_PLAYBACK_ORIGIN", error: "The delivery provider returned an unapproved playback origin." });
+      }
+      return json(200, { success: true, playbackUrl: playbackUrl.toString(), expiresAt: expiresAt.toISOString(), provider: provider.provider_key });
     } catch {
       return json(500, { success: false, error: "Playback authorization failed. Please retry or contact support." });
     }
