@@ -45,7 +45,8 @@ if(import.meta.main)serve(async(req:Request)=>{
   const signature=req.headers.get(signatureHeader)||"",expected=await hmac(config.webhook_secret,raw,algorithm);
   const normalized=signature.toLowerCase().replace(/^sha256=/,"").replace(/^sha512=/,"");
   if(!equal(normalized,expected.toLowerCase()))return json(401,{error:"Invalid webhook signature."});
-  if(event?.type!==(settings.success_event||"payment.succeeded"))return json(200,{received:true,ignored:true});
+  const eventName=event?.event||event?.type;
+  if(eventName!==(settings.success_event||"payment.succeeded"))return json(200,{received:true,ignored:true});
   const verifyPath=config.endpoints?.payment_verify;
   if(typeof verifyPath!=="string"||!verifyPath.startsWith("/")||verifyPath.startsWith("//"))return json(503,{error:"Payment verification endpoint is not configured."});
   const paystack=settings.adapter==="paystack";
