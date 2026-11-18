@@ -44,33 +44,101 @@ Deno.serve(async (req) => {
       return json({ success: true, lifecycle: p.action });
     }
 
-    // Cancel + refund every paid, unrefunded ticket
-    const now = new Date().toISOString();
-    await admin.from("screenings").update({ lifecycle: "cancelled", cancelled_at: now }).eq("id", s.id);
-    const { data: tickets } = await admin.from("screening_tickets")
-      .select("id, email, price, currency").eq("screening_id", s.id)
-      .eq("payment_status", "completed").is("refunded_at", null);
+    // Refund through the original payment provider before changing ticket state.
+    // A local ledger entry is never proof that money was returned.
+    const { data: tickets, error: ticketError } = await admin.from("screening_tickets")
+      .select("id, email, price, currency")
+      .eq("screening_id", s.id)
+      .eq("payment_status", "completed")
+      .is("refunded_at", null);
+    if (ticketError) return json(503, { error: "Paid tickets could not be loaded; cancellation was not applied." });
+
+    const { data: paymentConfigs, error: configError } = await admin.rpc(
+      "get_payment_provider_runtime_config",
+      { p_provider: "paystack" },
+    );
+    const paystack = Array.isArray(paymentConfigs) ? paymentConfigs[0] : null;
+    const canRefund = !configError && paystack?.is_enabled === true &&
+      typeof paystack.secret_key === "string" && paystack.secret_key.length > 0;
 
     let refunded = 0;
-    for (const t of tickets || []) {
-      await admin.from("screening_tickets").update({
-        refunded_at: now, refund_reason: p.reason || "Event cancelled", payment_status: "refunded",
-      }).eq("id", t.id);
-      const { data: led } = await admin.from("wallet_ledger").select("user_id, gross, fee, net").eq("ticket_id", t.id).eq("kind", "sale").maybeSingle();
-      if (led) {
-        await admin.from("wallet_ledger").insert({
-          user_id: led.user_id, ticket_id: t.id, screening_id: s.id,
-          gross: -led.gross, fee: -led.fee, net: -led.net, currency: t.currency || "NGN",
-          kind: "refund", settles_at: now,
+    const pendingRefunds: string[] = [];
+    for (const ticket of tickets || []) {
+      const { data: order, error: orderError } = await admin.from("guest_payment_orders")
+        .select("provider, provider_reference, provider_transaction_id, amount_minor, currency, status")
+        .eq("ticket_id", ticket.id)
+        .eq("status", "paid")
+        .maybeSingle();
+      if (orderError || !order || order.provider !== "paystack" || !canRefund ||
+          (!order.provider_transaction_id && !order.provider_reference)) {
+        pendingRefunds.push(ticket.id);
+        continue;
+      }
+
+      const refundResponse = await fetch("https://api.paystack.co/refund", {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + paystack.secret_key,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          transaction: order.provider_transaction_id || order.provider_reference,
+          amount: Number(order.amount_minor),
+          currency: order.currency,
+          customer_note: p.reason || "Event cancelled",
+          merchant_note: "DeGameTV screening cancellation",
+        }),
+      });
+      const refundResult = await refundResponse.json().catch(() => null);
+      if (!refundResponse.ok || refundResult?.status !== true || !refundResult?.data) {
+        pendingRefunds.push(ticket.id);
+        continue;
+      }
+
+      const now = new Date().toISOString();
+      const { data: updatedTicket, error: updateError } = await admin.from("screening_tickets")
+        .update({ refunded_at: now, refund_reason: p.reason || "Event cancelled", payment_status: "refunded" })
+        .eq("id", ticket.id).eq("payment_status", "completed").is("refunded_at", null)
+        .select("id").maybeSingle();
+      if (updateError || !updatedTicket) {
+        // Provider accepted the refund; leave an explicit reconciliation item rather
+        // than claiming the local ticket state was updated.
+        pendingRefunds.push(ticket.id);
+        continue;
+      }
+
+      const { data: ledger } = await admin.from("wallet_ledger")
+        .select("user_id, gross, fee, net")
+        .eq("ticket_id", ticket.id).eq("kind", "sale").maybeSingle();
+      if (ledger) {
+        const { error: ledgerError } = await admin.from("wallet_ledger").insert({
+          user_id: ledger.user_id, ticket_id: ticket.id, screening_id: s.id,
+          gross: -ledger.gross, fee: -ledger.fee, net: -ledger.net,
+          currency: ticket.currency || "NGN", kind: "refund", settles_at: now,
         });
+        if (ledgerError) pendingRefunds.push(ticket.id);
       }
       refunded++;
     }
+
+    const now = new Date().toISOString();
+    const { error: cancelError } = await admin.from("screenings")
+      .update({ lifecycle: "cancelled", cancelled_at: now }).eq("id", s.id);
+    if (cancelError) return json(503, {
+      error: "Refund processing finished but the screening cancellation state needs reconciliation.",
+      refunded, pendingRefunds,
+    });
+
     await admin.from("audit_logs").insert({
       user_id: user.id, action: "event_cancel_refund", entity_type: "screening", entity_id: s.id,
-      new_data: { refunded, reason: p.reason || null },
+      new_data: { refunded, pending_refund_ticket_ids: pendingRefunds, reason: p.reason || null },
     });
-    return json({ success: true, refunded });
+    return json(200, {
+      success: true, refunded, pendingRefunds,
+      message: pendingRefunds.length
+        ? "Screening cancelled. Some refunds could not be confirmed and require reconciliation."
+        : "Screening cancelled and all paid tickets were refunded by the payment provider.",
+    });
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
   }
