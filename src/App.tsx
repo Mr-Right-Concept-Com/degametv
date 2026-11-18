@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { BrandingProvider } from "@/components/branding/BrandingProvider";
+import { ReleaseDomainRouter } from "@/components/domains/ReleaseDomainRouter";
 import { TenantProvider } from "@/hooks/useTenant";
 import { ProtectedAdminRoute } from "@/components/auth/ProtectedAdminRoute";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -74,6 +75,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <ReleaseDomainRouter />
             <Routes>
               {/* ============ END-USER EXPERIENCE ============ */}
               <Route path="/" element={<Index />} />
