@@ -6,32 +6,57 @@ import { Loader2 } from 'lucide-react';
 
 export function ProtectedCreatorRoute({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
-  const [isCreator, setIsCreator] = useState<boolean | null>(null);
-  const [checking, setChecking] = useState(true);
+  const [access, setAccess] = useState<'checking' | 'allowed' | 'apply' | 'signin'>('checking');
 
   useEffect(() => {
+    let active = true;
     if (authLoading) return;
-    if (!user) { setIsCreator(false); setChecking(false); return; }
-    (async () => {
-      const { data } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .in('role', ['creator', 'super_admin', 'platform_admin'])
-        .maybeSingle();
-      let ok = !!data;
-      if (!ok) {
-        // Business team seats: claim pending invites, then check membership
-        await supabase.rpc('accept_studio_invites' as any).then(() => {}, () => {});
-        const { data: member } = await supabase.rpc('is_studio_member' as any, { _user_id: user.id });
-        ok = !!member;
+    if (!user) {
+      setAccess('signin');
+      return;
+    }
+
+    const verify = async () => {
+      try {
+        const { data: roles, error: roleError } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .in('role', ['creator', 'super_admin', 'platform_admin']);
+
+        if (roleError) throw roleError;
+        const roleSet = new Set((roles ?? []).map(row => row.role));
+        if (roleSet.has('super_admin') || roleSet.has('platform_admin')) {
+          if (active) setAccess('allowed');
+          return;
+        }
+
+        if (roleSet.has('creator')) {
+          const { data: studio, error: studioError } = await supabase
+            .from('studio_accounts')
+            .select('status')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          if (studioError) throw studioError;
+          if (active) setAccess(studio?.status === 'approved' ? 'allowed' : 'apply');
+          return;
+        }
+
+        // Business team seats: claim pending invites, then check active membership.
+        await supabase.rpc('accept_studio_invites' as never).then(() => undefined, () => undefined);
+        const { data: member, error: memberError } = await supabase.rpc('is_studio_member' as never, { _user_id: user.id } as never);
+        if (memberError) throw memberError;
+        if (active) setAccess(member === true ? 'allowed' : 'apply');
+      } catch {
+        if (active) setAccess('apply');
       }
-      setIsCreator(ok);
-      setChecking(false);
-    })();
+    };
+
+    void verify();
+    return () => { active = false; };
   }, [user, authLoading]);
 
-  if (authLoading || checking) {
+  if (authLoading || access === 'checking') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -39,7 +64,7 @@ export function ProtectedCreatorRoute({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!user) return <Navigate to="/auth" replace />;
-  if (!isCreator) return <Navigate to="/apply-filmmaker" replace />;
+  if (access === 'signin') return <Navigate to="/auth" replace />;
+  if (access !== 'allowed') return <Navigate to="/apply-filmmaker" replace />;
   return <>{children}</>;
 }
