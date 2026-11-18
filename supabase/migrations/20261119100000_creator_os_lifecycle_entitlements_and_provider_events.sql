@@ -190,3 +190,18 @@ BEGIN
     WHEN coalesce(live_price_ngn,0)=0 AND coalesce(live_price_usd,0)=0 THEN 'FREE'
     ELSE 'TICKETED' END;
 END $$;
+
+-- Derive FREE/TICKETED from canonical prices so existing creator RPC inserts cannot
+-- accidentally label a zero-priced event as ticketed.
+CREATE OR REPLACE FUNCTION public.set_screening_access_model()
+RETURNS trigger LANGUAGE plpgsql SET search_path=public,pg_temp AS $$
+BEGIN
+  NEW.access_model := CASE
+    WHEN coalesce(NEW.live_price_ngn,0)=0 AND coalesce(NEW.live_price_usd,0)=0 THEN 'FREE'
+    ELSE 'TICKETED' END;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS screenings_access_model_from_price ON public.screenings;
+CREATE TRIGGER screenings_access_model_from_price
+BEFORE INSERT OR UPDATE OF live_price_ngn,live_price_usd ON public.screenings
+FOR EACH ROW EXECUTE FUNCTION public.set_screening_access_model();
