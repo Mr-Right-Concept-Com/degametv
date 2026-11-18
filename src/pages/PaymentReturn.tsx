@@ -11,15 +11,15 @@ import {usePageTitle} from '@/hooks/usePageTitle';
 export default function PaymentReturn(){
  usePageTitle('Payment confirmation');
  const [params]=useSearchParams();const reference=params.get('reference')||'';
- const {user}=useAuth();const [status,setStatus]=useState<'checking'|'pending'|'paid'|'failed'|'unknown'>('checking');const [email,setEmail]=useState('');const [attempts,setAttempts]=useState(0);
- useEffect(()=>{let active=true;let timer:ReturnType<typeof setTimeout>|undefined;
+ const {user}=useAuth();const [status,setStatus]=useState<'checking'|'pending'|'paid'|'failed'|'unknown'>('checking');const [email,setEmail]=useState('');
+ useEffect(()=>{let active=true;let checks=0;let timer:ReturnType<typeof setTimeout>|undefined;
   const check=async()=>{if(!/^DTV(?:L)?_[A-Za-z0-9]+$/.test(reference)){setStatus('unknown');return;}
    const {data,error}=await supabase.functions.invoke('payment-status',{body:{reference}});
    if(!active)return;
    if(error||!data){setStatus('pending');}
    else{setEmail(data.email||'');setStatus(data.status==='paid'?'paid':data.status==='failed'?'failed':'pending');}
-   setAttempts(n=>n+1);
-   if(active&&attempts<19&&data?.status!=='paid'&&data?.status!=='failed')timer=setTimeout(check,3000);
+   checks+=1;
+   if(active&&checks<20&&data?.status!=='paid'&&data?.status!=='failed')timer=setTimeout(check,3000);
   };
   void check();return()=>{active=false;if(timer)clearTimeout(timer);};
  },[reference]);
