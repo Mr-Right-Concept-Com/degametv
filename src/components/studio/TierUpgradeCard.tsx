@@ -48,7 +48,7 @@ export function TierUpgradeCard() {
       toast.message('Your studio is already approved. Contact support to change your studio tier.');
       return;
     }
-    let payload: Record<string, unknown> = { user_id: user.id, tier, status: 'pending', review_notes: null, reviewed_by: null, reviewed_at: null };
+    let payload: Record<string, unknown> = { user_id: user.id, tier, status: 'pending' };
     if (tier === 'business') {
       const r = businessSchema.safeParse(f);
       if (!r.success) {
