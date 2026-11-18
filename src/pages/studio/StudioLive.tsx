@@ -102,7 +102,8 @@ export default function StudioLive() {
       }
       setStatus('ended');
       setGrant(null);
-      toast.success('Provider confirmed stream termination. Recording/replay processing is not yet published.');
+      if (data.replayDraft?.contentId) toast.success(data.replayDraft.recordingStatus === 'ready' ? 'Live ended. A replay draft is ready in your catalogue.' : 'Live ended. A replay draft was added to your catalogue; recording is processing.');
+      else toast.success(data.message || 'Live ended. The replay draft could not be reconciled automatically.');
     } finally { setBusy(false); }
   };
 
