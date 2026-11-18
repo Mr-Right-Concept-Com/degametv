@@ -59,6 +59,9 @@ if (import.meta.main) serve(async (req: Request) => {
     if (!config.secret_key || !config.public_key) {
       return json(503, { success: false, error: "Payment provider credentials are incomplete." });
     }
+    if (config.is_live) {
+      return json(503, { success: false, error: "Live ticket sales are paused until secure origin-verified playback is enabled. No charge was made." });
+    }
 
     const { data: screening, error: screeningError } = await admin.from("screenings")
       .select("id,tenant_id,title,slug,status,location_pricing,screening_date,lifecycle,replay_price_ngn,replay_price_usd")
