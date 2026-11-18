@@ -18,6 +18,9 @@ jobs:
         with: { channel: stable, cache: true }
       - run: flutter create --platforms=android --org com.degametv --project-name degametv_native .
       - run: flutter pub get
+      - run: test -n "$SUPABASE_PUBLISHABLE_KEY"
+        env:
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
       - run: flutter build appbundle --release --dart-define=SUPABASE_URL=https://dxijsbbdtwtbwdaajiyn.supabase.co --dart-define=SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
         env:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
@@ -34,6 +37,9 @@ jobs:
         with: { channel: stable, cache: true }
       - run: flutter create --platforms=ios --org com.degametv --project-name degametv_native .
       - run: flutter pub get
+      - run: test -n "$SUPABASE_PUBLISHABLE_KEY"
+        env:
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
       - run: flutter build ios --release --no-codesign --dart-define=SUPABASE_URL=https://dxijsbbdtwtbwdaajiyn.supabase.co --dart-define=SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
         env:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
@@ -68,6 +74,9 @@ jobs:
         with: { channel: stable, cache: true }
       - run: flutter create --platforms=${{ matrix.platform }} --org com.degametv --project-name degametv_native .
       - run: flutter pub get
+      - run: test -n "$SUPABASE_PUBLISHABLE_KEY"
+        env:
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
       - run: flutter build ${{ matrix.platform }} --release --dart-define=SUPABASE_URL=https://dxijsbbdtwtbwdaajiyn.supabase.co --dart-define=SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
         env:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
