@@ -93,6 +93,7 @@ const step3Schema = z.object({
   screener_url: z.string().url('Enter a valid screener URL').optional().or(z.literal('')),
   premiere_date: z.string().optional().refine(value => !value || /^\d{4}-\d{2}-\d{2}$/.test(value), 'Enter a valid release or premiere date'),
   premiere_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Enter a valid event start time'),
+  admission_model: z.enum(['FREE','TICKETED']).default('TICKETED'),
   live_price_ngn: z.string().optional().refine(value => !value || (/^\d+(\.\d{1,2})?$/.test(value) && Number(value) >= 0), 'Enter a valid non-negative NGN ticket price'),
   live_price_usd: z.string().optional().refine(value => !value || (/^\d+(\.\d{1,2})?$/.test(value) && Number(value) >= 0), 'Enter a valid non-negative USD ticket price'),
   rights_territories: z.string().max(500, 'Territory list is too long').optional(),
@@ -104,6 +105,10 @@ const step3Schema = z.object({
     if (!value.premiere_date) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['premiere_date'], message: 'Choose the event date.' });
     if (value.live_price_ngn && Number(value.live_price_ngn) < 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['live_price_ngn'], message: 'Admission price cannot be negative.' });
     if (value.live_price_usd && Number(value.live_price_usd) < 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['live_price_usd'], message: 'Admission price cannot be negative.' });
+    if (value.release_strategy === 'live' && value.admission_model === 'TICKETED'
+      && Number(value.live_price_ngn || 0) <= 0 && Number(value.live_price_usd || 0) <= 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['live_price_ngn'], message: 'Ticketed admission requires a positive NGN or USD price.' });
+    }
   }
 });
 
@@ -161,6 +166,7 @@ export default function StudioSubmit() {
     distribution_rights: '',
     premiere_date: '',
     premiere_time: '20:00',
+    admission_model: 'TICKETED' as 'FREE' | 'TICKETED',
     live_price_ngn: '',
     live_price_usd: '',
     rights_territories: '',
@@ -275,7 +281,7 @@ export default function StudioSubmit() {
   };
 
   const validateStep3 = () => {
-    const result = step3Schema.safeParse({ distribution_rights: form.distribution_rights, release_strategy: form.release_strategy, trailer_url: form.trailer_url, screener_url: form.screener_url, premiere_date: form.premiere_date, premiere_time: form.premiere_time, live_price_ngn: form.live_price_ngn, live_price_usd: form.live_price_usd, rights_territories: form.rights_territories, prior_screenings: form.prior_screenings, poster_url: form.poster_url, video_url: form.video_url });
+    const result = step3Schema.safeParse({ distribution_rights: form.distribution_rights, release_strategy: form.release_strategy, trailer_url: form.trailer_url, screener_url: form.screener_url, premiere_date: form.premiere_date, premiere_time: form.premiere_time, admission_model: form.admission_model, live_price_ngn: form.live_price_ngn, live_price_usd: form.live_price_usd, rights_territories: form.rights_territories, prior_screenings: form.prior_screenings, poster_url: form.poster_url, video_url: form.video_url });
     if (!result.success) {
       const errs: Record<string, string> = {};
       result.error.errors.forEach(e => { errs[e.path[0] as string] = e.message; });
@@ -757,11 +763,23 @@ export default function StudioSubmit() {
                     <div className="space-y-1"><Label>Replay access window (hours)</Label><Input type="number" min="1" max="8760" value={form.replay_access_hours} onChange={e=>setForm(f=>({...f,replay_access_hours:e.target.value}))}/></div>
                   </>}
                 </div>}
-                {form.project_type === 'live' || form.release_strategy === 'premiere' ? <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2"><Label>Event date</Label><Input type="date" required value={form.premiere_date} onChange={e => setForm(f => ({ ...f, premiere_date: e.target.value }))} /></div>
-                  <div className="space-y-2"><Label>Start time</Label><Input type="time" required value={form.premiere_time} onChange={e => setForm(f => ({ ...f, premiere_time: e.target.value }))} /></div>
-                  <div className="space-y-2"><Label>Admission price (NGN)</Label><Input inputMode="decimal" required value={form.live_price_ngn} onChange={e => setForm(f => ({ ...f, live_price_ngn: e.target.value }))} placeholder="e.g. 2500" />{errors.live_price_ngn && <p className="text-xs text-destructive">{errors.live_price_ngn}</p>}</div>
-                  <div className="space-y-2"><Label>International admission (USD)</Label><Input inputMode="decimal" required value={form.live_price_usd} onChange={e => setForm(f => ({ ...f, live_price_usd: e.target.value }))} placeholder="e.g. 5" />{errors.live_price_usd && <p className="text-xs text-destructive">{errors.live_price_usd}</p>}</div>
+                {form.project_type === 'live' || form.release_strategy === 'premiere' ? <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2"><Label>Event date</Label><Input type="date" required value={form.premiere_date} onChange={e => setForm(f => ({ ...f, premiere_date: e.target.value }))} /></div>
+                    <div className="space-y-2"><Label>Start time</Label><Input type="time" required value={form.premiere_time} onChange={e => setForm(f => ({ ...f, premiere_time: e.target.value }))} /></div>
+                  </div>
+                  {form.project_type === 'live' && <div className="space-y-2">
+                    <Label>Admission model</Label>
+                    <div role="group" aria-label="Admission model" className="grid grid-cols-2 gap-2">
+                      <Button type="button" variant={form.admission_model === 'FREE' ? 'default' : 'outline'} aria-pressed={form.admission_model === 'FREE'} onClick={() => setForm(f => ({ ...f, admission_model: 'FREE', live_price_ngn: '0', live_price_usd: '0' }))}>Free access</Button>
+                      <Button type="button" variant={form.admission_model === 'TICKETED' ? 'default' : 'outline'} aria-pressed={form.admission_model === 'TICKETED'} onClick={() => setForm(f => ({ ...f, admission_model: 'TICKETED', live_price_ngn: f.live_price_ngn === '0' ? '' : f.live_price_ngn, live_price_usd: f.live_price_usd === '0' ? '' : f.live_price_usd }))}>Paid tickets</Button>
+                    </div>
+                    {form.admission_model === 'FREE' && <p className="text-xs text-muted-foreground">Viewers can claim a free pass. No payment is collected.</p>}
+                  </div>}
+                  {(form.project_type !== 'live' || form.admission_model === 'TICKETED') && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2"><Label>Admission price (NGN)</Label><Input inputMode="decimal" required value={form.live_price_ngn} onChange={e => setForm(f => ({ ...f, live_price_ngn: e.target.value }))} placeholder="e.g. 2500" />{errors.live_price_ngn && <p className="text-xs text-destructive">{errors.live_price_ngn}</p>}</div>
+                    <div className="space-y-2"><Label>International admission (USD)</Label><Input inputMode="decimal" required value={form.live_price_usd} onChange={e => setForm(f => ({ ...f, live_price_usd: e.target.value }))} placeholder="e.g. 5" />{errors.live_price_usd && <p className="text-xs text-destructive">{errors.live_price_usd}</p>}</div>
+                  </div>}
                 </div> : null}
                 <div className="space-y-2"><Label>Rights Territories</Label><Input value={form.rights_territories} onChange={e => setForm(f => ({ ...f, rights_territories: e.target.value }))} placeholder="NG, GH, GB, US" /></div>
                 <div className="space-y-2">
