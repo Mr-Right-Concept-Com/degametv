@@ -1399,6 +1399,9 @@ export type Database = {
           created_at: string
           id: string
           rights_declared: boolean
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           seats: number
           status: string
           tax_id: string | null
@@ -1416,6 +1419,9 @@ export type Database = {
           created_at?: string
           id?: string
           rights_declared?: boolean
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           seats?: number
           status?: string
           tax_id?: string | null
@@ -1433,6 +1439,9 @@ export type Database = {
           created_at?: string
           id?: string
           rights_declared?: boolean
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           seats?: number
           status?: string
           tax_id?: string | null
