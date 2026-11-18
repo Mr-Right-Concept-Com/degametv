@@ -12,9 +12,9 @@ if(import.meta.main)serve(async(req:Request)=>{
  try{
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
   const {data:configs,error}=await admin.rpc("get_payment_provider_runtime_config",{p_provider:"paystack"});
-  if(error||!Array.isArray(configs)||!configs.length||!configs[0].webhook_secret)return json(503,{error:"Webhook verification is not configured."});
+  if(error||!Array.isArray(configs)||!configs.length||!configs[0].secret_key)return json(503,{error:"Webhook verification is not configured."});
   const signature=req.headers.get("x-paystack-signature")||"";
-  const expected=await hmac(configs[0].webhook_secret,raw);
+  const expected=await hmac(configs[0].secret_key,raw);
   if(!constantTimeEqual(signature.toLowerCase(),expected.toLowerCase()))return json(401,{error:"Invalid webhook signature."});
   const event=JSON.parse(raw);
   if(event?.event!=="charge.success")return json(200,{received:true,ignored:true});
