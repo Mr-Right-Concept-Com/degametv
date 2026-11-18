@@ -1,0 +1,25 @@
+name: DeGameTV Flutter validation
+on:
+  push:
+    branches: [main]
+    paths: ['native/**', '.github/workflows/native-flutter-validate.yml']
+  pull_request:
+    paths: ['native/**', '.github/workflows/native-flutter-validate.yml']
+  workflow_dispatch:
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: native
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter create --platforms=android,ios,windows,macos,linux --org com.degametv --project-name degametv_native .
+      - run: flutter pub get
+      - run: dart format --output=none --set-exit-if-changed lib
+      - run: flutter analyze
+      - run: flutter test
