@@ -146,6 +146,22 @@ export default function StudioSubmit() {
 
   useEffect(() => {
     if (!user?.id) return;
+    let active = true;
+    void supabase.from('profiles').select('full_name,company_name')
+      .eq('user_id', user.id).maybeSingle()
+      .then(({ data, error }) => {
+        if (!active || error || !data) return;
+        setForm(current => ({
+          ...current,
+          submitter_name: data.full_name || current.submitter_name,
+          company_name: data.company_name || current.company_name,
+        }));
+      });
+    return () => { active = false; };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
     try {
       const saved = localStorage.getItem(draftKey);
       if (saved) {
