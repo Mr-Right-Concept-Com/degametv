@@ -50,14 +50,18 @@ Deno.serve(async req=>{
    if(!allowed.includes(uploadUrl.origin)||typeof result.asset_id!=="string"||!result.asset_id)return json({error:"Media provider upload origin or asset contract is not approved."},502);
    return json({success:true,assetId:result.asset_id,uploadUrl:uploadUrl.toString(),uploadHeaders:result.upload_headers&&typeof result.upload_headers==="object"?result.upload_headers:{},expiresAt:result.expires_at??null,transcoding:"provider_managed"});
   }
-  if(typeof result.provider_reference!=="string"||typeof result.ingest_url!=="string"||typeof result.stream_key!=="string")return json({error:"Media provider returned an incomplete live-stream contract."},502);
+  if(typeof result.provider_reference!=="string"||typeof result.ingest_url!=="string"||typeof result.stream_key!=="string"||!result.stream_key.trim())return json({error:"Media provider returned an incomplete live-stream contract."},502);
   let ingest:URL;try{ingest=new URL(result.ingest_url);if(ingest.protocol!=="rtmp:"&&ingest.protocol!=="rtmps:")throw new Error();}catch{return json({error:"Provider returned an invalid ingest endpoint."},502);}
+  const {data:membership,error:membershipError}=await db.from("user_roles").select("tenant_id").eq("user_id",user.id).eq("role","creator").not("tenant_id","is",null).limit(1).maybeSingle();
+  if(membershipError||!membership?.tenant_id)return json({error:"Your creator account is not attached to an active tenant."},403);
   const {data:stream,error:insertError}=await db.from("live_streams").insert({
-   creator_id:user.id,title:p.title,description:p.description??null,status:"scheduled",
+   tenant_id:membership.tenant_id,creator_id:user.id,title:p.title,description:p.description??null,status:"scheduled",
+   stream_key:null,rtmp_url:ingest.toString(),playback_url:typeof result.playback_url==="string"?result.playback_url:null,
    scheduled_start:p.scheduledStart??null,recording_enabled:p.recordingEnabled,
-   metadata:{provider:provider.provider_key,provider_reference:result.provider_reference,provisioned_at:new Date().toISOString()},
+   monetization:"free",ticket_price:0,is_ticketed:false,
+   metadata:{provider:provider.provider_key,provider_reference:result.provider_reference,provisioned_at:new Date().toISOString(),stream_key_delivery:"one_time"},
   }).select("id").single();
-  if(insertError||!stream)return json({error:"Live stream was provisioned but could not be reconciled to the creator account."},503);
-  return json({success:true,streamId:stream.id,ingestUrl:ingest.toString(),streamKey:result.stream_key,playbackUrl:result.playback_url??null,provider:provider.provider_key});
+  if(insertError||!stream){console.error("live_stream_insert",insertError);return json({error:"Live stream was provisioned but could not be reconciled to the creator account."},503);}
+  return json({success:true,streamId:stream.id,ingestUrl:ingest.toString(),streamKey:result.stream_key,playbackUrl:result.playback_url??null,ingestProtocol:ingest.protocol.slice(0,-1),provider:provider.provider_key,credentialDelivery:"one_time"});
  }catch(e){console.error("media-provider-control",e);return json({error:"Media provider request failed."},502);}
 });
