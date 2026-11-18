@@ -67,6 +67,9 @@ export default function StudioSubmit() {
     budget_range: '',
     distribution_rights: '',
     premiere_date: '',
+    premiere_time: '20:00',
+    live_price_ngn: '',
+    live_price_usd: '',
     rights_territories: '',
     prior_screenings: '',
     cast_crew_text: '',
@@ -165,9 +168,14 @@ export default function StudioSubmit() {
       if (!publishError && publication?.status === 'published') {
         setPublished(true);
         if (form.project_type === 'live') {
-          const scheduledDate = form.premiere_date ? new Date(`${form.premiere_date}T20:00:00`) : new Date(Date.now() + 30 * 60 * 1000);
+          if (!Number.isFinite(Number(form.live_price_ngn)) || Number(form.live_price_ngn) <= 0 || !Number.isFinite(Number(form.live_price_usd)) || Number(form.live_price_usd) <= 0) {
+            toast.error('Set a positive Nigeria (NGN) and international (USD) live admission price before publishing.');
+            setSubmitting(false);
+            return;
+          }
+          const scheduledDate = form.premiere_date ? new Date(`${form.premiere_date}T${form.premiere_time}:00`) : new Date(Date.now() + 30 * 60 * 1000);
           if (!Number.isFinite(scheduledDate.getTime()) || scheduledDate.getTime() < Date.now() + 15 * 60 * 1000) {
-            toast.error('Choose a premiere date at least 15 minutes in the future.');
+            toast.error('Choose a premiere date and time at least 15 minutes in the future.');
             setSubmitting(false);
             return;
           }
@@ -175,7 +183,7 @@ export default function StudioSubmit() {
           const { data: event, error: eventError } = await supabase.rpc('create_creator_screening', {
             p_content_id: submission.content_id,
             p_screening_date: scheduledAt,
-            p_location_pricing: { nigeria: 5000, international: 15 },
+            p_location_pricing: { nigeria: Number(form.live_price_ngn), international: Number(form.live_price_usd) },
             p_event_type: 'live',
             p_slug: form.project_title,
           });
@@ -464,8 +472,8 @@ export default function StudioSubmit() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Planned Premiere Date</Label>
-                    <Input type="date" value={form.premiere_date} onChange={e => setForm(f => ({ ...f, premiere_date: e.target.value }))} />
+                    <Label>{form.project_type === 'live' ? 'Live Event Date' : 'Planned Premiere Date'}</Label>
+                    <Input type={form.project_type === 'live' ? 'date' : 'date'} value={form.premiere_date} onChange={e => setForm(f => ({ ...f, premiere_date: e.target.value }))} />
                   </div>
                   <div className="space-y-2">
                     <Label>Rights Territories</Label>
