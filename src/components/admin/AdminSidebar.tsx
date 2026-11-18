@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { 
-  LayoutDashboard, Users, Film, Tag, TrendingUp, CreditCard,
+  LayoutDashboard, Users, Film, Tag, TrendingUp, CreditCard, Building2,
   Palette, Mail, Upload, ExternalLink, LogOut, Ticket, ShieldAlert
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -35,6 +35,7 @@ const sections: { title: string; items: NavItem[] }[] = [
     items: [
       { label: 'Users', href: '/admin/users', icon: Users },
       { label: 'Filmmaker Applications', href: '/admin/filmmaker-applications', icon: Upload },
+      { label: 'Studio Applications', href: '/admin/studio-applications', icon: Building2 },
       { label: 'Film Submissions', href: '/admin/filmmaker', icon: Film },
     ],
   },
