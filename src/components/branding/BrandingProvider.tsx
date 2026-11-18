@@ -1,0 +1,17 @@
+import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+
+export type PlatformBranding = {
+  platformName:string; tagline:string; primaryColor:string; secondaryColor:string; accentColor:string;
+  backgroundColor:string; fontFamily:string; customDomain:string; supportEmail:string; logoUrl:string; faviconUrl:string;
+};
+const defaults:PlatformBranding={platformName:'DeGameTV',tagline:'Your cinema. Your premiere.',primaryColor:'#ed1c18',secondaryColor:'#171717',accentColor:'#ffffff',backgroundColor:'#080808',fontFamily:'Inter',customDomain:'',supportEmail:'',logoUrl:'/brand/degametv.svg',faviconUrl:'/favicon.ico'};
+const Context=createContext<PlatformBranding>(defaults);
+function hsl(hex:string){const raw=hex.replace('#','');if(!/^[0-9a-f]{6}$/i.test(raw))return '0 0% 0%';const n=parseInt(raw,16),r=((n>>16)&255)/255,g=((n>>8)&255)/255,b=(n&255)/255,max=Math.max(r,g,b),min=Math.min(r,g,b);let h=0,s=0,l=(max+min)/2;if(max!==min){const d=max-min;s=l>.5?d/(2-max-min):d/(max+min);switch(max){case r:h=(g-b)/d+(g<b?6:0);break;case g:h=(b-r)/d+2;break;default:h=(r-g)/d+4;}h/=6;}return `${Math.round(h*360)} ${Math.round(s*100)}% ${Math.round(l*100)}%`;}
+export function BrandingProvider({children}:{children:ReactNode}){
+ const [brand,setBrand]=useState(defaults);
+ useEffect(()=>{let alive=true;const load=async()=>{const {data}=await supabase.from('platform_settings').select('setting_value').eq('setting_key','branding').maybeSingle();if(alive&&data?.setting_value&&typeof data.setting_value==='object')setBrand({...defaults,...data.setting_value as Partial<PlatformBranding>});};void load();const channel=supabase.channel('platform-branding-runtime').on('postgres_changes',{event:'*',schema:'public',table:'platform_settings',filter:'setting_key=eq.branding'},()=>void load()).subscribe();return()=>{alive=false;void supabase.removeChannel(channel);};},[]);
+ useEffect(()=>{const root=document.documentElement;root.style.setProperty('--primary',hsl(brand.primaryColor));root.style.setProperty('--ring',hsl(brand.primaryColor));root.style.setProperty('--sidebar-primary',hsl(brand.primaryColor));root.style.setProperty('--accent',hsl(brand.accentColor));root.style.setProperty('--degame-red',brand.primaryColor);root.style.setProperty('--degame-black',brand.backgroundColor);root.style.setProperty('--degame-secondary',brand.secondaryColor);root.style.setProperty('--font-brand',brand.fontFamily+', system-ui, sans-serif');document.body.style.fontFamily='var(--font-brand)';document.title=brand.platformName;const favicon=document.querySelector<HTMLLinkElement>('link[rel="icon"]');if(favicon&&brand.faviconUrl)favicon.href=brand.faviconUrl;},[brand]);
+ const value=useMemo(()=>brand,[brand]);return <Context.Provider value={value}>{children}</Context.Provider>;
+}
+export const useBranding=()=>useContext(Context);
