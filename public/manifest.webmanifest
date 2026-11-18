@@ -1,0 +1,23 @@
+{
+  "name": "DeGameTV — African Cinema & Live Events",
+  "short_name": "DeGameTV",
+  "description": "Discover African cinema, ticketed premieres and live experiences.",
+  "theme_color": "#ed1c18",
+  "background_color": "#090909",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "any",
+  "start_url": "/",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/brand/degametv-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
