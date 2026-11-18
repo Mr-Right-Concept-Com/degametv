@@ -162,13 +162,17 @@ export default function FilmmakerApplications() {
                   <div>
                     <Label className="text-xs">Government ID</Label>
                     {selected.kyc_id_url ? (
-                      {evidence?.idUrl ? <a href={evidence.idUrl} target="_blank" rel="noopener noreferrer"><img src={evidence.idUrl} alt="Government identity document" className="w-full h-48 object-contain rounded-lg border mt-1" /></a> : <p className="text-xs text-muted-foreground">Loading private evidence…</p>}
+                      evidence?.idUrl
+                        ? <a href={evidence.idUrl} target="_blank" rel="noopener noreferrer"><img src={evidence.idUrl} alt="Government identity document" className="w-full h-48 object-contain rounded-lg border mt-1" /></a>
+                        : <p className="text-xs text-muted-foreground">Loading private evidence…</p>
                     ) : <p className="text-xs text-muted-foreground">None</p>}
                   </div>
                   <div>
                     <Label className="text-xs">Selfie with ID</Label>
                     {selected.kyc_selfie_url ? (
-                      {evidence?.selfieUrl ? <a href={evidence.selfieUrl} target="_blank" rel="noopener noreferrer"><img src={evidence.selfieUrl} alt="Applicant selfie with identity document" className="w-full h-48 object-contain rounded-lg border mt-1" /></a> : <p className="text-xs text-muted-foreground">Loading private evidence…</p>}
+                      evidence?.selfieUrl
+                        ? <a href={evidence.selfieUrl} target="_blank" rel="noopener noreferrer"><img src={evidence.selfieUrl} alt="Applicant selfie with identity document" className="w-full h-48 object-contain rounded-lg border mt-1" /></a>
+                        : <p className="text-xs text-muted-foreground">Loading private evidence…</p>
                     ) : <p className="text-xs text-muted-foreground">None</p>}
                   </div>
                 </div>
