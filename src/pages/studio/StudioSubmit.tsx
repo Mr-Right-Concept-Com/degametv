@@ -114,6 +114,10 @@ export default function StudioSubmit() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep3()) return;
+    if (form.project_type === 'live' && (!Number.isFinite(Number(form.live_price_ngn)) || Number(form.live_price_ngn) <= 0 || !Number.isFinite(Number(form.live_price_usd)) || Number(form.live_price_usd) <= 0)) {
+      toast.error('Set a positive Nigeria (NGN) and international (USD) live admission price before publishing.');
+      return;
+    }
 
     setSubmitting(true);
 
@@ -168,11 +172,6 @@ export default function StudioSubmit() {
       if (!publishError && publication?.status === 'published') {
         setPublished(true);
         if (form.project_type === 'live') {
-          if (!Number.isFinite(Number(form.live_price_ngn)) || Number(form.live_price_ngn) <= 0 || !Number.isFinite(Number(form.live_price_usd)) || Number(form.live_price_usd) <= 0) {
-            toast.error('Set a positive Nigeria (NGN) and international (USD) live admission price before publishing.');
-            setSubmitting(false);
-            return;
-          }
           const scheduledDate = form.premiere_date ? new Date(`${form.premiere_date}T${form.premiere_time}:00`) : new Date(Date.now() + 30 * 60 * 1000);
           if (!Number.isFinite(scheduledDate.getTime()) || scheduledDate.getTime() < Date.now() + 15 * 60 * 1000) {
             toast.error('Choose a premiere date and time at least 15 minutes in the future.');
