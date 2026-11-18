@@ -102,6 +102,7 @@ export default function StudioSubmit() {
     company_name: '',
     project_title: '',
     project_type: searchParams.get('flow') === 'live' ? 'live' : ['movie', 'series', 'episode', 'short', 'trailer', 'live', 'vod'].includes(searchParams.get('type') || '') ? (searchParams.get('type') as string) : 'movie',
+    preset_type: 'FILM',
     release_strategy: searchParams.get('flow') === 'live' ? 'live' : 'on_demand',
     live_event_format: 'broadcast',
     original_language: 'English',
@@ -127,6 +128,15 @@ export default function StudioSubmit() {
     rights_territories: '',
     prior_screenings: '',
     cast_crew_text: '',
+    primary_artist: '',
+    featured_artists: '',
+    music_genre: '',
+    show_name: '',
+    hosts: '',
+    guests: '',
+    media_format: 'VIDEO_PODCAST',
+    category_tag: '',
+    participants: '',
   });
 
   useEffect(() => {
@@ -222,12 +232,7 @@ export default function StudioSubmit() {
         project_title: form.project_title,
         project_type: form.project_type,
         dynamic_metadata: {
-          contentType: form.project_type === 'movie' ? 'FILM'
-            : form.project_type === 'series' ? 'SERIES'
-            : form.project_type === 'episode' ? 'EPISODE'
-            : form.project_type === 'short' ? 'SHORT'
-            : form.project_type === 'trailer' ? 'TRAILER'
-            : form.project_type === 'live' ? 'RECORDED_EVENT' : 'RECORDED_EVENT',
+          contentType: form.preset_type,
           genres: form.genres,
           castAndCrew: form.cast_crew_text,
           durationMinutes: form.duration_minutes ? Number(form.duration_minutes) : undefined,
@@ -237,6 +242,15 @@ export default function StudioSubmit() {
           seasonNumber: form.season_number ? Number(form.season_number) : undefined,
           episodeNumber: form.episode_number ? Number(form.episode_number) : undefined,
           liveEventFormat: form.live_event_format,
+          primaryArtist: form.primary_artist,
+          featuredArtists: form.featured_artists,
+          musicGenre: form.music_genre,
+          showName: form.show_name,
+          hosts: form.hosts,
+          guests: form.guests,
+          mediaFormat: form.media_format,
+          categoryTag: form.category_tag,
+          participants: form.participants,
         },
         release_strategy: form.release_strategy,
         live_event_format: form.live_event_format,
@@ -434,15 +448,28 @@ export default function StudioSubmit() {
                   </div>
                   {!liveFlow ? <div className="space-y-2">
                     <Label>Content type</Label>
-                    <Select value={form.project_type} onValueChange={v => setForm(f => ({ ...f, project_type: v, release_strategy: (!['movie', 'series'].includes(v) || f.release_strategy === 'live') ? 'on_demand' : f.release_strategy, aspect_ratio: v === 'short' ? '9:16' : v === 'movie' ? '2.39:1' : f.aspect_ratio }))}>
+                    <Select value={form.preset_type} onValueChange={preset => {
+                      const baseType = preset === 'FILM' ? 'movie' : preset === 'SERIES' ? 'series'
+                        : preset === 'EPISODE' ? 'episode' : preset === 'SHORT' ? 'short'
+                        : preset === 'TRAILER' ? 'trailer' : 'vod';
+                      setForm(f => ({ ...f, preset_type: preset, project_type: baseType,
+                        release_strategy: (!['movie', 'series'].includes(baseType) || f.release_strategy === 'live') ? 'on_demand' : f.release_strategy,
+                        aspect_ratio: preset === 'SHORT' ? '9:16' : preset === 'FILM' ? '2.39:1' : f.aspect_ratio }));
+                    }}>
                       <SelectTrigger><SelectValue placeholder="Choose a format" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="movie">Feature film</SelectItem>
-                        <SelectItem value="series">Series</SelectItem>
-                        <SelectItem value="episode">Series episode</SelectItem>
-                        <SelectItem value="short">Short film</SelectItem>
-                        <SelectItem value="trailer">Trailer</SelectItem>
-                        <SelectItem value="vod">Video on demand</SelectItem>
+                        <SelectItem value="FILM">Feature film</SelectItem>
+                        <SelectItem value="SERIES">Series</SelectItem>
+                        <SelectItem value="EPISODE">Series episode</SelectItem>
+                        <SelectItem value="SHORT">Short film</SelectItem>
+                        <SelectItem value="TRAILER">Trailer</SelectItem>
+                        <SelectItem value="MUSIC_VIDEO">Music video</SelectItem>
+                        <SelectItem value="PODCAST">Podcast / talk show</SelectItem>
+                        <SelectItem value="DOCUMENTARY">Documentary</SelectItem>
+                        <SelectItem value="EDUCATIONAL">Educational video</SelectItem>
+                        <SelectItem value="GAMING">Gaming / esports</SelectItem>
+                        <SelectItem value="SPORTS">Sports</SelectItem>
+                        <SelectItem value="RECORDED_EVENT">Recorded event</SelectItem>
                       </SelectContent>
                     </Select>
                   </div> : <div className="space-y-2"><Label>Event type</Label><Select value={form.live_event_format} onValueChange={v => setForm(f => ({ ...f, live_event_format: v }))}><SelectTrigger><SelectValue placeholder="Choose your live event type" /></SelectTrigger><SelectContent><SelectItem value="broadcast">Live broadcast</SelectItem><SelectItem value="concert">Concert / performance</SelectItem><SelectItem value="conference">Conference / summit</SelectItem><SelectItem value="talk">Talk / podcast / interview</SelectItem><SelectItem value="gaming">Gaming / esports</SelectItem><SelectItem value="watch_party">Watch party</SelectItem><SelectItem value="sports">Sports event</SelectItem><SelectItem value="worship">Worship / community gathering</SelectItem><SelectItem value="other">Other live event</SelectItem></SelectContent></Select><p className="text-xs text-muted-foreground">Choose the event category. Configure the details, admission prices and encoder access below.</p></div>}
@@ -462,6 +489,21 @@ export default function StudioSubmit() {
                   <Label>{liveFlow ? 'Event description' : 'Synopsis'}</Label>
                   <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={4} placeholder={liveFlow ? 'Tell viewers what will happen, who is hosting and what their ticket includes.' : 'Write a short synopsis that helps audiences understand your title.'} />
                 </div>
+                {!liveFlow && form.preset_type === 'MUSIC_VIDEO' && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Primary artist</Label><Input value={form.primary_artist} onChange={e=>setForm(f=>({...f,primary_artist:e.target.value}))} placeholder="Artist name"/></div>
+                  <div className="space-y-2"><Label>Featured artists</Label><Input value={form.featured_artists} onChange={e=>setForm(f=>({...f,featured_artists:e.target.value}))} placeholder="Optional"/></div>
+                  <div className="space-y-2"><Label>Music genre</Label><Input value={form.music_genre} onChange={e=>setForm(f=>({...f,music_genre:e.target.value}))} placeholder="Afrobeats, Gospel, Hip-hop…"/></div>
+                </div>}
+                {!liveFlow && form.preset_type === 'PODCAST' && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Show name</Label><Input value={form.show_name} onChange={e=>setForm(f=>({...f,show_name:e.target.value}))} placeholder="Podcast or show name"/></div>
+                  <div className="space-y-2"><Label>Hosts</Label><Input value={form.hosts} onChange={e=>setForm(f=>({...f,hosts:e.target.value}))} placeholder="Host names"/></div>
+                  <div className="space-y-2"><Label>Guests</Label><Input value={form.guests} onChange={e=>setForm(f=>({...f,guests:e.target.value}))} placeholder="Optional guests"/></div>
+                  <div className="space-y-2"><Label>Media format</Label><Select value={form.media_format} onValueChange={v=>setForm(f=>({...f,media_format:v}))}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="VIDEO_PODCAST">Video podcast</SelectItem><SelectItem value="AUDIO_ONLY">Audio only (upload support required)</SelectItem></SelectContent></Select></div>
+                </div>}
+                {!liveFlow && ['GAMING','SPORTS','EDUCATIONAL','RECORDED_EVENT','DOCUMENTARY'].includes(form.preset_type) && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Category / league / course</Label><Input value={form.category_tag} onChange={e=>setForm(f=>({...f,category_tag:e.target.value}))} placeholder="Category, league, game or subject"/></div>
+                  <div className="space-y-2"><Label>Participants / featured people</Label><Input value={form.participants} onChange={e=>setForm(f=>({...f,participants:e.target.value}))} placeholder="Optional"/></div>
+                </div>}
                 {!liveFlow && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2"><Label>Original language</Label><Select value={form.original_language} onValueChange={v => setForm(f => ({...f, original_language:v}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{LANGUAGES.map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select></div>
                   <div className="space-y-2"><Label>Production country</Label><Select value={form.production_country} onValueChange={v => setForm(f => ({...f, production_country:v}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{COUNTRIES.map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select></div>
