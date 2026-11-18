@@ -69,7 +69,7 @@ Deno.serve(async req=>{
    stream_key:null,rtmp_url:ingest.toString(),playback_url:typeof result.playback_url==="string"?result.playback_url:null,
    scheduled_start:p.scheduledStart??null,recording_enabled:p.recordingEnabled,
    monetization:"free",ticket_price:0,is_ticketed:false,
-   metadata:{provider:provider.provider_key,provider_reference:result.provider_reference,screening_id:p.screeningId,provisioned_at:new Date().toISOString(),stream_key_delivery:"one_time"},
+   metadata:{provider:provider.provider_key,provider_mode:provider.is_live===true?"live":"test",provider_reference:result.provider_reference,screening_id:p.screeningId,provisioned_at:new Date().toISOString(),stream_key_delivery:"one_time"},
   }).select("id").single();
   if(insertError||!stream){console.error("live_stream_insert",insertError);return json({error:"Live stream was provisioned but could not be reconciled to the creator account."},503);}
   return json({success:true,streamId:stream.id,ingestUrl:ingest.toString(),streamKey:result.stream_key,playbackUrl:result.playback_url??null,ingestProtocol:ingest.protocol.slice(0,-1),provider:provider.provider_key,credentialDelivery:"one_time"});
