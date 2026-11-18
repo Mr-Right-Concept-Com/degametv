@@ -38,13 +38,23 @@ const step2Schema = z.object({
 
 const step3Schema = z.object({
   distribution_rights: z.string().trim().min(1, 'A rights declaration is required before publishing.').max(120),
+  release_strategy: z.enum(['on_demand', 'premiere', 'live']),
   trailer_url: z.string().url('Enter a valid trailer URL').optional().or(z.literal('')),
   screener_url: z.string().url('Enter a valid screener URL').optional().or(z.literal('')),
   premiere_date: z.string().optional().refine(value => !value || /^\d{4}-\d{2}-\d{2}$/.test(value), 'Enter a valid release or premiere date'),
+  premiere_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Enter a valid event start time'),
+  live_price_ngn: z.string().optional().refine(value => !value || (/^\d+(\.\d{1,2})?$/.test(value) && Number(value) > 0), 'Enter a positive NGN ticket price'),
+  live_price_usd: z.string().optional().refine(value => !value || (/^\d+(\.\d{1,2})?$/.test(value) && Number(value) > 0), 'Enter a positive USD ticket price'),
   rights_territories: z.string().max(500, 'Territory list is too long').optional(),
   prior_screenings: z.string().max(3000, 'Prior screening details are too long').optional(),
   poster_url: z.string().url('Artwork must be a valid URL').optional().or(z.literal('')),
   video_url: z.string().max(2048).optional(),
+}).superRefine((value, ctx) => {
+  if (value.release_strategy === 'premiere' || value.release_strategy === 'live') {
+    if (!value.premiere_date) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['premiere_date'], message: 'Choose the event date.' });
+    if (!value.live_price_ngn || Number(value.live_price_ngn) <= 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['live_price_ngn'], message: 'Set a positive NGN admission price.' });
+    if (!value.live_price_usd || Number(value.live_price_usd) <= 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['live_price_usd'], message: 'Set a positive USD admission price.' });
+  }
 });
 
 export default function StudioSubmit() {
@@ -155,7 +165,7 @@ export default function StudioSubmit() {
   };
 
   const validateStep3 = () => {
-    const result = step3Schema.safeParse({ distribution_rights: form.distribution_rights, trailer_url: form.trailer_url, screener_url: form.screener_url, premiere_date: form.premiere_date, rights_territories: form.rights_territories, prior_screenings: form.prior_screenings, poster_url: form.poster_url, video_url: form.video_url });
+    const result = step3Schema.safeParse({ distribution_rights: form.distribution_rights, release_strategy: form.release_strategy, trailer_url: form.trailer_url, screener_url: form.screener_url, premiere_date: form.premiere_date, premiere_time: form.premiere_time, live_price_ngn: form.live_price_ngn, live_price_usd: form.live_price_usd, rights_territories: form.rights_territories, prior_screenings: form.prior_screenings, poster_url: form.poster_url, video_url: form.video_url });
     if (!result.success) {
       const errs: Record<string, string> = {};
       result.error.errors.forEach(e => { errs[e.path[0] as string] = e.message; });
@@ -408,7 +418,7 @@ export default function StudioSubmit() {
                   </div>
                   <div className="space-y-2">
                     <Label>Type</Label>
-                    <Select value={form.project_type} onValueChange={v => setForm(f => ({ ...f, project_type: v, release_strategy: v === 'live' ? 'live' : f.release_strategy === 'live' ? 'on_demand' : f.release_strategy }))}>
+                    <Select value={form.project_type} onValueChange={v => setForm(f => ({ ...f, project_type: v, release_strategy: v === 'live' ? 'live' : (!['movie', 'series'].includes(v) || f.release_strategy === 'live') ? 'on_demand' : f.release_strategy }))}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="movie">Feature Film</SelectItem>
