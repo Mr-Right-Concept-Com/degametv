@@ -31,10 +31,13 @@ if(import.meta.main)serve(async(req:Request)=>{
     ? await admin.from("live_payment_orders").select("provider").eq("provider_reference",reference).maybeSingle()
     : await admin.from("guest_payment_orders").select("provider").eq("provider_reference",reference).maybeSingle();
   if(orderLookup.error||!orderLookup.data?.provider)return json(404,{error:"Payment order not found."});
-  const {data:configs,error}=await admin.rpc("get_service_provider_runtime_config",{p_capability:"payments"});
-  if(error||!Array.isArray(configs))return json(503,{error:"Payment provider registry is unavailable."});
-  const config=configs.find((candidate:any)=>candidate.provider_key===orderLookup.data.provider);
-  if(!config?.credential||!config?.webhook_secret)return json(503,{error:"The provider used by this payment has no active webhook credentials."});
+  const [{data:binding,error:bindingError},{data:secrets,error:secretError}]=await Promise.all([
+   admin.from("service_provider_bindings").select("provider_key,base_url,endpoints,settings").eq("capability","payments").eq("provider_key",orderLookup.data.provider).maybeSingle(),
+   admin.rpc("get_service_provider_admin_secret",{p_capability:"payments",p_provider_key:orderLookup.data.provider})
+  ]);
+  const vault=Array.isArray(secrets)?secrets[0]:null;
+  const config=binding?{...binding,credential:vault?.credential,webhook_secret:vault?.webhook_secret}:null;
+  if(bindingError||secretError||!config?.credential||!config?.webhook_secret)return json(503,{error:"The provider used by this payment has no retained webhook credentials."});
   const settings=config.settings||{};
   const signatureHeader=typeof settings.signature_header==="string"?settings.signature_header:"x-provider-signature";
   const algorithm=settings.signature_algorithm==="SHA-256"?"SHA-256":"SHA-512";
