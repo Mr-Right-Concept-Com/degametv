@@ -1,17 +1,9 @@
 import { useState, FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Menu, X, Search, User, Ticket, LayoutDashboard, Clapperboard } from 'lucide-react';
+import { Menu, X, Search, User, Ticket, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  DropdownMenuLabel,
-} from '@/components/ui/dropdown-menu';
 import { useTenant } from '@/hooks/useTenant';
 import { useBranding } from '@/components/branding/BrandingProvider';
 
@@ -98,48 +90,12 @@ export function Navbar() {
                   </Link>
                 </Button>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" aria-label="User menu" className="rounded-full h-9 w-9">
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span aria-hidden="true" className="text-xs font-bold text-primary">
-                          {user.email?.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-52 rounded-xl">
-                    <DropdownMenuLabel className="text-xs text-muted-foreground font-normal truncate">
-                      {user.email}
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => navigate('/dashboard')} className="text-sm">
-                      <User className="w-4 h-4 mr-2" />
-                      My Dashboard
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate('/tickets')} className="text-sm">
-                      <Ticket className="w-4 h-4 mr-2" />
-                      My Tickets
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate('/studio')} className="text-sm">
-                      <Clapperboard className="w-4 h-4 mr-2" />
-                      Studio Dashboard
-                    </DropdownMenuItem>
-                    {isAdmin && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => navigate('/admin')} className="text-sm">
-                          <LayoutDashboard className="w-4 h-4 mr-2" />
-                          Admin Dashboard
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => signOut()} className="text-sm text-destructive focus:text-destructive">
-                      Sign Out
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Button variant="ghost" size="icon" aria-label="Open my dashboard" className="rounded-full h-9 w-9" onClick={() => navigate('/dashboard')}>
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <span aria-hidden="true" className="text-xs font-bold text-primary">{user.email?.charAt(0).toUpperCase()}</span>
+                  </div>
+                </Button>
+ </DropdownMenu>
               </>
             ) : (
               <div className="flex items-center gap-1.5 sm:gap-2">
@@ -198,14 +154,10 @@ export function Navbar() {
             ))}
             {user && (
               <>
-                <Link
-                  to="/dashboard"
-                  className="flex items-center gap-3 px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary rounded-xl"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  <User className="w-4 h-4" />
-                  My Dashboard
+                <Link to="/dashboard" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground" onClick={() => setIsMenuOpen(false)}>
+                  <User className="h-4 w-4" /> My Dashboard
                 </Link>
+         </Link>
                 {isAdmin && (
                   <Link
                     to="/admin"
