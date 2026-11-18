@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
+import { useBranding } from '@/components/branding/BrandingProvider';
 
 interface NavItem {
   label: string;
@@ -70,6 +71,7 @@ interface AdminSidebarProps {
 export function AdminSidebar({ onNavigate }: AdminSidebarProps) {
   const location = useLocation();
   const { signOut, user } = useAuth();
+  const branding = useBranding();
 
   const isActive = (href: string) => {
     if (href === '/admin') return location.pathname === '/admin';
