@@ -153,7 +153,7 @@ export default function PaymentGatewaySettings() {
               <Button variant={selectedConfig?.enabled ? 'destructive' : 'default'} onClick={() => void save(selected, { enabled: !selectedConfig?.enabled })} disabled={saving}>
                 {selectedConfig?.enabled ? 'Disable checkout' : 'Enable test checkout'}
               </Button>
-              <Button variant="outline" onClick={() => void save(selected, { live: !selectedConfig?.live, enabled: true })} disabled={saving || (!selectedConfig?.live && (!selectedConfig?.hasLiveSecret || !selectedConfig?.hasWebhookSecret))}>
+              <Button variant="outline" onClick={() => void save(selected, { live: !selectedConfig?.live, enabled: true })} disabled={saving || (!selectedConfig?.live && (!selectedConfig?.hasLiveSecret))}>
                 {selectedConfig?.live ? 'Switch back to test' : 'Switch to live'}
               </Button>
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
