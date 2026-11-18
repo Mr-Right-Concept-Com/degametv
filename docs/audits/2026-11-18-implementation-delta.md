@@ -87,3 +87,11 @@ Latest commits in this pass:
 Supabase re-check at 2026-11-18 04:20 UTC: all 36 public tables have RLS enabled. Security advisor still reports 34 anon GraphQL schema visibility notices, 36 authenticated visibility notices, 9 authenticated SECURITY DEFINER functions, pg_net in public schema and leaked-password protection disabled. GraphQL schema visibility is not itself proof of row disclosure; every policy still requires an object/tenant audit. The new KYC submission RPC explains one additional SECURITY DEFINER finding and is authenticated-only with an explicit auth.uid check and fixed search_path.
 
 No browser/device or full build test was executed in this pass. Payment and origin-verified playback remain unavailable. This audit delta is not a launch certification.
+
+
+### Final hardening and CI consolidation — 18 November 2026
+
+- Added migration `20261118001000_harden_kyc_submission_validation.sql` to reject NULL ID type/MIME and oversized object paths at the database boundary. RUN confirms anon cannot execute the RPC, authenticated can, NULL ID type is explicitly rejected, and path length is bounded.
+- Added durable Supabase config entries `[functions.submit-kyc]` and `[functions.review-kyc]` with `verify_jwt = true`; both functions redeployed and Supabase function metadata confirms submit-kyc ACTIVE v9 and review-kyc ACTIVE v8 with verify_jwt=true.
+- Consolidated duplicated GitHub quality workflows into `.github/workflows/quality-gate.yml`; removed duplicate `quality.yml` and `a11y.yml`; removed the workflow's automatic lockfile commit/push behavior and made the lockfile immutable via `npm ci`. The current Actions run for commit `89b4d205d5bbe23ca99e738bcee45a037741d582` was queued/in progress when checked; a later migration commit triggers a fresh run. No green result is claimed.
+- The Lovable project was verified ready and synchronized to commit `89b4d205d5bbe23ca99e738bcee45a037741d582` before the final validation migration commit. Recheck sync after the latest commit before release.
