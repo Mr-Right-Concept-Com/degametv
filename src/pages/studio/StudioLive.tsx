@@ -151,7 +151,7 @@ export default function StudioLive() {
             <CardContent className="space-y-4">
               <div className="flex items-center gap-2">
                 <Badge variant={status === 'ended' ? 'secondary' : status === 'scheduled' ? 'default' : 'outline'}>{status === 'scheduled' ? 'Provisioned — awaiting encoder ingest' : status === 'ended' ? 'Provider confirmed ended' : 'Not provisioned'}</Badge>
-                {broadcastLifecycle && <Badge variant="outline" className="font-mono text-xs">{broadcastLifecycle.lifecycle_status.replaceAll('_', ' ')}</Badge>}
+                {broadcastLifecycle && <Badge variant="outline" className="font-mono text-xs">{broadcastLifecycle.lifecycle_status .replace(/_/g, ' ')}</Badge>}
               </div>
               {replayDraftId && <Button asChild variant="outline"><Link to="/studio/movies">Open replay draft in catalogue</Link></Button>}
               {grant ? <div className="space-y-3 rounded-xl border p-4">
