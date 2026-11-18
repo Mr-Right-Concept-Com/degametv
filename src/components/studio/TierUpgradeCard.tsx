@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
+import { invokeFn } from '@/lib/invokeFn';
 import { Building2, User, Loader2 } from 'lucide-react';
 
 const businessSchema = z.object({
@@ -69,6 +70,7 @@ export function TierUpgradeCard() {
     }
     setBusy(true);
     try {
+      let businessVerificationId: string | undefined;
       if (tier === 'business' && file && businessData) {
         const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
         if (!allowed.includes(file.type) || file.size <= 0 || file.size > 10 * 1024 * 1024) throw new Error('Upload a PDF or clear image under 10 MB.');
@@ -77,7 +79,7 @@ export function TierUpgradeCard() {
           contentType: file.type, cacheControl: '0', upsert: false,
         });
         if (upErr) throw upErr;
-        const { error: verificationError } = await supabase.rpc('submit_business_verification' as never, {
+        const { data: verificationData, error: verificationError } = await supabase.rpc('submit_business_verification' as never, {
           p_legal_business_name: businessData.company_name,
           p_registration_country: businessData.registration_country,
           p_registration_number: businessData.cac_number,
@@ -93,12 +95,19 @@ export function TierUpgradeCard() {
           p_tax_identifier: businessData.tax_id,
         } as never);
         if (verificationError) throw verificationError;
+        businessVerificationId = (verificationData as { verification_id?: string } | null)?.verification_id;
       }
       const { error } = acct
         ? await supabase.from('studio_accounts').update(payload).eq('user_id', user.id)
         : await supabase.from('studio_accounts').insert(payload as never);
       if (error) throw error;
-      toast.success(tier === 'business' ? 'Business verification submitted securely for review.' : 'Creator tier selected — pending review');
+      if (tier === 'business' && businessVerificationId) {
+        const providerRun = await invokeFn<{ status?: string; providerConfigured?: boolean; studioActivated?: boolean }>('run-business-provider', { verificationId: businessVerificationId });
+        if (providerRun.ok && providerRun.data?.studioActivated) toast.success('Business and bank checks passed. Studio is activated.');
+        else toast.success('Business application submitted. Provider checks or manual review are pending.');
+      } else {
+        toast.success(tier === 'business' ? 'Business verification submitted securely for review.' : 'Creator tier selected — pending review');
+      }
       load();
     } catch (e) {
       toast.error((e as Error).message);
