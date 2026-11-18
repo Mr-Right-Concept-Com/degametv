@@ -237,6 +237,23 @@ export default function StudioSubmit() {
         company_name: form.company_name || null,
         project_title: form.project_title,
         project_type: form.project_type,
+        dynamic_metadata: {
+          contentType: form.project_type === 'movie' ? 'FILM'
+            : form.project_type === 'series' ? 'SERIES'
+            : form.project_type === 'episode' ? 'EPISODE'
+            : form.project_type === 'short' ? 'SHORT'
+            : form.project_type === 'trailer' ? 'TRAILER'
+            : form.project_type === 'live' ? 'RECORDED_EVENT' : 'RECORDED_EVENT',
+          genres: form.genres,
+          castAndCrew: form.cast_crew_text,
+          durationMinutes: form.duration_minutes ? Number(form.duration_minutes) : undefined,
+          releaseYear: form.release_year ? Number(form.release_year) : undefined,
+          audienceRating: form.content_rating,
+          productionCountry: form.production_country,
+          seasonNumber: form.season_number ? Number(form.season_number) : undefined,
+          episodeNumber: form.episode_number ? Number(form.episode_number) : undefined,
+          liveEventFormat: form.live_event_format,
+        },
         release_strategy: form.release_strategy,
         live_event_format: form.live_event_format,
         original_language: form.original_language,
