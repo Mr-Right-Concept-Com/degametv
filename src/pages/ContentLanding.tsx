@@ -90,9 +90,9 @@ export default function ContentLanding() {
   if (!content) return <MainLayout><div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center px-4 text-center"><Film className="mb-4 h-12 w-12 text-muted-foreground" /><h1 className="text-xl font-bold">This title is not available</h1><p className="mt-2 text-sm text-muted-foreground">The page may be unpublished or the link may be incorrect.</p><Button asChild className="mt-5"><Link to="/cinema">Browse cinema</Link></Button></div></MainLayout>;
 
   return <MainLayout>
-    <article className="mx-auto max-w-5xl px-4 py-8">
-      <div className="grid gap-8 md:grid-cols-[minmax(220px,320px)_1fr]">
-        <div>{content.poster_url ? <img src={content.poster_url} alt={content.title + ' poster'} className="w-full rounded-2xl object-cover shadow-xl" /> : <div className="flex aspect-[2/3] items-center justify-center rounded-2xl bg-secondary"><Film className="h-16 w-16 text-muted-foreground" /></div>}</div>
+    <article className="mx-auto max-w-6xl px-4 py-8 sm:py-12">
+      <div className="grid gap-6 rounded-[2rem] border border-border/70 bg-gradient-to-br from-card via-card to-primary/5 p-4 shadow-xl sm:gap-8 sm:p-7 md:grid-cols-[minmax(220px,320px)_1fr]">
+        <div>{content.poster_url ? <img src={content.poster_url} alt={content.title + ' poster'} className="w-full rounded-[1.5rem] object-cover shadow-2xl" /> : <div className="flex aspect-[2/3] items-center justify-center rounded-2xl bg-secondary"><Film className="h-16 w-16 text-muted-foreground" /></div>}</div>
         <div className="flex flex-col justify-center">
           <Badge className="mb-3 w-fit capitalize">{content.type}</Badge>
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{content.title}</h1>
