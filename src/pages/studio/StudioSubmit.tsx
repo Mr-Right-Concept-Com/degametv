@@ -26,10 +26,6 @@ const COUNTRIES = ['Nigeria', 'Ghana', 'Kenya', 'South Africa', 'Uganda', 'Tanza
 const CONTENT_RATINGS = ['G', 'PG', 'PG-13', '16', '18', 'Not rated'];
 const ASPECT_RATIOS = ['16:9', '2.39:1', '1.85:1', '4:3', '9:16', '1:1'];
 
-const step1Schema = z.object({
-  submitter_name: z.string().trim().min(2, 'Name must be at least 2 characters').max(100),
-});
-
 const step2Schema = z.object({
   project_title: z.string().trim().min(2, 'Enter a production title').max(200),
   project_type: z.enum(['movie', 'series', 'episode', 'short', 'trailer', 'live', 'vod']),
@@ -171,18 +167,6 @@ export default function StudioSubmit() {
   const copyEncoderValue = async (value: string) => {
     try { await navigator.clipboard.writeText(value); toast.success('Copied. Keep encoder credentials private.'); }
     catch { toast.error('Clipboard unavailable. Select and copy the value manually.'); }
-  };
-
-  const validateStep1 = () => {
-    const result = step1Schema.safeParse({ submitter_name: form.submitter_name });
-    if (!result.success) {
-      const errs: Record<string, string> = {};
-      result.error.errors.forEach(e => { errs[e.path[0] as string] = e.message; });
-      setErrors(errs);
-      return false;
-    }
-    setErrors({});
-    return true;
   };
 
   const validateStep2 = () => {
