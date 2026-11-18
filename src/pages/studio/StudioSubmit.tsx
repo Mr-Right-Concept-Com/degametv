@@ -211,6 +211,18 @@ export default function StudioSubmit() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep3()) return;
+    if (form.project_type === 'live' && form.auto_convert_to_vod) {
+      const hours = Number(form.replay_access_hours);
+      if (!Number.isInteger(hours) || hours < 1 || hours > 8760) {
+        toast.error('Replay access must be between 1 and 8760 hours.');
+        return;
+      }
+      if (form.replay_access_model === 'SEPARATE_PRICE'
+        && Number(form.replay_price_ngn || 0) <= 0 && Number(form.replay_price_usd || 0) <= 0) {
+        toast.error('Set a positive NGN or USD replay price for separately priced replay.');
+        return;
+      }
+    }
 
     setSubmitting(true);
 
@@ -316,7 +328,25 @@ export default function StudioSubmit() {
           setSubmitting(false);
           return;
         }
-        setCreatedScreeningId((event as { screening_id: string }).screening_id);
+        const screeningId = (event as { screening_id: string }).screening_id;
+        setCreatedScreeningId(screeningId);
+        if (form.project_type === 'live') {
+          const { data: pricingResult, error: pricingError } = await supabase.functions.invoke('manage-live-pricing', {
+            body: {
+              screeningId,
+              livePriceNgn: Number(form.live_price_ngn || 0),
+              livePriceUsd: Number(form.live_price_usd || 0),
+              replayPriceNgn: form.replay_price_ngn.trim() ? Number(form.replay_price_ngn) : null,
+              replayPriceUsd: form.replay_price_usd.trim() ? Number(form.replay_price_usd) : null,
+              replayAccessHours: Number(form.replay_access_hours || 48),
+              replayAccessModel: form.replay_access_model,
+              autoConvertToVod: form.auto_convert_to_vod,
+            },
+          });
+          if (pricingError || !pricingResult?.success) {
+            toast.error(pricingResult?.error || 'Event is published, but replay settings could not be saved. Update them in Go Live settings.');
+          }
+        }
         setPublished(true);
         toast.success(form.project_type === 'live' ? 'Live event published. Continue below to provision its secure encoder.' : 'Ticketed premiere published and scheduled.');
       } else {
