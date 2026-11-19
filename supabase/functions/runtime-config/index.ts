@@ -41,18 +41,23 @@ Deno.serve(async (req) => {
       .eq("enabled", true).order("country_code"),
     db.from("platform_feature_controls")
       .select("feature_key")
-      .eq("enabled", true).in("release_state", ["canary", "released"]),
+      
   ]);
   if (countries.error || features.error) return response({ error: "Runtime configuration could not be loaded." }, 503);
 
   const country = candidate ? countries.data?.find((item) => item.country_code === candidate) : undefined;
   const userCurrency = String(body?.currency ?? requestUrl.searchParams.get("currency") ?? "").toUpperCase() || undefined;
   const validOverride = userCurrency && currencySchema.safeParse(userCurrency).success ? userCurrency : null;
-  const eligibleFeatures = await Promise.all((features.data ?? []).map(async (feature) => {
-    if (feature.release_state === "released" && feature.rollout_percentage === 100) return feature.feature_key;
+  const runtimeFeatures = await Promise.all((features.data ?? []).map(async (feature) => {
+    if (!feature.enabled || ["draft", "paused", "rolled_back"].includes(feature.release_state)) {
+      return { key: feature.feature_key, enabled: false };
+    }
+    if (feature.release_state === "released") {
+      return { key: feature.feature_key, enabled: feature.rollout_percentage === 100 };
+    }
     const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(visitorId + ":" + feature.feature_key));
     const bucket = new DataView(digest).getUint32(0, false) % 100;
-    return bucket < feature.rollout_percentage ? feature.feature_key : null;
+    return { key: feature.feature_key, enabled: bucket < feature.rollout_percentage };
   }));
   return response({
     geo: { countryCode: candidate, source: edgeCountry ? "edge" : requestedCountry ? "explicit" : localeRegion ? "locale_hint" : "unknown" },
@@ -61,7 +66,7 @@ Deno.serve(async (req) => {
     currencySymbol: validOverride ? null : country?.currency_symbol ?? "$",
     countryCurrency: country ?? null,
     countries: countries.data ?? [],
-    features: eligibleFeatures.filter((key): key is string => key !== null).map((key) => ({ key })),
+    features: runtimeFeatures,
     generatedAt: new Date().toISOString(),
   });
 });
