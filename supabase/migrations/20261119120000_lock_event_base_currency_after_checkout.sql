@@ -14,7 +14,8 @@ BEGIN
  ELSE
   RETURN NEW;
  END IF;
- IF OLD.base_currency IS DISTINCT FROM NEW.base_currency OR (TG_TABLE_NAME='live_streams' AND OLD.currency IS DISTINCT FROM NEW.currency) THEN
+ IF (TG_TABLE_NAME='screenings' AND OLD.base_currency IS DISTINCT FROM NEW.base_currency)
+    OR (TG_TABLE_NAME='live_streams' AND OLD.currency IS DISTINCT FROM NEW.currency) THEN
   IF EXISTS(SELECT 1 FROM public.event_ticket_reservations r
     WHERE r.screening_id=v_screening_id AND r.status IN ('pending','paid','complimentary') AND (r.status<>'pending' OR r.expires_at>now()))
    OR EXISTS(SELECT 1 FROM public.screening_tickets t
