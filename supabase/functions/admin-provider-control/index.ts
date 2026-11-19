@@ -54,7 +54,13 @@ Deno.serve(async req => {
       const origins=p.settings.allowed_checkout_origins;
       if(!endpoint("checkout_initialize")||!endpoint("payment_verify")||!endpoint("refund")||!Array.isArray(currencies)||currencies.length===0||currencies.some((v:any)=>typeof v!=="string"||!/^[A-Z]{3}$/.test(v))||!Array.isArray(origins)||origins.length===0||origins.some((v:any)=>{try{const u=new URL(v);return u.protocol!=="https:"||u.origin!==v;}catch{return true;}}))
         return json({error:"Payment adapters require checkout_initialize, payment_verify and refund endpoints, ISO supported_currencies, and HTTPS allowed_checkout_origins."},400);
-      if(!["paystack","stripe","flutterwave","generic"].includes(adapter))return json({error:"Unsupported normalized payment adapter. Use paystack, stripe, flutterwave or generic."},400);
+      const adapters=["paystack","stripe","flutterwave","generic"];
+      const configuredAdapters=["checkout_adapter","verification_adapter","refund_adapter","webhook_adapter"];
+      if(!adapters.includes(adapter)||configuredAdapters.some(key=>p.settings[key]!==undefined&&!adapters.includes(String(p.settings[key]).toLowerCase())))
+        return json({error:"Payment adapters must use paystack, stripe, flutterwave or generic for each configured operation."},400);
+      const signatureAlgorithm=String(p.settings.signature_algorithm??"");
+      if(signatureAlgorithm&&!["paystack_hmac_sha512","stripe_hmac_sha256","flutterwave_verif_hash","hmac_sha256","SHA-256","SHA-512"].includes(signatureAlgorithm))
+        return json({error:"Unsupported payment webhook signature algorithm."},400);
     }
     if(p.capability==="email"){
       const sender=String(p.settings.from_email??"");
