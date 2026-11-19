@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -37,7 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     authSubscription?.cancel();
-    if (subscription != null) Supabase.instance.client.removeChannel(subscription!);
+    if (subscription != null) { Supabase.instance.client.removeChannel(subscription!); }
     super.dispose();
   }
 
@@ -55,7 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
         error = null;
       });
     } catch (_) {
-      if (mounted) setState(() { loading = false; error = 'Catalogue unavailable. Pull down to retry.'; });
+      if (mounted) { setState(() { loading = false; error = 'Catalogue unavailable. Pull down to retry.'; }); }
     }
   }
 
@@ -120,11 +122,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _catalogue() {
-    if (loading) return const Center(child: CircularProgressIndicator(color: red));
-    if (error != null) return Center(child: Column(
+    if (loading) { return const Center(child: CircularProgressIndicator(color: red)); }
+    if (error != null) { return Center(child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [Text(error!), const SizedBox(height: 12), FilledButton(onPressed: load, child: const Text('Retry'))],
-    ));
+    )); }
     if (tab == 2) {
       final live = items.where((e) => e.eventType == 'live').toList();
       return _listing(live, 'Live experiences');
@@ -182,10 +184,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _grid(List<Screening> list) => LayoutBuilder(builder: (context, box) {
     final columns = box.maxWidth > 1000 ? 4 : box.maxWidth > 620 ? 3 : 2;
-    if (list.isEmpty) return const Padding(
+    if (list.isEmpty) { return const Padding(
       padding: EdgeInsets.all(24),
       child: Center(child: Text('New experiences are coming soon.')),
-    );
+    ); }
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -233,7 +235,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _tickets() {
     final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return Center(child: Column(
+    if (user == null) { return Center(child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         const Icon(Icons.confirmation_number_outlined, size: 46),
@@ -247,7 +249,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: const Text('Sign in'),
         ),
       ],
-    ));
+    )); }
     return _TicketWallet(userId: user.id, openWeb: _openWeb);
   }
 }
@@ -294,7 +296,7 @@ class _TicketWalletState extends State<_TicketWallet> {
     } catch (e) {
       setState(() => playbackError = e.toString().replaceFirst('Exception: ', ''));
     } finally {
-      if (mounted) setState(() => authorizing = false);
+      if (mounted) { setState(() => authorizing = false); }
     }
   }
   @override
@@ -310,22 +312,22 @@ class _TicketWalletState extends State<_TicketWallet> {
   }
   String _date(dynamic value) {
     final date = DateTime.tryParse(value?.toString() ?? '');
-    if (date == null) return '—';
+    if (date == null) { return '—'; }
     return '${date.toLocal().day}/${date.toLocal().month}/${date.toLocal().year}';
   }
   @override
   Widget build(BuildContext context) => FutureBuilder<List<Map<String, dynamic>>>(
     future: tickets,
     builder: (context, snapshot) {
-      if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: red));
-      if (snapshot.hasError) return Center(child: Padding(
+      if (snapshot.connectionState == ConnectionState.waiting) { return const Center(child: CircularProgressIndicator(color: red)); }
+      if (snapshot.hasError) { return Center(child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const Text('We could not load your tickets.'),
           const SizedBox(height: 10),
           FilledButton(onPressed: () => setState(() => tickets = _load()), child: const Text('Try again')),
         ]),
-      ));
+      )); }
       final data = snapshot.data ?? [];
       return RefreshIndicator(
         onRefresh: () async => setState(() => tickets = _load()),
