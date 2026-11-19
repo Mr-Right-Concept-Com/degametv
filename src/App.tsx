@@ -83,10 +83,10 @@ const App = () => (
             <Routes>
               {/* ============ END-USER EXPERIENCE ============ */}
               <Route path="/" element={<Index />} />
-              <Route path="/cinema" element={<Cinema />} />
-              <Route path="/cinema/:id" element={<Navigate to="/cinema" replace />} />
-              <Route path="/movie/:slug" element={<MovieLanding />} />
-              <Route path="/content/:id" element={<ContentLanding />} />
+              <Route path="/cinema" element={<FeatureGate featureKey="cinema.catalogue"><Cinema /></FeatureGate>} />
+              <Route path="/cinema/:id" element={<FeatureGate featureKey="cinema.catalogue"><Navigate to="/cinema" replace /></FeatureGate>} />
+              <Route path="/movie/:slug" element={<FeatureGate featureKey="cinema.catalogue"><MovieLanding /></FeatureGate>} />
+              <Route path="/content/:id" element={<FeatureGate featureKey="cinema.catalogue"><ContentLanding /></FeatureGate>} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               
@@ -102,44 +102,44 @@ const App = () => (
               
               {/* ============ VIRTUAL CINEMA TICKET FUNNEL ============ */}
               <Route path="/buy/:slug" element={<FeatureGate featureKey="cinema.ticketing"><BuyTicket /></FeatureGate>} />
-              <Route path="/watch/:watchCode" element={<WatchMovie />} />
+              <Route path="/watch/:watchCode" element={<FeatureGate featureKey="cinema.replay"><WatchMovie /></FeatureGate>} />
               <Route path="/live/watch/:streamId" element={<FeatureGate featureKey="cinema.live_playback"><LiveWatch /></FeatureGate>} />
-              <Route path="/live/claim" element={<LiveGuestClaim />} />
+              <Route path="/live/claim" element={<FeatureGate featureKey="cinema.guest_claim"><LiveGuestClaim /></FeatureGate>} />
               <Route path="/payment/return" element={<PaymentReturn />} />
-              <Route path="/tickets" element={<ProtectedRoute><Navigate to="/dashboard?tab=tickets" replace /></ProtectedRoute>} />
+              <Route path="/tickets" element={<FeatureGate featureKey="cinema.ticketing"><ProtectedRoute><Navigate to="/dashboard?tab=tickets" replace /></ProtectedRoute></FeatureGate>} />
               <Route path="/dashboard" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
               <Route path="/filmmaker" element={<Navigate to="/apply-filmmaker" replace />} />
               
               {/* ============ STUDIO (Protected - Approved Filmmakers Only) ============ */}
-              <Route path="/studio" element={<ProtectedCreatorRoute><StudioDashboard /></ProtectedCreatorRoute>} />
-              <Route path="/studio/create" element={<ProtectedCreatorRoute><StudioCreate /></ProtectedCreatorRoute>} />
-              <Route path="/studio/movies" element={<ProtectedCreatorRoute><StudioMovies /></ProtectedCreatorRoute>} />
-              <Route path="/studio/submit" element={<ProtectedCreatorRoute><Navigate to="/studio/create" replace /></ProtectedCreatorRoute>} />
+              <Route path="/studio" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.dashboard"><StudioDashboard /></FeatureGate></ProtectedCreatorRoute>} />
+              <Route path="/studio/create" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.submissions"><StudioCreate /></FeatureGate></ProtectedCreatorRoute>} />
+              <Route path="/studio/movies" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.catalogue"><StudioMovies /></FeatureGate></ProtectedCreatorRoute>} />
+              <Route path="/studio/submit" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.submissions"><Navigate to="/studio/create" replace /></FeatureGate></ProtectedCreatorRoute>} />
               <Route path="/studio/screenings" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.screenings"><StudioScreenings /></FeatureGate></ProtectedCreatorRoute>} />
-              <Route path="/studio/earnings" element={<ProtectedCreatorRoute><StudioEarnings /></ProtectedCreatorRoute>} />
+              <Route path="/studio/earnings" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.earnings"><StudioEarnings /></FeatureGate></ProtectedCreatorRoute>} />
               <Route path="/studio/analytics" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.analytics"><StudioAnalytics /></FeatureGate></ProtectedCreatorRoute>} />
               <Route path="/studio/analytics/:screeningId" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.analytics"><StudioAnalytics /></FeatureGate></ProtectedCreatorRoute>} />
               
               <Route path="/studio/live" element={<ProtectedCreatorRoute><Navigate to="/studio/create?flow=live&type=live" replace /></ProtectedCreatorRoute>} />
               <Route path="/studio/live/manage" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.live"><StudioLive /></FeatureGate></ProtectedCreatorRoute>} />
               <Route path="/studio/team" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.team"><StudioTeam /></FeatureGate></ProtectedCreatorRoute>} />
-              <Route path="/studio/profile" element={<ProtectedCreatorRoute><StudioProfile /></ProtectedCreatorRoute>} />
+              <Route path="/studio/profile" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.profile"><StudioProfile /></FeatureGate></ProtectedCreatorRoute>} />
               <Route path="/studio/fan-blast" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.fan_blast"><StudioFanBlast /></FeatureGate></ProtectedCreatorRoute>} />
               {/* ============ ADMIN (Protected) ============ */}
               <Route path="/admin" element={<ProtectedAdminRoute><Dashboard /></ProtectedAdminRoute>} />
-              <Route path="/admin/users" element={<ProtectedAdminRoute><Users /></ProtectedAdminRoute>} />
-              <Route path="/admin/screenings" element={<ProtectedAdminRoute><Screenings /></ProtectedAdminRoute>} />
-              <Route path="/admin/tickets" element={<ProtectedAdminRoute><TicketManagement /></ProtectedAdminRoute>} />
+              <Route path="/admin/users" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.user_management"><Users /></FeatureGate></ProtectedAdminRoute>} />
+              <Route path="/admin/screenings" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.content_management"><Screenings /></FeatureGate></ProtectedAdminRoute>} />
+              <Route path="/admin/tickets" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.content_management"><TicketManagement /></FeatureGate></ProtectedAdminRoute>} />
               <Route path="/admin/promo-codes" element={<ProtectedAdminRoute><PromoCodes /></ProtectedAdminRoute>} />
-              <Route path="/admin/sales" element={<ProtectedAdminRoute><ProducerDashboard /></ProtectedAdminRoute>} />
-              <Route path="/admin/payouts" element={<ProtectedAdminRoute><Payouts /></ProtectedAdminRoute>} />
+              <Route path="/admin/sales" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.finance"><ProducerDashboard /></FeatureGate></ProtectedAdminRoute>} />
+              <Route path="/admin/payouts" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.finance"><Payouts /></FeatureGate></ProtectedAdminRoute>} />
               <Route path="/admin/godmode" element={<ProtectedAdminRoute><Godmode /></ProtectedAdminRoute>} />
-              <Route path="/admin/filmmaker" element={<ProtectedAdminRoute><FilmmakerPortal /></ProtectedAdminRoute>} />
-              <Route path="/admin/filmmaker-applications" element={<ProtectedAdminRoute><FilmmakerApplications /></ProtectedAdminRoute>} />
-              <Route path="/admin/studio-applications" element={<ProtectedAdminRoute><StudioApplications /></ProtectedAdminRoute>} />
-              <Route path="/admin/settings/payment-gateways" element={<ProtectedAdminRoute><PaymentGatewaySettings /></ProtectedAdminRoute>} />
-              <Route path="/admin/settings/email" element={<ProtectedAdminRoute><EmailSettings /></ProtectedAdminRoute>} />
-              <Route path="/admin/settings/branding" element={<ProtectedAdminRoute><WhiteLabel /></ProtectedAdminRoute>} />
+              <Route path="/admin/filmmaker" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.verification"><FilmmakerPortal /></FeatureGate></ProtectedAdminRoute>} />
+              <Route path="/admin/filmmaker-applications" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.verification"><FilmmakerApplications /></FeatureGate></ProtectedAdminRoute>} />
+              <Route path="/admin/studio-applications" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.verification"><StudioApplications /></FeatureGate></ProtectedAdminRoute>} />
+              <Route path="/admin/settings/payment-gateways" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.providers"><PaymentGatewaySettings /></FeatureGate></ProtectedAdminRoute>} />
+              <Route path="/admin/settings/email" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.providers"><EmailSettings /></FeatureGate></ProtectedAdminRoute>} />
+              <Route path="/admin/settings/branding" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.branding"><WhiteLabel /></FeatureGate></ProtectedAdminRoute>} />
               
               <Route path="*" element={<NotFound />} />
             </Routes>
