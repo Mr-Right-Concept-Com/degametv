@@ -21,14 +21,18 @@ BEGIN
    INTO v_creator,v_tenant,v_event_end,v_delivered,v_hours
    FROM public.screenings s JOIN public.content c ON c.id=s.content_id WHERE s.id=NEW.screening_id;
  ELSIF NEW.live_stream_id IS NOT NULL THEN
-  SELECT l.creator_id,l.tenant_id,coalesce(l.actual_ended_at,l.scheduled_end),l.actual_ended_at,l.settlement_hold_hours
+  SELECT l.creator_id,l.tenant_id,l.actual_ended_at,
+   CASE WHEN l.recording_enabled AND l.settlement_delivery_required
+     THEN CASE WHEN l.vod_replay_asset_url IS NOT NULL THEN l.actual_ended_at ELSE NULL END
+     ELSE l.actual_ended_at END,
+   l.settlement_hold_hours
    INTO v_creator,v_tenant,v_event_end,v_delivered,v_hours FROM public.live_streams l WHERE l.id=NEW.live_stream_id;
  ELSE
   SELECT c.creator_id,c.tenant_id,now(),now(),48
    INTO v_creator,v_tenant,v_event_end,v_delivered FROM public.content c WHERE c.id=NEW.content_id AND c.status='published';
  END IF;
  IF v_creator IS NULL OR v_creator<>NEW.creator_id OR v_tenant<>NEW.tenant_id THEN RAISE EXCEPTION 'settlement_event_owner_mismatch' USING ERRCODE='42501'; END IF;
- NEW.hold_hours:=coalesce(NEW.hold_hours,v_hours,48);
+ IF NEW.hold_hours IS NULL OR NEW.hold_hours=48 THEN NEW.hold_hours:=coalesce(v_hours,48); END IF;
  NEW.event_ended_at:=coalesce(NEW.event_ended_at,v_event_end);
  NEW.delivery_confirmed_at:=coalesce(NEW.delivery_confirmed_at,v_delivered);
  NEW.release_at:=CASE WHEN NEW.event_ended_at IS NOT NULL AND NEW.event_ended_at<=now() AND NEW.delivery_confirmed_at IS NOT NULL
