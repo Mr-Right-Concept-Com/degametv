@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePageTitle } from "@/hooks/usePageTitle";
 
 type Invitation = {
-  invitation: { role: string; status: string; expiresAt: string | null };
+  invitation: { role: string; status: string; expiresAt: string | null; ticketIssued?: boolean; ticketType?: string | null };
   event: { title: string; slug: string; description: string | null; startsAt: string | null; eventType: string; accessModel: string; basePrice: number | null; baseCurrency: string | null; salesOpenAt: string | null; salesCloseAt: string | null };
   emailMatch: boolean;
   signInRequired: boolean;
@@ -24,6 +24,7 @@ export default function InviteLanding() {
   const [error, setError] = useState("");
   const [accepting, setAccepting] = useState(false);
   const [accepted, setAccepted] = useState(false);
+  const [ticketIssued, setTicketIssued] = useState(false);
   usePageTitle(invite?.event.title ? "Private invitation — " + invite.event.title : "Private screening invitation");
 
   useEffect(() => {
@@ -32,7 +33,7 @@ export default function InviteLanding() {
       .then(({ data, error: invokeError }) => {
         if (!active) return;
         if (invokeError || !data?.success) setError(data?.error || invokeError?.message || "This invitation is unavailable.");
-        else setInvite(data as Invitation);
+        else { setInvite(data as Invitation); setTicketIssued(Boolean(data.invitation?.ticketIssued)); }
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -45,7 +46,8 @@ export default function InviteLanding() {
     setAccepting(false);
     if (invokeError || !data?.success) { setError(data?.error || invokeError?.message || "Invitation acceptance failed."); return; }
     setAccepted(true);
-    setInvite(current => current ? { ...current, invitation: { ...current.invitation, status: "accepted" } } : current);
+    setTicketIssued(Boolean(data.ticket_issued));
+    setInvite(current => current ? { ...current, invitation: { ...current.invitation, status: "accepted", ticketIssued: Boolean(data.ticket_issued) } } : current);
   };
   const ticketUrl = invite ? "/buy/" + encodeURIComponent(invite.event.slug) + "?inviteToken=" + encodeURIComponent(token) : "#";
 
@@ -66,9 +68,9 @@ export default function InviteLanding() {
             {invite.event.startsAt && <p className="flex items-center gap-2 text-sm text-muted-foreground"><CalendarDays className="h-4 w-4"/>{new Date(invite.event.startsAt).toLocaleString()}</p>}
             {!user ? <div className="rounded-xl bg-secondary/70 p-4 text-sm">Continue using the email address the creator invited. You can sign in or purchase as a guest with that exact email.</div>
             : !emailMatches ? <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">The signed-in account email does not match this invitation. Sign in with the invited email address to continue.</div>
-            : <div className="space-y-2 rounded-xl bg-secondary/70 p-4 text-sm"><p>Your account email matches this invitation. Ticket purchase and access will remain bound to this invited address.</p>{(invite.invitation.status !== "accepted" || accepted) && <Button size="sm" variant="outline" onClick={()=>void acceptInvitation()} disabled={accepting || accepted}>{accepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}{accepted || invite.invitation.status === "accepted" ? "Invitation accepted" : "Accept invitation"}</Button>}</div>}
-            {invite.event.accessModel === "FREE"
-              ? <div className="rounded-xl border border-border p-4 text-sm text-muted-foreground">This is a complimentary invitation. The event access pass must be issued through the creator's screening workflow; this page will not pretend an invitation alone is a playback ticket.</div>
+            : <div className="space-y-2 rounded-xl bg-secondary/70 p-4 text-sm"><p>Your account email matches this invitation. Ticket purchase and access will remain bound to this invited address.</p>{(!ticketIssued && (invite.event.accessModel.toUpperCase() === "FREE" || invite.invitation.status !== "accepted")) && <Button size="sm" variant="outline" onClick={()=>void acceptInvitation()} disabled={accepting}>{accepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}{invite.event.accessModel.toUpperCase() === "FREE" ? "Accept and claim complimentary pass" : "Accept invitation"}</Button>}</div>}
+            {invite.event.accessModel.toUpperCase() === "FREE"
+              ? <div className="rounded-xl border border-border p-4 text-sm text-muted-foreground">{ticketIssued ? <>Your complimentary access pass has been issued and attached to your account. <Link className="font-medium text-primary underline" to="/tickets">Open My Tickets</Link>.</> : "Sign in with the verified email address that received this invitation, then accept it to claim your complimentary access pass."}</div>
               : <Button className="w-full" disabled={Boolean(user && !emailMatches)} asChild><Link to={ticketUrl}><Ticket className="mr-2 h-4 w-4"/>Continue to invited ticket checkout</Link></Button>}
           </div> : null}
         </CardContent>
