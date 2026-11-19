@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { useRuntimeConfig } from '@/contexts/RuntimeConfigContext';
 
 interface PublicContent {
   id: string; title: string; description: string | null; type: string;
@@ -26,12 +27,20 @@ interface PublicScreening {
 export default function ContentLanding() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const runtime = useRuntimeConfig();
   const [content, setContent] = useState<PublicContent | null>(null);
   const [screenings, setScreenings] = useState<PublicScreening[]>([]);
   const [loading, setLoading] = useState(true);
   const [guestEmail, setGuestEmail] = useState('');
   const [currency, setCurrency] = useState<'NGN' | 'USD'>('NGN');
   const [checkoutBusy, setCheckoutBusy] = useState<string | null>(null);
+  const [supportAmount, setSupportAmount] = useState('500');
+  const [supportType, setSupportType] = useState<'tip' | 'gift'>('tip');
+  const [giftKey, setGiftKey] = useState('heart');
+  const [supportEmail, setSupportEmail] = useState('');
+  const [supportMessage, setSupportMessage] = useState('');
+  const [supportAnonymous, setSupportAnonymous] = useState(false);
+  const [supportBusy, setSupportBusy] = useState(false);
   usePageTitle(content?.title ? content.title + ' — DeGameTV' : 'DeGameTV');
 
   useEffect(() => {
@@ -76,6 +85,30 @@ export default function ContentLanding() {
     } finally { setCheckoutBusy(null); }
   };
 
+  const supportCreator = async () => {
+    if (!content || !id) return;
+    const amount = Number(supportAmount);
+    if (!Number.isFinite(amount) || amount <= 0) { toast.error('Enter a valid contribution amount.'); return; }
+    if (!user && !/^\S+@\S+\.\S+$/.test(supportEmail.trim())) { toast.error('Enter an email address for your contribution receipt.'); return; }
+    const target = screenings[0]?.id ? { screeningId: screenings[0].id } : { contentId: id };
+    setSupportBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('process-event-contribution', {
+        body: {
+          ...target, contributionType: supportType, ...(supportType === 'gift' ? { giftCatalogKey: giftKey } : {}),
+          amount, currency, countryCode: runtime.config?.geo.countryCode || undefined,
+          ...(!user ? { email: supportEmail.trim() } : {}),
+          message: supportMessage.trim() || undefined, anonymous: supportAnonymous,
+        },
+      });
+      if (error || !data?.success || typeof data.checkoutUrl !== 'string') {
+        toast.error(data?.error || error?.message || 'Creator support checkout could not be started.');
+        return;
+      }
+      window.location.assign(data.checkoutUrl);
+    } finally { setSupportBusy(false); }
+  };
+
   const share = async () => {
     const url = window.location.href;
     try {
@@ -111,6 +144,17 @@ export default function ContentLanding() {
         </div>
       </div>
       {content.type === 'live' && !user && <div className="mt-8 max-w-md space-y-2"><label htmlFor="live-ticket-email" className="text-sm font-medium">Email for ticket delivery</label><Input id="live-ticket-email" type="email" autoComplete="email" placeholder="you@example.com" value={guestEmail} onChange={e => setGuestEmail(e.target.value)} /><p className="text-xs text-muted-foreground">Your secure ticket claim link will be sent after payment is confirmed.</p></div>}
+      <section className="mt-8 rounded-[1.5rem] border border-border/70 bg-card p-5 shadow-sm sm:p-6">
+        <div className="mb-4 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10"><Heart className="h-5 w-5 text-primary"/></div><div><h2 className="font-semibold">Support this creator</h2><p className="text-xs text-muted-foreground">Send a tip or a virtual gift. Contributions do not unlock content.</p></div></div>
+        {!user && <div className="mb-3 max-w-md space-y-1"><label htmlFor="support-email" className="text-sm font-medium">Email for payment receipt</label><Input id="support-email" type="email" value={supportEmail} onChange={e=>setSupportEmail(e.target.value)} placeholder="you@example.com"/></div>}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1"><label className="text-sm font-medium">Support type</label><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={supportType} onChange={e=>setSupportType(e.target.value as 'tip'|'gift')}><option value="tip">Tip</option><option value="gift">Virtual gift</option></select></div>
+          {supportType === 'gift' && <div className="space-y-1"><label className="text-sm font-medium">Gift</label><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={giftKey} onChange={e=>setGiftKey(e.target.value)}><option value="heart">Heart</option><option value="star">Star</option><option value="clap">Applause</option><option value="crown">Crown</option></select></div>}
+          <div className="space-y-1"><label className="text-sm font-medium">Amount ({currency})</label><Input type="number" min="1" step="any" value={supportAmount} onChange={e=>setSupportAmount(e.target.value)}/></div>
+          <div className="space-y-1"><label className="text-sm font-medium">Message (optional)</label><Input maxLength={280} value={supportMessage} onChange={e=>setSupportMessage(e.target.value)} placeholder="Send a message with your support"/></div>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><label className="flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={supportAnonymous} onChange={e=>setSupportAnonymous(e.target.checked)}/>Send anonymously</label><Button onClick={()=>void supportCreator()} disabled={supportBusy} className="rounded-full">{supportBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Gift className="mr-2 h-4 w-4"/>}{supportType === 'gift' ? 'Send gift' : 'Send tip'}</Button></div>
+      </section>
       <section className="mt-12 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold">Screenings & access</h2>
