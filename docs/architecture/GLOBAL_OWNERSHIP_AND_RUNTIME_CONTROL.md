@@ -24,11 +24,11 @@ Do not publish a percentage until each domain has an inventory, code/data owners
 | Database, event bus, queues, workflow runtime | 95%+ | Managed Postgres/Edge authoritative; independent restore/runtime not proven |
 | Media ingest, transcode, storage, CDN, playback | 95%+ | No active live provider; origin/CDN exit drill not proven |
 | Payments, ledger, payouts, tax | 95%+ | No active production payment provider; external rails remain adapters |
-| FX, locale, country policy | 95%+ | Country rules provisioned; runtime consumption and broad country coverage remain |
+| FX, locale, country policy | 95%+ | 22 starter country rules; Vault-managed FX capability and runtime checkout display are wired; no FX binding/rates verified and global coverage remains incomplete |
 | Messaging, email, push | 95%+ | Registry exists; end-to-end portability unproven |
 | Observability, security, release and support | 95%+ | CI/audit foundations exist; restore/rollback/SLO proof remains |
 
-## Safe release lifecycle
+## Implemented runtime control-plane increment (2026-11-19)\n\n- `country_currency_rules` provides 22 starter country/currency/locale rules; user profile preference columns are present.\n- `runtime-config` is deployed and consumed through the app-wide `RuntimeConfigProvider`; country detection uses edge country when present and locale hints as fallback.\n- `convert-currency` resolves an enabled `fx_rates` binding and its mode-specific Vault credential at request time; no environment-variable provider key is used. The provider contract expects a normalized `{ rates: { ISO: number } }` response.\n- God Mode has a Global & releases panel for country rules and feature controls. The runtime endpoint evaluates canary cohorts deterministically from a persistent anonymous visitor identifier.\n- FX capability is registered in the central provider binding table and provider administration UI. No FX provider is currently configured, so conversion correctly fails closed instead of inventing rates.\n\n## Safe release lifecycle
 
 Allowed states: draft, canary, released, paused, rolled_back. A 100% release is only allowed in released; canary percentage is explicit. Every mutation carries actor UUID, timestamp, reason and before/after audit record. Runtime consumers must fail closed for security/entitlement features and fail gracefully for non-critical presentation features.
 
