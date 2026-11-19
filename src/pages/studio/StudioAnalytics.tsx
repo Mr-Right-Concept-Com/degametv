@@ -137,7 +137,7 @@ export default function StudioAnalytics() {
                     <p className="text-xs text-muted-foreground">{new Date(t.created_at).toLocaleString()} · {t.last_country || t.location || '—'}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold">{formatMoney(Number(t.price) || 0, /^[A-Z]{3}$/.test(t.currency || '') ? t.currency : 'USD')}</p>
+                    <p className="font-semibold">{/^[A-Z]{3}$/.test(t.currency || '') ? formatMoney(Number(t.price) || 0, t.currency) : (Number(t.price) || 0).toLocaleString()}</p>
                     <p className="text-[10px] text-muted-foreground">{t.stream_count || 0} streams</p>
                   </div>
                 </div>
