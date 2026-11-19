@@ -17,12 +17,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { useRuntimeConfig } from '@/contexts/RuntimeConfigContext';
 
 
 const displayNameSchema = z.string().trim().min(2, 'Name must be at least 2 characters').max(50, 'Name must be under 50 characters');
 
 export default function UserDashboard() {
   const { user, signOut } = useAuth();
+  const { config: runtimeConfig, refresh: refreshRuntimeConfig } = useRuntimeConfig();
   const navigate = useNavigate();
   usePageTitle('My Dashboard');
   const [tickets, setTickets] = useState<any[]>([]);
@@ -32,6 +34,9 @@ export default function UserDashboard() {
   const [profile, setProfile] = useState<any>(null);
   const [displayName, setDisplayName] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
+  const [preferredCountry, setPreferredCountry] = useState('');
+  const [preferredCurrency, setPreferredCurrency] = useState('');
+  const [preferredLocale, setPreferredLocale] = useState('');
   const [studioAccess, setStudioAccess] = useState<'checking' | 'approved' | 'not-approved'>('checking');
 
   useEffect(() => {
@@ -91,6 +96,9 @@ export default function UserDashboard() {
     if (profileRes.data) {
       setProfile(profileRes.data);
       setDisplayName(profileRes.data.display_name || profileRes.data.full_name || '');
+      setPreferredCountry(profileRes.data.preferred_country || runtimeConfig?.geo.countryCode || '');
+      setPreferredCurrency(profileRes.data.preferred_currency || '');
+      setPreferredLocale(profileRes.data.locale_code || runtimeConfig?.locale || '');
     }
     setLoading(false);
   };
@@ -107,6 +115,27 @@ export default function UserDashboard() {
       .eq('user_id', user!.id);
     if (error) toast.error('Failed to save');
     else toast.success('Profile updated!');
+    setSavingProfile(false);
+  };
+
+  const savePreferences = async () => {
+    if (!user?.id) return;
+    if (preferredCountry && !/^[A-Z]{2}$/.test(preferredCountry)) { toast.error('Choose a valid country.'); return; }
+    if (preferredCurrency && !/^[A-Z]{3}$/.test(preferredCurrency)) { toast.error('Choose a valid currency.'); return; }
+    if (preferredLocale.trim().length > 24) { toast.error('Locale must be 24 characters or fewer.'); return; }
+    setSavingProfile(true);
+    const { error } = await supabase.from('profiles').update({
+      preferred_country: preferredCountry || null,
+      preferred_currency: preferredCurrency || null,
+      locale_code: preferredLocale.trim() || null,
+      updated_at: new Date().toISOString(),
+    }).eq('user_id', user.id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success('Language, location and currency preferences saved.');
+      setProfile((current: any) => ({ ...current, preferred_country: preferredCountry || null, preferred_currency: preferredCurrency || null, locale_code: preferredLocale.trim() || null }));
+      await refreshRuntimeConfig();
+    }
     setSavingProfile(false);
   };
 
@@ -339,6 +368,28 @@ export default function UserDashboard() {
                     placeholder="Your name"
                   />
                 </div>
+                <div className="space-y-3 rounded-xl border p-4">
+                  <div><p className="font-medium text-sm">Region, language & currency</p><p className="text-xs text-muted-foreground">Location is suggested automatically. You can override display preferences at any time. Ticket and payment amounts remain in their original transaction currency.</p></div>
+                  <div className="space-y-2">
+                    <Label>Country / region</Label>
+                    <select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={preferredCountry} onChange={e => { setPreferredCountry(e.target.value); const rule = runtimeConfig?.countries.find(c => c.country_code === e.target.value); if (rule) { if (!preferredCurrency) setPreferredCurrency(rule.currency_code); setPreferredLocale(rule.locale_code); } }}>
+                      <option value="">Use detected location</option>
+                      {(runtimeConfig?.countries ?? []).map(country => <option key={country.country_code} value={country.country_code}>{country.country_code} · {country.currency_code}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Display currency</Label>
+                    <select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={preferredCurrency} onChange={e => setPreferredCurrency(e.target.value)}>
+                      <option value="">Use country default</option>
+                      {Array.from(new Map((runtimeConfig?.countries ?? []).map(country => [country.currency_code, country])).values()).map(country => <option key={country.currency_code} value={country.currency_code}>{country.currency_code} · {country.currency_symbol || country.currency_code}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Language / locale</Label>
+                    <Input value={preferredLocale} maxLength={24} onChange={e => setPreferredLocale(e.target.value)} placeholder="en-US" />
+                  </div>
+                  <Button variant="outline" onClick={savePreferences} disabled={savingProfile} className="w-full">{savingProfile ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Save region preferences</Button>
+                </div>
                 <div className="space-y-2">
                   <Label>Email</Label>
                   <Input value={user?.email || ''} disabled className="opacity-60" />
@@ -368,7 +419,8 @@ export default function UserDashboard() {
 }
 
 function TicketRow({ ticket, type, onCopy }: { ticket: any; type: string; onCopy: (wc: string, email: string) => void }) {
-  const symbol = ticket.currency === 'NGN' ? '₦' : '$';
+  const currency = /^[A-Z]{3}$/.test(ticket.currency || '') ? ticket.currency : 'USD';
+  const formattedPrice = new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(ticket.price || 0));
   const title = ticket.screening?.title || 'Screening';
 
   return (
@@ -382,7 +434,7 @@ function TicketRow({ ticket, type, onCopy }: { ticket: any; type: string; onCopy
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-sm truncate">{title}</p>
           <p className="text-xs text-muted-foreground capitalize">{ticket.location}</p>
-          <p className="text-sm font-bold text-primary">{symbol}{Number(ticket.price).toLocaleString()}</p>
+          <p className="text-sm font-bold text-primary">{formattedPrice}</p>
         </div>
         <div className="flex flex-col gap-1.5 shrink-0">
           {type === 'active' && (
