@@ -120,17 +120,17 @@ const App = () => (
               <Route path="/studio/analytics" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.analytics"><StudioAnalytics /></FeatureGate></ProtectedCreatorRoute>} />
               <Route path="/studio/analytics/:screeningId" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.analytics"><StudioAnalytics /></FeatureGate></ProtectedCreatorRoute>} />
               
-              <Route path="/studio/live" element={<ProtectedCreatorRoute><Navigate to="/studio/create?flow=live&type=live" replace /></ProtectedCreatorRoute>} />
+              <Route path="/studio/live" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.live"><Navigate to="/studio/create?flow=live&type=live" replace /></FeatureGate></ProtectedCreatorRoute>} />
               <Route path="/studio/live/manage" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.live"><StudioLive /></FeatureGate></ProtectedCreatorRoute>} />
               <Route path="/studio/team" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.team"><StudioTeam /></FeatureGate></ProtectedCreatorRoute>} />
               <Route path="/studio/profile" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.profile"><StudioProfile /></FeatureGate></ProtectedCreatorRoute>} />
               <Route path="/studio/fan-blast" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.fan_blast"><StudioFanBlast /></FeatureGate></ProtectedCreatorRoute>} />
               {/* ============ ADMIN (Protected) ============ */}
-              <Route path="/admin" element={<ProtectedAdminRoute><Dashboard /></ProtectedAdminRoute>} />
+              <Route path="/admin" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.dashboard"><Dashboard /></FeatureGate></ProtectedAdminRoute>} />
               <Route path="/admin/users" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.user_management"><Users /></FeatureGate></ProtectedAdminRoute>} />
               <Route path="/admin/screenings" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.content_management"><Screenings /></FeatureGate></ProtectedAdminRoute>} />
               <Route path="/admin/tickets" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.content_management"><TicketManagement /></FeatureGate></ProtectedAdminRoute>} />
-              <Route path="/admin/promo-codes" element={<ProtectedAdminRoute><PromoCodes /></ProtectedAdminRoute>} />
+              <Route path="/admin/promo-codes" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.marketing"><PromoCodes /></FeatureGate></ProtectedAdminRoute>} />
               <Route path="/admin/sales" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.finance"><ProducerDashboard /></FeatureGate></ProtectedAdminRoute>} />
               <Route path="/admin/payouts" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.finance"><Payouts /></FeatureGate></ProtectedAdminRoute>} />
               <Route path="/admin/godmode" element={<ProtectedAdminRoute><Godmode /></ProtectedAdminRoute>} />
