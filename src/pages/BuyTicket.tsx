@@ -48,7 +48,7 @@ export default function BuyTicket() {
   const [localConverted, setLocalConverted] = useState<number | null>(null);
   const [email, setEmail] = useState('');
   const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
-  const [paymentMethods, setPaymentMethods] = useState<Array<{id:string;name:string;mode:string;available:boolean}>>([]);
+  const [paymentMethods, setPaymentMethods] = useState<Array<{id:string;name:string;mode:string;available:boolean;supportedCurrencies:string[]}>>([]);
   const [processing, setProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState('');
   const [screening, setScreening] = useState<Screening | null>(null);
@@ -126,6 +126,10 @@ export default function BuyTicket() {
     const reference = new URLSearchParams(window.location.search).get('reference');
     const savedEmail = sessionStorage.getItem('degame_checkout_email') || '';
     const savedLocation = sessionStorage.getItem('degame_checkout_location') === 'international' ? 'international' : 'nigeria';
+    const savedCountry = sessionStorage.getItem('degame_checkout_country');
+    const savedCurrency = sessionStorage.getItem('degame_checkout_currency');
+    if (savedCountry) setCountryCode(savedCountry);
+    if (savedCurrency) setLocalCurrency(savedCurrency);
     if (!reference) return;
     setLocation(savedLocation);
     setStep('payment');
@@ -141,6 +145,8 @@ export default function BuyTicket() {
           setStep('confirmation');
           sessionStorage.removeItem('degame_checkout_email');
           sessionStorage.removeItem('degame_checkout_location');
+          sessionStorage.removeItem('degame_checkout_country');
+          sessionStorage.removeItem('degame_checkout_currency');
           window.history.replaceState({}, '', window.location.pathname);
           toast.success('Payment confirmed. Your event ticket is ready in My Tickets or via the secure email claim link.');
           setProcessing(false);
@@ -204,6 +210,8 @@ export default function BuyTicket() {
   const currency = location === 'nigeria' ? 'NGN' : 'USD';
   const symbol = location === 'nigeria' ? '₦' : '$';
   const total = basePrice;
+  const eligiblePaymentMethods = paymentMethods.filter(method => method.available && method.supportedCurrencies.includes(localCurrency ?? currency));
+  const localPriceLabel = localConverted !== null && localCurrency ? new Intl.NumberFormat(undefined,{style:'currency',currency:localCurrency,maximumFractionDigits:2}).format(localConverted) : null;
 
   const steps = ['location', 'email', 'payment', 'confirmation'] as const;
   const currentIdx = steps.indexOf(step);
@@ -242,7 +250,7 @@ export default function BuyTicket() {
     try {
       if (screening.event_type === 'live') {
         const { data, error } = await supabase.functions.invoke('process-live-payment', {
-          body: { screeningId: screening.id, ticketType: isReplay ? 'replay' : 'live', currency, email: emailCheck.data, cohortId: runtime.config?.cohortId },
+          body: { screeningId: screening.id, ticketType: isReplay ? 'replay' : 'live', currency: localCurrency ?? currency, countryCode: countryCode ?? undefined, email: emailCheck.data, cohortId: runtime.config?.cohortId },
         });
         if (error || !data?.success || typeof data.checkoutUrl !== 'string' || typeof data.reference !== 'string') {
           const message = data?.error || error?.message || 'Live event checkout could not be started. No charge was made.';
@@ -250,10 +258,14 @@ export default function BuyTicket() {
         }
         sessionStorage.setItem('degame_checkout_email', emailCheck.data);
         sessionStorage.setItem('degame_checkout_location', location);
+      if (countryCode) sessionStorage.setItem('degame_checkout_country', countryCode);
+      if (localCurrency) sessionStorage.setItem('degame_checkout_currency', localCurrency);
+        if (countryCode) sessionStorage.setItem('degame_checkout_country', countryCode);
+        if (localCurrency) sessionStorage.setItem('degame_checkout_currency', localCurrency);
         window.location.assign(data.checkoutUrl);
         return;
       }
-      const { data, error } = await supabase.functions.invoke('process-payment', { body: { method: selectedPayment, email: emailCheck.data, screeningId: screening.id, location, cohortId: runtime.config?.cohortId } });
+      const { data, error } = await supabase.functions.invoke('process-payment', { body: { method: selectedPayment, email: emailCheck.data, screeningId: screening.id, location, countryCode: countryCode ?? undefined, currency: localCurrency ?? currency, cohortId: runtime.config?.cohortId } });
       if (error || !data?.success || typeof data?.authorizationUrl !== 'string') {
         const message = data?.error || error?.message || 'Checkout could not be started. No charge was made.';
         setPaymentError(message); toast.error(message); return;
@@ -361,25 +373,27 @@ export default function BuyTicket() {
                 <CardDescription className="text-xs">Your location determines ticket price</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {(['nigeria', 'international'] as const).map((loc) => (
-                  <button
-                    key={loc}
-                    onClick={() => setLocation(loc)}
-                    className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all active:scale-[0.98] ${
-                      location === loc ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/30'
-                    }`}
-                  >
-                    <div className="text-left">
-                      <p className="font-semibold text-sm capitalize">{loc === 'nigeria' ? '🇳🇬 Nigeria' : '🌍 International'}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {loc === 'nigeria' ? 'Pay in Naira' : 'Pay in USD'}
-                      </p>
-                    </div>
-                    <span className="text-lg font-bold text-primary">
-                      {loc === 'nigeria' ? `₦${pricing.nigeria.toLocaleString()}` : `$${pricing.international}`}
-                    </span>
-                  </button>
-                ))}
+                <div className="space-y-2">
+                  <Label htmlFor="checkout-country">Your country or territory</Label>
+                  <select id="checkout-country" className="h-11 w-full rounded-xl border bg-background px-3 text-sm" value={countryCode ?? ''} onChange={event => {
+                    const selected = runtime.config?.countries.find(country => country.country_code === event.target.value);
+                    if (!selected) return;
+                    setCountryCode(selected.country_code);
+                    setLocalCurrency(selected.currency_code);
+                    setLocation(selected.country_code === 'NG' ? 'nigeria' : 'international');
+                    setSelectedPayment(null);
+                  }}>
+                    <option value="">Choose your country</option>
+                    {(runtime.config?.countries ?? []).map(country => <option key={country.country_code} value={country.country_code}>{String(country.metadata?.country_name || country.country_code)} · {country.currency_code}</option>)}
+                  </select>
+                  <p className="text-xs text-muted-foreground">Detected country and currency are preselected where available. You can change them before checkout.</p>
+                </div>
+                <div className="rounded-xl bg-secondary/40 border border-border/50 p-4 space-y-1">
+                  <p className="text-xs text-muted-foreground">Regional ticket price</p>
+                  <p className="text-xl font-bold">{currency} {basePrice.toLocaleString()}</p>
+                  {localPriceLabel && <p className="text-sm text-muted-foreground">Estimated local price: {localPriceLabel}</p>}
+                  {!localPriceLabel && localCurrency && localCurrency !== currency && <p className="text-xs text-muted-foreground">Live FX estimate is unavailable. Checkout will not charge in a converted currency without a verified FX rate.</p>}
+                </div>
                 {screening.refund_policy && (
                   <div className="rounded-xl bg-secondary/40 border border-border/50 p-3 text-[11px] text-muted-foreground">
                     <p className="font-medium text-foreground mb-1 text-xs">Refund Policy</p>
