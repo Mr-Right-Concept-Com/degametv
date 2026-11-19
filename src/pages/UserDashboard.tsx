@@ -122,7 +122,7 @@ export default function UserDashboard() {
     if (!user?.id) return;
     if (preferredCountry && !/^[A-Z]{2}$/.test(preferredCountry)) { toast.error('Choose a valid country.'); return; }
     if (preferredCurrency && !/^[A-Z]{3}$/.test(preferredCurrency)) { toast.error('Choose a valid currency.'); return; }
-    if (preferredLocale.trim().length > 24) { toast.error('Locale must be 24 characters or fewer.'); return; }
+    if (preferredLocale.trim().length > 24 || (preferredLocale.trim() && !/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(preferredLocale.trim()))) { toast.error('Enter a valid language tag, such as en-US or fr-CA.'); return; }
     setSavingProfile(true);
     const { error } = await supabase.from('profiles').update({
       preferred_country: preferredCountry || null,
