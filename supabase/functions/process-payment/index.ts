@@ -7,6 +7,8 @@ const schema = z.object({
   email: z.string().trim().email().max(254).transform(value => value.toLowerCase()),
   screeningId: z.string().uuid(),
   location: z.enum(["nigeria", "international"]),
+  countryCode: z.string().regex(/^[A-Za-z]{2}$/).optional(),
+  currency: z.string().regex(/^[A-Za-z]{3}$/).optional(),
   cohortId: z.string().min(8).max(128).optional(),
 }).strict();
 
@@ -26,6 +28,19 @@ async function featureEnabled(db: ReturnType<typeof createClient>, key: string, 
   const digest = await crypto.subtle.digest("SHA-256",new TextEncoder().encode(subject+":"+key));
   return new DataView(digest).getUint32(0,false)%100 < flag.rollout_percentage;
 }
+async function convertAmount(baseUrl: string, serviceKey: string, amount: number, fromCurrency: string, toCurrency: string, countryCode: string | null): Promise<number> {
+  if (fromCurrency === toCurrency) return amount;
+  const response = await fetch(baseUrl + "/functions/v1/convert-currency", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + serviceKey, apikey: serviceKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ amount, fromCurrency, toCurrency, country: countryCode ?? undefined }),
+    signal: AbortSignal.timeout(12000),
+  });
+  const result = await response.json().catch(() => null);
+  if (!response.ok || !Number.isFinite(result?.converted)) throw new Error("FX conversion is unavailable for the selected currency.");
+  return Number(result.converted);
+}
+
 const randomCode = (bytes: number) => {
   const data = crypto.getRandomValues(new Uint8Array(bytes));
   return Array.from(data, b => b.toString(16).padStart(2, "0")).join("");
@@ -46,11 +61,22 @@ if (import.meta.main) serve(async (req: Request) => {
   const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
   if (!await featureEnabled(admin, "cinema.ticketing", parsed.data.cohortId ?? email)) return json(403, { success: false, error: "Ticket checkout is paused for this release cohort." });
 
+  const edgeCountry = req.headers.get("cf-ipcountry")?.toUpperCase();
+  const countryCode = parsed.data.countryCode?.toUpperCase() ?? (edgeCountry && /^[A-Z]{2}$/.test(edgeCountry) ? edgeCountry : location === "nigeria" ? "NG" : null);
+  const { data: countryRule, error: countryError } = countryCode
+    ? await admin.from("country_currency_rules").select("country_code,currency_code").eq("country_code", countryCode).eq("enabled", true).maybeSingle()
+    : { data: null, error: null };
+  if (countryError || (countryCode && !countryRule)) return json(422, { success: false, error: "This country is not enabled for ticket checkout." });
+  const sourceCurrency = location === "nigeria" ? "NGN" : "USD";
+  const currency = (parsed.data.currency ?? countryRule?.currency_code ?? sourceCurrency).toUpperCase();
+  const { count: currencySupported } = await admin.from("country_currency_rules").select("country_code", { count: "exact", head: true }).eq("currency_code", currency).eq("enabled", true);
+  if (!currencySupported) return json(422, { success: false, error: "The requested transaction currency is not enabled on the platform." });
+
   try {
     const { data: siteSetting, error: siteError } = await admin.from("platform_settings")
-      .select("setting_value").eq("setting_key", "public_site_url").maybeSingle();
+      .select("setting_value,is_public").eq("setting_key", "public_site_url").maybeSingle();
     const configuredSiteUrl = typeof siteSetting?.setting_value === "string" ? siteSetting.setting_value : "";
-    if (siteError || !configuredSiteUrl) {
+    if (siteError || siteSetting?.is_public !== true || !configuredSiteUrl) {
       return json(503, { success: false, error: "Secure payment return URL is not configured. Contact platform support." });
     }
     let siteOrigin: string;
@@ -93,11 +119,11 @@ if (import.meta.main) serve(async (req: Request) => {
       ? replayPrice : (location === "nigeria" ? pricing?.nigeria : pricing?.international));
     if (!Number.isFinite(major) || major <= 0) return json(409, { success: false, error: "Ticket pricing is not configured for this location." });
 
-    const currency = location === "nigeria" ? "NGN" : "USD";
     const supportedCurrencies = Array.isArray(config.settings?.supported_currencies) ? config.settings.supported_currencies : [];
     if (!supportedCurrencies.includes(currency)) return json(422, { success: false, error: "The selected payment provider does not support this transaction currency." });
+    const convertedMajor = await convertAmount(url, service, major, sourceCurrency, currency, countryCode);
     const fractionDigits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits;
-    const amountMinor = Math.round(major * Math.pow(10, fractionDigits));
+    const amountMinor = Math.round(convertedMajor * Math.pow(10, fractionDigits));
     const reference = "DTV_" + crypto.randomUUID().replaceAll("-", "");
     const ticketCode = randomCode(8).toUpperCase();
     const watchCode = randomCode(20);
@@ -135,7 +161,7 @@ if (import.meta.main) serve(async (req: Request) => {
     const allowedCheckoutOrigins = Array.isArray(config.settings?.allowed_checkout_origins) ? config.settings.allowed_checkout_origins : [];
     if (!allowedCheckoutOrigins.includes(returnedCheckout.origin)) throw new Error("untrusted_checkout_origin");
     await admin.from("guest_payment_orders").update({ checkout_url: returnedCheckout.toString(), app_origin: siteOrigin }).eq("provider_reference", reference);
-    return json(200, { success: true, authorizationUrl: returnedCheckout.toString(), reference, screeningTitle: screening.title });
+    return json(200, { success: true, authorizationUrl: returnedCheckout.toString(), reference, screeningTitle: screening.title, amount: convertedMajor, currency });
   } catch {
     return json(500, { success: false, error: "Checkout could not be started. Please retry or contact support." });
   }
