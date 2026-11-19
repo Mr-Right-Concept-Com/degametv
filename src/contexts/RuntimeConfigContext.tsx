@@ -28,7 +28,7 @@ export function RuntimeConfigProvider({children}:{children:ReactNode}){
   try{const r=await invokeFn<RuntimeConfig>("runtime-config",{visitorId:visitorId()});if(r.ok&&r.data)setConfig(r.data);}
   finally{setLoading(false);}
  },[]);
- useEffect(()=>{void refresh();},[refresh]);
+ useEffect(()=>{void refresh();const timer=window.setInterval(()=>void refresh(),30000);const onFocus=()=>void refresh();window.addEventListener("focus",onFocus);return()=>{window.clearInterval(timer);window.removeEventListener("focus",onFocus);};},[refresh]);
  const value=useMemo(()=>({config,loading,refresh}),[config,loading,refresh]);
  return <RuntimeContext.Provider value={value}>{children}</RuntimeContext.Provider>;
 }
