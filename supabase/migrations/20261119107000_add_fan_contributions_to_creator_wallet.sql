@@ -53,8 +53,12 @@ BEGIN
  SELECT coalesce((setting_value->>'creator')::numeric,0)
   INTO v_fee_rate FROM public.platform_settings WHERE setting_key='commission_rates';
  IF v_fee_rate<0 OR v_fee_rate>0.5 THEN RAISE EXCEPTION 'creator_commission_policy_invalid'; END IF;
- v_fee_minor:=round(NEW.amount_minor*v_fee_rate);
  v_fee_major:=coalesce(NEW.platform_fee_major,round(coalesce(NEW.amount_major,0)*v_fee_rate,6));
+ IF NEW.amount_major IS NOT NULL AND NEW.amount_major>0 THEN
+  v_fee_minor:=round(NEW.amount_minor*v_fee_major/NEW.amount_major);
+ ELSE
+  v_fee_minor:=round(NEW.amount_minor*v_fee_rate);
+ END IF;
  INSERT INTO public.event_settlement_holds(
   tenant_id,creator_id,screening_id,live_stream_id,content_id,source_type,source_id,
   currency,gross_amount_minor,net_amount_minor,hold_hours
