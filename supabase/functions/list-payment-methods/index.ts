@@ -1,14 +1,28 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
-const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Content-Type":"application/json"}});
-if(import.meta.main)serve(async(req:Request)=>{
- if(req.method==="OPTIONS")return new Response("ok",{headers:{"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type"}});
- if(req.method!=="GET")return json(405,{error:"Method not allowed."});
+import { createClient } from "npm:@supabase/supabase-js@2";
+const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"GET, OPTIONS","Content-Type":"application/json","Cache-Control":"no-store"};
+const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:cors});
+Deno.serve(async(req)=>{
+ if(req.method==="OPTIONS")return new Response(null,{headers:cors});
+ if(req.method!=="GET")return json({error:"Method not allowed."},405);
  const url=Deno.env.get("SUPABASE_URL"),service=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
- if(!url||!service)return json(503,{error:"Payment methods are temporarily unavailable."});
+ if(!url||!service)return json({error:"Payment methods are temporarily unavailable."},503);
  const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
- const {data,error}=await admin.from("payment_provider_configs").select("provider,is_enabled,is_live,test_public_key,live_public_key,test_secret_ref,live_secret_ref,webhook_secret_ref").eq("is_enabled",true);
- if(error)return json(503,{error:"Payment methods are temporarily unavailable."});
- const methods=(data??[]).filter(row=>row.provider==="paystack"&&!row.is_live&&row.test_secret_ref&&row.test_public_key).map(row=>({id:row.provider,name:"Paystack",mode:"test",available:true}));
- return json(200,{methods});
+ const {data:providers,error}=await admin.rpc("get_service_provider_runtime_config",{p_capability:"payments"});
+ if(error||!Array.isArray(providers))return json({error:"Payment methods are temporarily unavailable."},503);
+ const methods=providers.filter((provider:any)=>{
+  const supported=provider.settings?.supported_currencies;
+  return provider.is_live===true&&Boolean(provider.credential)
+   &&typeof provider.endpoints?.checkout_initialize==="string"
+   &&provider.endpoints.checkout_initialize.startsWith("/")
+   &&!provider.endpoints.checkout_initialize.startsWith("//")
+   &&Array.isArray(supported)&&supported.length>0;
+ }).map((provider:any)=>({
+  id:provider.provider_key,
+  name:typeof provider.settings?.display_name==="string"?provider.settings.display_name:provider.provider_key,
+  mode:"live",
+  available:true,
+  supportedCurrencies:provider.settings.supported_currencies,
+  priority:provider.settings?.priority??100,
+ }));
+ return json({methods});
 });
