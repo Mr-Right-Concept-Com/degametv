@@ -100,7 +100,8 @@ Deno.serve(async (req) => {
 
   return response({
     cohortId,
-    geo: { countryCode: candidate, source: preferredCountry ? "profile_preference" : edgeCountry ? "edge" : requestedCountry ? "explicit" : localeRegion ? "locale_hint" : "unknown" },
+    webAppUrl,
+    geo: { countryCode: candidate, source: candidate === preferredCountry ? "profile_preference" : candidate === edgeCountry ? "edge" : candidate === requestedCountry ? "explicit" : candidate === localeRegion ? "locale_hint" : "unknown" },
     locale,
     currency,
     currencySymbol: currency === country?.currency_code ? country.currency_symbol : null,
