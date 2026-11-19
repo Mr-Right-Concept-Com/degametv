@@ -22,6 +22,8 @@ export default function InviteLanding() {
   const [invite, setInvite] = useState<Invitation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [accepting, setAccepting] = useState(false);
+  const [accepted, setAccepted] = useState(false);
   usePageTitle(invite?.event.title ? "Private invitation — " + invite.event.title : "Private screening invitation");
 
   useEffect(() => {
@@ -37,6 +39,14 @@ export default function InviteLanding() {
   }, [token]);
 
   const emailMatches = Boolean(user?.email && invite?.emailMatch);
+  const acceptInvitation = async () => {
+    setAccepting(true);
+    const { data, error: invokeError } = await supabase.functions.invoke("manage-event-invitations", { body: { action: "accept", token } });
+    setAccepting(false);
+    if (invokeError || !data?.success) { setError(data?.error || invokeError?.message || "Invitation acceptance failed."); return; }
+    setAccepted(true);
+    setInvite(current => current ? { ...current, invitation: { ...current.invitation, status: "accepted" } } : current);
+  };
   const ticketUrl = invite ? "/buy/" + encodeURIComponent(invite.event.slug) + "?inviteToken=" + encodeURIComponent(token) : "#";
 
   return <MainLayout>
@@ -56,7 +66,7 @@ export default function InviteLanding() {
             {invite.event.startsAt && <p className="flex items-center gap-2 text-sm text-muted-foreground"><CalendarDays className="h-4 w-4"/>{new Date(invite.event.startsAt).toLocaleString()}</p>}
             {!user ? <div className="rounded-xl bg-secondary/70 p-4 text-sm">Continue using the email address the creator invited. You can sign in or purchase as a guest with that exact email.</div>
             : !emailMatches ? <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">The signed-in account email does not match this invitation. Sign in with the invited email address to continue.</div>
-            : <div className="rounded-xl bg-secondary/70 p-4 text-sm">Your account email matches this invitation. Ticket purchase and access will remain bound to this invited address.</div>}
+            : <div className="space-y-2 rounded-xl bg-secondary/70 p-4 text-sm"><p>Your account email matches this invitation. Ticket purchase and access will remain bound to this invited address.</p>{(invite.invitation.status !== "accepted" || accepted) && <Button size="sm" variant="outline" onClick={()=>void acceptInvitation()} disabled={accepting || accepted}>{accepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}{accepted || invite.invitation.status === "accepted" ? "Invitation accepted" : "Accept invitation"}</Button>}</div>}
             {invite.event.accessModel === "FREE"
               ? <div className="rounded-xl border border-border p-4 text-sm text-muted-foreground">This is a complimentary invitation. The event access pass must be issued through the creator's screening workflow; this page will not pretend an invitation alone is a playback ticket.</div>
               : <Button className="w-full" disabled={Boolean(user && !emailMatches)} asChild><Link to={ticketUrl}><Ticket className="mr-2 h-4 w-4"/>Continue to invited ticket checkout</Link></Button>}
