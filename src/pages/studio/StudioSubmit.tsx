@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useRuntimeConfig } from '@/contexts/RuntimeConfigContext';
 import {
   Film, Upload, CheckCircle, ChevronRight, Loader2,
   Image as ImageIcon, Link2, ArrowRight
@@ -20,10 +21,9 @@ import { z } from 'zod';
 
 const GENRES = ['Action', 'Comedy', 'Drama', 'Horror', 'Thriller', 'Romance', 'Documentary', 'Animation', 'Sci-Fi', 'Fantasy', 'Crime', 'Biography', 'Musical', 'Nollywood', 'African Cinema'];
 const GENRES_BY_TYPE: Record<string, string[]> = { movie: GENRES, series: GENRES, episode: GENRES, short: ['Drama','Comedy','Horror','Romance','Animation','Documentary','Experimental','Social impact','Nollywood'], trailer: ['Drama','Action','Comedy','Horror','Romance','Documentary','Animation'], vod: ['Education','Documentary','Lifestyle','Entertainment','Business','Technology','Faith','Sports','Music'] };
-const BUDGET_RANGES = ['Under $10K', '$10K – $50K', '$50K – $250K', '$250K – $1M', '$1M – $5M', 'Over $5M'];
-const RIGHTS = ['World rights available', 'African distribution only', 'Nigeria only', 'Digital/VOD only', 'Festival rights only', 'Revenue share open'];
+const BUDGET_RANGES = ['Micro-budget', 'Low-budget', 'Mid-budget', 'High-budget', 'Major production', 'Studio-scale'];
+const RIGHTS = ['World rights available', 'Regional distribution only', 'Territory-specific rights', 'Digital/VOD only', 'Festival rights only', 'Revenue share open'];
 const LANGUAGES = ['English', 'Yoruba', 'Igbo', 'Hausa', 'Pidgin', 'French', 'Swahili', 'Arabic', 'Portuguese', 'Other'];
-const COUNTRIES = ['Nigeria', 'Ghana', 'Kenya', 'South Africa', 'Uganda', 'Tanzania', 'Rwanda', 'United Kingdom', 'United States', 'Canada', 'Other'];
 const CONTENT_RATINGS = ['G', 'PG', 'PG-13', '16', '18', 'Not rated'];
 const ASPECT_RATIOS = ['16:9', '2.39:1', '1.85:1', '4:3', '9:16', '1:1'];
 
@@ -94,8 +94,7 @@ const step3Schema = z.object({
   premiere_date: z.string().optional().refine(value => !value || /^\d{4}-\d{2}-\d{2}$/.test(value), 'Enter a valid release or premiere date'),
   premiere_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Enter a valid event start time'),
   admission_model: z.enum(['FREE','TICKETED']).default('TICKETED'),
-  live_price_ngn: z.string().optional().refine(value => !value || (/^\d+(\.\d{1,2})?$/.test(value) && Number(value) >= 0), 'Enter a valid non-negative NGN ticket price'),
-  live_price_usd: z.string().optional().refine(value => !value || (/^\d+(\.\d{1,2})?$/.test(value) && Number(value) >= 0), 'Enter a valid non-negative USD ticket price'),
+  base_price: z.string().regex(/^\d+(\.\d{1,6})?$/, 'Enter a valid base-currency price').refine(value => Number(value) >= 0, 'Price cannot be negative'),
   rights_territories: z.string().max(500, 'Territory list is too long').optional(),
   prior_screenings: z.string().max(3000, 'Prior screening details are too long').optional(),
   poster_url: z.string().url('Artwork must be a valid URL').optional().or(z.literal('')),
@@ -103,17 +102,15 @@ const step3Schema = z.object({
 }).superRefine((value, ctx) => {
   if (value.release_strategy === 'premiere' || value.release_strategy === 'live') {
     if (!value.premiere_date) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['premiere_date'], message: 'Choose the event date.' });
-    if (value.live_price_ngn && Number(value.live_price_ngn) < 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['live_price_ngn'], message: 'Admission price cannot be negative.' });
-    if (value.live_price_usd && Number(value.live_price_usd) < 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['live_price_usd'], message: 'Admission price cannot be negative.' });
-    if (value.release_strategy === 'live' && value.admission_model === 'TICKETED'
-      && Number(value.live_price_ngn || 0) <= 0 && Number(value.live_price_usd || 0) <= 0) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['live_price_ngn'], message: 'Ticketed admission requires a positive NGN or USD price.' });
-    }
+    if (value.release_strategy === 'premiere' && Number(value.base_price) <= 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['base_price'], message: 'A ticketed premiere requires a positive price in the platform base currency.' });
+    if (value.release_strategy === 'live' && value.admission_model === 'TICKETED' && Number(value.base_price) <= 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['base_price'], message: 'Ticketed admission requires a positive base-currency price.' });
+    if (value.release_strategy === 'live' && value.admission_model === 'FREE' && Number(value.base_price) !== 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['base_price'], message: 'Free admission must be priced at zero.' });
   }
 });
 
 export default function StudioSubmit() {
   const { user } = useAuth();
+  const runtime = useRuntimeConfig();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const liveFlow = searchParams.get('flow') === 'live';
@@ -149,7 +146,7 @@ export default function StudioSubmit() {
     release_strategy: searchParams.get('flow') === 'live' ? 'live' : 'on_demand',
     live_event_format: 'broadcast',
     original_language: 'English',
-    production_country: 'Nigeria',
+    production_country: '',
     content_rating: 'Not rated' as 'G' | 'PG' | 'PG-13' | '16' | '18' | 'Not rated',
     aspect_ratio: '16:9' as '16:9' | '2.39:1' | '1.85:1' | '4:3' | '9:16' | '1:1',
     season_number: '',
@@ -167,8 +164,7 @@ export default function StudioSubmit() {
     premiere_date: '',
     premiere_time: '20:00',
     admission_model: 'TICKETED' as 'FREE' | 'TICKETED',
-    live_price_ngn: '',
-    live_price_usd: '',
+    base_price: '',
     rights_territories: '',
     prior_screenings: '',
     cast_crew_text: '',
@@ -183,10 +179,18 @@ export default function StudioSubmit() {
     participants: '',
     auto_convert_to_vod: true,
     replay_access_model: 'INCLUDED_WITH_TICKET',
-    replay_price_ngn: '',
-    replay_price_usd: '',
+    replay_base_price: '',
     replay_access_hours: '48',
   });
+
+  useEffect(() => {
+    const countries = runtime.config?.countries ?? [];
+    if (!countries.length) return;
+    setForm(current => {
+      const existing = countries.find(country => country.country_code === current.production_country || String(country.metadata?.country_name || '').toLowerCase() === current.production_country.toLowerCase());
+      return { ...current, production_country: existing?.country_code || runtime.config?.geo.countryCode || countries[0].country_code };
+    });
+  }, [runtime.config?.countries, runtime.config?.geo.countryCode]);
 
   useEffect(() => {
     if (!user?.id) return;
