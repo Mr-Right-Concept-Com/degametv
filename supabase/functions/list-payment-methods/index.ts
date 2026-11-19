@@ -15,6 +15,8 @@ Deno.serve(async(req)=>{
    &&typeof provider.endpoints?.checkout_initialize==="string"
    &&provider.endpoints.checkout_initialize.startsWith("/")
    &&!provider.endpoints.checkout_initialize.startsWith("//")
+   &&typeof provider.endpoints?.payment_verify==="string"&&provider.endpoints.payment_verify.startsWith("/")&&!provider.endpoints.payment_verify.startsWith("//")
+   &&typeof provider.endpoints?.refund==="string"&&provider.endpoints.refund.startsWith("/")&&!provider.endpoints.refund.startsWith("//")
    &&Array.isArray(supported)&&supported.length>0;
  }).map((provider:any)=>({
   id:provider.provider_key,
