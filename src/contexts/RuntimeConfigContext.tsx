@@ -8,6 +8,7 @@ type RuntimeConfig = {
  geo:{countryCode:string|null;source:string};
  locale:string;
  currency:string;
+ baseCurrency:string;
  currencySymbol:string|null;
  countryCurrency:RuntimeCountry|null;
  countries:RuntimeCountry[];
