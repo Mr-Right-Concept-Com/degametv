@@ -11,7 +11,7 @@ class CatalogueRepository {
         'runtime-config',
         body: {'visitorId': 'native-client'},
       );
-      if (response.data is Map) return Map<String, dynamic>.from(response.data as Map);
+      if (response.data is Map) { return Map<String, dynamic>.from(response.data as Map); }
     } catch (_) {
       // Catalogue remains usable when optional runtime preferences are unavailable.
     }
