@@ -46,21 +46,30 @@ Deno.serve(async(req)=>{
   const refundPath=binding?.endpoints?.refund;
   if(bindingResult.error||secretError||!binding?.base_url||!credential||typeof refundPath!=="string"||!refundPath.startsWith("/")||refundPath.startsWith("//"))return json({error:"The original provider has no retained refund adapter or Vault credential. No ticket access was changed."},503);
 
-  const {data:refund,error:refundError}=await admin.from("payment_refunds").insert({
-   ticket_id:ticket?.id??null,live_ticket_id:liveTicket?.id??null,payment_reference:order.provider_reference,
-   provider:order.provider,provider_mode:order.provider_mode,amount_minor:order.amount_minor,currency:order.currency,
-   reason:parsed.data.reason,requested_by:user.id,status:"pending",
-  }).select("id").single();
-  if(refundError||!refund){
-   const {data:existing}=await admin.from("payment_refunds").select("id,status").eq("payment_reference",order.provider_reference).in("status",["pending","succeeded"]).maybeSingle();
-   return json({error:"A refund request already exists or could not be recorded.",existing},409);
+  const {data:existing}=await admin.from("payment_refunds").select("id,status,provider_refund_id").eq("payment_reference",order.provider_reference).in("status",["pending","provider_confirmed","succeeded"]).maybeSingle();
+  if(existing?.status==="succeeded")return json({success:true,alreadyRefunded:true,refundId:existing.id});
+  if(existing?.status==="provider_confirmed"){
+   const {data:finalized,error:finalizeError}=await admin.rpc("complete_payment_refund",{p_refund_id:existing.id,p_provider_refund_id:existing.provider_refund_id});
+   if(finalizeError)return json({error:"Provider confirmed the refund; local reconciliation will retry.",refundId:existing.id},503);
+   return json({success:true,refund:finalized});
+  }
+  let refundId:string;
+  if(existing?.status==="pending")refundId=existing.id;
+  else{
+   const {data:refund,error:refundError}=await admin.from("payment_refunds").insert({
+    ticket_id:ticket?.id??null,live_ticket_id:liveTicket?.id??null,payment_reference:order.provider_reference,
+    provider:order.provider,provider_mode:order.provider_mode,amount_minor:order.amount_minor,currency:order.currency,
+    reason:parsed.data.reason,requested_by:user.id,status:"pending",
+   }).select("id").single();
+   if(refundError||!refund)return json({error:"The refund request could not be recorded."},409);
+   refundId=refundId;
   }
 
   const adapter=String(binding.settings?.adapter??order.provider).toLowerCase();
   const transactionId=order.provider_transaction_id||order.provider_reference;
   const targetPath=refundPath.replace("{transaction_id}",encodeURIComponent(transactionId)).replace("{reference}",encodeURIComponent(order.provider_reference));
   const target=new URL(targetPath,binding.base_url);
-  if(target.origin!==new URL(binding.base_url).origin){await admin.from("payment_refunds").update({status:"failed",error_code:"refund_host_mismatch"}).eq("id",refund.id);return json({error:"Refund endpoint host mismatch."},400);}
+  if(target.origin!==new URL(binding.base_url).origin){await admin.from("payment_refunds").update({status:"failed",error_code:"refund_host_mismatch"}).eq("id",refundId);return json({error:"Refund endpoint host mismatch."},400);}
   const header=typeof binding.settings?.credential_header==="string"?binding.settings.credential_header:"Authorization";
   const prefix=typeof binding.settings?.credential_prefix==="string"?binding.settings.credential_prefix:"Bearer ";
   const amountMajor=liveOrder?Number(order.amount_major??(Number(order.amount_minor)/100)):Number(ticket.price);
@@ -69,11 +78,11 @@ Deno.serve(async(req)=>{
   else if(adapter==="stripe")requestBody={payment_intent:transactionId,amount:order.amount_minor,reason:"requested_by_customer",metadata:{degame_ticket_id:parsed.data.ticketId,reason:parsed.data.reason}};
   else if(adapter==="flutterwave")requestBody={amount:amountMajor,reason:parsed.data.reason};
   else requestBody={reference:order.provider_reference,transaction_id:transactionId,amount_minor:order.amount_minor,currency:order.currency,reason:parsed.data.reason};
-  const response=await fetch(target,{method:"POST",headers:{[header]:prefix+credential,"Content-Type":"application/json",Accept:"application/json","Idempotency-Key":refund.id},body:JSON.stringify(requestBody),signal:AbortSignal.timeout(20000)}).catch(()=>null);
-  if(!response){await admin.from("payment_refunds").update({status:"failed",error_code:"provider_unreachable"}).eq("id",refund.id);return json({error:"Refund provider did not respond. Ticket access was not changed."},502);}
+  const response=await fetch(target,{method:"POST",headers:{[header]:prefix+credential,"Content-Type":"application/json",Accept:"application/json","Idempotency-Key":refundId},body:JSON.stringify(requestBody),signal:AbortSignal.timeout(20000)}).catch(()=>null);
+  if(!response){await admin.from("payment_refunds").update({status:"failed",error_code:"provider_unreachable"}).eq("id",refundId);return json({error:"Refund provider did not respond. Ticket access was not changed."},502);}
   const payload=await response.json().catch(()=>null);
   if(!response.ok||!payload){
-   await admin.from("payment_refunds").update({status:"failed",error_code:"provider_http_"+response.status}).eq("id",refund.id);
+   await admin.from("payment_refunds").update({status:"failed",error_code:"provider_http_"+response.status}).eq("id",refundId);
    return json({error:"Refund provider rejected the request. Ticket access was not changed."},502);
   }
   let succeeded=false,pending=false,providerRefundId:string|null=null;
@@ -93,15 +102,16 @@ Deno.serve(async(req)=>{
    providerRefundId=typeof payload.refund_id==="string"?payload.refund_id:null;
   }
   if(pending){
-   await admin.from("payment_refunds").update({provider_refund_id:providerRefundId}).eq("id",refund.id);
-   return json({success:false,pending:true,refundId:refund.id,message:"Provider accepted the refund for processing. Ticket access remains active until the refund is confirmed."},202);
+   await admin.from("payment_refunds").update({provider_refund_id:providerRefundId}).eq("id",refundId);
+   return json({success:false,pending:true,refundId:refundId,message:"Provider accepted the refund for processing. Ticket access remains active until the refund is confirmed."},202);
   }
   if(!succeeded){
-   await admin.from("payment_refunds").update({status:"failed",provider_refund_id:providerRefundId,error_code:"provider_refund_not_confirmed"}).eq("id",refund.id);
+   await admin.from("payment_refunds").update({status:"failed",provider_refund_id:providerRefundId,error_code:"provider_refund_not_confirmed"}).eq("id",refundId);
    return json({error:"Provider did not confirm the refund. Ticket access was not changed."},502);
   }
-  const {data:completed,error:completeError}=await admin.rpc("complete_payment_refund",{p_refund_id:refund.id,p_provider_refund_id:providerRefundId});
-  if(completeError)return json({error:"Provider confirmed the refund, but local ticket and ledger reconciliation is pending. Retry this refund reference.",refundId:refund.id},503);
+  await admin.from("payment_refunds").update({status:"provider_confirmed",provider_refund_id:providerRefundId}).eq("id",refundId);
+  const {data:completed,error:completeError}=await admin.rpc("complete_payment_refund",{p_refund_id:refundId,p_provider_refund_id:providerRefundId});
+  if(completeError)return json({error:"Provider confirmed the refund, but local ticket and ledger reconciliation is pending. Retry this refund reference.",refundId:refundId},503);
   return json({success:true,refund:completed});
  }catch(error){console.error("process-refund",error);return json({error:"Refund processing failed safely. Ticket access was not changed."},500);}
 });
