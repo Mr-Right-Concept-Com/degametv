@@ -10,7 +10,7 @@ const cors = {
 };
 const schema = z.object({
   amount: z.coerce.number().finite().min(0).max(1_000_000_000),
-  fromCurrency: z.string().trim().regex(/^[A-Za-z]{3}$/).default("USD"),
+  fromCurrency: z.string().trim().regex(/^[A-Za-z]{3}$/).optional(),
   toCurrency: z.string().trim().regex(/^[A-Za-z]{3}$/).optional(),
   country: z.string().trim().regex(/^[A-Za-z]{2}$/).optional(),
   currency: z.string().trim().regex(/^[A-Za-z]{3}$/).optional(),
@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
     const requestUrl = new URL(req.url);
     const raw = req.method === "POST" ? await req.json() : {
       amount: requestUrl.searchParams.get("amount"),
-      fromCurrency: requestUrl.searchParams.get("fromCurrency") ?? "USD",
+      fromCurrency: requestUrl.searchParams.get("fromCurrency") ?? undefined,
       toCurrency: requestUrl.searchParams.get("toCurrency") ?? requestUrl.searchParams.get("currency") ?? undefined,
       country: requestUrl.searchParams.get("country") ?? undefined,
       currency: requestUrl.searchParams.get("currency") ?? undefined,
@@ -36,13 +36,17 @@ Deno.serve(async (req) => {
     const parsed = schema.safeParse(raw);
     if (!parsed.success) return respond({ error:"Invalid conversion request.",issues:parsed.error.flatten() },400);
 
+    const {data:baseSetting,error:baseSettingError} = await db.from("platform_settings").select("setting_value").eq("setting_key","base_currency").maybeSingle();
+    const configuredBase = typeof baseSetting?.setting_value === "string" ? baseSetting.setting_value.toUpperCase() : "";
+    if (baseSettingError || !/^[A-Z]{3}$/.test(configuredBase)) return respond({error:"Platform base currency is not configured.",code:"BASE_CURRENCY_UNCONFIGURED"},503);
+
     const edgeCountry = req.headers.get("cf-ipcountry")?.toUpperCase();
     const countryCode = edgeCountry && /^[A-Z]{2}$/.test(edgeCountry) ? edgeCountry : parsed.data.country?.toUpperCase();
     const countryRule = countryCode
       ? await db.from("country_currency_rules").select("country_code,currency_code,currency_symbol").eq("country_code",countryCode).eq("enabled",true).maybeSingle()
       : { data:null,error:null };
     if (countryRule.error) return respond({error:"Country currency policy is unavailable."},503);
-    const from = parsed.data.fromCurrency.toUpperCase();
+    const from = (parsed.data.fromCurrency ?? configuredBase).toUpperCase();
     const to = (parsed.data.toCurrency ?? parsed.data.currency ?? countryRule.data?.currency_code ?? "USD").toUpperCase();
     if (from === to) return respond({country:countryCode,fromCurrency:from,toCurrency:to,original:parsed.data.amount,converted:parsed.data.amount,rate:1,rateBase:from,provider:null,retrievedAt:new Date().toISOString()});
 
