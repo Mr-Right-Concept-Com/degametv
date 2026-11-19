@@ -2179,6 +2179,17 @@ export type Database = {
           event_type: string
           event_visibility: string
           invite_only: boolean
+          early_bird_capacity: number | null
+          early_bird_currency: string | null
+          early_bird_ends_at: string | null
+          early_bird_price: number | null
+          event_timezone: string | null
+          presale_enabled: boolean
+          sales_close_at: string | null
+          sales_open_at: string | null
+          settlement_delivery_required: boolean
+          settlement_hold_hours: number
+          ticket_capacity: number | null
           gallery_images: string[] | null
           id: string
           lifecycle: string
@@ -2229,6 +2240,28 @@ export type Database = {
           event_type?: string
           event_visibility?: string
           invite_only?: boolean
+          early_bird_capacity?: number | null
+          early_bird_currency?: string | null
+          early_bird_ends_at?: string | null
+          early_bird_price?: number | null
+          event_timezone?: string | null
+          presale_enabled?: boolean
+          sales_close_at?: string | null
+          sales_open_at?: string | null
+          settlement_delivery_required?: boolean
+          settlement_hold_hours?: number
+          ticket_capacity?: number | null
+          early_bird_capacity?: number | null
+          early_bird_currency?: string | null
+          early_bird_ends_at?: string | null
+          early_bird_price?: number | null
+          event_timezone?: string | null
+          presale_enabled?: boolean
+          sales_close_at?: string | null
+          sales_open_at?: string | null
+          settlement_delivery_required?: boolean
+          settlement_hold_hours?: number
+          ticket_capacity?: number | null
           gallery_images?: string[] | null
           id?: string
           lifecycle?: string
@@ -2867,6 +2900,7 @@ export type Database = {
       wallet_ledger: {
         Row: {
           created_at: string
+          contribution_id: string | null
           currency: string
           fee: number
           gross: number
@@ -2880,6 +2914,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          contribution_id?: string | null
           currency?: string
           fee?: number
           gross?: number
@@ -2893,6 +2928,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          contribution_id?: string | null
           currency?: string
           fee?: number
           gross?: number
