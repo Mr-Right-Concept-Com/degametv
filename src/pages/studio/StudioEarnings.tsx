@@ -49,6 +49,7 @@ export default function StudioEarnings() {
   const [contributions, setContributions] = useState<ContributionRow[]>([]);
   const [refundReasons, setRefundReasons] = useState<Record<string, string>>({});
   const [refundingId, setRefundingId] = useState<string | null>(null);
+  const [eventTitles, setEventTitles] = useState<Record<string, string>>({});
   const [form, setForm] = useState({ amount: '', currency: '', bank_country: '', bank_name: '', account_number: '', account_name: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -68,8 +69,20 @@ export default function StudioEarnings() {
     setReqs((w.data as WR[]) || []);
     if (holds.error) toast.error('Event settlement holds could not be loaded.');
     if (fans.error) toast.error('Fan contributions could not be loaded.');
-    setEventHolds((holds.data as HoldRow[]) || []);
-    setContributions((fans.data as ContributionRow[]) || []);
+    const holdRows = (holds.data as HoldRow[]) || [];
+    const contributionRows = (fans.data as ContributionRow[]) || [];
+    setEventHolds(holdRows);
+    setContributions(contributionRows);
+    const screeningIds = [...new Set([...holdRows.map(row => row.screening_id), ...contributionRows.map(row => row.screening_id)].filter((id): id is string => Boolean(id)))];
+    const streamIds = [...new Set([...holdRows.map(row => row.live_stream_id), ...contributionRows.map(row => row.live_stream_id)].filter((id): id is string => Boolean(id)))];
+    const titleMap: Record<string, string> = {};
+    const [screeningTitles, streamTitles] = await Promise.all([
+      screeningIds.length ? supabase.from('screenings').select('id,title').in('id', screeningIds) : Promise.resolve({ data: [] }),
+      streamIds.length ? supabase.from('live_streams').select('id,title').in('id', streamIds) : Promise.resolve({ data: [] }),
+    ]);
+    (screeningTitles.data || []).forEach(row => { titleMap[row.id] = row.title; });
+    (streamTitles.data || []).forEach(row => { titleMap[row.id] = row.title; });
+    setEventTitles(titleMap);
     setLoading(false);
   };
   useEffect(() => { void load(); }, [user?.id]);
@@ -147,7 +160,7 @@ export default function StudioEarnings() {
             <div className="flex items-center justify-between"><h2 className="font-semibold">Event settlement holds</h2><Badge variant="outline">Platform verified</Badge></div>
             {eventHolds.length === 0 ? <Card><CardContent className="p-5 text-sm text-muted-foreground">Event-linked settlement records will appear after verified ticket, tip or gift payments.</CardContent></Card> :
               <div className="grid gap-3">{eventHolds.map(hold => <Card key={hold.id}><CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-medium capitalize">{hold.source_type} · {hold.currency}</p><Badge variant={hold.hold_status === 'eligible' ? 'default' : 'secondary'} className="capitalize">{hold.hold_status}</Badge></div>
+                <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-medium">{eventTitles[hold.screening_id || hold.live_stream_id || ''] || 'Creator event'} · <span className="capitalize">{hold.source_type}</span> · {hold.currency}</p><Badge variant={hold.hold_status === 'eligible' ? 'default' : 'secondary'} className="capitalize">{hold.hold_status}</Badge></div>
                   <p className="mt-1 text-xs text-muted-foreground">Gross {moneyMinor(hold.gross_amount_minor, hold.currency)} · Creator net {moneyMinor(hold.net_amount_minor, hold.currency)} · {hold.hold_hours}h hold</p>
                   <p className="text-xs text-muted-foreground">{hold.event_ended_at ? 'Event ended ' + new Date(hold.event_ended_at).toLocaleString() : 'Awaiting event completion'} · {hold.delivery_confirmed_at ? 'Delivery verified' : 'Awaiting platform delivery confirmation'}</p>
                 </div>
@@ -162,7 +175,7 @@ export default function StudioEarnings() {
             <div className="flex items-center justify-between"><h2 className="font-semibold">Tips & fan gifts</h2><Badge variant="outline">{contributions.length} records</Badge></div>
             {contributions.length === 0 ? <Card><CardContent className="p-5 text-sm text-muted-foreground">Verified fan tips and gifts will appear here separately from ticket revenue.</CardContent></Card> :
               <div className="grid gap-2">{contributions.map(item => <Card key={item.id}><CardContent className="flex items-start justify-between gap-3 p-4">
-                <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-medium capitalize">{item.contribution_type}{item.gift_catalog_key ? ' · ' + item.gift_catalog_key : ''}</p><Badge variant="outline" className="capitalize">{item.status}</Badge></div>
+                <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-medium">{eventTitles[item.screening_id || item.live_stream_id || ''] || 'Creator content'} · <span className="capitalize">{item.contribution_type}{item.gift_catalog_key ? ' · ' + item.gift_catalog_key : ''}</span></p><Badge variant="outline" className="capitalize">{item.status}</Badge></div>
                   <p className="mt-1 text-xs text-muted-foreground">{item.is_anonymous ? 'Anonymous supporter' : 'Named supporter'} · {new Date(item.created_at).toLocaleString()}</p>
                   {item.message && <p className="mt-2 text-sm">{item.message}</p>}
                 </div><p className="whitespace-nowrap text-sm font-semibold">{moneyMinor(item.amount_minor, item.currency)}</p>
