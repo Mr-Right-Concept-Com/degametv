@@ -62,7 +62,7 @@ Deno.serve(async(req)=>{
     reason:parsed.data.reason,requested_by:user.id,status:"pending",
    }).select("id").single();
    if(refundError||!refund)return json({error:"The refund request could not be recorded."},409);
-   refundId=refundId;
+   refundId = refund.id;
   }
 
   const adapter=String(binding.settings?.adapter??order.provider).toLowerCase();
