@@ -242,7 +242,7 @@ export default function BuyTicket() {
     try {
       if (screening.event_type === 'live') {
         const { data, error } = await supabase.functions.invoke('process-live-payment', {
-          body: { screeningId: screening.id, ticketType: isReplay ? 'replay' : 'live', currency, email: emailCheck.data },
+          body: { screeningId: screening.id, ticketType: isReplay ? 'replay' : 'live', currency, email: emailCheck.data, cohortId: runtime.config?.cohortId },
         });
         if (error || !data?.success || typeof data.checkoutUrl !== 'string' || typeof data.reference !== 'string') {
           const message = data?.error || error?.message || 'Live event checkout could not be started. No charge was made.';
@@ -253,7 +253,7 @@ export default function BuyTicket() {
         window.location.assign(data.checkoutUrl);
         return;
       }
-      const { data, error } = await supabase.functions.invoke('process-payment', { body: { method: selectedPayment, email: emailCheck.data, screeningId: screening.id, location } });
+      const { data, error } = await supabase.functions.invoke('process-payment', { body: { method: selectedPayment, email: emailCheck.data, screeningId: screening.id, location, cohortId: runtime.config?.cohortId } });
       if (error || !data?.success || typeof data?.authorizationUrl !== 'string') {
         const message = data?.error || error?.message || 'Checkout could not be started. No charge was made.';
         setPaymentError(message); toast.error(message); return;
