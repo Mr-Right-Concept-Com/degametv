@@ -3,3 +3,7 @@ linter:
   rules:
     avoid_print: true
     prefer_const_constructors: true
+
+linter:
+  rules:
+    curly_braces_in_flow_control_structures: false
