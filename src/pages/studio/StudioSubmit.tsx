@@ -781,10 +781,7 @@ export default function StudioSubmit() {
                     </div>
                     {form.admission_model === 'FREE' && <p className="text-xs text-muted-foreground">Viewers can claim a free pass. No payment is collected.</p>}
                   </div>}
-                  {(form.project_type !== 'live' || form.admission_model === 'TICKETED') && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2"><Label>Admission price (NGN)</Label><Input inputMode="decimal" required value={form.live_price_ngn} onChange={e => setForm(f => ({ ...f, live_price_ngn: e.target.value }))} placeholder="e.g. 2500" />{errors.live_price_ngn && <p className="text-xs text-destructive">{errors.live_price_ngn}</p>}</div>
-                    <div className="space-y-2"><Label>International admission (USD)</Label><Input inputMode="decimal" required value={form.live_price_usd} onChange={e => setForm(f => ({ ...f, live_price_usd: e.target.value }))} placeholder="e.g. 5" />{errors.live_price_usd && <p className="text-xs text-destructive">{errors.live_price_usd}</p>}</div>
-                  </div>}
+                  {(form.project_type !== 'live' || form.admission_model === 'TICKETED') && <div className="space-y-2"><Label>Admission price ({runtime.config?.baseCurrency || "base currency"})</Label><Input inputMode="decimal" required value={form.base_price} onChange={e => setForm(f => ({ ...f, base_price: e.target.value }))} placeholder="Enter ticket price"/>{errors.base_price && <p className="text-xs text-destructive">{errors.base_price}</p>}<p className="text-xs text-muted-foreground">Viewers see an automatically converted price in their supported local currency. Your creator price remains in the platform base currency.</p></div>}
                 </div> : null}
                 <div className="space-y-2"><Label>Rights Territories</Label><Input value={form.rights_territories} onChange={e => setForm(f => ({ ...f, rights_territories: e.target.value }))} placeholder="NG, GH, GB, US" /></div>
                 <div className="space-y-2">
