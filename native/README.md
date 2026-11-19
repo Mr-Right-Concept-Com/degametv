@@ -22,9 +22,10 @@ Only the Supabase publishable/anon key belongs in a client app. Never use a serv
 - Supabase Auth authenticates the same DeGameTV identities used on web.
 - The native catalogue reads published `screenings` under the existing Row Level Security policies.
 - Supabase Realtime listens for screening changes and refreshes the catalogue. This requires the `screenings` table to be enabled in the Supabase Realtime publication; if it is not enabled, pull-to-refresh remains available.
+- The native client fetches the shared `runtime-config` endpoint for country-aware regional ticket pricing and the published canonical web URL. God Mode controls the canonical web URL; no Vercel hostname is embedded in the native source. If the URL has not been published, external dashboard and Creator Studio links fail with an explanatory message instead of opening a stale preview domain.
 - Native sign-in, registration and password recovery use the existing Supabase Auth project.
 - The native ticket wallet reads only the signed-in user's non-revoked `tickets` rows through the existing RLS policies. Full ticket redemption, guest claims and checkout continue through canonical DeGameTV web/backend flows. Native playback accepts a watch code and email, requests a short-lived grant from the existing `get-playback-url` Edge Function, and only plays the provider-authorized URL; Windows/Linux open the secure grant in the browser. If the provider is not configured, playback fails closed. DRM certification and live playback are not yet complete.
-- The account menu routes users to the canonical dashboard and protected Creator Studio, so creator approval and backend authorization remain authoritative.
+- The account menu routes users to the canonical dashboard and protected Creator Studio using the runtime-published web URL, so creator approval and backend authorization remain authoritative.
 - Native code and plugin changes require store-distributed binaries. Content, screening and database changes do not require a new store release.
 
 ## CI and release artifacts
