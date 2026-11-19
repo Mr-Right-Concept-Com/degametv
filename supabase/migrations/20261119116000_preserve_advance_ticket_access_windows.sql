@@ -127,6 +127,8 @@ BEGIN
    WHERE screening_id=NEW.id AND refunded_at IS NULL AND revoked_at IS NULL;
   UPDATE public.screening_playback_sessions SET revoked_at=now()
    WHERE screening_id=NEW.id AND revoked_at IS NULL;
+  UPDATE public.screening_ticket_playback_sessions SET revoked_at=now()
+   WHERE screening_id=NEW.id AND revoked_at IS NULL;
   UPDATE public.event_access_invites SET status='revoked'
    WHERE screening_id=NEW.id AND status IN ('pending','sent','accepted');
   UPDATE public.event_ticket_reservations SET status=CASE WHEN status='complimentary' THEN 'refunded' ELSE 'failed' END
