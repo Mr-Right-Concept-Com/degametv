@@ -2062,6 +2062,8 @@ export type Database = {
           price: number
           refund_reason: string | null
           refunded_at: string | null
+          revoked_at: string | null
+          revocation_reason: string | null
           reminder_1h_sent_at: string | null
           reminder_24h_sent_at: string | null
           screening_id: string
@@ -2100,6 +2102,8 @@ export type Database = {
           price: number
           refund_reason?: string | null
           refunded_at?: string | null
+          revoked_at?: string | null
+          revocation_reason?: string | null
           reminder_1h_sent_at?: string | null
           reminder_24h_sent_at?: string | null
           screening_id: string
