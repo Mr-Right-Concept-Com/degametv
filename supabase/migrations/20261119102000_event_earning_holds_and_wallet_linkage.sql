@@ -80,7 +80,7 @@ BEGIN
           tenant_id,creator_id,screening_id,live_stream_id,source_type,source_id,
           currency,gross_amount_minor,net_amount_minor,hold_hours
         ) VALUES (
-          v_tenant_id,v_creator_id,v_screening_id,v_stream_id,'ticket',v_ticket_id,
+          v_tenant_id,v_creator_id,CASE WHEN v_stream_id IS NULL THEN v_screening_id ELSE NULL END,v_stream_id,'ticket',v_ticket_id,
           v_currency,v_gross_minor,v_net_minor,coalesce((SELECT settlement_hold_hours FROM public.screenings WHERE id=v_screening_id),48)
         ) ON CONFLICT(source_type,source_id) DO NOTHING;
       END IF;
@@ -232,7 +232,7 @@ INSERT INTO public.event_settlement_holds(
   tenant_id,creator_id,screening_id,live_stream_id,source_type,source_id,currency,
   gross_amount_minor,net_amount_minor,hold_hours
 )
-SELECT t.tenant_id,c.creator_id,s.id,t.stream_id,'ticket',t.id,o.currency,
+SELECT t.tenant_id,c.creator_id,CASE WHEN t.stream_id IS NULL THEN s.id ELSE NULL END,t.stream_id,'ticket',t.id,o.currency,
   o.amount_minor,
   greatest(0,o.amount_minor-round(o.amount_minor*coalesce(o.platform_fee_major,0)/nullif(coalesce(o.amount_major,o.amount_minor::numeric/100),0)))::bigint,
   coalesce(s.settlement_hold_hours,48)
