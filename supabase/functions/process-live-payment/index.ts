@@ -3,6 +3,15 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { z } from "npm:zod@3.25.76";
 const schema=z.object({screeningId:z.string().uuid(),ticketType:z.enum(["live","replay","combo"]),currency:z.enum(["NGN","USD"]),email:z.string().trim().email().max(254).optional()}).strict();
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, x-client-info, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
+async function featureEnabled(db: ReturnType<typeof createClient>, key: string, subject: string): Promise<boolean> {
+ const {data:flag,error}=await db.from("platform_feature_controls").select("enabled,rollout_percentage,release_state").eq("feature_key",key).maybeSingle();
+ if(error)return false;
+ if(!flag)return true;
+ if(!flag.enabled||["draft","paused","rolled_back"].includes(flag.release_state))return false;
+ if(flag.release_state==="released")return flag.rollout_percentage===100;
+ const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(subject+":"+key));
+ return new DataView(digest).getUint32(0,false)%100<flag.rollout_percentage;
+}
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
 if(import.meta.main)serve(async(req:Request)=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
@@ -21,6 +30,8 @@ if(import.meta.main)serve(async(req:Request)=>{
   return json(400,{error:"Enter an email address for guest ticket delivery."});
  }
  const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
+ const cohortSubject=user?.id??parsed.data.email?.toLowerCase()??"guest";
+ if(!await featureEnabled(db,"cinema.ticketing",cohortSubject))return json(403,{error:"Ticket checkout is paused for this release cohort."});
  try{
   const {screeningId,ticketType,currency}=parsed.data;
   const {data:screening,error}=await db.from("screenings").select("id,tenant_id,content_id,title,slug,status,live_price_ngn,live_price_usd,replay_price_ngn,replay_price_usd,replay_access_hours,replay_access_model,access_model,live_recording_status,live_replay_ready_at").eq("id",screeningId).eq("status","published").maybeSingle();
