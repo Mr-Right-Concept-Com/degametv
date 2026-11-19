@@ -15,7 +15,7 @@ type EventRow={id:string;title:string;screening_date:string|null;event_type:stri
 export default function StudioDashboard(){
  usePageTitle('Studio: Dashboard');const {user}=useAuth();
  const [items,setItems]=useState<ContentRow[]>([]);const [events,setEvents]=useState<EventRow[]>([]);
- const [earnings,setEarnings]=useState({NGN:0,USD:0});const [loading,setLoading]=useState(true);
+ const [earnings,setEarnings]=useState<Record<string,number>>({});const [loading,setLoading]=useState(true);
  useEffect(()=>{if(!user?.id){setLoading(false);return;}let active=true;
   (async()=>{const [content,ledger]=await Promise.all([
    supabase.from('content').select('id,title,type,status,created_at,view_count').eq('creator_id',user.id).order('created_at',{ascending:false}).limit(100),
@@ -25,15 +25,16 @@ export default function StudioDashboard(){
   const titles=(content.data||[]) as unknown as ContentRow[];setItems(titles);
   const ids=titles.map(item=>item.id);
   if(ids.length){const {data:screenings}=await supabase.from('screenings').select('id,title,screening_date,event_type,status').in('content_id',ids).order('screening_date',{ascending:true}).limit(10);if(active)setEvents((screenings||[]) as EventRow[]);}else setEvents([]);
-  setEarnings((ledger.data||[]).reduce((a,row)=>{if(row.currency==='NGN'||row.currency==='USD')a[row.currency]+=Number(row.net)||0;return a;},{NGN:0,USD:0}));setLoading(false);
+  setEarnings((ledger.data||[]).reduce((a,row)=>{const currency=String(row.currency||'').toUpperCase();if(/^[A-Z]{3}$/.test(currency))a[currency]=(a[currency]||0)+(Number(row.net)||0);return a;},{} as Record<string,number>));setLoading(false);
   })();return()=>{active=false;};},[user?.id]);
  const published=items.filter(x=>x.status==='published').length;
  const views=items.reduce((n,x)=>n+(x.view_count||0),0);
+ const earningsLabel=Object.entries(earnings).sort(([a],[b])=>a.localeCompare(b)).map(([currency,amount])=>{try{return new Intl.NumberFormat(undefined,{style:'currency',currency,maximumFractionDigits:2}).format(amount);}catch{return currency+' '+amount.toLocaleString();}}).join(' · ')||'—';
  return <StudioLayout title="Creator Studio" description="One workspace for your catalogue, releases, live events and earnings.">
   <div className="mb-6"><TierUpgradeCard/></div>
   <div className="mb-6 flex flex-wrap gap-3"><Button asChild><Link to="/studio/create"><Upload className="mr-2 h-4 w-4"/>Create & publish</Link></Button><Button asChild variant="outline"><Link to="/studio/movies"><Film className="mr-2 h-4 w-4"/>My catalogue</Link></Button></div>
   <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
-   {[{label:'My titles',value:items.length,icon:Film},{label:'Published',value:published,icon:Upload},{label:'Audience views',value:views.toLocaleString(),icon:Eye},{label:'Net earnings',value:'₦'+earnings.NGN.toLocaleString()+' · $'+earnings.USD.toLocaleString(),icon:DollarSign}].map(s=><Card key={s.label}><CardContent className="pt-5"><s.icon className="mb-2 h-5 w-5 text-primary"/><p className="text-xl font-bold">{s.value}</p><p className="text-xs text-muted-foreground">{s.label}</p></CardContent></Card>)}
+   {[{label:'My titles',value:items.length,icon:Film},{label:'Published',value:published,icon:Upload},{label:'Audience views',value:views.toLocaleString(),icon:Eye},{label:'Net earnings',value:earningsLabel,icon:DollarSign}].map(s=><Card key={s.label}><CardContent className="pt-5"><s.icon className="mb-2 h-5 w-5 text-primary"/><p className="text-xl font-bold">{s.value}</p><p className="text-xs text-muted-foreground">{s.label}</p></CardContent></Card>)}
   </div>
   <div className="grid gap-6 lg:grid-cols-2">
    <Card><CardContent className="p-5"><div className="mb-4 flex items-center justify-between"><h2 className="font-semibold">Recently updated</h2><Button asChild size="sm" variant="ghost"><Link to="/studio/movies">View all</Link></Button></div>
