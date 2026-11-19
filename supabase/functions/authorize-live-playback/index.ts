@@ -4,6 +4,7 @@ import {z} from "npm:zod@3.25.76";
 const schema=z.object({streamId:z.string().uuid(),mode:z.enum(["live","replay"])}).strict();
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization,apikey,x-client-info,content-type","Access-Control-Allow-Methods":"POST,OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
+const featureEnabled=async(db:ReturnType<typeof createClient>,key:string,subject:string):Promise<boolean>=>{const {data:flag,error}=await db.from("platform_feature_controls").select("enabled,rollout_percentage,release_state").eq("feature_key",key).maybeSingle();if(error)return false;if(!flag)return true;if(!flag.enabled||["draft","paused","rolled_back"].includes(flag.release_state))return false;if(flag.release_state==="released")return flag.rollout_percentage===100;const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(subject+":"+key));return new DataView(digest).getUint32(0,false)%100<flag.rollout_percentage;};
 const sha256=async(value:string)=>Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value))),b=>b.toString(16).padStart(2,"0")).join("");
 if(import.meta.main)serve(async(req:Request)=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
@@ -14,6 +15,8 @@ if(import.meta.main)serve(async(req:Request)=>{
  const userClient=createClient(url,anon,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});
  const {data:{user},error:userError}=await userClient.auth.getUser();if(userError||!user)return json(401,{error:"Authentication required"});
  const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
+ const playbackFeature=input.data.mode==="live"?"cinema.live_playback":"cinema.replay";
+ if(!await featureEnabled(db,playbackFeature,user.id))return json(403,{error:"Playback is paused for this release cohort."});
  try{
   const {data:stream,error:streamError}=await db.from("live_streams").select("id,tenant_id,creator_id,status,playback_url,metadata").eq("id",input.data.streamId).maybeSingle();
   if(streamError||!stream)return json(404,{error:"Stream not found"});
