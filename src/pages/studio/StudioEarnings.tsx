@@ -144,7 +144,7 @@ export default function StudioEarnings() {
                 {reqs.map(row => (
                   <div key={row.id} className="flex items-center justify-between border-b border-border py-2 last:border-0">
                     <div>
-                      <p className="font-medium text-sm">{money(row.amount, row.currency || 'USD')}</p>
+                      <p className="font-medium text-sm">{money(row.amount, row.currency)}</p>
                       <p className="text-xs text-muted-foreground">{row.bank_name} · {new Date(row.created_at).toLocaleDateString()}</p>
                     </div>
                     <Badge className={statusCls[row.status] || ''}>{row.status}</Badge>
