@@ -46,6 +46,27 @@ Deno.serve(async req => {
   const {data:isAdmin,error:roleError}=await admin.rpc("is_super_admin",{_user_id:user.id});
   if(roleError||!isAdmin)return json({error:"Super administrator access required."},403);
   const p=parsed.data;
+  if(p.action==="configure"&&p.enabled){
+    const endpoint=(key:string)=>typeof p.endpoints[key]==="string"&&(p.endpoints[key] as string).startsWith("/")&&!(p.endpoints[key] as string).startsWith("//");
+    const adapter=String(p.settings.adapter??p.providerKey).toLowerCase();
+    if(p.capability==="payments"){
+      const currencies=p.settings.supported_currencies;
+      const origins=p.settings.allowed_checkout_origins;
+      if(!endpoint("checkout_initialize")||!endpoint("payment_verify")||!Array.isArray(currencies)||currencies.length===0||currencies.some((v:any)=>typeof v!=="string"||!/^[A-Z]{3}$/.test(v))||!Array.isArray(origins)||origins.length===0||origins.some((v:any)=>{try{const u=new URL(v);return u.protocol!=="https:"||u.origin!==v;}catch{return true;}}))
+        return json({error:"Payment adapters require checkout_initialize and payment_verify endpoints, ISO supported_currencies, and HTTPS allowed_checkout_origins."},400);
+      if(!["paystack","stripe","flutterwave","generic"].includes(adapter))return json({error:"Unsupported normalized payment adapter. Use paystack, stripe, flutterwave or generic."},400);
+    }
+    if(p.capability==="email"){
+      const sender=String(p.settings.from_email??"");
+      if(!endpoint("send_email")||!/^\S+@\S+\.\S+$/.test(sender)||!["resend","sendgrid","postmark","generic"].includes(adapter))
+        return json({error:"Email adapters require send_email, a verified from_email, and a supported adapter (resend, sendgrid, postmark or generic)."},400);
+    }
+    if(p.capability==="fx_rates"&&!endpoint("rates"))return json({error:"FX adapters require a relative rates endpoint."},400);
+    if(p.capability==="live_streaming"&&(!endpoint("create_live")||!endpoint("stop_live")))return json({error:"Live streaming adapters require create_live and stop_live endpoints."},400);
+    if(p.capability==="identity"&&!endpoint("verify"))return json({error:"Identity adapters require a verify endpoint."},400);
+    if(p.capability==="bank_verification"&&!endpoint("verify"))return json({error:"Bank verification adapters require a verify endpoint."},400);
+    if(p.capability==="video_delivery"&&!endpoint("playback"))return json({error:"Video delivery adapters require a playback endpoint."},400);
+  }
   if(p.action==="list"){
     const {data,error}=await admin.from("service_provider_bindings")
       .select("id,capability,provider_key,enabled,is_live,base_url,endpoints,settings,updated_at,removed_at,priority,test_credential_secret_ref,live_credential_secret_ref,test_webhook_secret_ref,live_webhook_secret_ref,credential_secret_ref,webhook_secret_ref")
