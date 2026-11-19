@@ -19,7 +19,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.get-playback-url]
-verify_jwt = false
+verify_jwt = true
 
 [functions.record-watch-heartbeat]
 verify_jwt = false
