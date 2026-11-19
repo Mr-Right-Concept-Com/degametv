@@ -104,6 +104,7 @@ Deno.serve(async (req) => {
     geo: { countryCode: candidate, source: candidate === preferredCountry ? "profile_preference" : candidate === edgeCountry ? "edge" : candidate === requestedCountry ? "explicit" : candidate === localeRegion ? "locale_hint" : "unknown" },
     locale,
     currency,
+    baseCurrency: configuredBaseCurrency,
     currencySymbol: currency === country?.currency_code ? country.currency_symbol : null,
     countryCurrency: country ?? null,
     countries: countries.data ?? [],
