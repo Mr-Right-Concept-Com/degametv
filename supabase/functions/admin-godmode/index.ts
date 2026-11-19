@@ -17,6 +17,7 @@ const Body = z.discriminatedUnion("action", [
 
 const editableSettings = new Set([
   "addons_catalog",
+  "base_currency",
   "commission_rates",
   "creator_approval_mode",
   "currency_rates",
@@ -54,6 +55,7 @@ Deno.serve(async (req) => {
           && (typeof p.value !== "string" || !approvalModes.has(p.value))) {
           return json({ error: "Approval mode must be manual, automatic, or hybrid." }, 400);
         }
+        if (p.key === "base_currency" && (typeof p.value !== "string" || !/^[A-Z]{3}$/.test(p.value))) return json({ error: "Platform base currency must be a three-letter ISO 4217 code." }, 400);
         if (/(secret|api[_-]?key|password|token)/i.test(p.key) || ["email_provider", "payment_gateways"].includes(p.key)) return json({ error: "Credential and provider settings must use their Vault control plane." }, 403);
         const { error } = await admin.from("platform_settings")
           .upsert({ setting_key: p.key, setting_value: p.value, updated_at: new Date().toISOString() }, { onConflict: "setting_key" });
