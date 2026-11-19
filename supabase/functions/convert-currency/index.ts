@@ -1,102 +1,77 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { z } from "https://esm.sh/zod@3.25.76";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { z } from "npm:zod@3";
 
-const corsHeaders = {
+const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, cf-ipcountry",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Content-Type": "application/json",
+  "Cache-Control": "public, max-age=60, stale-while-revalidate=300",
 };
-
-const COUNTRY_CCY: Record<string, string> = {
-  US: "USD", GB: "GBP", CA: "CAD", AU: "AUD", ZA: "ZAR",
-  GH: "GHS", KE: "KES", NG: "NGN", EG: "EGP", DE: "EUR",
-  FR: "EUR", ES: "EUR", IT: "EUR", NL: "EUR", BE: "EUR",
-  IE: "EUR", PT: "EUR", AT: "EUR", IN: "INR", JP: "JPY",
-  CN: "CNY", BR: "BRL", MX: "MXN", AE: "AED", SA: "SAR",
-};
-
-const CCY_SYMBOL: Record<string, string> = {
-  USD: "$", GBP: "£", EUR: "€", CAD: "C$", AUD: "A$",
-  ZAR: "R", GHS: "GH₵", KES: "KSh", NGN: "₦", EGP: "E£",
-  INR: "₹", JPY: "¥", CNY: "¥", BRL: "R$", MXN: "Mex$",
-  AED: "AED", SAR: "SAR",
-};
-
-const requestSchema = z.object({
-  amount: z.coerce.number().finite().positive().max(1_000_000_000),
-  country: z.string().trim().length(2).optional(),
+const schema = z.object({
+  amount: z.coerce.number().finite().min(0).max(1_000_000_000),
+  fromCurrency: z.string().trim().regex(/^[A-Za-z]{3}$/).default("USD"),
+  toCurrency: z.string().trim().regex(/^[A-Za-z]{3}$/).optional(),
+  country: z.string().trim().regex(/^[A-Za-z]{2}$/).optional(),
   currency: z.string().trim().regex(/^[A-Za-z]{3}$/).optional(),
 }).strict();
+const rateSchema = z.object({ rates: z.record(z.string(), z.number().finite().positive()) }).passthrough();
+const respond = (body: unknown, status=200) => new Response(JSON.stringify(body), { status, headers: cors });
 
-const responseSchema = z.object({
-  rates: z.record(z.string(), z.number().finite().positive()),
-}).passthrough();
-
-const CACHE_TTL_MS = 5 * 60 * 1000;
-const rateCache = new Map<string, { at: number; rates: Record<string, number> }>();
-
-async function getRates(base: string): Promise<Record<string, number>> {
-  const cached = rateCache.get(base);
-  if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.rates;
-
-  const endpoint = Deno.env.get("FX_RATES_ENDPOINT");
-  if (!endpoint) throw new Error("FX provider is not configured");
-
-  const endpointUrl = new URL(endpoint);
-  endpointUrl.searchParams.set("base", base);
-  const apiKey = Deno.env.get("FX_RATES_API_KEY");
-  const response = await fetch(endpointUrl, {
-    headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
-    signal: AbortSignal.timeout(5000),
-  });
-  if (!response.ok) throw new Error(`FX provider returned HTTP ${response.status}`);
-
-  const parsed = responseSchema.safeParse(await response.json());
-  if (!parsed.success || !parsed.data.rates[base]) throw new Error("FX provider returned an invalid rate set");
-
-  rateCache.set(base, { at: Date.now(), rates: parsed.data.rates });
-  return parsed.data.rates;
-}
-
-serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-  if (req.method !== "GET" && req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: corsHeaders });
-  }
-
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+  if (req.method !== "GET" && req.method !== "POST") return respond({ error: "Method not allowed." },405);
+  const url = Deno.env.get("SUPABASE_URL"), serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !serviceKey) return respond({ error: "FX service is not configured." },503);
   try {
-    const url = new URL(req.url);
-    const rawBody: unknown = req.method === "POST" ? await req.json() : {
-      amount: url.searchParams.get("amount"),
-      country: url.searchParams.get("country"),
-      currency: url.searchParams.get("currency"),
+    const db = createClient(url,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
+    const requestUrl = new URL(req.url);
+    const raw = req.method === "POST" ? await req.json() : {
+      amount: requestUrl.searchParams.get("amount"),
+      fromCurrency: requestUrl.searchParams.get("fromCurrency") ?? "USD",
+      toCurrency: requestUrl.searchParams.get("toCurrency") ?? requestUrl.searchParams.get("currency") ?? undefined,
+      country: requestUrl.searchParams.get("country") ?? undefined,
+      currency: requestUrl.searchParams.get("currency") ?? undefined,
     };
-    const parsed = requestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return new Response(JSON.stringify({ error: "Invalid conversion request", issues: parsed.error.flatten() }), {
-        status: 400, headers: corsHeaders,
-      });
-    }
+    const parsed = schema.safeParse(raw);
+    if (!parsed.success) return respond({ error:"Invalid conversion request.",issues:parsed.error.flatten() },400);
 
-    const country = (req.headers.get("cf-ipcountry") || parsed.data.country || "").toUpperCase();
-    const targetCurrency = (parsed.data.currency || COUNTRY_CCY[country] || "USD").toUpperCase();
-    const rates = await getRates("NGN");
-    const rate = rates[targetCurrency];
-    if (!rate) {
-      return new Response(JSON.stringify({ error: "The requested currency is not supported by the configured FX provider." }), {
-        status: 422, headers: corsHeaders,
-      });
-    }
+    const edgeCountry = req.headers.get("cf-ipcountry")?.toUpperCase();
+    const countryCode = edgeCountry && /^[A-Z]{2}$/.test(edgeCountry) ? edgeCountry : parsed.data.country?.toUpperCase();
+    const countryRule = countryCode
+      ? await db.from("country_currency_rules").select("country_code,currency_code,currency_symbol").eq("country_code",countryCode).eq("enabled",true).maybeSingle()
+      : { data:null,error:null };
+    if (countryRule.error) return respond({error:"Country currency policy is unavailable."},503);
+    const from = parsed.data.fromCurrency.toUpperCase();
+    const to = (parsed.data.toCurrency ?? parsed.data.currency ?? countryRule.data?.currency_code ?? "USD").toUpperCase();
+    if (from === to) return respond({country:countryCode,fromCurrency:from,toCurrency:to,original:parsed.data.amount,converted:parsed.data.amount,rate:1,rateBase:from,provider:null,retrievedAt:new Date().toISOString()});
 
+    const {data:binding,error:bindingError} = await db.from("service_provider_bindings")
+      .select("provider_key,base_url,endpoints,settings,is_live")
+      .eq("capability","fx_rates").eq("enabled",true).is("removed_at",null)
+      .order("priority",{ascending:true}).limit(1).maybeSingle();
+    if (bindingError || !binding?.base_url) return respond({error:"No active FX provider is configured.",code:"FX_PROVIDER_UNAVAILABLE"},503);
+    const {data:secretRows,error:secretError} = await db.rpc("get_service_provider_admin_secret",{p_capability:"fx_rates",p_provider_key:binding.provider_key});
+    const secret = Array.isArray(secretRows) ? secretRows[0] : null;
+    const credential = binding.is_live ? secret?.live_credential : secret?.test_credential;
+    if (secretError || !credential) return respond({error:"The selected FX provider has no credential for its active mode."},503);
+    const ratesPath = binding.endpoints?.rates;
+    if (typeof ratesPath !== "string" || !ratesPath.startsWith("/") || ratesPath.startsWith("//")) return respond({error:"Configure a relative rates endpoint for the FX provider."},503);
+    const target = new URL(ratesPath,binding.base_url);
+    if (target.origin !== new URL(binding.base_url).origin) return respond({error:"FX endpoint host mismatch."},400);
+    target.searchParams.set("base",from);
+    const authHeader = typeof binding.settings?.auth_header === "string" ? binding.settings.auth_header : "Authorization";
+    const authPrefix = typeof binding.settings?.auth_prefix === "string" ? binding.settings.auth_prefix : "Bearer ";
+    const upstream = await fetch(target,{headers:{[authHeader]:authPrefix+credential,Accept:"application/json"},signal:AbortSignal.timeout(8000)});
+    if (!upstream.ok) return respond({error:"FX provider request failed.",providerStatus:upstream.status},502);
+    const parsedRates = rateSchema.safeParse(await upstream.json());
+    if (!parsedRates.success) return respond({error:"FX provider returned an invalid rate set."},502);
+    const rate = from === to ? 1 : parsedRates.data.rates[to];
+    if (!rate || !Number.isFinite(rate)) return respond({error:"The requested currency is not supported by the FX provider."},422);
     const converted = Math.round(parsed.data.amount * rate * 100) / 100;
-    return new Response(JSON.stringify({
-      country, currency: targetCurrency, symbol: CCY_SYMBOL[targetCurrency] || `${targetCurrency} `,
-      original: parsed.data.amount, converted, rate, rateBase: "NGN", retrievedAt: new Date().toISOString(),
-    }), { headers: corsHeaders });
-  } catch {
-    return new Response(JSON.stringify({
-      error: "Currency conversion is temporarily unavailable. No estimated exchange rate was used.",
-      code: "FX_PROVIDER_UNAVAILABLE",
-    }), { status: 503, headers: corsHeaders });
+    return respond({country:countryCode,fromCurrency:from,toCurrency:to,original:parsed.data.amount,converted,rate,rateBase:from,provider:binding.provider_key,mode:binding.is_live?"live":"test",retrievedAt:new Date().toISOString()});
+  } catch (error) {
+    console.error("convert-currency",error);
+    return respond({error:"Currency conversion is temporarily unavailable. No estimated exchange rate was used.",code:"FX_PROVIDER_UNAVAILABLE"},503);
   }
 });
