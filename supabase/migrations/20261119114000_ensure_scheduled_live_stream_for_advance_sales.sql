@@ -21,14 +21,14 @@ BEGIN
 
  IF v_stream_id IS NULL THEN
   INSERT INTO public.live_streams(
-   tenant_id,creator_id,title,description,thumbnail_url,status,monetization,is_ticketed,
+   tenant_id,creator_id,title,description,thumbnail_url,status,lifecycle_status,monetization,is_ticketed,
    scheduled_start,recording_enabled,chat_enabled,ticket_price,currency,metadata,
    sales_open_at,sales_close_at,early_bird_price,early_bird_currency,early_bird_ends_at,
    early_bird_capacity,event_visibility,invite_only,ticket_capacity,settlement_hold_hours,
    settlement_delivery_required,event_timezone,presale_enabled
   ) VALUES (
    v_screening.tenant_id,v_creator,v_screening.title,v_screening.description,v_screening.poster_url,
-   'scheduled',
+   'scheduled','SCHEDULED',
    CASE WHEN upper(coalesce(v_screening.access_model,''))='FREE' THEN 'free'::public.monetization_type ELSE 'ticket'::public.monetization_type END,
    upper(coalesce(v_screening.access_model,''))<>'FREE',
    v_screening.screening_date,true,true,v_screening.base_price,v_screening.base_currency,
@@ -41,6 +41,7 @@ BEGIN
  ELSE
   UPDATE public.live_streams SET
    title=v_screening.title,description=v_screening.description,
+   lifecycle_status=CASE WHEN status='scheduled' THEN 'SCHEDULED'::public.broadcast_lifecycle_status ELSE lifecycle_status END,
    thumbnail_url=coalesce(v_screening.poster_url,thumbnail_url),
    scheduled_start=CASE WHEN status='scheduled' THEN v_screening.screening_date ELSE scheduled_start END,
    monetization=CASE WHEN upper(coalesce(v_screening.access_model,''))='FREE' THEN 'free'::public.monetization_type ELSE 'ticket'::public.monetization_type END,
