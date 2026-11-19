@@ -62,24 +62,31 @@ if(import.meta.main)serve(async(req:Request)=>{
   const providerResult=await verification.json().catch(()=>null);
   const result=paystack?{verified:providerResult?.status===true&&providerResult?.data?.status==="success",status:providerResult?.data?.status==="success"?"paid":"unpaid",transaction_id:providerResult?.data?.id,amount_minor:providerResult?.data?.amount,currency:providerResult?.data?.currency}:providerResult;
   if(!verification.ok||result?.verified!==true||result?.status!=="paid")return json(202,{received:true,verified:false});
-  const {data:liveOrderRow}=liveOrder?await admin.from("live_payment_orders").select("user_id,metadata").eq("provider_reference",reference).maybeSingle():{data:null};
-  const claimToken=liveOrder&&liveOrderRow?.user_id===null?Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,"0")).join(""):null;
+  const {data:liveOrderRow}=liveOrder?await admin.from("live_payment_orders").select("user_id,metadata,email_sent_at").eq("provider_reference",reference).maybeSingle():{data:null};
+  let claimToken:string|null=null;
+  let emailClaimed=false;
+  if(liveOrder&&liveOrderRow?.user_id===null){
+   const {data:claim}=await admin.rpc("claim_live_payment_email",{p_reference:reference});
+   if(claim!==true)return json(202,{received:true,verified:true,fulfillment:"email_delivery_in_progress"});
+   emailClaimed=true;
+   claimToken=Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,"0")).join("");
+  }
   const claimHash=claimToken?await crypto.subtle.digest("SHA-256",new TextEncoder().encode(claimToken)).then(b=>Array.from(new Uint8Array(b),v=>v.toString(16).padStart(2,"0")).join("")):null;
   const args=liveOrder?{p_reference:reference,p_transaction_id:String(result.transaction_id||reference),p_amount_minor:Number(result.amount_minor),p_currency:String(result.currency),p_claim_token_hash:claimHash}:{p_reference:reference,p_transaction_id:String(result.transaction_id||reference),p_amount_minor:Number(result.amount_minor),p_currency:String(result.currency)};
   const {data:completed,error:completeError}=await admin.rpc(liveOrder?"complete_live_payment_order":"complete_guest_payment_order",args);
-  if(completeError)return json(409,{error:"Payment verification did not match the pending order."});
+  if(completeError){
+   if(emailClaimed)await admin.from("live_payment_orders").update({email_delivery_claimed_at:null}).eq("provider_reference",reference);
+   return json(409,{error:"Payment verification did not match the pending order."});
+  }
   let emailSent=false;
-  if(liveOrder&&completed?.ticket_id&&completed?.email&&liveOrderRow?.user_id===null){
-   const {data:emailClaim}=await admin.from("live_payment_orders").update({email_sent_at:new Date().toISOString()}).eq("provider_reference",reference).is("email_sent_at",null).select("id").maybeSingle();
-   if(emailClaim){
-    const {data:siteSetting}=await admin.from("platform_settings").select("setting_value,is_public").eq("setting_key","public_site_url").maybeSingle();
-    const origin=typeof siteSetting?.setting_value==="string"?siteSetting.setting_value:"";
-    let deliveryUrl:string|null=null;
-    try{const siteUrl=new URL(origin);if(siteSetting?.is_public===true&&siteUrl.protocol==="https:")deliveryUrl=new URL("/live/claim?token="+encodeURIComponent(claimToken!),siteUrl).toString();}catch{deliveryUrl=null;}
-    const mail=deliveryUrl?await fetch(url+"/functions/v1/send-watch-email",{method:"POST",headers:{"Authorization":"Bearer "+service,"apikey":service,"Content-Type":"application/json"},body:JSON.stringify({email:completed.email,movieTitle:completed.title||"Live event",watchUrl:deliveryUrl,ticketCode:completed.ticket_code,expiresAt:completed.valid_until,location:liveOrderRow?.metadata?.country_code||"Global",price:Number(completed.price),currency:completed.currency})}).catch(()=>null):null;
-    emailSent=Boolean(mail?.ok);
-    if(!emailSent)await admin.from("live_payment_orders").update({email_sent_at:null}).eq("provider_reference",reference);
-   }
+  if(liveOrder&&completed?.ticket_id&&completed?.email&&emailClaimed&&claimToken){
+   const {data:siteSetting}=await admin.from("platform_settings").select("setting_value,is_public").eq("setting_key","public_site_url").maybeSingle();
+   const origin=typeof siteSetting?.setting_value==="string"?siteSetting.setting_value:"";
+   let deliveryUrl:string|null=null;
+   try{const siteUrl=new URL(origin);if(siteSetting?.is_public===true&&siteUrl.protocol==="https:")deliveryUrl=new URL("/live/claim?token="+encodeURIComponent(claimToken),siteUrl).toString();}catch{deliveryUrl=null;}
+   const mail=deliveryUrl?await fetch(url+"/functions/v1/send-watch-email",{method:"POST",headers:{"Authorization":"Bearer "+service,"apikey":service,"Content-Type":"application/json"},body:JSON.stringify({email:completed.email,movieTitle:completed.title||"Live event",watchUrl:deliveryUrl,ticketCode:completed.ticket_code,expiresAt:completed.valid_until,location:liveOrderRow?.metadata?.country_code||"Global",price:Number(completed.price),currency:completed.currency})}).catch(()=>null):null;
+   emailSent=Boolean(mail?.ok);
+   await admin.from("live_payment_orders").update(emailSent?{email_sent_at:new Date().toISOString(),email_delivery_claimed_at:null}:{email_delivery_claimed_at:null}).eq("provider_reference",reference);
   } else if(!liveOrder) emailSent=await sendTicketEmail(admin,url,service,reference);
   return json(200,{received:true,verified:true,fulfillment:completed,emailSent});
  }catch{return json(400,{error:"Invalid webhook payload."});}
