@@ -470,7 +470,6 @@ export default function StudioSubmit() {
             ticketCapacity: form.ticket_capacity.trim() ? Number(form.ticket_capacity) : null,
             eventVisibility: form.event_visibility,
             settlementHoldHours: Number(form.settlement_hold_hours),
-            settlementDeliveryRequired: form.project_type !== 'live' || form.auto_convert_to_vod,
             eventTimezone: form.event_timezone,
             presaleEnabled: form.presale_enabled,
           },
