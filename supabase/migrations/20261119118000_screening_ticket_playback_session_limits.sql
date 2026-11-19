@@ -41,9 +41,9 @@ BEGIN
  UPDATE public.screening_ticket_playback_sessions SET revoked_at=now()
   WHERE ticket_id=p_ticket_id AND revoked_at IS NULL AND expires_at<=now();
  SELECT * INTO v_existing FROM public.screening_ticket_playback_sessions
-  WHERE ticket_id=p_ticket_id AND session_token_hash=p_session_token_hash AND revoked_at IS NULL AND expires_at>now()
+  WHERE ticket_id=p_ticket_id AND session_token_hash=p_session_token_hash
   FOR UPDATE;
- IF FOUND THEN
+ IF FOUND AND v_existing.revoked_at IS NULL AND v_existing.expires_at>now() THEN
   v_expires:=least(now()+interval '20 minutes',v_ticket.expires_at);
   UPDATE public.screening_ticket_playback_sessions SET expires_at=v_expires,last_seen_at=now(),
    ip_hash=p_ip_hash,country_code=p_country_code WHERE id=v_existing.id;
@@ -54,9 +54,15 @@ BEGIN
  IF v_active>=v_max_concurrent THEN RAISE EXCEPTION 'ticket_concurrent_stream_limit' USING ERRCODE='42501'; END IF;
  IF coalesce(v_ticket.stream_count,0)>=v_max_streams THEN RAISE EXCEPTION 'ticket_stream_limit_reached' USING ERRCODE='42501'; END IF;
  v_expires:=least(now()+interval '20 minutes',v_ticket.expires_at);
- INSERT INTO public.screening_ticket_playback_sessions(ticket_id,screening_id,session_token_hash,expires_at,country_code,ip_hash)
- VALUES(p_ticket_id,v_ticket.screening_id,p_session_token_hash,v_expires,p_country_code,p_ip_hash)
- RETURNING id INTO v_session;
+ IF v_existing.id IS NOT NULL THEN
+  v_session:=v_existing.id;
+  UPDATE public.screening_ticket_playback_sessions SET revoked_at=NULL,expires_at=v_expires,last_seen_at=now(),
+   ip_hash=p_ip_hash,country_code=p_country_code WHERE id=v_session;
+ ELSE
+  INSERT INTO public.screening_ticket_playback_sessions(ticket_id,screening_id,session_token_hash,expires_at,country_code,ip_hash)
+  VALUES(p_ticket_id,v_ticket.screening_id,p_session_token_hash,v_expires,p_country_code,p_ip_hash)
+  RETURNING id INTO v_session;
+ END IF;
  UPDATE public.screening_tickets SET stream_count=coalesce(stream_count,0)+1,used_at=now(),
   first_played_at=coalesce(first_played_at,now()),last_ip=p_ip_hash,last_country=p_country_code
  WHERE id=p_ticket_id;
