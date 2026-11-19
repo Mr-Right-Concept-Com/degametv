@@ -16,16 +16,35 @@ export function LiveGiftFeed({ streamId }: { streamId: string }) {
   const [items, setItems] = useState<GiftRow[]>([]);
   useEffect(() => {
     let active = true;
-    void supabase.from("event_live_gift_feed")
-      .select("id,contribution_type,display_name,gift_catalog_key,message,amount_minor,currency,created_at")
-      .eq("live_stream_id", streamId).order("created_at", { ascending: false }).limit(8)
-      .then(({ data }) => { if (active && data) setItems(data as GiftRow[]); });
-    const channel = supabase.channel("live-gifts:" + streamId)
+    let screeningId: string | null = null;
+    let screeningChannel: ReturnType<typeof supabase.channel> | null = null;
+    const streamChannel = supabase.channel("live-gifts-stream:" + streamId)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "event_live_gift_feed", filter: "live_stream_id=eq." + streamId }, payload => {
-        if (!active) return;
-        setItems(current => [payload.new as GiftRow, ...current].slice(0, 8));
+        if (active) setItems(current => [payload.new as GiftRow, ...current].slice(0, 8));
       }).subscribe();
-    return () => { active = false; void supabase.removeChannel(channel); };
+    const load = async () => {
+      const { data: stream } = await supabase.from("live_streams").select("metadata").eq("id", streamId).maybeSingle();
+      const candidate = stream?.metadata && typeof stream.metadata === "object" ? (stream.metadata as Record<string, unknown>).screening_id : null;
+      screeningId = typeof candidate === "string" ? candidate : null;
+      let query = supabase.from("event_live_gift_feed")
+        .select("id,contribution_type,display_name,gift_catalog_key,message,amount_minor,currency,created_at")
+        .order("created_at", { ascending: false }).limit(8);
+      query = screeningId ? query.or("live_stream_id.eq." + streamId + ",screening_id.eq." + screeningId) : query.eq("live_stream_id", streamId);
+      const { data } = await query;
+      if (active && data) setItems(data as GiftRow[]);
+      if (screeningId && active) {
+        screeningChannel = supabase.channel("live-gifts-screening:" + screeningId)
+          .on("postgres_changes", { event: "INSERT", schema: "public", table: "event_live_gift_feed", filter: "screening_id=eq." + screeningId }, payload => {
+            if (active) setItems(current => [payload.new as GiftRow, ...current].slice(0, 8));
+          }).subscribe();
+      }
+    };
+    void load();
+    return () => {
+      active = false;
+      void supabase.removeChannel(streamChannel);
+      if (screeningChannel) void supabase.removeChannel(screeningChannel);
+    };
   }, [streamId]);
 
   return <Card className="border-border/70">
