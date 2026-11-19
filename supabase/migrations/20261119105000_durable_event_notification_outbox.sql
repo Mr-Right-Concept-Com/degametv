@@ -4,7 +4,7 @@ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp
 DECLARE v_screening uuid; v_email text; v_title text; v_tenant uuid;
 BEGIN
  v_screening:=nullif(NEW.metadata->>'screening_id','')::uuid;
- IF v_screening IS NULL THEN RETURN NEW; END IF;
+ IF v_screening IS NULL OR NEW.user_id IS NULL THEN RETURN NEW; END IF;
  SELECT s.tenant_id,s.title INTO v_tenant,v_title FROM public.screenings s WHERE s.id=v_screening;
  IF NEW.user_id IS NOT NULL THEN SELECT email INTO v_email FROM auth.users WHERE id=NEW.user_id; ELSE v_email:=NEW.guest_email; END IF;
  IF v_email IS NULL THEN RETURN NEW; END IF;
@@ -43,7 +43,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path=public,pg_temp
 AS $$
-DECLARE v_event record; v_ticket record; v_window text; v_target timestamptz; v_count integer:=0;
+DECLARE v_event record; v_ticket record; v_reminder record; v_window text; v_count integer:=0;
 BEGIN
  IF auth.role()<>'service_role' THEN RAISE EXCEPTION 'service_role_required' USING ERRCODE='42501'; END IF;
  FOR v_event IN
@@ -52,8 +52,8 @@ BEGIN
   WHERE status='published' AND screening_date IS NOT NULL
     AND screening_date BETWEEN now()-interval '5 minutes' AND now()+interval '25 hours'
  LOOP
-  FOR v_window,v_target IN
-   SELECT x.window_key,x.target_at FROM (VALUES
+  FOR v_reminder IN
+   SELECT x.window_key FROM (VALUES
     ('24h',v_event.screening_date-interval '24 hours'),
     ('1h',v_event.screening_date-interval '1 hour'),
     ('15m',v_event.screening_date-interval '15 minutes'),
@@ -61,6 +61,7 @@ BEGIN
    ) AS x(window_key,target_at)
    WHERE x.target_at BETWEEN now()-interval '5 minutes' AND now()+interval '5 minutes'
   LOOP
+   v_window:=v_reminder.window_key;
    FOR v_ticket IN
     SELECT st.email AS email,st.user_id AS user_id,st.id AS ticket_id
     FROM public.screening_tickets st
