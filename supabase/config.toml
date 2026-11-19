@@ -45,3 +45,6 @@ verify_jwt = false
 
 [functions.manage-event-invitations]
 verify_jwt = false
+
+[functions.process-event-contribution]
+verify_jwt = false
