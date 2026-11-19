@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { useRuntimeConfig } from '@/contexts/RuntimeConfigContext';
 
 const emailSchema = z.string().trim().email('Please enter a valid email');
 
@@ -53,6 +54,7 @@ export default function BuyTicket() {
   const [screening, setScreening] = useState<Screening | null>(null);
   const [loadingScreening, setLoadingScreening] = useState(true);
   const { user } = useAuth();
+  const runtime = useRuntimeConfig();
   const [freeClaimBusy, setFreeClaimBusy] = useState(false);
   const [freeStreamId, setFreeStreamId] = useState<string | null>(null);
   const [livePaid, setLivePaid] = useState(false);
@@ -89,21 +91,15 @@ export default function BuyTicket() {
   }, []);
 
   useEffect(() => {
-    let active = true;
-    let visitorId = localStorage.getItem('degame_runtime_visitor');
-    if (!visitorId) { visitorId = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `visitor-${Date.now()}-${Math.random().toString(36).slice(2)}`; localStorage.setItem('degame_runtime_visitor', visitorId); }
-    void supabase.functions.invoke('runtime-config', { body: { visitorId } }).then(({ data, error }) => {
-      if (!active || error || !data) return;
-      const detectedCountry = typeof data.geo?.countryCode === 'string' ? data.geo.countryCode : null;
-      const detectedCurrency = typeof data.currency === 'string' ? data.currency : null;
-      setCountryCode(detectedCountry);
-      setLocalCurrency(detectedCurrency);
-      if (!sessionStorage.getItem('degame_checkout_location') && detectedCountry) {
-        setLocation(detectedCountry === 'NG' ? 'nigeria' : 'international');
-      }
-    });
-    return () => { active = false; };
-  }, []);
+    const config = runtime.config;
+    if (!config) return;
+    const detectedCountry = config.geo.countryCode;
+    setCountryCode(detectedCountry);
+    setLocalCurrency(config.currency);
+    if (!sessionStorage.getItem('degame_checkout_location') && detectedCountry) {
+      setLocation(detectedCountry === 'NG' ? 'nigeria' : 'international');
+    }
+  }, [runtime.config]);
 
   useEffect(() => {
     if (!screening || !localCurrency) return;
