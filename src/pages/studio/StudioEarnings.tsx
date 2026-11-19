@@ -24,6 +24,12 @@ const wSchema = z.object({
 
 type Bal = { currency: string; gross: number; fees: number; escrow: number; withdrawable: number };
 type WR = { id: string; amount: number; currency: string; bank_country: string | null; status: string; created_at: string; bank_name: string };
+type HoldRow = { id: string; screening_id: string | null; live_stream_id: string | null; source_type: string; currency: string; gross_amount_minor: number; net_amount_minor: number; hold_status: string; event_ended_at: string | null; delivery_confirmed_at: string | null; release_at: string | null; hold_hours: number; created_at: string };
+type ContributionRow = { id: string; screening_id: string | null; live_stream_id: string | null; contribution_type: string; gift_catalog_key: string | null; message: string | null; amount_minor: number; currency: string; status: string; is_anonymous: boolean; created_at: string };
+const moneyMinor = (amount: number, currency: string) => {
+  const digits = /^[A-Z]{3}$/.test(currency) ? new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits : 2;
+  return money(Number(amount || 0) / Math.pow(10, digits), currency);
+};
 const money = (n: number, currency: string) => {
   try {
     return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(n || 0));
@@ -39,21 +45,29 @@ export default function StudioEarnings() {
   const [loading, setLoading] = useState(true);
   const [balances, setBalances] = useState<Bal[]>([]);
   const [reqs, setReqs] = useState<WR[]>([]);
+  const [eventHolds, setEventHolds] = useState<HoldRow[]>([]);
+  const [contributions, setContributions] = useState<ContributionRow[]>([]);
   const [form, setForm] = useState({ amount: '', currency: '', bank_country: '', bank_name: '', account_number: '', account_name: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
     if (!user) return;
-    const [b, w] = await Promise.all([
+    const [b, w, holds, fans] = await Promise.all([
       supabase.rpc('wallet_balance_by_currency', { _user_id: user.id }),
       supabase.from('withdrawal_requests').select('id, amount, currency, bank_country, status, created_at, bank_name').eq('user_id', user.id).order('created_at', { ascending: false }),
+      supabase.from('event_settlement_holds').select('id,screening_id,live_stream_id,source_type,currency,gross_amount_minor,net_amount_minor,hold_status,event_ended_at,delivery_confirmed_at,release_at,hold_hours,created_at').eq('creator_id', user.id).order('created_at', { ascending: false }).limit(100),
+      supabase.from('event_contributions').select('id,screening_id,live_stream_id,contribution_type,gift_catalog_key,message,amount_minor,currency,status,is_anonymous,created_at').eq('creator_id', user.id).order('created_at', { ascending: false }).limit(100),
     ]);
     if (b.error) toast.error('Wallet balances could not be loaded.');
     const rows = (b.data as Bal[] | null) || [];
     setBalances(rows.map(row => ({ ...row, gross: Number(row.gross), fees: Number(row.fees), escrow: Number(row.escrow), withdrawable: Number(row.withdrawable) })));
     setForm(current => ({ ...current, currency: current.currency || rows[0]?.currency || '', bank_country: current.bank_country || runtime.config?.geo.countryCode || '' }));
     setReqs((w.data as WR[]) || []);
+    if (holds.error) toast.error('Event settlement holds could not be loaded.');
+    if (fans.error) toast.error('Fan contributions could not be loaded.');
+    setEventHolds((holds.data as HoldRow[]) || []);
+    setContributions((fans.data as ContributionRow[]) || []);
     setLoading(false);
   };
   useEffect(() => { void load(); }, [user?.id]);
@@ -115,6 +129,29 @@ export default function StudioEarnings() {
               </div>
             </section>
           ))}
+
+          <section className="space-y-3">
+            <div className="flex items-center justify-between"><h2 className="font-semibold">Event settlement holds</h2><Badge variant="outline">Platform verified</Badge></div>
+            {eventHolds.length === 0 ? <Card><CardContent className="p-5 text-sm text-muted-foreground">Event-linked settlement records will appear after verified ticket, tip or gift payments.</CardContent></Card> :
+              <div className="grid gap-3">{eventHolds.map(hold => <Card key={hold.id}><CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-medium capitalize">{hold.source_type} · {hold.currency}</p><Badge variant={hold.hold_status === 'eligible' ? 'default' : 'secondary'} className="capitalize">{hold.hold_status}</Badge></div>
+                  <p className="mt-1 text-xs text-muted-foreground">Gross {moneyMinor(hold.gross_amount_minor, hold.currency)} · Creator net {moneyMinor(hold.net_amount_minor, hold.currency)} · {hold.hold_hours}h hold</p>
+                  <p className="text-xs text-muted-foreground">{hold.event_ended_at ? 'Event ended ' + new Date(hold.event_ended_at).toLocaleString() : 'Awaiting event completion'} · {hold.delivery_confirmed_at ? 'Delivery verified' : 'Awaiting platform delivery confirmation'}</p>
+                </div>
+                <div className="text-left text-xs text-muted-foreground sm:text-right">{hold.release_at ? 'Settlement target: ' + new Date(hold.release_at).toLocaleString() : 'Funds remain held until delivery is verified'}</div>
+              </CardContent></Card>)}</div>}
+          </section>
+
+          <section className="space-y-3">
+            <div className="flex items-center justify-between"><h2 className="font-semibold">Tips & fan gifts</h2><Badge variant="outline">{contributions.length} records</Badge></div>
+            {contributions.length === 0 ? <Card><CardContent className="p-5 text-sm text-muted-foreground">Verified fan tips and gifts will appear here separately from ticket revenue.</CardContent></Card> :
+              <div className="grid gap-2">{contributions.map(item => <Card key={item.id}><CardContent className="flex items-start justify-between gap-3 p-4">
+                <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-medium capitalize">{item.contribution_type}{item.gift_catalog_key ? ' · ' + item.gift_catalog_key : ''}</p><Badge variant="outline" className="capitalize">{item.status}</Badge></div>
+                  <p className="mt-1 text-xs text-muted-foreground">{item.is_anonymous ? 'Anonymous supporter' : 'Named supporter'} · {new Date(item.created_at).toLocaleString()}</p>
+                  {item.message && <p className="mt-2 text-sm">{item.message}</p>}
+                </div><p className="whitespace-nowrap text-sm font-semibold">{moneyMinor(item.amount_minor, item.currency)}</p>
+              </CardContent></Card>)}</div>}
+          </section>
 
           <div className="grid lg:grid-cols-2 gap-6">
             <Card>
