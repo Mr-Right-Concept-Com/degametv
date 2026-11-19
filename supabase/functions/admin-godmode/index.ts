@@ -6,7 +6,7 @@ const jsonValue: z.ZodType<unknown> = z.lazy(() => z.union([z.string(), z.number
 
 const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("setting_update"), key: z.string().min(1).max(100), value: jsonValue }),
-  z.object({ action: z.literal("wallet_adjust"), userId: z.string().uuid(), amount: z.number().refine((n) => n !== 0 && Math.abs(n) <= 100_000_000), currency: z.enum(["NGN", "USD"]), reason: z.string().min(3).max(500) }),
+  z.object({ action: z.literal("wallet_adjust"), userId: z.string().uuid(), amount: z.number().refine((n) => n !== 0 && Math.abs(n) <= 100_000_000), currency: z.string().regex(/^[A-Z]{3}$/), reason: z.string().min(3).max(500) }),
   z.object({ action: z.literal("role_set"), userId: z.string().uuid(), role: z.enum(["super_admin", "platform_admin", "moderator", "viewer"]), grant: z.boolean() }),
   z.object({ action: z.literal("withdrawal_set"), id: z.string().uuid(), status: z.enum(["pending", "approved", "paid", "rejected"]), note: z.string().max(500).optional() }),
   z.object({ action: z.literal("impersonate"), userId: z.string().uuid(), redirectTo: z.string().url().optional() }),
