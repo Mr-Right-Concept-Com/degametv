@@ -96,7 +96,7 @@ if (import.meta.main) serve(async (req: Request) => {
     const config = configs.find((provider: any) => provider.provider_key === method && provider.is_live === true && Boolean(provider.credential));
     if (!config) return json(503, { success: false, error: "The selected live payment adapter is not active or its Vault credentials are incomplete." });
     const checkoutEndpoint = config.endpoints?.checkout_initialize;
-    if (!config.credential || typeof checkoutEndpoint !== "string" || !checkoutEndpoint.startsWith("/") || checkoutEndpoint.startsWith("//") || typeof config.endpoints?.payment_verify !== "string" || !config.endpoints.payment_verify.startsWith("/") || config.endpoints.payment_verify.startsWith("//")) {
+    if (!config.credential || typeof checkoutEndpoint !== "string" || !checkoutEndpoint.startsWith("/") || checkoutEndpoint.startsWith("//") || typeof config.endpoints?.payment_verify !== "string" || !config.endpoints.payment_verify.startsWith("/") || config.endpoints.payment_verify.startsWith("//") || typeof config.endpoints?.refund !== "string" || !config.endpoints.refund.startsWith("/") || config.endpoints.refund.startsWith("//")) {
       return json(503, { success: false, error: "The active payment adapter is missing its checkout contract." });
     }
     if (config.is_live) {
