@@ -104,10 +104,10 @@ BEGIN
         ) ON CONFLICT(source_type,source_id) DO NOTHING;
       END IF;
     END IF;
-  ELSIF NEW.status IN ('failed','cancelled') THEN
+  ELSIF NEW.status IN ('failed','cancelled','refunded') THEN
     UPDATE public.event_ticket_reservations
-      SET status='failed'
-      WHERE provider_reference=NEW.provider_reference AND status='pending';
+      SET status=CASE WHEN NEW.status='refunded' THEN 'refunded' ELSE 'failed' END
+      WHERE provider_reference=NEW.provider_reference AND status IN ('pending','paid');
   END IF;
   RETURN NEW;
 END;
