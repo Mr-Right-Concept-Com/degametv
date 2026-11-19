@@ -95,12 +95,16 @@ serve(async(req:Request)=>{
   const convertedAmount=await convertAmount(url,service,baseAmount,sourceCurrency,currency,countryCode);
   const fractionDigits=new Intl.NumberFormat("en",{style:"currency",currency}).resolvedOptions().maximumFractionDigits;
   const minor=Math.round(convertedAmount*Math.pow(10,fractionDigits));
+  const {data:commissionSetting,error:commissionError}=await db.from("platform_settings").select("setting_value").eq("setting_key","commission_rates").maybeSingle();
+  const creatorCommissionRate=Number(commissionSetting?.setting_value?.creator);
+  if(commissionError||!Number.isFinite(creatorCommissionRate)||creatorCommissionRate<0||creatorCommissionRate>0.5)return json(503,{error:"Creator commission policy is not configured safely."});
+  const platformFeeMajor=Math.round(minor*creatorCommissionRate)/Math.pow(10,fractionDigits);
   if(!Number.isSafeInteger(minor)||minor<=0)return json(422,{error:"The converted ticket amount is invalid."});
   const reference="DTVL_"+crypto.randomUUID().replaceAll("-","");
   const candidate=usable[0];
   const {error:insertError}=await db.from("live_payment_orders").insert({
    tenant_id:screening.tenant_id,user_id:user?.id??null,guest_checkout:!user,screening_id:screening.id,stream_id:stream.id,
-   ticket_type:ticketType,provider:candidate.provider_key,provider_reference:reference,provider_mode:"live",email,amount_minor:minor,amount_major:convertedAmount,currency,
+   ticket_type:ticketType,provider:candidate.provider_key,provider_reference:reference,provider_mode:"live",email,amount_minor:minor,amount_major:convertedAmount,platform_fee_major:platformFeeMajor,currency,
    metadata:{created_from:"viewer_checkout",guest_checkout:!user,provider_mode:"live",country_code:countryCode,source_currency:sourceCurrency,base_amount:baseAmount},
   });
   if(insertError)return json(503,{error:"Could not create a secure ticket order. No charge was made."});
