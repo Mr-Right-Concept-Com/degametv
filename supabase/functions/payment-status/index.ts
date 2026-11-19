@@ -17,8 +17,9 @@ async function verifyProviderPayment(admin:ReturnType<typeof createClient>,refer
  if(bindingError||secretError||!binding?.base_url||!credential)return {state:"pending" as const};
  const path=binding.endpoints?.payment_verify;
  if(typeof path!=="string"||!path.startsWith("/")||path.startsWith("//"))return {state:"pending" as const};
- const adapter=String(binding.settings?.adapter??binding.provider_key).toLowerCase();
- const target=new URL(adapter==="paystack"?path.replace(/\/$/,"")+"/"+encodeURIComponent(reference):path.replace("{reference}",encodeURIComponent(reference)),binding.base_url);
+ const adapter=String(binding.settings?.verification_adapter??binding.settings?.adapter??binding.provider_key).toLowerCase();
+ const verificationReference=adapter==="stripe"?(order.provider_checkout_id||reference):reference;
+ const target=new URL(adapter==="paystack"?path.replace(/\/$/,"")+"/"+encodeURIComponent(reference):path.replace("{reference}",encodeURIComponent(verificationReference)),binding.base_url);
  if(target.origin!==new URL(binding.base_url).origin)return {state:"pending" as const};
  const method=adapter==="paystack"||adapter==="stripe"||path.includes("{reference}")?"GET":String(binding.settings?.verify_method??"POST").toUpperCase();
  const referenceMode=String(binding.settings?.verify_reference_mode??"body");
