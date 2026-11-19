@@ -58,7 +58,7 @@ Deno.serve(async req => {
       if (!p.token) return json({ error: "Invitation token is required." }, 400);
       const hash = await sha256(p.token);
       const { data: invite, error } = await db.from("event_access_invites")
-        .select("id,screening_id,invited_email,invite_role,status,expires_at,accepted_at")
+        .select("id,screening_id,invited_email,invite_role,status,expires_at,accepted_at,complimentary_ticket_id,complimentary_ticket_type")
         .eq("token_hash", hash).maybeSingle();
       if (error || !invite || invite.status === "revoked" || invite.status === "expired" ||
           (invite.expires_at && new Date(invite.expires_at).getTime() <= Date.now())) {
@@ -72,6 +72,7 @@ Deno.serve(async req => {
         invitation: {
           id: invite.id, role: invite.invite_role, status: invite.status,
           expiresAt: invite.expires_at, acceptedAt: invite.accepted_at,
+          ticketIssued: Boolean(invite.complimentary_ticket_id), ticketType: invite.complimentary_ticket_type,
         },
         event: {
           title: screening.title, slug: screening.slug, description: screening.description,
@@ -188,11 +189,14 @@ Deno.serve(async req => {
           invite.invited_email.toLowerCase() !== user.email.toLowerCase()) {
         return json({ error: "This invitation is invalid, expired, revoked or belongs to another email address." }, 403);
       }
-      const { error: updateError } = await db.from("event_access_invites")
-        .update({ status: "accepted", accepted_at: new Date().toISOString(), invited_user_id: user.id })
-        .eq("id", invite.id).in("status", ["pending", "sent", "accepted"]);
-      if (updateError) return json({ error: "Invitation acceptance could not be recorded." }, 503);
-      return json({ success: true, accepted: true, screeningId: invite.screening_id });
+      const { data: acceptance, error: acceptError } = await db.rpc("accept_event_invitation", {
+        p_invite_id: invite.id, p_user_id: user.id, p_email: user.email,
+      });
+      if (acceptError || !acceptance?.accepted) {
+        const reason = acceptError?.message || "";
+        return json({ error: reason.includes("live_stream_not_provisioned") ? "The creator has not provisioned this live screening yet. Please try again later." : reason.includes("replay_not_ready") ? "The promised replay is not ready yet." : "Invitation acceptance could not be completed safely." }, 409);
+      }
+      return json({ success: true, ...acceptance, screeningId: invite.screening_id });
     }
 
     return json({ error: "Unsupported invitation action." }, 400);
