@@ -40,6 +40,10 @@ Deno.serve(async (req) => {
     const configuredBase = typeof baseSetting?.setting_value === "string" ? baseSetting.setting_value.toUpperCase() : "";
     if (baseSettingError || !/^[A-Z]{3}$/.test(configuredBase)) return respond({error:"Platform base currency is not configured.",code:"BASE_CURRENCY_UNCONFIGURED"},503);
 
+    const {data:baseSetting,error:baseSettingError} = await db.from("platform_settings").select("setting_value").eq("setting_key","base_currency").maybeSingle();
+    const configuredBase = typeof baseSetting?.setting_value === "string" ? baseSetting.setting_value.toUpperCase() : "";
+    if (baseSettingError || !/^[A-Z]{3}$/.test(configuredBase)) return respond({error:"Platform base currency is not configured.",code:"BASE_CURRENCY_UNCONFIGURED"},503);
+
     const edgeCountry = req.headers.get("cf-ipcountry")?.toUpperCase();
     const countryCode = edgeCountry && /^[A-Z]{2}$/.test(edgeCountry) ? edgeCountry : parsed.data.country?.toUpperCase();
     const countryRule = countryCode
