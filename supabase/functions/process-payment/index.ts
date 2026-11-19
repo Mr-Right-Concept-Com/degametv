@@ -146,28 +146,61 @@ if (import.meta.main) serve(async (req: Request) => {
     const authHeader = typeof config.settings?.credential_header === "string" ? config.settings.credential_header : "Authorization";
     const authPrefix = typeof config.settings?.credential_prefix === "string" ? config.settings.credential_prefix : "Bearer ";
     const callback = new URL("/buy/" + encodeURIComponent(screening.slug), siteOrigin).toString();
+    const checkoutAdapter = String(config.settings?.checkout_adapter ?? config.settings?.adapter ?? config.provider_key).toLowerCase();
+    const metadata = { screening_id: screening.id, ticket_id: ticketId, platform: "degame_tv", reference };
+    let requestBody: string;
+    let contentType = "application/json";
+    if (checkoutAdapter === "stripe") {
+      const form = new URLSearchParams({
+        mode: "payment", success_url: callback + "?session_id={CHECKOUT_SESSION_ID}",
+        cancel_url: callback, customer_email: email, client_reference_id: reference,
+        "line_items[0][price_data][currency]": currency.toLowerCase(),
+        "line_items[0][price_data][unit_amount]": String(amountMinor),
+        "line_items[0][price_data][product_data][name]": screening.title,
+        "line_items[0][quantity]": "1",
+        "metadata[reference]": reference, "metadata[screening_id]": screening.id, "metadata[ticket_id]": ticketId,
+      });
+      requestBody = form.toString(); contentType = "application/x-www-form-urlencoded";
+    } else if (checkoutAdapter === "paystack") {
+      requestBody = JSON.stringify({ email, amount: amountMinor, currency, reference, callback_url: callback, metadata });
+    } else if (checkoutAdapter === "flutterwave") {
+      requestBody = JSON.stringify({ tx_ref: reference, amount: convertedMajor, currency, redirect_url: callback, customer: { email }, customizations: { title: "DeGameTV", description: screening.title }, meta: metadata });
+    } else {
+      requestBody = JSON.stringify({ customer: { email }, amount_minor: amountMinor, currency, reference, callback_url: callback, metadata });
+    }
     const response = await fetch(checkoutUrl, {
       method: "POST",
-      headers: { [authHeader]: authPrefix + config.credential, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        customer: { email }, amount_minor: amountMinor, currency, reference, callback_url: callback,
-        metadata: { screening_id: screening.id, ticket_id: ticketId, platform: "degame_tv" },
-      }),
+      headers: { [authHeader]: authPrefix + config.credential, "Content-Type": contentType, Accept: "application/json" },
+      body: requestBody,
       signal: AbortSignal.timeout(15000),
     });
     const result = await response.json().catch(() => null);
-    if (!response.ok || result?.authorized !== true || typeof result?.checkout_url !== "string") {
+    let providerCheckoutUrl: string | null = null;
+    let providerCheckoutId: string | null = null;
+    if (checkoutAdapter === "paystack" && result?.status === true) {
+      providerCheckoutUrl = typeof result.data?.authorization_url === "string" ? result.data.authorization_url : null;
+      providerCheckoutId = typeof result.data?.reference === "string" ? result.data.reference : reference;
+    } else if (checkoutAdapter === "stripe" && response.ok) {
+      providerCheckoutUrl = typeof result?.url === "string" ? result.url : null;
+      providerCheckoutId = typeof result?.id === "string" ? result.id : null;
+    } else if (checkoutAdapter === "flutterwave" && response.ok && result?.status === "success") {
+      providerCheckoutUrl = typeof result.data?.link === "string" ? result.data.link : null;
+      providerCheckoutId = result.data?.id ? String(result.data.id) : null;
+    } else if (checkoutAdapter === "generic" && response.ok && result?.authorized === true) {
+      providerCheckoutUrl = typeof result.checkout_url === "string" ? result.checkout_url : null;
+      providerCheckoutId = typeof result.provider_checkout_id === "string" ? result.provider_checkout_id : null;
+    }
+    if (!response.ok || !providerCheckoutUrl) {
       await admin.from("guest_payment_orders").update({ status: "failed" }).eq("provider_reference", reference);
       await admin.from("screening_tickets").update({ payment_status: "failed" }).eq("id", ticketId);
       return json(502, { success: false, error: "The payment provider could not start checkout. You have not been charged." });
     }
-
-    const returnedCheckout = new URL(result.checkout_url);
+    const returnedCheckout = new URL(providerCheckoutUrl);
     if (returnedCheckout.protocol !== "https:") throw new Error("invalid_checkout_url");
     const allowedCheckoutOrigins = Array.isArray(config.settings?.allowed_checkout_origins) ? config.settings.allowed_checkout_origins : [];
     if (!allowedCheckoutOrigins.includes(returnedCheckout.origin)) throw new Error("untrusted_checkout_origin");
-    await admin.from("guest_payment_orders").update({ checkout_url: returnedCheckout.toString(), app_origin: siteOrigin }).eq("provider_reference", reference);
-    return json(200, { success: true, authorizationUrl: returnedCheckout.toString(), reference, screeningTitle: screening.title, amount: convertedMajor, currency });
+    await admin.from("guest_payment_orders").update({ checkout_url: returnedCheckout.toString(), provider_checkout_id: providerCheckoutId, app_origin: siteOrigin }).eq("provider_reference", reference);
+    return json(200, { success: true, authorizationUrl: returnedCheckout.toString(), reference, screeningTitle: screening.title, amount: convertedMajor, currency, provider: config.provider_key });
   } catch {
     return json(500, { success: false, error: "Checkout could not be started. Please retry or contact support." });
   }
