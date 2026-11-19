@@ -272,6 +272,8 @@ export default function BuyTicket() {
       }
       sessionStorage.setItem('degame_checkout_email', emailCheck.data);
       sessionStorage.setItem('degame_checkout_location', location);
+      if (countryCode) sessionStorage.setItem('degame_checkout_country', countryCode);
+      if (localCurrency) sessionStorage.setItem('degame_checkout_currency', localCurrency);
       window.location.assign(data.authorizationUrl);
     } catch { setPaymentError('Could not reach payment service. No charge was made.'); }
     finally { setProcessing(false); }
