@@ -120,8 +120,11 @@ Deno.serve(async (req) => {
         break;
       }
       case "feature_control_set": {
-        if(p.releaseState==="released"&&p.rolloutPercentage!==100)return json({error:"A released feature must have 100% rollout. Use canary for partial rollout."},400);
         const {data:previous} = await admin.from("platform_feature_controls").select("*").eq("feature_key",p.featureKey).maybeSingle();
+        if(p.releaseState==="canary"&&(!p.enabled||p.rolloutPercentage<1||p.rolloutPercentage>99))return json({error:"Canary requires enabled=true and rollout between 1% and 99%."},400);
+        if(p.releaseState==="released"&&(!p.enabled||p.rolloutPercentage!==100))return json({error:"A released feature requires enabled=true and 100% rollout."},400);
+        if(["draft","paused","rolled_back"].includes(p.releaseState)&&p.enabled)return json({error:"Draft, paused and rolled-back features must be disabled."},400);
+        if(p.releaseState==="released"&&(!previous||!["canary","released"].includes(previous.release_state)))return json({error:"A feature must pass through canary before its first full release."},409);
         const {data,error} = await admin.from("platform_feature_controls").upsert({
           feature_key:p.featureKey,enabled:p.enabled,rollout_percentage:p.rolloutPercentage,release_state:p.releaseState,
           config:p.config,change_reason:p.reason,updated_by:user.id,updated_at:new Date().toISOString()
