@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,7 @@ import { AlertCircle, Share2, Home, Clock, Mail, Shield, Globe, Tv2 } from 'luci
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import Hls from 'hls.js';
 
 export default function WatchMovie() {
   usePageTitle('Watch');
@@ -14,6 +15,8 @@ export default function WatchMovie() {
   const [loading, setLoading] = useState(true);
   const [ticket, setTicket] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     const validateTicket = async () => {
@@ -46,6 +49,32 @@ export default function WatchMovie() {
       setLoading(false);
     }
   }, [watchCode, searchParams]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    const source = ticket?.playbackUrl;
+    if (!video || !source) return;
+    let hls: Hls | null = null;
+    setPlaybackError(null);
+    if (Hls.isSupported()) {
+      hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+      hls.loadSource(source);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data.fatal) setPlaybackError('Secure playback was interrupted. Refresh your ticket to request a new short-lived playback grant.');
+      });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = source;
+    } else {
+      video.src = source;
+    }
+    return () => {
+      hls?.destroy();
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+    };
+  }, [ticket?.playbackUrl]);
 
   const handleShare = async () => {
     const url = window.location.href;
@@ -90,9 +119,11 @@ export default function WatchMovie() {
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-5xl px-4 pt-6">
-        <div role="status" className="rounded-md border border-warning/40 bg-warning/10 p-4 text-sm text-muted-foreground">
-          Your ticket is valid, but secure film delivery is not connected for this screening. Playback is unavailable; the original video file will not be exposed as a fallback.
+        <div className="overflow-hidden rounded-2xl border border-border bg-black shadow-xl">
+          <video ref={videoRef} controls playsInline preload="metadata" poster={ticket.moviePoster || undefined} className="aspect-video w-full bg-black" aria-label={`Watch ${ticket.movieTitle}`} />
         </div>
+        {playbackError && <p role="alert" className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{playbackError}</p>}
+        <p className="mt-2 text-xs text-muted-foreground">Playback is authorized by a short-lived provider grant. The original media URL is never exposed as a fallback.</p>
       </div>
 
 
@@ -114,7 +145,7 @@ export default function WatchMovie() {
             { icon: Mail, label: 'Email', value: ticket.email, color: 'text-primary' },
             { icon: Clock, label: 'Access ends', value: new Date(ticket.expiresAt).toLocaleDateString(), color: 'text-muted-foreground' },
             { icon: Tv2, label: 'Streams Left', value: `${ticket.streamsRemaining ?? '∞'} of ${ticket.maxStreams ?? '∞'}`, color: 'text-accent' },
-            { icon: Shield, label: 'Delivery', value: 'Provider unavailable', color: 'text-muted-foreground' },
+            { icon: Shield, label: 'Delivery', value: ticket.deliveryProvider || 'Secure provider', color: 'text-muted-foreground' },
           ].map((item) => (
             <div key={item.label} className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50">
               <div className={`w-9 h-9 rounded-full bg-card flex items-center justify-center ${item.color}`}>
