@@ -25,29 +25,56 @@ Deno.serve(async (req) => {
   const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   const requestUrl = new URL(req.url);
   const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
-  const edgeCountry = req.headers.get("cf-ipcountry")?.toUpperCase();
-  const requestedCountry = String(body?.country ?? requestUrl.searchParams.get("country") ?? "").toUpperCase() || undefined;
-  const localeRegion = req.headers.get("accept-language")?.split(",")[0]?.split("-")[1]?.toUpperCase();
-  const candidate = edgeCountry && countrySchema.safeParse(edgeCountry).success
-    ? edgeCountry
-    : requestedCountry && countrySchema.safeParse(requestedCountry).success
-      ? requestedCountry
-      : localeRegion && countrySchema.safeParse(localeRegion).success ? localeRegion : null;
+  const authorization = req.headers.get("Authorization");
+  let userId: string | null = null;
+  if (authorization?.startsWith("Bearer ")) {
+    const { data } = await db.auth.getUser(authorization.slice(7));
+    userId = data.user?.id ?? null;
+  }
 
-  const visitorId = typeof body?.visitorId === "string" && /^[A-Za-z0-9_-]{8,128}$/.test(body.visitorId) ? body.visitorId : "anonymous";
-  const [countries, features] = await Promise.all([
+  const visitorId = typeof body?.visitorId === "string" && /^[A-Za-z0-9_-]{8,128}$/.test(body.visitorId)
+    ? body.visitorId
+    : "anonymous";
+  const profileQuery = userId
+    ? db.from("profiles").select("preferred_country,preferred_currency,locale_code").eq("user_id", userId).maybeSingle()
+    : Promise.resolve({ data: null, error: null });
+  const [countries, features, profileResult] = await Promise.all([
     db.from("country_currency_rules")
       .select("country_code,currency_code,currency_symbol,locale_code,timezone_name")
       .eq("enabled", true).order("country_code"),
     db.from("platform_feature_controls")
-      .select("feature_key")
-      
+      .select("feature_key,enabled,rollout_percentage,release_state"),
+    profileQuery,
   ]);
-  if (countries.error || features.error) return response({ error: "Runtime configuration could not be loaded." }, 503);
+  if (countries.error || features.error || profileResult.error) {
+    return response({ error: "Runtime configuration could not be loaded." }, 503);
+  }
 
+  const profile = profileResult.data;
+  const edgeCountry = req.headers.get("cf-ipcountry")?.toUpperCase();
+  const requestedCountry = String(body?.country ?? requestUrl.searchParams.get("country") ?? "").toUpperCase();
+  const localeRegion = req.headers.get("accept-language")?.split(",")[0]?.split("-")[1]?.toUpperCase();
+  const preferredCountry = profile?.preferred_country?.toUpperCase();
+  const candidate = preferredCountry && countrySchema.safeParse(preferredCountry).success
+    ? preferredCountry
+    : edgeCountry && countrySchema.safeParse(edgeCountry).success
+      ? edgeCountry
+      : countrySchema.safeParse(requestedCountry).success
+        ? requestedCountry
+        : localeRegion && countrySchema.safeParse(localeRegion).success ? localeRegion : null;
   const country = candidate ? countries.data?.find((item) => item.country_code === candidate) : undefined;
-  const userCurrency = String(body?.currency ?? requestUrl.searchParams.get("currency") ?? "").toUpperCase() || undefined;
-  const validOverride = userCurrency && currencySchema.safeParse(userCurrency).success ? userCurrency : null;
+
+  const requestedCurrency = String(body?.currency ?? requestUrl.searchParams.get("currency") ?? "").toUpperCase();
+  const preferredCurrency = profile?.preferred_currency?.toUpperCase();
+  const currency = [requestedCurrency, preferredCurrency].find((value) =>
+    value && currencySchema.safeParse(value).success
+  ) ?? country?.currency_code ?? "USD";
+  const locale = profile?.locale_code
+    ?? country?.locale_code
+    ?? req.headers.get("accept-language")?.split(",")[0]
+    ?? "en";
+
+  const cohortId = userId ?? visitorId;
   const runtimeFeatures = await Promise.all((features.data ?? []).map(async (feature) => {
     if (!feature.enabled || ["draft", "paused", "rolled_back"].includes(feature.release_state)) {
       return { key: feature.feature_key, enabled: false };
@@ -55,16 +82,17 @@ Deno.serve(async (req) => {
     if (feature.release_state === "released") {
       return { key: feature.feature_key, enabled: feature.rollout_percentage === 100 };
     }
-    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(visitorId + ":" + feature.feature_key));
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(cohortId + ":" + feature.feature_key));
     const bucket = new DataView(digest).getUint32(0, false) % 100;
     return { key: feature.feature_key, enabled: bucket < feature.rollout_percentage };
   }));
+
   return response({
-    cohortId: visitorId,
-    geo: { countryCode: candidate, source: edgeCountry ? "edge" : requestedCountry ? "explicit" : localeRegion ? "locale_hint" : "unknown" },
-    locale: country?.locale_code ?? req.headers.get("accept-language")?.split(",")[0] ?? "en",
-    currency: validOverride ?? country?.currency_code ?? "USD",
-    currencySymbol: validOverride ? null : country?.currency_symbol ?? "$",
+    cohortId,
+    geo: { countryCode: candidate, source: preferredCountry ? "profile_preference" : edgeCountry ? "edge" : requestedCountry ? "explicit" : localeRegion ? "locale_hint" : "unknown" },
+    locale,
+    currency,
+    currencySymbol: currency === country?.currency_code ? country.currency_symbol : null,
     countryCurrency: country ?? null,
     countries: countries.data ?? [],
     features: runtimeFeatures,
