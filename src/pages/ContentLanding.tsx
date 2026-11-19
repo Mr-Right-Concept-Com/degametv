@@ -120,9 +120,11 @@ export default function ContentLanding() {
     } catch { toast.message('Copy this page address to share it.'); }
   };
 
-  const money = (amount: number | null) => amount == null || amount <= 0
-    ? 'Unavailable'
-    : currency === 'NGN' ? '₦' + amount.toLocaleString() : '
+  const money = (amount: number | null) => {
+    if (amount == null || amount <= 0) return 'Unavailable';
+    try { return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount); }
+    catch { return currency + ' ' + amount.toLocaleString(); }
+  };
 
   if (loading) return <MainLayout><div className="flex min-h-[60vh] items-center justify-center"><Loader2 className="h-7 w-7 animate-spin" /></div></MainLayout>;
   if (!content) return <MainLayout><div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center px-4 text-center"><Film className="mb-4 h-12 w-12 text-muted-foreground" /><h1 className="text-xl font-bold">This title is not available</h1><p className="mt-2 text-sm text-muted-foreground">The page may be unpublished or the link may be incorrect.</p><Button asChild className="mt-5"><Link to="/cinema">Browse cinema</Link></Button></div></MainLayout>;
