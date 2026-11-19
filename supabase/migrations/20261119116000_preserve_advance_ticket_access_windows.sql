@@ -118,6 +118,21 @@ SECURITY DEFINER
 SET search_path=public,pg_temp
 AS $$
 BEGIN
+ IF (NEW.lifecycle IN ('cancelled','canceled') OR NEW.cancelled_at IS NOT NULL)
+    AND NOT (OLD.lifecycle IN ('cancelled','canceled') OR OLD.cancelled_at IS NOT NULL) THEN
+  UPDATE public.tickets SET revoked_at=now(),revocation_reason='event_cancelled'
+   WHERE metadata->>'screening_id'=NEW.id::text AND revoked_at IS NULL;
+  UPDATE public.screening_tickets SET revoked_at=now(),revocation_reason='event_cancelled',
+    active_session_expires_at=now(),active_session_token=NULL
+   WHERE screening_id=NEW.id AND refunded_at IS NULL AND revoked_at IS NULL;
+  UPDATE public.screening_playback_sessions SET revoked_at=now()
+   WHERE screening_id=NEW.id AND revoked_at IS NULL;
+  UPDATE public.event_access_invites SET status='revoked'
+   WHERE screening_id=NEW.id AND status IN ('pending','sent','accepted');
+  UPDATE public.event_ticket_reservations SET status=CASE WHEN status='complimentary' THEN 'refunded' ELSE 'failed' END
+   WHERE screening_id=NEW.id AND status IN ('pending','complimentary');
+  RETURN NEW;
+ END IF;
  IF NEW.live_ended_at IS NOT NULL AND OLD.live_ended_at IS NULL THEN
   UPDATE public.tickets SET valid_until=NEW.live_ended_at+interval '24 hours'
    WHERE metadata->>'screening_id'=NEW.id::text AND ticket_type='live' AND valid_until='infinity'::timestamptz AND revoked_at IS NULL;
@@ -136,7 +151,7 @@ END;
 $$;
 DROP TRIGGER IF EXISTS screening_ticket_validity_windows ON public.screenings;
 CREATE TRIGGER screening_ticket_validity_windows
-AFTER UPDATE OF live_ended_at,live_replay_ready_at ON public.screenings
+AFTER UPDATE OF lifecycle,cancelled_at,live_ended_at,live_replay_ready_at ON public.screenings
 FOR EACH ROW EXECUTE FUNCTION public.sync_event_ticket_validity_windows();
 REVOKE ALL ON FUNCTION public.sync_event_ticket_validity_windows() FROM PUBLIC,anon,authenticated;
 
