@@ -29,6 +29,7 @@ export function ProviderRegistryPanel(){
   const [testWebhookSecret,setTestWebhookSecret]=useState('');
   const [liveWebhookSecret,setLiveWebhookSecret]=useState('');
   const [live,setLive]=useState(false);
+  const [priority,setPriority]=useState(100);
   const [enabled,setEnabled]=useState(false);
   const [endpoints,setEndpoints]=useState('{}');
   const [settings,setSettings]=useState('{}');
@@ -44,7 +45,7 @@ export function ProviderRegistryPanel(){
     catch{toast.error('Endpoints and settings must be JSON objects.');return;}
     setSaving(true);
     try{
-      const r=await invokeFn('admin-provider-control',{action:'configure',capability,providerKey,baseUrl,enabled,live,endpoints:endpointValue,settings:settingValue,testCredential:testCredential||undefined,liveCredential:liveCredential||undefined,testWebhookSecret:testWebhookSecret||undefined,liveWebhookSecret:liveWebhookSecret||undefined});
+      const r=await invokeFn('admin-provider-control',{action:'configure',capability,providerKey,baseUrl,enabled,live,priority,endpoints:endpointValue,settings:settingValue,testCredential:testCredential||undefined,liveCredential:liveCredential||undefined,testWebhookSecret:testWebhookSecret||undefined,liveWebhookSecret:liveWebhookSecret||undefined});
       if(!r.ok)throw new Error(r.error);
       toast.success('Provider configuration saved to the Vault-backed registry.');
       setTestCredential('');setLiveCredential('');setTestWebhookSecret('');setLiveWebhookSecret('');await load();
@@ -56,7 +57,7 @@ export function ProviderRegistryPanel(){
     catch(e){toast.error((e as Error).message);}finally{setSaving(false);}
   };
   const edit=(row:Provider)=>{
-    setCapability(row.capability);setProviderKey(row.provider_key);setBaseUrl(row.base_url||'');setEndpoints(JSON.stringify(row.endpoints||{},null,2));setSettings(JSON.stringify(row.settings||{},null,2));setEnabled(row.enabled);setLive(row.is_live);
+    setCapability(row.capability);setProviderKey(row.provider_key);setBaseUrl(row.base_url||'');setEndpoints(JSON.stringify(row.endpoints||{},null,2));setSettings(JSON.stringify(row.settings||{},null,2));setEnabled(row.enabled);setLive(row.is_live);setPriority(row.priority ?? 100);
     toast.message('Provider configuration loaded. Add or rotate test/live secrets only if needed, then save to apply runtime settings.');
   };
   const remove=async(row:Provider)=>{
@@ -70,13 +71,14 @@ export function ProviderRegistryPanel(){
         <div className="space-y-2"><Label>Capability</Label><Select value={capability} onValueChange={v=>setCapability(v as Capability)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{capabilities.map(c=><SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
         <div className="space-y-2"><Label>Provider adapter key</Label><Input value={providerKey} onChange={e=>setProviderKey(e.target.value.trim().toLowerCase())} placeholder="Your provider adapter identifier"/></div>
         <div className="space-y-2 md:col-span-2"><Label>HTTPS API base URL</Label><Input value={baseUrl} onChange={e=>setBaseUrl(e.target.value)} placeholder="https://api.provider.example"/></div>
+        <div className="space-y-2"><Label>Routing priority (lower number wins)</Label><Input type="number" min={0} max={10000} step={1} value={priority} onChange={e=>setPriority(Math.max(0,Math.min(10000,Number(e.target.value)||0)))}/></div>
         <div className="space-y-2"><Label>Test API credential</Label><Input type="password" autoComplete="new-password" value={testCredential} onChange={e=>setTestCredential(e.target.value)} placeholder="Test/sandbox secret key — stored in Vault"/></div>
         <div className="space-y-2"><Label>Live API credential</Label><Input type="password" autoComplete="new-password" value={liveCredential} onChange={e=>setLiveCredential(e.target.value)} placeholder="Live/production secret key — stored in Vault"/></div>
         <div className="space-y-2"><Label>Test webhook signing secret</Label><Input type="password" autoComplete="new-password" value={testWebhookSecret} onChange={e=>setTestWebhookSecret(e.target.value)} placeholder="Sandbox webhook secret"/></div>
         <div className="space-y-2"><Label>Live webhook signing secret</Label><Input type="password" autoComplete="new-password" value={liveWebhookSecret} onChange={e=>setLiveWebhookSecret(e.target.value)} placeholder="Production webhook secret"/></div>
         <div className="space-y-2"><Label>Endpoint contract JSON</Label><Textarea value={endpoints} onChange={e=>setEndpoints(e.target.value)} rows={5} className="font-mono text-xs"/></div>
         <div className="space-y-2"><Label>Provider settings JSON</Label><Textarea value={settings} onChange={e=>setSettings(e.target.value)} rows={5} className="font-mono text-xs"/></div>
-        <div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/> Enable binding</label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={live} onChange={e=>setLive(e.target.checked)}/> Live mode</label><p className="w-full text-xs text-muted-foreground">Priority can be set in Provider settings JSON as <code>{'{"priority": 1}'}</code>. Lower numbers win. A successful health_check response must be JSON with <code>ok: true</code> or <code>status: true</code>. Test and live credentials and webhook secrets are separate; a mode switch takes effect immediately after saving.</p></div>
+        <div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/> Enable binding</label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={live} onChange={e=>setLive(e.target.checked)}/> Live mode</label><p className="w-full text-xs text-muted-foreground">A successful health_check response must be JSON with <code>ok: true</code> or <code>status: true</code>. Test and live credentials and webhook secrets are separate; a mode switch takes effect immediately after saving.</p></div>
         <div className="flex justify-end"><Button onClick={save} disabled={saving||!providerKey||!baseUrl}>{saving&&<Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Save provider</Button></div>
       </CardContent>
     </Card>
