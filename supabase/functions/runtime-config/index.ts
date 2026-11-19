@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
     : Promise.resolve({ data: null, error: null });
   const [countries, features, profileResult, siteSetting] = await Promise.all([
     db.from("country_currency_rules")
-      .select("country_code,currency_code,currency_symbol,locale_code,timezone_name")
+      .select("country_code,currency_code,currency_symbol,locale_code,timezone_name,metadata")
       .eq("enabled", true).order("country_code"),
     db.from("platform_feature_controls")
       .select("feature_key,enabled,rollout_percentage,release_state"),
@@ -71,8 +71,8 @@ Deno.serve(async (req) => {
     value && currencySchema.safeParse(value).success
   ) ?? country?.currency_code ?? "USD";
   const locale = profile?.locale_code
-    ?? country?.locale_code
     ?? req.headers.get("accept-language")?.split(",")[0]
+    ?? country?.locale_code
     ?? "en";
 
   const cohortId = userId ?? visitorId;
