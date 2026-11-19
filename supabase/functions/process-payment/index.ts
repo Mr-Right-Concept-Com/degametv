@@ -107,7 +107,7 @@ if (import.meta.main) serve(async (req: Request) => {
     }
 
     const { data: screening, error: screeningError } = await admin.from("screenings")
-      .select("id,tenant_id,title,slug,status,location_pricing,screening_date,lifecycle,replay_price_ngn,replay_price_usd")
+      .select("id,tenant_id,title,slug,status,location_pricing,screening_date,lifecycle,replay_price_ngn,replay_price_usd,base_price,base_currency,replay_base_price")
       .eq("id", screeningId).eq("status", "published").maybeSingle();
     if (screeningError || !screening) return json(404, { success: false, error: "This screening is no longer available." });
     if (screening.screening_date && new Date(screening.screening_date).getTime() < Date.now() && screening.lifecycle !== "replay") {
@@ -115,14 +115,18 @@ if (import.meta.main) serve(async (req: Request) => {
     }
 
     const pricing = typeof screening.location_pricing === "string" ? JSON.parse(screening.location_pricing) : screening.location_pricing;
-    const replayPrice = effectiveLocation === "nigeria" ? screening.replay_price_ngn : screening.replay_price_usd;
-    const major = Number(screening.lifecycle === "replay" && replayPrice !== null && replayPrice !== undefined
-      ? replayPrice : (effectiveLocation === "nigeria" ? pricing?.nigeria : pricing?.international));
-    if (!Number.isFinite(major) || major <= 0) return json(409, { success: false, error: "Ticket pricing is not configured for this location." });
+    const legacyReplayPrice = effectiveLocation === "nigeria" ? screening.replay_price_ngn : screening.replay_price_usd;
+    const legacyBasePrice = effectiveLocation === "nigeria" ? pricing?.nigeria : pricing?.international;
+    const hasBasePrice = screening.base_price !== null && screening.base_price !== undefined;
+    const major = Number(screening.lifecycle === "replay"
+      ? (hasBasePrice ? screening.replay_base_price : legacyReplayPrice)
+      : (hasBasePrice ? screening.base_price : legacyBasePrice));
+    const priceCurrency = hasBasePrice ? String(screening.base_currency || "").toUpperCase() : sourceCurrency;
+    if (!Number.isFinite(major) || major <= 0 || !/^[A-Z]{3}$/.test(priceCurrency)) return json(409, { success: false, error: "Ticket pricing is not configured in a supported currency." });
 
     const supportedCurrencies = Array.isArray(config.settings?.supported_currencies) ? config.settings.supported_currencies : [];
     if (!supportedCurrencies.includes(currency)) return json(422, { success: false, error: "The selected payment provider does not support this transaction currency." });
-    const convertedMajor = await convertAmount(url, service, major, sourceCurrency, currency, countryCode);
+    const convertedMajor = await convertAmount(url, service, major, priceCurrency, currency, countryCode);
     const fractionDigits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits;
     const amountMinor = Math.round(convertedMajor * Math.pow(10, fractionDigits));
     const { data: commissionSetting, error: commissionError } = await admin.from("platform_settings").select("setting_value").eq("setting_key", "commission_rates").maybeSingle();
