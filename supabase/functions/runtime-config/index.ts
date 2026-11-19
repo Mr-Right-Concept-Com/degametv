@@ -52,28 +52,31 @@ Deno.serve(async (req) => {
   }
 
   const profile = profileResult.data;
+  const enabledCountries = countries.data ?? [];
+  const enabledCountryCodes = new Set(enabledCountries.map((item) => item.country_code));
   const edgeCountry = req.headers.get("cf-ipcountry")?.toUpperCase();
   const requestedCountry = String(body?.country ?? requestUrl.searchParams.get("country") ?? "").toUpperCase();
-  const localeRegion = req.headers.get("accept-language")?.split(",")[0]?.split("-")[1]?.toUpperCase();
+  const acceptLanguage = req.headers.get("accept-language")?.split(",")[0]?.trim();
+  const localeRegion = acceptLanguage?.split("-")[1]?.toUpperCase();
   const preferredCountry = profile?.preferred_country?.toUpperCase();
-  const candidate = preferredCountry && countrySchema.safeParse(preferredCountry).success
-    ? preferredCountry
-    : edgeCountry && countrySchema.safeParse(edgeCountry).success
-      ? edgeCountry
-      : countrySchema.safeParse(requestedCountry).success
-        ? requestedCountry
-        : localeRegion && countrySchema.safeParse(localeRegion).success ? localeRegion : null;
-  const country = candidate ? countries.data?.find((item) => item.country_code === candidate) : undefined;
+  const candidate = [preferredCountry, edgeCountry, requestedCountry, localeRegion]
+    .find((value) => value && countrySchema.safeParse(value).success && enabledCountryCodes.has(value)) ?? null;
+  const country = candidate ? enabledCountries.find((item) => item.country_code === candidate) : undefined;
+  const configuredBaseCurrency = typeof baseSetting?.setting_value === "string" && currencySchema.safeParse(baseSetting.setting_value).success ? baseSetting.setting_value : "USD";
 
+  const supportedCurrencies = new Set(enabledCountries.map((item) => item.currency_code));
   const requestedCurrency = String(body?.currency ?? requestUrl.searchParams.get("currency") ?? "").toUpperCase();
   const preferredCurrency = profile?.preferred_currency?.toUpperCase();
   const currency = [requestedCurrency, preferredCurrency].find((value) =>
-    value && currencySchema.safeParse(value).success
-  ) ?? country?.currency_code ?? "USD";
-  const locale = profile?.locale_code
-    ?? req.headers.get("accept-language")?.split(",")[0]
-    ?? country?.locale_code
-    ?? "en";
+    value && currencySchema.safeParse(value).success && supportedCurrencies.has(value)
+  ) ?? country?.currency_code ?? configuredBaseCurrency;
+
+  const profileLocale = typeof profile?.locale_code === "string"
+    && /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(profile.locale_code)
+    ? profile.locale_code : null;
+  const browserLocale = acceptLanguage && /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(acceptLanguage)
+    ? acceptLanguage : null;
+  const locale = profileLocale ?? browserLocale ?? country?.locale_code ?? "en";
 
   const cohortId = userId ?? visitorId;
   const rawWebUrl = typeof siteSetting.data?.setting_value === "string" ? siteSetting.data.setting_value : "";
