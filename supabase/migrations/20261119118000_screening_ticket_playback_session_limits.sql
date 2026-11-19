@@ -79,8 +79,13 @@ DECLARE v_session public.screening_ticket_playback_sessions%ROWTYPE; v_ticket pu
 BEGIN
  IF auth.role()<>'service_role' THEN RAISE EXCEPTION 'service_role_required' USING ERRCODE='42501'; END IF;
  SELECT * INTO v_ticket FROM public.screening_tickets WHERE id=p_ticket_id;
- IF NOT FOUND OR v_ticket.payment_status<>'completed' OR v_ticket.refunded_at IS NOT NULL OR v_ticket.revoked_at IS NOT NULL THEN
+ IF NOT FOUND OR v_ticket.payment_status<>'completed' OR v_ticket.refunded_at IS NOT NULL OR v_ticket.revoked_at IS NOT NULL
+   OR v_ticket.expires_at<=now() THEN
   RAISE EXCEPTION 'ticket_not_playable' USING ERRCODE='42501';
+ END IF;
+ IF v_ticket.first_played_at IS NOT NULL AND v_ticket.access_hours IS NOT NULL
+   AND now()>v_ticket.first_played_at+make_interval(hours=>v_ticket.access_hours) THEN
+  RAISE EXCEPTION 'ticket_viewing_window_expired' USING ERRCODE='42501';
  END IF;
  SELECT * INTO v_session FROM public.screening_ticket_playback_sessions
   WHERE ticket_id=p_ticket_id AND session_token_hash=p_session_token_hash AND revoked_at IS NULL AND expires_at>now()
