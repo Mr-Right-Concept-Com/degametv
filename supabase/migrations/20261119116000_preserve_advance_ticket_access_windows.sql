@@ -118,8 +118,8 @@ SECURITY DEFINER
 SET search_path=public,pg_temp
 AS $$
 BEGIN
- IF (NEW.lifecycle IN ('cancelled','canceled') OR NEW.cancelled_at IS NOT NULL)
-    AND NOT (OLD.lifecycle IN ('cancelled','canceled') OR OLD.cancelled_at IS NOT NULL) THEN
+ IF (NEW.lifecycle::text IN ('cancelled','canceled') OR NEW.cancelled_at IS NOT NULL)
+    AND NOT (OLD.lifecycle::text IN ('cancelled','canceled') OR OLD.cancelled_at IS NOT NULL) THEN
   UPDATE public.tickets SET revoked_at=now(),revocation_reason='event_cancelled'
    WHERE metadata->>'screening_id'=NEW.id::text AND revoked_at IS NULL;
   UPDATE public.screening_tickets SET revoked_at=now(),revocation_reason='event_cancelled',
