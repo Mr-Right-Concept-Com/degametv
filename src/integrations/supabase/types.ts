@@ -722,7 +722,10 @@ export type Database = {
           email_sent_at: string | null
           id: string
           paid_at: string | null
+          platform_fee_major: number
           provider: string
+          provider_checkout_id: string | null
+          provider_mode: string
           provider_reference: string
           provider_transaction_id: string | null
           status: string
@@ -739,7 +742,10 @@ export type Database = {
           email_sent_at?: string | null
           id?: string
           paid_at?: string | null
+          platform_fee_major?: number
           provider: string
+          provider_checkout_id?: string | null
+          provider_mode?: string
           provider_reference: string
           provider_transaction_id?: string | null
           status?: string
@@ -756,7 +762,10 @@ export type Database = {
           email_sent_at?: string | null
           id?: string
           paid_at?: string | null
+          platform_fee_major?: number
           provider?: string
+          provider_checkout_id?: string | null
+          provider_mode?: string
           provider_reference?: string
           provider_transaction_id?: string | null
           status?: string
@@ -859,16 +868,22 @@ export type Database = {
       }
       live_payment_orders: {
         Row: {
+          amount_major: number | null
           amount_minor: number
           checkout_url: string | null
           created_at: string
           currency: string
           email: string
+          email_delivery_claimed_at: string | null
+          email_sent_at: string | null
           guest_checkout: boolean
           id: string
           metadata: Json
           paid_at: string | null
+          platform_fee_major: number
           provider: string
+          provider_checkout_id: string | null
+          provider_mode: string
           provider_reference: string
           provider_transaction_id: string | null
           screening_id: string
@@ -880,16 +895,22 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          amount_major?: number | null
           amount_minor: number
           checkout_url?: string | null
           created_at?: string
           currency: string
           email: string
+          email_delivery_claimed_at?: string | null
+          email_sent_at?: string | null
           guest_checkout?: boolean
           id?: string
           metadata?: Json
           paid_at?: string | null
+          platform_fee_major?: number
           provider: string
+          provider_checkout_id?: string | null
+          provider_mode?: string
           provider_reference: string
           provider_transaction_id?: string | null
           screening_id: string
@@ -901,16 +922,22 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          amount_major?: number | null
           amount_minor?: number
           checkout_url?: string | null
           created_at?: string
           currency?: string
           email?: string
+          email_delivery_claimed_at?: string | null
+          email_sent_at?: string | null
           guest_checkout?: boolean
           id?: string
           metadata?: Json
           paid_at?: string | null
+          platform_fee_major?: number
           provider?: string
+          provider_checkout_id?: string | null
+          provider_mode?: string
           provider_reference?: string
           provider_transaction_id?: string | null
           screening_id?: string
@@ -1213,6 +1240,75 @@ export type Database = {
           webhook_secret_ref?: string | null
         }
         Relationships: []
+      }
+      payment_refunds: {
+        Row: {
+          amount_minor: number
+          created_at: string
+          currency: string
+          error_code: string | null
+          id: string
+          live_ticket_id: string | null
+          payment_reference: string
+          provider: string
+          provider_mode: string
+          provider_refund_id: string | null
+          reason: string
+          requested_by: string
+          status: string
+          ticket_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount_minor: number
+          created_at?: string
+          currency: string
+          error_code?: string | null
+          id?: string
+          live_ticket_id?: string | null
+          payment_reference: string
+          provider: string
+          provider_mode: string
+          provider_refund_id?: string | null
+          reason: string
+          requested_by: string
+          status?: string
+          ticket_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount_minor?: number
+          created_at?: string
+          currency?: string
+          error_code?: string | null
+          id?: string
+          live_ticket_id?: string | null
+          payment_reference?: string
+          provider?: string
+          provider_mode?: string
+          provider_refund_id?: string | null
+          reason?: string
+          requested_by?: string
+          status?: string
+          ticket_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_refunds_live_ticket_id_fkey"
+            columns: ["live_ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_refunds_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "screening_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payments: {
         Row: {
@@ -1876,6 +1972,8 @@ export type Database = {
           allowed_countries: string[] | null
           auto_convert_to_vod: boolean
           banner_url: string | null
+          base_currency: string | null
+          base_price: number | null
           blocked_countries: string[] | null
           cancelled_at: string | null
           cast_crew: Json | null
@@ -1903,6 +2001,7 @@ export type Database = {
           release_date: string | null
           replay_access_hours: number
           replay_access_model: string
+          replay_base_price: number | null
           replay_price_ngn: number | null
           replay_price_usd: number | null
           review_count: number | null
@@ -1921,6 +2020,8 @@ export type Database = {
           allowed_countries?: string[] | null
           auto_convert_to_vod?: boolean
           banner_url?: string | null
+          base_currency?: string | null
+          base_price?: number | null
           blocked_countries?: string[] | null
           cancelled_at?: string | null
           cast_crew?: Json | null
@@ -1948,6 +2049,7 @@ export type Database = {
           release_date?: string | null
           replay_access_hours?: number
           replay_access_model?: string
+          replay_base_price?: number | null
           replay_price_ngn?: number | null
           replay_price_usd?: number | null
           review_count?: number | null
@@ -1966,6 +2068,8 @@ export type Database = {
           allowed_countries?: string[] | null
           auto_convert_to_vod?: boolean
           banner_url?: string | null
+          base_currency?: string | null
+          base_price?: number | null
           blocked_countries?: string[] | null
           cancelled_at?: string | null
           cast_crew?: Json | null
@@ -1993,6 +2097,7 @@ export type Database = {
           release_date?: string | null
           replay_access_hours?: number
           replay_access_model?: string
+          replay_base_price?: number | null
           replay_price_ngn?: number | null
           replay_price_usd?: number | null
           review_count?: number | null
@@ -2892,6 +2997,23 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_configure_service_provider_modes_with_priority: {
+        Args: {
+          p_base_url: string
+          p_capability: string
+          p_enabled: boolean
+          p_endpoints: Json
+          p_is_live: boolean
+          p_live_credential: string
+          p_live_webhook_secret: string
+          p_priority: number
+          p_provider_key: string
+          p_settings: Json
+          p_test_credential: string
+          p_test_webhook_secret: string
+        }
+        Returns: Json
+      }
       admin_upsert_country_currency_rule: {
         Args: {
           p_country_code: string
@@ -2948,6 +3070,10 @@ export type Database = {
       }
       claim_guest_tickets: { Args: never; Returns: number }
       claim_live_guest_ticket: { Args: { p_token_hash: string }; Returns: Json }
+      claim_live_payment_email: {
+        Args: { p_reference: string }
+        Returns: boolean
+      }
       complete_guest_payment_order: {
         Args: {
           p_amount_minor: number
@@ -2977,6 +3103,10 @@ export type Database = {
             }
             Returns: Json
           }
+      complete_payment_refund: {
+        Args: { p_provider_refund_id: string; p_refund_id: string }
+        Returns: Json
+      }
       create_creator_screening: {
         Args: {
           p_content_id: string
@@ -2994,6 +3124,41 @@ export type Database = {
           p_currency: string
           p_email: string
           p_location: string
+          p_provider: string
+          p_reference: string
+          p_screening_id: string
+          p_tenant_id: string
+          p_ticket_code: string
+          p_watch_code: string
+        }
+        Returns: string
+      }
+      create_guest_payment_order_v2: {
+        Args: {
+          p_amount_major: number
+          p_amount_minor: number
+          p_app_origin: string
+          p_currency: string
+          p_email: string
+          p_location: string
+          p_provider: string
+          p_reference: string
+          p_screening_id: string
+          p_tenant_id: string
+          p_ticket_code: string
+          p_watch_code: string
+        }
+        Returns: string
+      }
+      create_guest_payment_order_v3: {
+        Args: {
+          p_amount_major: number
+          p_amount_minor: number
+          p_app_origin: string
+          p_currency: string
+          p_email: string
+          p_location: string
+          p_platform_fee_major: number
           p_provider: string
           p_reference: string
           p_screening_id: string
