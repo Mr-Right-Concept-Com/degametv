@@ -17,11 +17,11 @@ const capabilities: {value:Capability;label:string}[] = [
   {value:'bank_verification',label:'Bank verification'},{value:'video_delivery',label:'Video delivery'},
   {value:'email',label:'Email delivery'},{value:'live_streaming',label:'Live streaming'},{value:'fx_rates',label:'Foreign exchange (FX)'},
 ];
-export function ProviderRegistryPanel(){
+export function ProviderRegistryPanel({initialCapability='payments'}:{initialCapability?:Capability}){
   const [rows,setRows]=useState<Provider[]>([]);
   const [busy,setBusy]=useState(false);
   const [saving,setSaving]=useState(false);
-  const [capability,setCapability]=useState<Capability>('payments');
+  const [capability,setCapability]=useState<Capability>(initialCapability);
   const [providerKey,setProviderKey]=useState('');
   const [baseUrl,setBaseUrl]=useState('');
   const [testCredential,setTestCredential]=useState('');
