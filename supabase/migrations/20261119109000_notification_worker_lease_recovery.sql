@@ -14,7 +14,7 @@ BEGIN
   SELECT o.id FROM public.event_notification_outbox o
   WHERE (
     o.status IN ('pending','failed')
-    OR (o.status='processing' AND o.claimed_at < now()-interval '10 minutes')
+    OR (o.status='processing' AND coalesce(o.claimed_at,o.created_at) < now()-interval '10 minutes')
   ) AND o.scheduled_for<=now() AND o.attempts<8
   ORDER BY o.scheduled_for,o.created_at
   FOR UPDATE SKIP LOCKED LIMIT greatest(1,least(p_limit,100))
