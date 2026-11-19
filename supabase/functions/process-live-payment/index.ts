@@ -108,29 +108,44 @@ serve(async(req:Request)=>{
    metadata:{created_from:"viewer_checkout",guest_checkout:!user,provider_mode:"live",country_code:countryCode,source_currency:sourceCurrency,base_amount:baseAmount},
   });
   if(insertError)return json(503,{error:"Could not create a secure ticket order. No charge was made."});
-  let checkoutUrl:string|null=null,selected:any=null;
+  let checkoutUrl:string|null=null,selected:any=null,selectedCheckoutId:string|null=null;
   for(const provider of usable){
    try{
     const target=new URL(provider.endpoints.checkout_initialize,provider.base_url);
     if(target.origin!==new URL(provider.base_url).origin)continue;
     const header=provider.settings?.credential_header||"Authorization",prefix=provider.settings?.credential_prefix??"Bearer ";
     const callbackUrl=new URL("/payment/return?reference="+reference,siteOrigin).toString();
-    const adapter=String(provider.settings?.adapter??provider.provider_key).toLowerCase();
-    const requestBody=adapter==="paystack"
-     ? {email,amount:minor,currency,reference,callback_url:callbackUrl,metadata:{screening_id:screening.id,stream_id:stream.id,ticket_type:ticketType,country_code:countryCode}}
-     : {customer:{email},amount_minor:minor,currency,reference,callback_url:callbackUrl,metadata:{screening_id:screening.id,stream_id:stream.id,ticket_type:ticketType,country_code:countryCode}};
-    const response=await fetch(target,{method:"POST",headers:{[header]:prefix+provider.credential,"Content-Type":"application/json"},body:JSON.stringify(requestBody),signal:AbortSignal.timeout(15000)});
+    const adapter=String(provider.settings?.checkout_adapter??provider.settings?.adapter??provider.provider_key).toLowerCase();
+    const metadata={screening_id:screening.id,stream_id:stream.id,ticket_type:ticketType,country_code:countryCode,reference};
+    let body:string,contentType="application/json";
+    if(adapter==="stripe"){
+     const form=new URLSearchParams({mode:"payment",success_url:callbackUrl+"&session_id={CHECKOUT_SESSION_ID}",cancel_url:callbackUrl,customer_email:email,client_reference_id:reference,
+      "line_items[0][price_data][currency]":currency.toLowerCase(),"line_items[0][price_data][unit_amount]":String(minor),
+      "line_items[0][price_data][product_data][name]":screening.title,"line_items[0][quantity]":"1",
+      "metadata[reference]":reference,"metadata[screening_id]":screening.id,"metadata[stream_id]":stream.id,"metadata[ticket_type]":ticketType,"metadata[country_code]":countryCode});
+     body=form.toString();contentType="application/x-www-form-urlencoded";
+    }else if(adapter==="paystack"){
+     body=JSON.stringify({email,amount:minor,currency,reference,callback_url:callbackUrl,metadata});
+    }else if(adapter==="flutterwave"){
+     body=JSON.stringify({tx_ref:reference,amount:convertedAmount,currency,redirect_url:callbackUrl,customer:{email},customizations:{title:"DeGameTV",description:screening.title},meta:metadata});
+    }else{
+     body=JSON.stringify({customer:{email},amount_minor:minor,currency,reference,callback_url:callbackUrl,metadata});
+    }
+    const response=await fetch(target,{method:"POST",headers:{[header]:prefix+provider.credential,"Content-Type":contentType,Accept:"application/json"},body,signal:AbortSignal.timeout(15000)});
     const result=await response.json().catch(()=>null);
-    const authorized=adapter==="paystack"?result?.status===true:result?.authorized===true;
-    const checkoutValue=adapter==="paystack"?result?.data?.authorization_url:result?.checkout_url;
-    if(!response.ok||!authorized||typeof checkoutValue!=="string")continue;
+    let checkoutValue:string|null=null,checkoutId:string|null=null;
+    if(adapter==="paystack"&&result?.status===true){checkoutValue=typeof result.data?.authorization_url==="string"?result.data.authorization_url:null;checkoutId=typeof result.data?.reference==="string"?result.data.reference:reference;}
+    else if(adapter==="stripe"&&response.ok){checkoutValue=typeof result?.url==="string"?result.url:null;checkoutId=typeof result?.id==="string"?result.id:null;}
+    else if(adapter==="flutterwave"&&response.ok&&result?.status==="success"){checkoutValue=typeof result.data?.link==="string"?result.data.link:null;checkoutId=result.data?.id?String(result.data.id):null;}
+    else if(adapter==="generic"&&response.ok&&result?.authorized===true){checkoutValue=typeof result.checkout_url==="string"?result.checkout_url:null;checkoutId=typeof result.provider_checkout_id==="string"?result.provider_checkout_id:null;}
+    if(!response.ok||!checkoutValue)continue;
     const checkout=new URL(checkoutValue),allowed=provider.settings?.allowed_checkout_origins;
     if(checkout.protocol!=="https:"||!Array.isArray(allowed)||!allowed.includes(checkout.origin))continue;
-    selected=provider;checkoutUrl=checkout.toString();break;
+    selected=provider;checkoutUrl=checkout.toString();selectedCheckoutId=checkoutId;break;
    }catch{continue;}
   }
   if(!selected||!checkoutUrl){await db.from("live_payment_orders").update({status:"failed"}).eq("provider_reference",reference);return json(502,{error:"No configured payment provider accepted checkout. No charge was made."});}
-  const {error:updateError}=await db.from("live_payment_orders").update({provider:selected.provider_key,metadata:{created_from:"viewer_checkout",guest_checkout:!user,country_code:countryCode,source_currency:sourceCurrency,base_amount:baseAmount,checkout_created_at:new Date().toISOString()}}).eq("provider_reference",reference);
+  const {error:updateError}=await db.from("live_payment_orders").update({provider:selected.provider_key,provider_checkout_id:selectedCheckoutId,provider_mode:"live",metadata:{created_from:"viewer_checkout",guest_checkout:!user,provider_mode:"live",country_code:countryCode,source_currency:sourceCurrency,base_amount:baseAmount,checkout_created_at:new Date().toISOString()}}).eq("provider_reference",reference);
   if(updateError)return json(503,{error:"Checkout was created but its order record could not be finalized. Contact support before retrying."});
   return json(200,{success:true,checkoutUrl,reference,screeningTitle:screening.title,amount:convertedAmount,currency,provider:selected.provider_key});
  }catch(error){
