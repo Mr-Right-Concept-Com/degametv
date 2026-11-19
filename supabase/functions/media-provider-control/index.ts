@@ -37,6 +37,21 @@ Deno.serve(async req=>{
  if(providerError||!Array.isArray(providers))return json({error:"Media provider registry is unavailable."},503);
  let provider=providers[0];
  const operation=p.action==="create_upload"?"upload_create":p.action==="create_live"?"live_create":"live_stop";
+ let canonicalStream:any=null;
+ if(p.action==="create_live"){
+  const {data:screening,error:screeningError}=await db.from("screenings")
+   .select("id,tenant_id,content_id,title,screening_date").eq("id",p.screeningId).eq("status","published").maybeSingle();
+  if(screeningError||!screening)return json({error:"Published creator event not found."},404);
+  const {data:ownedContent,error:contentError}=await db.from("content")
+   .select("creator_id,tenant_id").eq("id",screening.content_id).maybeSingle();
+  if(contentError||!ownedContent||ownedContent.creator_id!==user.id||ownedContent.tenant_id!==screening.tenant_id)return json({error:"You do not own this event in its tenant."},403);
+  const {data:streamId,error:ensureError}=await db.rpc("ensure_screening_live_stream",{p_screening_id:p.screeningId});
+  if(ensureError||!streamId)return json({error:"The canonical scheduled stream could not be prepared."},503);
+  const {data:stream,error:streamError}=await db.from("live_streams").select("id,metadata,provider_stream_id,status").eq("id",streamId).eq("creator_id",user.id).maybeSingle();
+  if(streamError||!stream)return json({error:"The canonical stream record could not be loaded."},503);
+  if(stream.provider_stream_id||stream.metadata?.provider_reference)return json({error:"This event already has a provisioned encoder. Reconnect or rotate credentials through the stream controls instead of creating a second stream."},409);
+  canonicalStream=stream;
+ }
  try{
   if(p.action==="stop_live"){
    const {data:stream,error}=await db.from("live_streams").select("id,creator_id,metadata").eq("id",p.streamId).eq("creator_id",user.id).maybeSingle();
@@ -124,7 +139,7 @@ Deno.serve(async req=>{
   if(!providers.length)return json({error:"No active provider is configured for this media capability."},503);
   const payload=p.action==="create_upload"
    ? {owner_id:user.id,file_name:p.fileName,content_type:p.contentType,size_bytes:p.sizeBytes,content_id:p.contentId??null,transcode:true,delivery_profile:"adaptive"}
-   : {owner_id:user.id,title:p.title,description:p.description??null,scheduled_start:p.scheduledStart??null,recording_enabled:p.recordingEnabled};
+   : {owner_id:user.id,title:p.title,description:p.description??null,scheduled_start:p.scheduledStart??null,recording_enabled:p.recordingEnabled,screening_id:p.screeningId,stream_id:canonicalStream?.id??null};
   let response:Response|null=null,result:any=null;
   for(const candidate of providers){
    if(!candidate.credential||!candidate.endpoints?.[operation])continue;
@@ -143,18 +158,18 @@ Deno.serve(async req=>{
   }
   if(typeof result.provider_reference!=="string"||typeof result.ingest_url!=="string"||typeof result.stream_key!=="string"||!result.stream_key.trim())return json({error:"Media provider returned an incomplete live-stream contract."},502);
   let ingest:URL;try{ingest=new URL(result.ingest_url);if(ingest.protocol!=="rtmp:"&&ingest.protocol!=="rtmps:")throw new Error();}catch{return json({error:"Provider returned an invalid ingest endpoint."},502);}
-  const {data:screening,error:screeningError}=await db.from("screenings").select("id,tenant_id,content_id").eq("id",p.screeningId).maybeSingle();
-  if(screeningError||!screening)return json({error:"Creator event not found."},404);
-  const {data:ownedContent,error:contentError}=await db.from("content").select("creator_id,tenant_id").eq("id",screening.content_id).maybeSingle();
-  if(contentError||!ownedContent||ownedContent.creator_id!==user.id||ownedContent.tenant_id!==screening.tenant_id)return json({error:"You do not own this event in its tenant."},403);
-  const {data:stream,error:insertError}=await db.from("live_streams").insert({
-   tenant_id:screening.tenant_id,creator_id:user.id,title:p.title,description:p.description??null,status:"scheduled",lifecycle_status:"WAITING_FOR_ENCODER",provider_stream_id:result.provider_reference,
-   stream_key:null,rtmp_url:ingest.toString(),rtmp_ingest_url:ingest.toString(),playback_url:typeof result.playback_url==="string"?result.playback_url:null,
-   scheduled_start:p.scheduledStart??null,recording_enabled:p.recordingEnabled,
-   monetization:"free",ticket_price:0,is_ticketed:false,
-   metadata:{provider:provider.provider_key,provider_mode:provider.is_live===true?"live":"test",provider_reference:result.provider_reference,screening_id:p.screeningId,provisioned_at:new Date().toISOString(),stream_key_delivery:"one_time"},
-  }).select("id").single();
-  if(insertError||!stream){console.error("live_stream_insert",insertError);return json({error:"Live stream was provisioned but could not be reconciled to the creator account."},503);}
+  if(!canonicalStream)return json({error:"The canonical scheduled stream record is missing."},503);
+  const streamMetadata={...(canonicalStream.metadata&&typeof canonicalStream.metadata==="object"?canonicalStream.metadata:{}),
+   provider:provider.provider_key,provider_mode:provider.is_live===true?"live":"test",
+   provider_reference:result.provider_reference,screening_id:p.screeningId,
+   provisioned_at:new Date().toISOString(),stream_key_delivery:"one_time"};
+  const {data:stream,error:insertError}=await db.from("live_streams").update({
+   status:"scheduled",lifecycle_status:"WAITING_FOR_ENCODER",provider_stream_id:result.provider_reference,
+   stream_key:null,rtmp_url:ingest.toString(),rtmp_ingest_url:ingest.toString(),
+   playback_url:typeof result.playback_url==="string"?result.playback_url:null,
+   recording_enabled:p.recordingEnabled,metadata:streamMetadata,updated_at:new Date().toISOString(),
+  }).eq("id",canonicalStream.id).eq("creator_id",user.id).select("id").single();
+  if(insertError||!stream){console.error("live_stream_reconcile",insertError);return json({error:"The provider created an ingest, but DeGameTV could not reconcile it to the canonical event record. Contact support before retrying."},503);}
   return json({success:true,streamId:stream.id,ingestUrl:ingest.toString(),streamKey:result.stream_key,playbackUrl:result.playback_url??null,ingestProtocol:ingest.protocol.slice(0,-1),provider:provider.provider_key,credentialDelivery:"one_time"});
  }catch(e){console.error("media-provider-control",e);return json({error:"Media provider request failed."},502);}
 });
