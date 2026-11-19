@@ -30,6 +30,8 @@ export function ProviderRegistryPanel({initialCapability='payments'}:{initialCap
   const [liveWebhookSecret,setLiveWebhookSecret]=useState('');
   const [live,setLive]=useState(false);
   const [priority,setPriority]=useState(100);
+  const [testEmailRecipient,setTestEmailRecipient]=useState('');
+  const [testingEmail,setTestingEmail]=useState(false);
   const [enabled,setEnabled]=useState(false);
   const [endpoints,setEndpoints]=useState('{}');
   const [settings,setSettings]=useState('{}');
@@ -60,6 +62,16 @@ export function ProviderRegistryPanel({initialCapability='payments'}:{initialCap
     setCapability(row.capability);setProviderKey(row.provider_key);setBaseUrl(row.base_url||'');setEndpoints(JSON.stringify(row.endpoints||{},null,2));setSettings(JSON.stringify(row.settings||{},null,2));setEnabled(row.enabled);setLive(row.is_live);setPriority(row.priority ?? 100);
     toast.message('Provider configuration loaded. Add or rotate test/live secrets only if needed, then save to apply runtime settings.');
   };
+  const sendTestEmail=async()=>{
+    if(!testEmailRecipient.trim())return toast.error('Enter a recipient email.');
+    setTestingEmail(true);
+    try{
+      const result=await invokeFn<{success:boolean;provider:string;mode:string}>('test-email-provider',{email:testEmailRecipient.trim()});
+      if(!result.success)throw new Error('Email provider test was not accepted.');
+      toast.success('Test email delivered through '+result.provider+' ('+result.mode+').');
+    }catch(error){toast.error((error as Error).message);}
+    finally{setTestingEmail(false);}
+  };
   const remove=async(row:Provider)=>{
     setSaving(true);
     try{const r=await invokeFn('admin-provider-control',{action:'remove',capability:row.capability,providerKey:row.provider_key});if(!r.ok)throw new Error(r.error);toast.success('Provider detached from the active registry.');await load();}
@@ -79,6 +91,7 @@ export function ProviderRegistryPanel({initialCapability='payments'}:{initialCap
         <div className="space-y-2"><Label>Endpoint contract JSON</Label><Textarea value={endpoints} onChange={e=>setEndpoints(e.target.value)} rows={5} className="font-mono text-xs"/></div>
         <div className="space-y-2"><Label>Provider settings JSON</Label><Textarea value={settings} onChange={e=>setSettings(e.target.value)} rows={5} className="font-mono text-xs"/></div>
         <div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/> Enable binding</label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={live} onChange={e=>setLive(e.target.checked)}/> Live mode</label><p className="w-full text-xs text-muted-foreground">A successful health_check response must be JSON with <code>ok: true</code> or <code>status: true</code>. Test and live credentials and webhook secrets are separate; a mode switch takes effect immediately after saving.</p></div>
+        {capability==='email'&&<div className="rounded-xl border p-4 space-y-3"><div><p className="font-medium text-sm">Delivery test</p><p className="text-xs text-muted-foreground">Send a real test message using the enabled Vault-backed email binding and its active mode.</p></div><div className="flex flex-col sm:flex-row gap-2"><Input type="email" value={testEmailRecipient} onChange={e=>setTestEmailRecipient(e.target.value)} placeholder="admin@example.com"/><Button variant="outline" disabled={testingEmail||!testEmailRecipient.trim()} onClick={()=>void sendTestEmail()}>{testingEmail&&<Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Send test email</Button></div></div>}
         <div className="flex justify-end"><Button onClick={save} disabled={saving||!providerKey||!baseUrl}>{saving&&<Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Save provider</Button></div>
       </CardContent>
     </Card>
