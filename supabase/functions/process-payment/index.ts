@@ -20,7 +20,7 @@ const json = (status: number, body: Record<string, unknown>) =>
 async function featureEnabled(db: ReturnType<typeof createClient>, key: string, subject: string): Promise<boolean> {
   const { data: flag, error } = await db.from("platform_feature_controls").select("enabled,rollout_percentage,release_state").eq("feature_key",key).maybeSingle();
   if (error) return false;
-  if (!flag) return true;
+  if (!flag) return false;
   if (!flag.enabled || ["draft","paused","rolled_back"].includes(flag.release_state)) return false;
   if (flag.release_state === "released") return flag.rollout_percentage === 100;
   const digest = await crypto.subtle.digest("SHA-256",new TextEncoder().encode(subject+":"+key));
@@ -63,10 +63,11 @@ if (import.meta.main) serve(async (req: Request) => {
     }
 
     const { data: configs, error: configError } = await admin.rpc("get_service_provider_runtime_config", { p_capability: "payments" });
-    if (configError || !Array.isArray(configs) || !configs.length || configs[0].provider_key !== method) {
-      return json(503, { success: false, error: "The selected payment adapter is not active or its Vault credentials are incomplete." });
+    if (configError || !Array.isArray(configs) || !configs.length) {
+      return json(503, { success: false, error: "No live payment adapter is available." });
     }
-    const config = configs[0];
+    const config = configs.find((provider: any) => provider.provider_key === method && provider.is_live === true && Boolean(provider.credential));
+    if (!config) return json(503, { success: false, error: "The selected live payment adapter is not active or its Vault credentials are incomplete." });
     const checkoutEndpoint = config.endpoints?.checkout_initialize;
     if (!config.credential || typeof checkoutEndpoint !== "string" || !checkoutEndpoint.startsWith("/") || checkoutEndpoint.startsWith("//")) {
       return json(503, { success: false, error: "The active payment adapter is missing its checkout contract." });
@@ -93,7 +94,10 @@ if (import.meta.main) serve(async (req: Request) => {
     if (!Number.isFinite(major) || major <= 0) return json(409, { success: false, error: "Ticket pricing is not configured for this location." });
 
     const currency = location === "nigeria" ? "NGN" : "USD";
-    const amountMinor = Math.round(major * 100);
+    const supportedCurrencies = Array.isArray(config.settings?.supported_currencies) ? config.settings.supported_currencies : [];
+    if (!supportedCurrencies.includes(currency)) return json(422, { success: false, error: "The selected payment provider does not support this transaction currency." });
+    const fractionDigits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits;
+    const amountMinor = Math.round(major * Math.pow(10, fractionDigits));
     const reference = "DTV_" + crypto.randomUUID().replaceAll("-", "");
     const ticketCode = randomCode(8).toUpperCase();
     const watchCode = randomCode(20);
