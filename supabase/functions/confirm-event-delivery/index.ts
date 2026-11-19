@@ -44,15 +44,20 @@ Deno.serve(async (req) => {
             evidenceReference !== metadata.recording_asset_id && evidenceReference !== metadata.recording_provider_asset_id) {
           return json({ error: "The supplied evidence does not match the platform's verified replay asset." }, 409);
         }
-        evidence = { kind: "provider_replay_asset", asset_reference: stream.vod_replay_asset_url, provider: metadata.provider || null, provider_reference: metadata.provider_reference || null };
+        const screeningRef = typeof metadata.screening_id === "string" ? metadata.screening_id : "";
+        if (!screeningRef) return json({ error: "A recording-required live stream must be linked to its canonical screening." }, 409);
+        const { data: linkedScreening } = await db.from("screenings").select("live_replay_ready_at").eq("id", screeningRef).maybeSingle();
+        if (!linkedScreening?.live_replay_ready_at) return json({ error: "The replay asset exists but the platform has not marked replay delivery ready." }, 409);
+        deliveryConfirmedAt = linkedScreening.live_replay_ready_at;
+        evidence = { kind: "provider_replay_asset", asset_reference: stream.vod_replay_asset_url, provider: metadata.provider || null, provider_reference: metadata.provider_reference || null, replay_ready_at: linkedScreening.live_replay_ready_at };
       } else {
+        deliveryConfirmedAt = stream.actual_ended_at;
         evidence = { kind: "platform_verified_live_end", stream_id: stream.id, actual_ended_at: stream.actual_ended_at, provider_reference: (stream.metadata as Record<string, unknown> | null)?.provider_reference || null };
       }
       liveStreamId = stream.id;
       const streamMetadata = stream.metadata && typeof stream.metadata === "object" ? stream.metadata as Record<string, unknown> : {};
       if (typeof streamMetadata.screening_id === "string") screeningId = streamMetadata.screening_id;
       eventEndedAt = stream.actual_ended_at;
-      deliveryConfirmedAt = stream.actual_ended_at;
     } else if (sourceType === "screening") {
       const { data: screening, error } = await db.from("screenings")
         .select("id,tenant_id,content_id,event_type,lifecycle,live_ended_at,live_replay_ready_at,screening_date,status,cancelled_at")
@@ -68,10 +73,14 @@ Deno.serve(async (req) => {
           if (stream.recording_enabled && stream.settlement_delivery_required && !stream.vod_replay_asset_url) return json({ error: "The required replay is not ready." }, 409);
           liveStreamId = stream.id;
           eventEndedAt = stream.actual_ended_at;
-          deliveryConfirmedAt = stream.actual_ended_at;
-          evidence = stream.recording_enabled && stream.settlement_delivery_required
-            ? { kind: "provider_replay_asset", asset_reference: stream.vod_replay_asset_url, provider: (stream.metadata as Record<string, unknown> | null)?.provider || null }
-            : { kind: "platform_verified_live_end", actual_ended_at: stream.actual_ended_at };
+          if (stream.recording_enabled && stream.settlement_delivery_required) {
+            if (!screening.live_replay_ready_at) return json({ error: "The replay asset exists but the platform has not marked replay delivery ready." }, 409);
+            deliveryConfirmedAt = screening.live_replay_ready_at;
+            evidence = { kind: "provider_replay_asset", asset_reference: stream.vod_replay_asset_url, provider: (stream.metadata as Record<string, unknown> | null)?.provider || null, replay_ready_at: screening.live_replay_ready_at };
+          } else {
+            deliveryConfirmedAt = stream.actual_ended_at;
+            evidence = { kind: "platform_verified_live_end", actual_ended_at: stream.actual_ended_at };
+          }
         } else {
           if (!screening.live_ended_at || !screening.live_replay_ready_at) return json({ error: "Platform delivery evidence for this live event is incomplete." }, 409);
           eventEndedAt = screening.live_ended_at; deliveryConfirmedAt = screening.live_replay_ready_at;
