@@ -45,7 +45,7 @@ if (import.meta.main) serve(async (req: Request) => {
     const delta = Math.max(0, Math.min(60, Math.round(Number(body.deltaSeconds) || 0)));
     const position = Math.max(0, Math.min(86400, Math.round(Number(body.position) || 0)));
     const { data: existing } = await supabase.from("watch_history")
-      .select("id,watch_duration_seconds").eq("session_id", sessionHash).maybeSingle();
+      .select("id,watch_duration_seconds").eq("session_id", lease.session_id).maybeSingle();
     if (existing) {
       await supabase.from("watch_history").update({
         watch_duration_seconds: Math.max(0, Number(existing.watch_duration_seconds) || 0) + delta,
@@ -53,7 +53,7 @@ if (import.meta.main) serve(async (req: Request) => {
       }).eq("id", existing.id);
     } else {
       await supabase.from("watch_history").insert({
-        screening_id: ticket.screening_id, session_id: sessionHash,
+        screening_id: ticket.screening_id, session_id: lease.session_id,
         watch_duration_seconds: delta, watch_position: position, country,
       });
     }
