@@ -133,7 +133,7 @@ BEGIN
 
   SELECT count(*) INTO v_early_bird_count
   FROM public.event_ticket_reservations
-  WHERE screening_id=p_screening_id AND ticket_type IN ('live','combo') AND is_early_bird=true
+  WHERE screening_id=p_screening_id AND ticket_type='live' AND is_early_bird=true
     AND (status='paid' OR (status='pending' AND expires_at>now()));
 
   v_currency := upper(coalesce(nullif(v_screening.base_currency,''),CASE WHEN upper(coalesce(p_country_code,''))='NG' THEN 'NGN' ELSE 'USD' END));
@@ -154,7 +154,8 @@ BEGIN
     ELSE
       v_amount := v_live;
     END IF;
-    IF v_screening.early_bird_price IS NOT NULL
+    IF p_ticket_type='live'
+       AND v_screening.early_bird_price IS NOT NULL
        AND v_screening.early_bird_ends_at IS NOT NULL
        AND v_screening.early_bird_ends_at > now()
        AND (v_screening.early_bird_capacity IS NULL OR v_early_bird_count < v_screening.early_bird_capacity) THEN
