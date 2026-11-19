@@ -114,6 +114,9 @@ Deno.serve(async req => {
         if (activeReservation) return json({ error: activeReservation.status === "paid"
           ? "This guest already has a paid ticket. Complete the provider-confirmed refund before revoking access."
           : "This guest has a payment checkout in progress. Wait for it to complete or expire before revoking the invitation." }, 409);
+        if (invite.complimentary_ticket_id) {
+          await db.from("event_ticket_reservations").update({ status: "refunded" }).eq("invite_id", invite.id).eq("status", "complimentary");
+        }
         if (invite.complimentary_ticket_id && invite.complimentary_ticket_type === "live_ticket") {
           await db.from("tickets").update({ revoked_at: new Date().toISOString(), revocation_reason: "private_invitation_revoked" }).eq("id", invite.complimentary_ticket_id);
           await db.from("screening_playback_sessions").update({ revoked_at: new Date().toISOString() }).eq("ticket_id", invite.complimentary_ticket_id).is("revoked_at", null);
