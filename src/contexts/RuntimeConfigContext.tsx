@@ -2,8 +2,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { invokeFn } from "@/lib/invokeFn";
 import { useAuth } from "@/hooks/useAuth";
 
-type RuntimeCountry = {country_code:string;currency_code:string;currency_symbol:string|null;locale_code:string;timezone_name:string|null};
+type RuntimeCountry = {country_code:string;currency_code:string;currency_symbol:string|null;locale_code:string;timezone_name:string|null;metadata?:Record<string,unknown>};
 type RuntimeConfig = {
+ webAppUrl?:string|null;
  geo:{countryCode:string|null;source:string};
  locale:string;
  currency:string;
