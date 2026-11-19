@@ -4,10 +4,10 @@ import { z } from "npm:zod@3";
 
 const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("list") }),
-  z.object({ action: z.literal("test"), capability: z.enum(["payments","identity","bank_verification","video_delivery","email","live_streaming"]), providerKey: z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/) }),
+  z.object({ action: z.literal("test"), capability: z.enum(["payments","identity","bank_verification","video_delivery","email","live_streaming","fx_rates"]), providerKey: z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/) }),
   z.object({
     action: z.literal("configure"),
-    capability: z.enum(["payments","identity","bank_verification","video_delivery","email","live_streaming"]),
+    capability: z.enum(["payments","identity","bank_verification","video_delivery","email","live_streaming","fx_rates"]),
     providerKey: z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/),
     enabled: z.boolean(),
     live: z.boolean(),
@@ -21,7 +21,7 @@ const schema = z.discriminatedUnion("action", [
   }),
   z.object({
     action: z.literal("remove"),
-    capability: z.enum(["payments","identity","bank_verification","video_delivery","email","live_streaming"]),
+    capability: z.enum(["payments","identity","bank_verification","video_delivery","email","live_streaming","fx_rates"]),
     providerKey: z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/),
   }),
 ]);
