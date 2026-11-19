@@ -55,9 +55,16 @@ Deno.serve(async req => {
       tenantId = screening.tenant_id; creatorId = content.creator_id; title = screening.title;
     } else if (liveStreamId) {
       const { data: stream, error } = await admin.from("live_streams")
-        .select("id,tenant_id,creator_id,title,event_visibility,invite_only,status")
+        .select("id,tenant_id,creator_id,title,event_visibility,invite_only,status,metadata")
         .eq("id", liveStreamId).maybeSingle();
       if (error || !stream || !["public", "unlisted"].includes(stream.event_visibility) || stream.invite_only || !["scheduled", "starting", "live"].includes(stream.status)) return json({ error: "This live event is not accepting public fan contributions." }, 404);
+      const linkedScreeningId = stream.metadata && typeof stream.metadata === "object" ? (stream.metadata as Record<string, unknown>).screening_id : null;
+      if (typeof linkedScreeningId === "string") {
+        const { data: linkedScreening } = await admin.from("screenings").select("event_visibility,invite_only,status").eq("id", linkedScreeningId).maybeSingle();
+        if (!linkedScreening || linkedScreening.status !== "published" || !["public", "unlisted"].includes(linkedScreening.event_visibility) || linkedScreening.invite_only) {
+          return json({ error: "This live event is linked to a private screening and is not accepting public contributions." }, 404);
+        }
+      }
       tenantId = stream.tenant_id; creatorId = stream.creator_id; title = stream.title;
     } else {
       const { data: content, error } = await admin.from("content")
