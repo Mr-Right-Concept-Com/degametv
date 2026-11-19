@@ -65,7 +65,7 @@ Deno.serve(async(req)=>{
    refundId = refund.id;
   }
 
-  const adapter=String(binding.settings?.adapter??order.provider).toLowerCase();
+  const adapter=String(binding.settings?.refund_adapter??binding.settings?.adapter??order.provider).toLowerCase();
   const transactionId=order.provider_transaction_id||order.provider_reference;
   const targetPath=refundPath.replace("{transaction_id}",encodeURIComponent(transactionId)).replace("{reference}",encodeURIComponent(order.provider_reference));
   const target=new URL(targetPath,binding.base_url);
@@ -79,7 +79,7 @@ Deno.serve(async(req)=>{
   else if(adapter==="flutterwave")requestBody={amount:amountMajor,reason:parsed.data.reason};
   else requestBody={reference:order.provider_reference,transaction_id:transactionId,amount_minor:order.amount_minor,currency:order.currency,reason:parsed.data.reason};
   const response=await fetch(target,{method:"POST",headers:{[header]:prefix+credential,"Content-Type":"application/json",Accept:"application/json","Idempotency-Key":refundId},body:JSON.stringify(requestBody),signal:AbortSignal.timeout(20000)}).catch(()=>null);
-  if(!response){await admin.from("payment_refunds").update({status:"failed",error_code:"provider_unreachable"}).eq("id",refundId);return json({error:"Refund provider did not respond. Ticket access was not changed."},502);}
+  if(!response){await admin.from("payment_refunds").update({error_code:"provider_outcome_unknown"}).eq("id",refundId);return json({error:"Refund provider timed out. The request remains safely pending with the same idempotency key; retry reconciliation before issuing another refund."},202);}
   const payload=await response.json().catch(()=>null);
   if(!response.ok||!payload){
    await admin.from("payment_refunds").update({status:"failed",error_code:"provider_http_"+response.status}).eq("id",refundId);
