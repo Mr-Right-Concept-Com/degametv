@@ -115,7 +115,7 @@ if (import.meta.main) serve(async (req: Request) => {
     }
 
     const pricing = typeof screening.location_pricing === "string" ? JSON.parse(screening.location_pricing) : screening.location_pricing;
-    const replayPrice = location === "nigeria" ? screening.replay_price_ngn : screening.replay_price_usd;
+    const replayPrice = effectiveLocation === "nigeria" ? screening.replay_price_ngn : screening.replay_price_usd;
     const major = Number(screening.lifecycle === "replay" && replayPrice !== null && replayPrice !== undefined
       ? replayPrice : (effectiveLocation === "nigeria" ? pricing?.nigeria : pricing?.international));
     if (!Number.isFinite(major) || major <= 0) return json(409, { success: false, error: "Ticket pricing is not configured for this location." });
