@@ -96,7 +96,7 @@ if (import.meta.main) serve(async (req: Request) => {
     const config = configs.find((provider: any) => provider.provider_key === method && provider.is_live === true && Boolean(provider.credential));
     if (!config) return json(503, { success: false, error: "The selected live payment adapter is not active or its Vault credentials are incomplete." });
     const checkoutEndpoint = config.endpoints?.checkout_initialize;
-    if (!config.credential || typeof checkoutEndpoint !== "string" || !checkoutEndpoint.startsWith("/") || checkoutEndpoint.startsWith("//")) {
+    if (!config.credential || typeof checkoutEndpoint !== "string" || !checkoutEndpoint.startsWith("/") || checkoutEndpoint.startsWith("//") || typeof config.endpoints?.payment_verify !== "string" || !config.endpoints.payment_verify.startsWith("/") || config.endpoints.payment_verify.startsWith("//")) {
       return json(503, { success: false, error: "The active payment adapter is missing its checkout contract." });
     }
     if (config.is_live) {
@@ -129,10 +129,10 @@ if (import.meta.main) serve(async (req: Request) => {
     const ticketCode = randomCode(8).toUpperCase();
     const watchCode = randomCode(20);
 
-    const { data: ticketId, error: orderError } = await admin.rpc("create_guest_payment_order", {
+    const { data: ticketId, error: orderError } = await admin.rpc("create_guest_payment_order_v2", {
       p_provider: method, p_reference: reference, p_screening_id: screening.id, p_tenant_id: screening.tenant_id,
-      p_email: email, p_amount_minor: amountMinor, p_currency: currency, p_location: effectiveLocation,
-      p_ticket_code: ticketCode, p_watch_code: watchCode,
+      p_email: email, p_amount_minor: amountMinor, p_amount_major: convertedMajor, p_currency: currency, p_location: effectiveLocation,
+      p_ticket_code: ticketCode, p_watch_code: watchCode, p_app_origin: siteOrigin,
     });
     if (orderError || !ticketId) return json(503, { success: false, error: "A secure ticket order could not be created. No charge was made." });
 
