@@ -78,7 +78,7 @@ serve(async(req:Request)=>{
   if(providerError||!Array.isArray(providers)||!providers.length)return json(503,{error:"No payment provider is enabled in Admin Provider Vault."});
   const usable=providers.filter((p:any)=>
    p.is_live===true&&p.credential&&Array.isArray(p.settings?.supported_currencies)&&p.settings.supported_currencies.includes(currency)
-   &&typeof p.endpoints?.checkout_initialize==="string"&&p.endpoints.checkout_initialize.startsWith("/")&&!p.endpoints.checkout_initialize.startsWith("//")&&typeof p.endpoints?.payment_verify==="string"&&p.endpoints.payment_verify.startsWith("/")&&!p.endpoints.payment_verify.startsWith("//")
+   &&typeof p.endpoints?.checkout_initialize==="string"&&p.endpoints.checkout_initialize.startsWith("/")&&!p.endpoints.checkout_initialize.startsWith("//")&&typeof p.endpoints?.payment_verify==="string"&&p.endpoints.payment_verify.startsWith("/")&&!p.endpoints.payment_verify.startsWith("//")&&typeof p.endpoints?.refund==="string"&&p.endpoints.refund.startsWith("/")&&!p.endpoints.refund.startsWith("//")
    &&(!parsed.data.method||p.provider_key===parsed.data.method)
   );
   if(!usable.length)return json(503,{error:"No live payment provider is enabled for this currency and payment method."});
