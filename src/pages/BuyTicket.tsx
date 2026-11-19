@@ -94,8 +94,8 @@ export default function BuyTicket() {
     const config = runtime.config;
     if (!config) return;
     const detectedCountry = config.geo.countryCode;
-    setCountryCode(detectedCountry);
-    setLocalCurrency(config.currency);
+    setCountryCode(sessionStorage.getItem('degame_checkout_country') || detectedCountry);
+    setLocalCurrency(sessionStorage.getItem('degame_checkout_currency') || config.currency);
     if (!sessionStorage.getItem('degame_checkout_location') && detectedCountry) {
       setLocation(detectedCountry === 'NG' ? 'nigeria' : 'international');
     }
@@ -145,6 +145,8 @@ export default function BuyTicket() {
           setStep('confirmation');
           sessionStorage.removeItem('degame_checkout_email');
           sessionStorage.removeItem('degame_checkout_location');
+          sessionStorage.removeItem('degame_checkout_country');
+          sessionStorage.removeItem('degame_checkout_currency');
           sessionStorage.removeItem('degame_checkout_country');
           sessionStorage.removeItem('degame_checkout_currency');
           window.history.replaceState({}, '', window.location.pathname);
@@ -250,7 +252,7 @@ export default function BuyTicket() {
     try {
       if (screening.event_type === 'live') {
         const { data, error } = await supabase.functions.invoke('process-live-payment', {
-          body: { screeningId: screening.id, ticketType: isReplay ? 'replay' : 'live', currency: localCurrency ?? currency, countryCode: countryCode ?? undefined, email: emailCheck.data, cohortId: runtime.config?.cohortId },
+          body: { screeningId: screening.id, ticketType: isReplay ? 'replay' : 'live', method: selectedPayment, currency: localCurrency ?? currency, countryCode: countryCode ?? undefined, email: emailCheck.data, cohortId: runtime.config?.cohortId },
         });
         if (error || !data?.success || typeof data.checkoutUrl !== 'string' || typeof data.reference !== 'string') {
           const message = data?.error || error?.message || 'Live event checkout could not be started. No charge was made.';
@@ -258,8 +260,6 @@ export default function BuyTicket() {
         }
         sessionStorage.setItem('degame_checkout_email', emailCheck.data);
         sessionStorage.setItem('degame_checkout_location', location);
-      if (countryCode) sessionStorage.setItem('degame_checkout_country', countryCode);
-      if (localCurrency) sessionStorage.setItem('degame_checkout_currency', localCurrency);
         if (countryCode) sessionStorage.setItem('degame_checkout_country', countryCode);
         if (localCurrency) sessionStorage.setItem('degame_checkout_currency', localCurrency);
         window.location.assign(data.checkoutUrl);
@@ -400,7 +400,7 @@ export default function BuyTicket() {
                     {screening.refund_policy}
                   </div>
                 )}
-                <Button className="w-full rounded-full mt-4 h-11" onClick={() => setStep('email')}>
+                <Button className="w-full rounded-full mt-4 h-11" onClick={() => setStep('email')} disabled={!countryCode}>
                   Continue
                 </Button>
               </CardContent>
@@ -467,8 +467,8 @@ export default function BuyTicket() {
 
                 {/* Methods */}
                 <div className="space-y-2">
-                  {paymentMethods.length === 0 && <div role="status" className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-muted-foreground">No payment method is enabled for this screening.</div>}
-                  {paymentMethods.map((m) => (
+                  {eligiblePaymentMethods.length === 0 && <div role="status" className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-muted-foreground">No payment method is enabled for this screening.</div>}
+                  {eligiblePaymentMethods.map((m) => (
                     <button
                       key={m.id}
                       disabled={!m.available}
