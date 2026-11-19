@@ -34,19 +34,26 @@ Deno.serve(async (req) => {
       ? requestedCountry
       : localeRegion && countrySchema.safeParse(localeRegion).success ? localeRegion : null;
 
+  const visitorId = typeof body?.visitorId === "string" && /^[A-Za-z0-9_-]{8,128}$/.test(body.visitorId) ? body.visitorId : "anonymous";
   const [countries, features] = await Promise.all([
     db.from("country_currency_rules")
       .select("country_code,currency_code,currency_symbol,locale_code,timezone_name")
       .eq("enabled", true).order("country_code"),
     db.from("platform_feature_controls")
       .select("feature_key")
-      .eq("enabled", true).eq("release_state", "released").eq("rollout_percentage", 100),
+      .eq("enabled", true).in("release_state", ["canary", "released"]),
   ]);
   if (countries.error || features.error) return response({ error: "Runtime configuration could not be loaded." }, 503);
 
   const country = candidate ? countries.data?.find((item) => item.country_code === candidate) : undefined;
   const userCurrency = String(body?.currency ?? requestUrl.searchParams.get("currency") ?? "").toUpperCase() || undefined;
   const validOverride = userCurrency && currencySchema.safeParse(userCurrency).success ? userCurrency : null;
+  const eligibleFeatures = await Promise.all((features.data ?? []).map(async (feature) => {
+    if (feature.release_state === "released" && feature.rollout_percentage === 100) return feature.feature_key;
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(visitorId + ":" + feature.feature_key));
+    const bucket = new DataView(digest).getUint32(0, false) % 100;
+    return bucket < feature.rollout_percentage ? feature.feature_key : null;
+  }));
   return response({
     geo: { countryCode: candidate, source: edgeCountry ? "edge" : requestedCountry ? "explicit" : localeRegion ? "locale_hint" : "unknown" },
     locale: country?.locale_code ?? req.headers.get("accept-language")?.split(",")[0] ?? "en",
@@ -54,7 +61,7 @@ Deno.serve(async (req) => {
     currencySymbol: validOverride ? null : country?.currency_symbol ?? "$",
     countryCurrency: country ?? null,
     countries: countries.data ?? [],
-    features: (features.data ?? []).map(({ feature_key }) => ({ key: feature_key })),
+    features: eligibleFeatures.filter((key): key is string => key !== null).map((key) => ({ key })),
     generatedAt: new Date().toISOString(),
   });
 });
