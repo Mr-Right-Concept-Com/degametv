@@ -67,8 +67,8 @@ export function ProviderRegistryPanel({initialCapability='payments'}:{initialCap
     setTestingEmail(true);
     try{
       const result=await invokeFn<{success:boolean;provider:string;mode:string}>('test-email-provider',{email:testEmailRecipient.trim()});
-      if(!result.success)throw new Error('Email provider test was not accepted.');
-      toast.success('Test email delivered through '+result.provider+' ('+result.mode+').');
+      if(!result.ok||!result.data?.success)throw new Error(result.error||'Email provider test was not accepted.');
+      toast.success('Test email delivered through '+result.data.provider+' ('+result.data.mode+').');
     }catch(error){toast.error((error as Error).message);}
     finally{setTestingEmail(false);}
   };
