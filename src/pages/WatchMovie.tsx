@@ -22,8 +22,14 @@ export default function WatchMovie() {
     const validateTicket = async () => {
       try {
         const email = searchParams.get('email');
+        const sessionKey = `degame:watch-session:${watchCode}`;
+        let sessionToken = sessionStorage.getItem(sessionKey) || '';
+        if (!/^[a-f0-9]{64}$/.test(sessionToken)) {
+          sessionToken = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
+          sessionStorage.setItem(sessionKey, sessionToken);
+        }
         const { data, error: fnError } = await supabase.functions.invoke('validate-watch-code', {
-          body: { watchCode, email },
+          body: { watchCode, email, sessionToken },
         });
 
         if (fnError || !data?.success) {
@@ -49,6 +55,35 @@ export default function WatchMovie() {
       setLoading(false);
     }
   }, [watchCode, searchParams]);
+
+  useEffect(() => {
+    if (!ticket?.sessionToken || !watchCode) return;
+    const sessionToken = ticket.sessionToken as string;
+    const email = ticket.email as string;
+    const sendHeartbeat = async () => {
+      const video = videoRef.current;
+      await supabase.functions.invoke('record-watch-heartbeat', {
+        body: { watchCode, email, sessionToken, deltaSeconds: 30, position: video?.currentTime || 0 },
+      });
+    };
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void sendHeartbeat();
+    }, 30000);
+    const release = () => {
+      const body = JSON.stringify({ watchCode, email, sessionToken, action: 'release' });
+      const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-watch-heartbeat`;
+      navigator.sendBeacon(endpoint, new Blob([body], { type: 'application/json' }));
+      sessionStorage.removeItem(`degame:watch-session:${watchCode}`);
+    };
+    window.addEventListener('pagehide', release);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('pagehide', release);
+      void supabase.functions.invoke('record-watch-heartbeat', {
+        body: { watchCode, email, sessionToken, action: 'release' },
+      });
+    };
+  }, [ticket?.sessionToken, ticket?.email, watchCode]);
 
   useEffect(() => {
     const video = videoRef.current;
