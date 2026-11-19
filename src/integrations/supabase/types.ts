@@ -526,6 +526,201 @@ export type Database = {
           },
         ]
       }
+      event_contributions: {
+        Row: {
+          amount_major: number | null
+          amount_minor: number
+          content_id: string | null
+          contributor_email: string | null
+          contributor_name: string | null
+          contributor_user_id: string | null
+          contribution_type: string
+          created_at: string
+          creator_id: string
+          currency: string
+          gift_catalog_key: string | null
+          id: string
+          is_anonymous: boolean
+          live_stream_id: string | null
+          message: string | null
+          paid_at: string | null
+          platform_fee_major: number
+          provider_checkout_id: string | null
+          provider_key: string | null
+          provider_mode: string
+          provider_reference: string | null
+          provider_transaction_id: string | null
+          screening_id: string | null
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          amount_major?: number | null
+          amount_minor: number
+          content_id?: string | null
+          contributor_email?: string | null
+          contributor_name?: string | null
+          contributor_user_id?: string | null
+          contribution_type: string
+          created_at?: string
+          creator_id: string
+          currency: string
+          gift_catalog_key?: string | null
+          id?: string
+          is_anonymous?: boolean
+          live_stream_id?: string | null
+          message?: string | null
+          paid_at?: string | null
+          platform_fee_major?: number
+          provider_checkout_id?: string | null
+          provider_key?: string | null
+          provider_mode?: string
+          provider_reference?: string | null
+          provider_transaction_id?: string | null
+          screening_id?: string | null
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          amount_major?: number | null
+          amount_minor?: number
+          content_id?: string | null
+          contributor_email?: string | null
+          contributor_name?: string | null
+          contributor_user_id?: string | null
+          contribution_type?: string
+          created_at?: string
+          creator_id?: string
+          currency?: string
+          gift_catalog_key?: string | null
+          id?: string
+          is_anonymous?: boolean
+          live_stream_id?: string | null
+          message?: string | null
+          paid_at?: string | null
+          platform_fee_major?: number
+          provider_checkout_id?: string | null
+          provider_key?: string | null
+          provider_mode?: string
+          provider_reference?: string | null
+          provider_transaction_id?: string | null
+          screening_id?: string | null
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: []
+      }
+      event_live_gift_feed: {
+        Row: {
+          amount_minor: number
+          contribution_id: string
+          contribution_type: string
+          created_at: string
+          currency: string
+          display_name: string
+          gift_catalog_key: string | null
+          id: string
+          live_stream_id: string | null
+          message: string | null
+          screening_id: string | null
+        }
+        Insert: {
+          amount_minor: number
+          contribution_id: string
+          contribution_type: string
+          created_at?: string
+          currency: string
+          display_name: string
+          gift_catalog_key?: string | null
+          id?: string
+          live_stream_id?: string | null
+          message?: string | null
+          screening_id?: string | null
+        }
+        Update: {
+          amount_minor?: number
+          contribution_id?: string
+          contribution_type?: string
+          created_at?: string
+          currency?: string
+          display_name?: string
+          gift_catalog_key?: string | null
+          id?: string
+          live_stream_id?: string | null
+          message?: string | null
+          screening_id?: string | null
+        }
+        Relationships: []
+      }
+      event_settlement_holds: {
+        Row: {
+          content_id: string | null
+          created_at: string
+          creator_id: string
+          currency: string
+          delivery_confirmed_at: string | null
+          delivery_evidence: Json
+          event_ended_at: string | null
+          gross_amount_minor: number
+          hold_hours: number
+          hold_status: string
+          id: string
+          live_stream_id: string | null
+          net_amount_minor: number
+          release_at: string | null
+          released_at: string | null
+          screening_id: string | null
+          source_id: string
+          source_type: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          content_id?: string | null
+          created_at?: string
+          creator_id: string
+          currency: string
+          delivery_confirmed_at?: string | null
+          delivery_evidence?: Json
+          event_ended_at?: string | null
+          gross_amount_minor: number
+          hold_hours?: number
+          hold_status?: string
+          id?: string
+          live_stream_id?: string | null
+          net_amount_minor: number
+          release_at?: string | null
+          released_at?: string | null
+          screening_id?: string | null
+          source_id: string
+          source_type: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          content_id?: string | null
+          created_at?: string
+          creator_id?: string
+          currency?: string
+          delivery_confirmed_at?: string | null
+          delivery_evidence?: Json
+          event_ended_at?: string | null
+          gross_amount_minor?: number
+          hold_hours?: number
+          hold_status?: string
+          id?: string
+          live_stream_id?: string | null
+          net_amount_minor?: number
+          release_at?: string | null
+          released_at?: string | null
+          screening_id?: string | null
+          source_id?: string
+          source_type?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       fan_blasts: {
         Row: {
           audience: string
@@ -1012,6 +1207,19 @@ export type Database = {
           creator_id: string
           currency: string | null
           description: string | null
+          early_bird_capacity: number | null
+          early_bird_currency: string | null
+          early_bird_ends_at: string | null
+          early_bird_price: number | null
+          event_timezone: string
+          event_visibility: string
+          invite_only: boolean
+          presale_enabled: boolean
+          sales_close_at: string | null
+          sales_open_at: string | null
+          settlement_delivery_required: boolean
+          settlement_hold_hours: number
+          ticket_capacity: number | null
           encoder_connected_at: string | null
           id: string
           is_ticketed: boolean | null
@@ -1048,6 +1256,19 @@ export type Database = {
           creator_id: string
           currency?: string | null
           description?: string | null
+          early_bird_capacity?: number | null
+          early_bird_currency?: string | null
+          early_bird_ends_at?: string | null
+          early_bird_price?: number | null
+          event_timezone?: string
+          event_visibility?: string
+          invite_only?: boolean
+          presale_enabled?: boolean
+          sales_close_at?: string | null
+          sales_open_at?: string | null
+          settlement_delivery_required?: boolean
+          settlement_hold_hours?: number
+          ticket_capacity?: number | null
           encoder_connected_at?: string | null
           id?: string
           is_ticketed?: boolean | null
@@ -1084,6 +1305,19 @@ export type Database = {
           creator_id?: string
           currency?: string | null
           description?: string | null
+          early_bird_capacity?: number | null
+          early_bird_currency?: string | null
+          early_bird_ends_at?: string | null
+          early_bird_price?: number | null
+          event_timezone?: string
+          event_visibility?: string
+          invite_only?: boolean
+          presale_enabled?: boolean
+          sales_close_at?: string | null
+          sales_open_at?: string | null
+          settlement_delivery_required?: boolean
+          settlement_hold_hours?: number
+          ticket_capacity?: number | null
           encoder_connected_at?: string | null
           id?: string
           is_ticketed?: boolean | null
@@ -1867,6 +2101,8 @@ export type Database = {
           price: number
           refund_reason: string | null
           refunded_at: string | null
+          revoked_at: string | null
+          revocation_reason: string | null
           reminder_1h_sent_at: string | null
           reminder_24h_sent_at: string | null
           screening_id: string
@@ -1905,6 +2141,8 @@ export type Database = {
           price: number
           refund_reason?: string | null
           refunded_at?: string | null
+          revoked_at?: string | null
+          revocation_reason?: string | null
           reminder_1h_sent_at?: string | null
           reminder_24h_sent_at?: string | null
           screening_id: string
@@ -1943,6 +2181,8 @@ export type Database = {
           price?: number
           refund_reason?: string | null
           refunded_at?: string | null
+          revoked_at?: string | null
+          revocation_reason?: string | null
           reminder_1h_sent_at?: string | null
           reminder_24h_sent_at?: string | null
           screening_id?: string
@@ -1982,6 +2222,19 @@ export type Database = {
           description: string | null
           duration: number | null
           event_type: string
+          event_visibility: string
+          invite_only: boolean
+          early_bird_capacity: number | null
+          early_bird_currency: string | null
+          early_bird_ends_at: string | null
+          early_bird_price: number | null
+          event_timezone: string | null
+          presale_enabled: boolean
+          sales_close_at: string | null
+          sales_open_at: string | null
+          settlement_delivery_required: boolean
+          settlement_hold_hours: number
+          ticket_capacity: number | null
           gallery_images: string[] | null
           id: string
           lifecycle: string
@@ -2030,6 +2283,19 @@ export type Database = {
           description?: string | null
           duration?: number | null
           event_type?: string
+          event_visibility?: string
+          invite_only?: boolean
+          early_bird_capacity?: number | null
+          early_bird_currency?: string | null
+          early_bird_ends_at?: string | null
+          early_bird_price?: number | null
+          event_timezone?: string | null
+          presale_enabled?: boolean
+          sales_close_at?: string | null
+          sales_open_at?: string | null
+          settlement_delivery_required?: boolean
+          settlement_hold_hours?: number
+          ticket_capacity?: number | null
           gallery_images?: string[] | null
           id?: string
           lifecycle?: string
@@ -2078,6 +2344,8 @@ export type Database = {
           description?: string | null
           duration?: number | null
           event_type?: string
+          event_visibility?: string
+          invite_only?: boolean
           gallery_images?: string[] | null
           id?: string
           lifecycle?: string
@@ -2666,6 +2934,7 @@ export type Database = {
       wallet_ledger: {
         Row: {
           created_at: string
+          contribution_id: string | null
           currency: string
           fee: number
           gross: number
@@ -2679,6 +2948,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          contribution_id?: string | null
           currency?: string
           fee?: number
           gross?: number
@@ -2692,6 +2962,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          contribution_id?: string | null
           currency?: string
           fee?: number
           gross?: number

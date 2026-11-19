@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { z } from "npm:zod@3.25.76";
-const schema=z.object({reference:z.string().min(20).max(80).regex(/^DTV(?:L)?_[A-Za-z0-9]+$/)}).strict();
+const schema=z.object({reference:z.string().min(20).max(80).regex(/^DTV(?:L|G)?_[A-Za-z0-9]+$/)}).strict();
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
 const randomToken=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,"0")).join("");
@@ -82,6 +82,28 @@ serve(async(req:Request)=>{
  try{
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
   const reference=parsed.data.reference;
+  if(reference.startsWith("DTVG_")){
+   const {data:contribution,error:contributionError}=await admin.from("event_contributions")
+    .select("id,status,provider:provider_key,provider_mode,provider_reference,provider_checkout_id,amount_minor,currency,provider_transaction_id,amount_major,platform_fee_major")
+    .eq("provider_reference",reference).maybeSingle();
+   if(contributionError||!contribution)return json(404,{error:"No fan contribution was found for that payment reference."});
+   let status=contribution.status;
+   if(status==="pending"){
+    const verified=await verifyProviderPayment(admin,reference,contribution);
+    if(verified.state==="failed"){
+     await admin.from("event_contributions").update({status:"failed"}).eq("id",contribution.id).eq("status","pending");
+     status="failed";
+    }else if(verified.state==="paid"){
+     const {error:updateError}=await admin.from("event_contributions").update({
+      status:"paid",provider_transaction_id:verified.transactionId,paid_at:new Date().toISOString(),
+     }).eq("id",contribution.id).eq("status","pending");
+     if(updateError)return json(503,{error:"Payment was verified, but the creator contribution record needs reconciliation."});
+     status="paid";
+    }
+   }
+   return json(200,{status,contribution:true,noContentEntitlement:true,provider:contribution.provider});
+  }
+
   if(reference.startsWith("DTVL_")){
    const {data:order,error}=await admin.from("live_payment_orders").select("id,status,email,user_id,provider_reference,provider_checkout_id,provider,provider_mode,amount_minor,amount_major,currency,provider_transaction_id,stream_id,screening_id,ticket_type,metadata,email_sent_at").eq("provider_reference",reference).maybeSingle();
    if(error||!order)return json(404,{error:"No live event payment could be found for that reference."});

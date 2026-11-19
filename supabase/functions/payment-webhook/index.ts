@@ -33,11 +33,14 @@ serve(async(req:Request)=>{
   const event=JSON.parse(raw);
   const eventData=event?.data?.object??event?.data??event;
   const reference=eventData?.reference??eventData?.tx_ref??eventData?.metadata?.reference??eventData?.client_reference_id??event?.reference??event?.data?.reference;
-  if(typeof reference!=="string"||(!/^DTV_[A-Za-z0-9]+$/.test(reference)&&!/^DTVL_[A-Za-z0-9]+$/.test(reference)))return json(400,{error:"Invalid payment reference."});
+  if(typeof reference!=="string"||(!/^DTV_[A-Za-z0-9]+$/.test(reference)&&!/^DTVL_[A-Za-z0-9]+$/.test(reference)&&!/^DTVG_[A-Za-z0-9]+$/.test(reference)))return json(400,{error:"Invalid payment reference."});
   const liveOrder=reference.startsWith("DTVL_");
-  const orderLookup=liveOrder
-   ? await admin.from("live_payment_orders").select("provider,provider_mode,provider_checkout_id,metadata,email_sent_at,status,user_id").eq("provider_reference",reference).maybeSingle()
-   : await admin.from("guest_payment_orders").select("provider,provider_mode,provider_checkout_id").eq("provider_reference",reference).maybeSingle();
+  const contributionOrder=reference.startsWith("DTVG_");
+  const orderLookup=contributionOrder
+   ? await admin.from("event_contributions").select("provider:provider_key,provider_mode,provider_checkout_id,status,amount_minor,currency").eq("provider_reference",reference).maybeSingle()
+   : liveOrder
+    ? await admin.from("live_payment_orders").select("provider,provider_mode,provider_checkout_id,metadata,email_sent_at,status,user_id").eq("provider_reference",reference).maybeSingle()
+    : await admin.from("guest_payment_orders").select("provider,provider_mode,provider_checkout_id").eq("provider_reference",reference).maybeSingle();
   if(orderLookup.error||!orderLookup.data?.provider)return json(404,{error:"Payment order not found."});
   const [{data:binding,error:bindingError},{data:secrets,error:secretError}]=await Promise.all([
    admin.from("service_provider_bindings").select("provider_key,base_url,endpoints,settings,is_live").eq("capability","payments").eq("provider_key",orderLookup.data.provider).maybeSingle(),
@@ -68,6 +71,7 @@ serve(async(req:Request)=>{
    signatureValid=equal(normalized,expected.toLowerCase());
   }
   if(!signatureValid)return json(401,{error:"Invalid webhook signature."});
+  if(contributionOrder&&orderLookup.data.status==="paid")return json(200,{received:true,verified:true,alreadyPaid:true,contribution:true,noContentEntitlement:true});
   if(liveOrder&&orderLookup.data.status==="paid"&&orderLookup.data.email_sent_at)return json(200,{received:true,verified:true,alreadyPaid:true,emailSent:true});
 
   const eventName=String(event?.event||event?.type||"");
@@ -99,6 +103,16 @@ serve(async(req:Request)=>{
    result={verified:providerResult?.status==="success"&&providerResult?.data?.status==="successful",status:providerResult?.data?.status==="successful"?"paid":"unpaid",transaction_id:providerResult?.data?.id,amount_minor:Math.round(major*Math.pow(10,digits)),currency};
   }
   if(!verification.ok||result?.verified!==true||result?.status!=="paid"||!Number.isFinite(Number(result?.amount_minor))||typeof result?.currency!=="string")return json(409,{error:"Payment has not been verified as successful."});
+  if(contributionOrder && (Number(result.amount_minor)!==Number(orderLookup.data.amount_minor) || String(result.currency).toUpperCase()!==String(orderLookup.data.currency).toUpperCase())) {
+   return json(409,{error:"Verified provider amount or currency does not match the contribution order."});
+  }
+  if(contributionOrder) {
+   const {error:updateError}=await admin.from("event_contributions").update({
+    status:"paid",provider_transaction_id:String(result.transaction_id||reference),paid_at:new Date().toISOString(),
+   }).eq("provider_reference",reference).eq("status","pending");
+   if(updateError)return json(503,{error:"Payment was verified, but contribution settlement is awaiting reconciliation."});
+   return json(200,{received:true,verified:true,contribution:true,noContentEntitlement:true});
+  }
   const liveOrderRow=liveOrder?orderLookup.data:null;
   let claimToken:string|null=null,emailClaimed=false;
   if(liveOrder&&liveOrderRow?.user_id===null){

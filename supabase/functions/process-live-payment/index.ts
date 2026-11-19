@@ -9,6 +9,7 @@ const schema=z.object({
  currency:z.string().regex(/^[A-Za-z]{3}$/),
  countryCode:z.string().regex(/^[A-Za-z]{2}$/).optional(),
  email:z.string().trim().email().max(254).optional(),
+ inviteToken:z.string().min(32).max(256).optional(),
  cohortId:z.string().min(8).max(128).optional(),
 }).strict();
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, x-client-info, content-type, cf-ipcountry","Access-Control-Allow-Methods":"POST, OPTIONS"};
@@ -58,22 +59,24 @@ serve(async(req:Request)=>{
   const {count:currencyCount}=await db.from("country_currency_rules").select("country_code",{count:"exact",head:true}).eq("currency_code",currency).eq("enabled",true);
   if(!currencyCount)return json(422,{error:"The selected transaction currency is not enabled."});
 
-  const {data:screening,error}=await db.from("screenings").select("id,tenant_id,content_id,title,slug,status,live_price_ngn,live_price_usd,replay_price_ngn,replay_price_usd,base_price,base_currency,replay_base_price,replay_access_hours,replay_access_model,access_model,live_recording_status,live_replay_ready_at").eq("id",screeningId).eq("status","published").maybeSingle();
+  const {data:screening,error}=await db.from("screenings").select("id,tenant_id,content_id,title,slug,status,live_price_ngn,live_price_usd,replay_price_ngn,replay_price_usd,base_price,base_currency,replay_base_price,replay_access_hours,replay_access_model,access_model,live_recording_status,live_replay_ready_at,sales_open_at,sales_close_at,early_bird_price,early_bird_currency,early_bird_ends_at,early_bird_capacity,event_visibility,invite_only,presale_enabled,ticket_capacity").eq("id",screeningId).eq("status","published").maybeSingle();
   if(error||!screening)return json(404,{error:"Published event not found."});
-  const {data:stream}=await db.from("live_streams").select("id,tenant_id,status,metadata").eq("tenant_id",screening.tenant_id).contains("metadata",{screening_id:screening.id}).maybeSingle();
-  if(!stream)return json(409,{error:"Live event has not been provisioned."});
-  if(["live","combo"].includes(ticketType)&&!["scheduled","live","starting"].includes(stream.status))return json(409,{error:"Live admission is not currently available."});
+  const {data:ensuredStreamId,error:ensureStreamError}=await db.rpc("ensure_screening_live_stream",{p_screening_id:screening.id});
+  if(ensureStreamError||!ensuredStreamId)return json(409,{error:"The scheduled live event stream could not be prepared for ticket sales."});
+  const {data:stream,error:streamError}=await db.from("live_streams").select("id,tenant_id,status,metadata").eq("id",ensuredStreamId).maybeSingle();
+  if(streamError||!stream)return json(503,{error:"The scheduled live event stream could not be loaded."});
+  if(["live","combo"].includes(ticketType)&&!["scheduled","live"].includes(stream.status))return json(409,{error:"Live admission is not currently available."});
   if(ticketType==="live"&&screening.access_model==="FREE")return json(409,{error:"This event is free. Claim a free pass instead of checking out."});
   if(ticketType==="replay"&&screening.replay_access_model!=="SEPARATE_PRICE")return json(409,{error:"Replay access is included with the live ticket or available free; a separate replay purchase is not enabled."});
   if(ticketType==="replay"&&(!screening.live_replay_ready_at||screening.live_recording_status!=="ready"))return json(409,{error:"Replay is not ready yet."});
 
   const isNigeria=countryCode==="NG";
   const hasBasePrice=screening.base_price!==null&&screening.base_price!==undefined;
-  const sourceCurrency=hasBasePrice?String(screening.base_currency||"").toUpperCase():(isNigeria?"NGN":"USD");
+  let sourceCurrency=hasBasePrice?String(screening.base_currency||"").toUpperCase():(isNigeria?"NGN":"USD");
   const livePrice=Number(hasBasePrice?screening.base_price:(isNigeria?screening.live_price_ngn:screening.live_price_usd))||0;
   const replayPrice=Number(hasBasePrice?screening.replay_base_price:(isNigeria?screening.replay_price_ngn:screening.replay_price_usd))||0;
-  const baseAmount=ticketType==="live"?livePrice:ticketType==="replay"?replayPrice:livePrice+(screening.replay_access_model==="SEPARATE_PRICE"?replayPrice:0);
-  if(!/^[A-Z]{3}$/.test(sourceCurrency)||!Number.isFinite(baseAmount)||baseAmount<=0)return json(409,{error:"This ticket price is not configured in a supported currency."});
+  let baseAmount=ticketType==="live"?livePrice:ticketType==="replay"?replayPrice:livePrice+(screening.replay_access_model==="SEPARATE_PRICE"?replayPrice:0);
+  if(!/^[A-Z]{3}$/.test(sourceCurrency))return json(409,{error:"This ticket currency is not configured safely."});
 
   const {data:providers,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:"payments"});
   if(providerError||!Array.isArray(providers)||!providers.length)return json(503,{error:"No payment provider is enabled in Admin Provider Vault."});
@@ -93,6 +96,19 @@ serve(async(req:Request)=>{
   try{const site=new URL(siteUrl);if(siteError||siteSetting?.is_public!==true||site.protocol!=="https:"||site.username||site.password)throw new Error("invalid_site");siteOrigin=site.origin;}
   catch{return json(503,{error:"The canonical public return URL has not been published in God Mode."});}
 
+  const reference="DTVL_"+crypto.randomUUID().replaceAll("-","");
+  const inviteTokenHash=parsed.data.inviteToken?Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(parsed.data.inviteToken))),b=>b.toString(16).padStart(2,"0")).join(""):null;
+  const {data:reservation,error:reservationError}=await db.rpc("reserve_event_ticket_capacity",{
+   p_screening_id:screening.id,p_provider_reference:reference,p_ticket_type:ticketType,p_email:email,
+   p_user_id:user?.id??null,p_country_code:countryCode,p_invite_token_hash:inviteTokenHash,
+  });
+  if(reservationError||!reservation)return json(409,{error:reservationError?.message?.includes("capacity")?"All tickets for this event have been reserved.":reservationError?.message?.includes("sales")?"Ticket sales are not currently open.":reservationError?.message?.includes("invitation")?"A valid invitation for this private screening is required.":reservationError?.message?.includes("presales")?"Advance ticket sales are not enabled for this event yet.":"This event cannot accept a ticket reservation right now."});
+  baseAmount=Number(reservation.base_amount);
+  sourceCurrency=String(reservation.base_currency||"").toUpperCase();
+  if(!Number.isFinite(baseAmount)||baseAmount<=0||!/^[A-Z]{3}$/.test(sourceCurrency)){
+   await db.from("event_ticket_reservations").update({status:"failed"}).eq("provider_reference",reference);
+   return json(409,{error:"The event returned an invalid ticket quote."});
+  }
   const convertedAmount=await convertAmount(url,service,baseAmount,sourceCurrency,currency,countryCode);
   const fractionDigits=new Intl.NumberFormat("en",{style:"currency",currency}).resolvedOptions().maximumFractionDigits;
   const minor=Math.round(convertedAmount*Math.pow(10,fractionDigits));
@@ -101,14 +117,13 @@ serve(async(req:Request)=>{
   if(commissionError||!Number.isFinite(creatorCommissionRate)||creatorCommissionRate<0||creatorCommissionRate>0.5)return json(503,{error:"Creator commission policy is not configured safely."});
   const platformFeeMajor=Math.round(minor*creatorCommissionRate)/Math.pow(10,fractionDigits);
   if(!Number.isSafeInteger(minor)||minor<=0)return json(422,{error:"The converted ticket amount is invalid."});
-  const reference="DTVL_"+crypto.randomUUID().replaceAll("-","");
   const candidate=usable[0];
   const {error:insertError}=await db.from("live_payment_orders").insert({
    tenant_id:screening.tenant_id,user_id:user?.id??null,guest_checkout:!user,screening_id:screening.id,stream_id:stream.id,
    ticket_type:ticketType,provider:candidate.provider_key,provider_reference:reference,provider_mode:"live",email,amount_minor:minor,amount_major:convertedAmount,platform_fee_major:platformFeeMajor,currency,
-   metadata:{created_from:"viewer_checkout",guest_checkout:!user,provider_mode:"live",country_code:countryCode,source_currency:sourceCurrency,base_amount:baseAmount},
+   metadata:{created_from:"viewer_checkout",guest_checkout:!user,provider_mode:"live",country_code:countryCode,source_currency:sourceCurrency,base_amount:baseAmount,event_reservation_id:reservation.reservation_id,is_early_bird:reservation.is_early_bird===true},
   });
-  if(insertError)return json(503,{error:"Could not create a secure ticket order. No charge was made."});
+  if(insertError){await db.from("event_ticket_reservations").update({status:"failed"}).eq("provider_reference",reference);return json(503,{error:"Could not create a secure ticket order. No charge was made."});}
   let checkoutUrl:string|null=null,selected:any=null,selectedCheckoutId:string|null=null;
   for(const provider of usable){
    try{
@@ -145,7 +160,7 @@ serve(async(req:Request)=>{
     selected=provider;checkoutUrl=checkout.toString();selectedCheckoutId=checkoutId;break;
    }catch{continue;}
   }
-  if(!selected||!checkoutUrl){await db.from("live_payment_orders").update({status:"failed"}).eq("provider_reference",reference);return json(502,{error:"No configured payment provider accepted checkout. No charge was made."});}
+  if(!selected||!checkoutUrl){await db.from("live_payment_orders").update({status:"failed"}).eq("provider_reference",reference);await db.from("event_ticket_reservations").update({status:"failed"}).eq("provider_reference",reference);return json(502,{error:"No configured payment provider accepted checkout. No charge was made."});}
   const {error:updateError}=await db.from("live_payment_orders").update({provider:selected.provider_key,provider_checkout_id:selectedCheckoutId,provider_mode:"live",metadata:{created_from:"viewer_checkout",guest_checkout:!user,provider_mode:"live",country_code:countryCode,source_currency:sourceCurrency,base_amount:baseAmount,checkout_created_at:new Date().toISOString()}}).eq("provider_reference",reference);
   if(updateError)return json(503,{error:"Checkout was created but its order record could not be finalized. Contact support before retrying."});
   return json(200,{success:true,checkoutUrl,reference,screeningTitle:screening.title,amount:convertedAmount,currency,provider:selected.provider_key});

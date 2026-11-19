@@ -10,10 +10,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
   Star, Clock, Calendar, Play, Ticket, Bell, Send,
-  ChevronLeft, ChevronRight, Loader2, MessageCircle, Shield
+  ChevronLeft, ChevronRight, Loader2, MessageCircle, Shield, Heart, Gift
 } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { LifecycleBanner } from '@/components/cinema/LifecycleBanner';
+import { useRuntimeConfig } from '@/contexts/RuntimeConfigContext';
+import { useAuth } from '@/hooks/useAuth';
 
 interface CastMember {
   name: string;
@@ -59,6 +61,15 @@ export default function MovieLanding() {
   const [notifySubmitted, setNotifySubmitted] = useState(false);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [trailerOpen, setTrailerOpen] = useState(false);
+  const runtime = useRuntimeConfig();
+  const { user } = useAuth();
+  const [supportType, setSupportType] = useState<'tip' | 'gift'>('tip');
+  const [giftKey, setGiftKey] = useState('heart');
+  const [supportAmount, setSupportAmount] = useState('500');
+  const [supportEmail, setSupportEmail] = useState('');
+  const [supportMessage, setSupportMessage] = useState('');
+  const [supportAnonymous, setSupportAnonymous] = useState(false);
+  const [supportBusy, setSupportBusy] = useState(false);
 
   useEffect(() => {
     const fetch = async () => {
@@ -75,6 +86,9 @@ export default function MovieLanding() {
         .from('screenings')
         .select('id,content_id,title,slug,description,poster_url,banner_url,trailer_url,release_date,screening_date,duration,location_pricing,status,event_type,lifecycle,live_price_ngn,live_price_usd,live_recording_status,live_started_at,live_ended_at,live_replay_ready_at,replay_price_ngn,replay_price_usd,replay_access_hours,refund_policy,cast_crew,gallery_images,age_rating,star_rating,review_count,allowed_countries,blocked_countries,cancelled_at,created_at,updated_at')
         .eq('slug', resolvedSlug)
+        .eq('status', 'published')
+        .in('event_visibility', ['public', 'unlisted'])
+        .eq('invite_only', false)
         .maybeSingle();
 
       if (data) {
@@ -104,6 +118,33 @@ export default function MovieLanding() {
     };
     fetch();
   }, [slug]);
+
+  const handleCreatorSupport = async () => {
+    if (!screening || Number(supportAmount) <= 0 || (!user && !supportEmail.trim())) return;
+    setSupportBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('process-event-contribution', {
+        body: {
+          screeningId: screening.id,
+          contributionType: supportType,
+          ...(supportType === 'gift' ? { giftCatalogKey: giftKey } : {}),
+          amount: Number(supportAmount),
+          currency: runtime.config?.currency || (screening as any).base_currency || 'NGN',
+          countryCode: runtime.config?.geo.countryCode || runtime.config?.countryCurrency?.country_code || undefined,
+          ...(!user ? { email: supportEmail.trim() } : {}),
+          message: supportMessage.trim() || undefined,
+          anonymous: supportAnonymous,
+        },
+      });
+      if (error || !data?.success || typeof data.checkoutUrl !== 'string') {
+        toast.error(data?.error || error?.message || 'Creator support checkout could not be started.');
+        return;
+      }
+      window.location.assign(data.checkoutUrl);
+    } finally {
+      setSupportBusy(false);
+    }
+  };
 
   const handleSubmitComment = async () => {
     if (!screening || !newComment.nickname.trim() || !newComment.comment.trim()) return;
@@ -356,6 +397,24 @@ export default function MovieLanding() {
             )}
           </section>
         )}
+
+        {/* Creator support — separate from admission and playback entitlements */}
+        <section className="bg-card border border-border rounded-2xl p-6 max-w-xl space-y-4">
+          <div className="flex items-center gap-2"><Heart className="w-5 h-5 text-primary"/><h2 className="text-xl font-bold">Support this creator</h2></div>
+          <p className="text-sm text-muted-foreground">Send a tip or virtual gift to support this production. Contributions do not unlock tickets or playback access.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1"><label htmlFor="movie-support-type" className="text-sm font-medium">Support type</label><select id="movie-support-type" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={supportType} onChange={e=>setSupportType(e.target.value as 'tip'|'gift')}><option value="tip">Tip</option><option value="gift">Virtual gift</option></select></div>
+            {supportType==='gift' && <div className="space-y-1"><label htmlFor="movie-support-gift" className="text-sm font-medium">Gift</label><select id="movie-support-gift" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={giftKey} onChange={e=>setGiftKey(e.target.value)}><option value="heart">Heart</option><option value="star">Star</option><option value="clap">Applause</option><option value="crown">Crown</option></select></div>}
+            <div className="space-y-1"><label htmlFor="movie-support-amount" className="text-sm font-medium">Amount ({runtime.config?.currency || (screening as any).base_currency || 'NGN'})</label><Input id="movie-support-amount" type="number" min="1" step="any" value={supportAmount} onChange={e=>setSupportAmount(e.target.value)}/></div>
+            {!user && <div className="space-y-1"><label htmlFor="movie-support-email" className="text-sm font-medium">Email for payment receipt</label><Input id="movie-support-email" type="email" value={supportEmail} onChange={e=>setSupportEmail(e.target.value)} placeholder="you@example.com"/></div>}
+          </div>
+          <Input maxLength={280} value={supportMessage} onChange={e=>setSupportMessage(e.target.value)} placeholder="Optional message for the creator"/>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={supportAnonymous} onChange={e=>setSupportAnonymous(e.target.checked)}/> Send anonymously</label>
+          <Button className="rounded-full" onClick={()=>void handleCreatorSupport()} disabled={supportBusy || Number(supportAmount)<=0 || (!user && !supportEmail.includes('@'))}>
+            {supportBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin"/> : supportType==='gift' ? <Gift className="w-4 h-4 mr-2"/> : <Heart className="w-4 h-4 mr-2"/>}
+            {supportType==='gift' ? 'Send gift' : 'Send tip'}
+          </Button>
+        </section>
 
         {/* Comments Section */}
         <section>

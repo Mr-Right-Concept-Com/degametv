@@ -40,6 +40,12 @@ interface Screening {
   replay_price_usd?: number | null;
   replay_access_model?: 'INCLUDED_WITH_TICKET' | 'SEPARATE_PRICE' | 'FREE_REPLAY';
   refund_policy?: string | null;
+  early_bird_price?: number | null;
+  early_bird_currency?: string | null;
+  early_bird_ends_at?: string | null;
+  sales_open_at?: string | null;
+  sales_close_at?: string | null;
+  event_timezone?: string | null;
 }
 
 export default function BuyTicket() {
@@ -67,12 +73,14 @@ export default function BuyTicket() {
   useEffect(() => {
     const fetchScreening = async () => {
       if (!slug) return;
-      const { data, error } = await supabase
+      let screeningQuery = supabase
         .from('screenings')
-        .select('id,content_id,title,slug,description,poster_url,banner_url,trailer_url,release_date,screening_date,duration,location_pricing,base_price,base_currency,replay_base_price,status,access_model,event_type,lifecycle,live_price_ngn,live_price_usd,live_recording_status,live_started_at,live_ended_at,live_replay_ready_at,replay_price_ngn,replay_price_usd,replay_access_hours,replay_access_model,refund_policy,cast_crew,gallery_images,age_rating,star_rating,review_count,allowed_countries,blocked_countries,cancelled_at,created_at,updated_at')
+        .select('id,content_id,title,slug,description,poster_url,banner_url,trailer_url,release_date,screening_date,duration,location_pricing,base_price,base_currency,replay_base_price,status,access_model,event_type,lifecycle,live_price_ngn,live_price_usd,live_recording_status,live_started_at,live_ended_at,live_replay_ready_at,replay_price_ngn,replay_price_usd,replay_access_hours,replay_access_model,refund_policy,cast_crew,gallery_images,age_rating,star_rating,review_count,allowed_countries,blocked_countries,cancelled_at,created_at,updated_at,early_bird_price,early_bird_currency,early_bird_ends_at,sales_open_at,sales_close_at,event_timezone')
         .eq('slug', slug)
-        .eq('status', 'published')
-        .maybeSingle();
+        .eq('status', 'published');
+      const invitationToken = new URLSearchParams(window.location.search).get('inviteToken');
+      if (!invitationToken) screeningQuery = screeningQuery.in('event_visibility', ['public', 'unlisted']).eq('invite_only', false);
+      const { data, error } = await screeningQuery.maybeSingle();
       
       if (data) {
         const pricing = typeof data.location_pricing === 'string' 
@@ -109,9 +117,10 @@ export default function BuyTicket() {
     const isNigeria = location === 'nigeria';
     const hasBasePrice = screening.base_price !== null && screening.base_price !== undefined;
     const isReplayPrice = screening.lifecycle === 'replay';
+    const earlyBirdActive = !isReplayPrice && screening.early_bird_price != null && Boolean(screening.early_bird_ends_at) && new Date(screening.early_bird_ends_at!).getTime() > Date.now();
     const replay = isReplayPrice ? (hasBasePrice ? screening.replay_base_price : (isNigeria ? screening.replay_price_ngn : screening.replay_price_usd)) : null;
-    const amount = replay != null ? Number(replay) : hasBasePrice ? Number(screening.base_price) : Number(screening.location_pricing?.[location] ?? 0);
-    const fromCurrency = hasBasePrice ? String(screening.base_currency || '').toUpperCase() : (isNigeria ? 'NGN' : 'USD');
+    const amount = earlyBirdActive ? Number(screening.early_bird_price) : replay != null ? Number(replay) : hasBasePrice ? Number(screening.base_price) : Number(screening.location_pricing?.[location] ?? 0);
+    const fromCurrency = earlyBirdActive ? String(screening.early_bird_currency || '').toUpperCase() : hasBasePrice ? String(screening.base_currency || '').toUpperCase() : (isNigeria ? 'NGN' : 'USD');
     if (!Number.isFinite(amount) || amount <= 0 || !/^[A-Z]{3}$/.test(fromCurrency)) {
       setLocalConverted(null);
       return;
@@ -261,7 +270,7 @@ export default function BuyTicket() {
     try {
       if (screening.event_type === 'live') {
         const { data, error } = await supabase.functions.invoke('process-live-payment', {
-          body: { screeningId: screening.id, ticketType: isReplay ? 'replay' : 'live', method: selectedPayment, currency: localCurrency ?? currency, countryCode: countryCode ?? undefined, email: emailCheck.data, cohortId: runtime.config?.cohortId },
+          body: { screeningId: screening.id, ticketType: isReplay ? 'replay' : 'live', method: selectedPayment, currency: localCurrency ?? currency, countryCode: countryCode ?? undefined, email: emailCheck.data, inviteToken: new URLSearchParams(window.location.search).get('inviteToken') || undefined, cohortId: runtime.config?.cohortId },
         });
         if (error || !data?.success || typeof data.checkoutUrl !== 'string' || typeof data.reference !== 'string') {
           const message = data?.error || error?.message || 'Live event checkout could not be started. No charge was made.';
@@ -274,7 +283,7 @@ export default function BuyTicket() {
         window.location.assign(data.checkoutUrl);
         return;
       }
-      const { data, error } = await supabase.functions.invoke('process-payment', { body: { method: selectedPayment, email: emailCheck.data, screeningId: screening.id, location, countryCode: countryCode ?? undefined, currency: localCurrency ?? currency, cohortId: runtime.config?.cohortId } });
+      const { data, error } = await supabase.functions.invoke('process-payment', { body: { method: selectedPayment, email: emailCheck.data, screeningId: screening.id, location, countryCode: countryCode ?? undefined, currency: localCurrency ?? currency, inviteToken: new URLSearchParams(window.location.search).get('inviteToken') || undefined, cohortId: runtime.config?.cohortId } });
       if (error || !data?.success || typeof data?.authorizationUrl !== 'string') {
         const message = data?.error || error?.message || 'Checkout could not be started. No charge was made.';
         setPaymentError(message); toast.error(message); return;

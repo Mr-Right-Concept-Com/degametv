@@ -34,6 +34,12 @@ interface ScreeningRow {
   status: string;
   star_rating: number | null;
   age_rating: string | null;
+  early_bird_price?: number | null;
+  early_bird_currency?: string | null;
+  early_bird_ends_at?: string | null;
+  sales_open_at?: string | null;
+  sales_close_at?: string | null;
+  event_timezone?: string | null;
 }
 
 export default function Cinema() {
@@ -49,8 +55,10 @@ export default function Cinema() {
       const [{ data: titleData, error: titleError }, { data, error: screeningError }] = await Promise.all([
         supabase.from('content').select('id,title,type,description,poster_url,genres,release_date').eq('status','published').order('created_at',{ascending:false}),
         supabase.from('screenings')
-        .select('id,content_id,title,slug,description,poster_url,banner_url,trailer_url,release_date,screening_date,duration,location_pricing,status,event_type,lifecycle,live_price_ngn,live_price_usd,live_recording_status,live_started_at,live_ended_at,live_replay_ready_at,replay_price_ngn,replay_price_usd,replay_access_hours,refund_policy,cast_crew,gallery_images,age_rating,star_rating,review_count,allowed_countries,blocked_countries,cancelled_at,created_at,updated_at')
+        .select('id,content_id,title,slug,description,poster_url,banner_url,trailer_url,release_date,screening_date,duration,location_pricing,status,event_type,lifecycle,live_price_ngn,live_price_usd,live_recording_status,live_started_at,live_ended_at,live_replay_ready_at,replay_price_ngn,replay_price_usd,replay_access_hours,refund_policy,cast_crew,gallery_images,age_rating,star_rating,review_count,allowed_countries,blocked_countries,cancelled_at,created_at,updated_at,event_visibility,invite_only,early_bird_price,early_bird_currency,early_bird_ends_at,sales_open_at,sales_close_at,event_timezone')
         .eq('status', 'published')
+        .in('event_visibility', ['public', 'unlisted'])
+        .eq('invite_only', false)
         .order('screening_date', { ascending: true })
       ]);
       if (titleError || screeningError) {
@@ -66,9 +74,30 @@ export default function Cinema() {
   const filtered = screenings.filter(s => s.title.toLowerCase().includes(searchQuery.toLowerCase()));
   const filteredTitles = titles.filter(title => title.title.toLowerCase().includes(searchQuery.toLowerCase()) || (title.genres || []).some(genre => genre.toLowerCase().includes(searchQuery.toLowerCase())));
 
-  const getPrice = (pricing: any) => {
-    const p = typeof pricing === 'string' ? JSON.parse(pricing) : pricing;
-    return p?.nigeria ? `₦${Number(p.nigeria).toLocaleString()}` : '$15';
+  const getPrice = (screening: ScreeningRow) => {
+    if (screening.early_bird_price != null && screening.early_bird_ends_at && new Date(screening.early_bird_ends_at).getTime() > Date.now()) {
+      try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: screening.early_bird_currency || screening.base_currency || 'NGN' }).format(Number(screening.early_bird_price)); }
+      catch { return Number(screening.early_bird_price).toLocaleString() + ' ' + (screening.early_bird_currency || screening.base_currency || ''); }
+    }
+    const p = typeof screening.location_pricing === 'string' ? JSON.parse(screening.location_pricing) : screening.location_pricing;
+    if (p?.base != null && p?.currency) return new Intl.NumberFormat(undefined, { style: 'currency', currency: String(p.currency) }).format(Number(p.base));
+    if (p?.nigeria != null) return '₦' + Number(p.nigeria).toLocaleString();
+    if (p?.international != null) return '$' + Number(p.international).toLocaleString();
+    if (screening.base_price != null && screening.base_currency) {
+      try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: screening.base_currency }).format(Number(screening.base_price)); }
+      catch { return Number(screening.base_price).toLocaleString() + ' ' + screening.base_currency; }
+    }
+    return 'Free admission';
+  };
+
+  const countdown = (date: string | null) => {
+    if (!date) return '';
+    const remaining = new Date(date).getTime() - Date.now();
+    if (remaining <= 0) return 'Starting now';
+    const days = Math.floor(remaining / 86400000);
+    const hours = Math.floor((remaining % 86400000) / 3600000);
+    const minutes = Math.floor((remaining % 3600000) / 60000);
+    return days > 0 ? `Starts in ${days}d ${hours}h` : `Starts in ${hours}h ${minutes}m`;
   };
 
   return (

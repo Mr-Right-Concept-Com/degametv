@@ -15,12 +15,19 @@ Deno.serve(async(req)=>{
  if(authError||!user)return json({error:"Your session has expired."},401);
  const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
  const {data:isAdmin,error:roleError}=await admin.rpc("is_super_admin",{_user_id:user.id});
- if(roleError||!isAdmin)return json({error:"Super administrator access is required."},403);
+ if(roleError)return json({error:"Refund authorization could not be verified."},503);
  try{
-  let ticket:any=null,liveTicket:any=null,order:any=null,liveOrder=false;
+  let ticket:any=null,liveTicket:any=null,order:any=null,liveOrder=false,screening:any=null,creatorId:string|null=null;
   const screeningTicket=await admin.from("screening_tickets").select("id,screening_id,payment_status,refunded_at,price,currency").eq("id",parsed.data.ticketId).maybeSingle();
   if(screeningTicket.data){
    ticket=screeningTicket.data;
+   const screeningResult=await admin.from("screenings").select("id,content_id,status,lifecycle,refund_policy,cancelled_at").eq("id",ticket.screening_id).maybeSingle();
+   screening=screeningResult.data;
+   if(screening?.content_id){
+    const owner=await admin.from("content").select("creator_id").eq("id",screening.content_id).maybeSingle();
+    creatorId=owner.data?.creator_id??null;
+   }
+   if(!screening)return json({error:"The screening associated with this ticket could not be found."},404);
    if(ticket.refunded_at||ticket.payment_status==="refunded")return json({error:"This ticket has already been refunded."},409);
    if(ticket.payment_status!=="completed")return json({error:"Only completed ticket payments can be refunded."},409);
    const found=await admin.from("guest_payment_orders").select("id,provider,provider_mode,provider_reference,provider_transaction_id,amount_minor,currency,status").eq("ticket_id",ticket.id).maybeSingle();
@@ -31,13 +38,25 @@ Deno.serve(async(req)=>{
    liveTicket=foundTicket.data;
    if(!liveTicket)return json({error:"Ticket not found."},404);
    if(liveTicket.revoked_at)return json({error:"This live ticket has already been refunded or revoked."},409);
+   const screeningId=typeof liveTicket.metadata?.screening_id==="string"?liveTicket.metadata.screening_id:null;
+   const screeningResult=screeningId?await admin.from("screenings").select("id,content_id,status,lifecycle,refund_policy,cancelled_at").eq("id",screeningId).maybeSingle():{data:null,error:null};
+   screening=screeningResult.data;
+   if(!screening)return json({error:"The screening associated with this live ticket could not be found."},404);
+   const owner=await admin.from("content").select("creator_id").eq("id",screening.content_id).maybeSingle();
+   creatorId=owner.data?.creator_id??null;
    const reference=liveTicket.metadata?.payment_reference;
    if(typeof reference!=="string")return json({error:"The original live payment reference is missing."},404);
    const foundOrder=await admin.from("live_payment_orders").select("id,provider,provider_mode,provider_reference,provider_transaction_id,amount_minor,amount_major,currency,status").eq("provider_reference",reference).maybeSingle();
    order=foundOrder.data;liveOrder=true;
    if(foundOrder.error||!order)return json({error:"The original live payment order could not be found."},404);
   }
-  if(order.status!=="paid")return json({error:"Only settled payments can be refunded."},409);
+  if(!isAdmin && creatorId!==user.id)return json({error:"You can only refund tickets for your own creator events."},403);
+  const refundPolicy=String(screening?.refund_policy??"standard").trim().toLowerCase();
+  const eventCancelled=screening?.lifecycle==="cancelled"||Boolean(screening?.cancelled_at);
+  if(!isAdmin && !eventCancelled && ["no_refunds","non_refundable","non-refundable","final_sale"].includes(refundPolicy)){
+   return json({error:"This event's published refund policy does not permit creator-initiated refunds."},403);
+  }
+  if(order.status!=="paid")return json({error:"Only verified paid transactions can be refunded."},409);
   const bindingResult=await admin.from("service_provider_bindings").select("base_url,endpoints,settings,is_live").eq("capability","payments").eq("provider_key",order.provider).maybeSingle();
   const {data:secretRows,error:secretError}=await admin.rpc("get_service_provider_admin_secret",{p_capability:"payments",p_provider_key:order.provider});
   const secret=Array.isArray(secretRows)?secretRows[0]:null;

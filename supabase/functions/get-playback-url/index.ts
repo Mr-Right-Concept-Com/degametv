@@ -20,16 +20,21 @@ if (import.meta.main) {
       const url = Deno.env.get("SUPABASE_URL");
       const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
       if (!url || !serviceKey) return json(503, { success: false, error: "Playback authorization is temporarily unavailable." });
+      if (req.headers.get("Authorization") !== `Bearer ${serviceKey}`) {
+        return json(403, { success: false, error: "This playback authorization endpoint is internal to the ticket validator." });
+      }
 
       const body = await req.json().catch(() => null);
       const watchCode = typeof body?.watchCode === "string" ? body.watchCode.trim() : "";
       const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
-      if (!watchCode || !email) return json(400, { success: false, error: "Watch code and email are required." });
+      const sessionToken = typeof body?.sessionToken === "string" ? body.sessionToken.trim() : "";
+      if (!watchCode || !email || !/^[a-f0-9]{64}$/.test(sessionToken)) return json(400, { success: false, error: "Watch code, email and a playback session token are required." });
+      const sessionTokenHash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(sessionToken))), b => b.toString(16).padStart(2, "0")).join("");
 
       const db = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
       const { data: ticket, error } = await db
         .from("screening_tickets")
-        .select("id,payment_status,refunded_at,expires_at,screening_id,screening:screenings(id,status)")
+        .select("id,payment_status,refunded_at,revoked_at,expires_at,screening_id,screening:screenings(id,status,cancelled_at)")
         .eq("watch_code", watchCode)
         .eq("email", email)
         .maybeSingle();
@@ -37,6 +42,8 @@ if (import.meta.main) {
       if (error) return json(503, { success: false, error: "Playback authorization could not be checked. Please retry." });
       if (!ticket || ticket.payment_status !== "completed") return json(404, { success: false, error: "Ticket not found or payment not confirmed." });
       if (ticket.refunded_at) return json(403, { success: false, error: "This ticket has been refunded." });
+      if (ticket.revoked_at) return json(403, { success: false, error: "This ticket or invitation has been revoked." });
+      if (!ticket.screening || ticket.screening.status !== "published" || ticket.screening.cancelled_at) return json(403, { success: false, error: "This screening is no longer available." });
       if (!ticket.expires_at || new Date(ticket.expires_at).getTime() <= Date.now()) return json(403, { success: false, error: "This ticket has expired." });
 
       const { data: delivery, error: providerError } = await db.rpc("get_service_provider_runtime_config", { p_capability: "video_delivery" });
@@ -44,6 +51,9 @@ if (import.meta.main) {
         return json(503, { success: false, code: "PLAYBACK_PROVIDER_NOT_CONFIGURED", error: "Secure playback is not configured. Your ticket remains valid." });
       }
       const provider = delivery[0];
+      if (provider.settings?.session_bound_playback !== true) {
+        return json(503, { success: false, code: "PLAYBACK_SESSION_BINDING_REQUIRED", error: "The active video provider has not confirmed session-bound playback enforcement." });
+      }
       const endpoint = provider.endpoints?.playback_authorize;
       if (!provider.credential || typeof endpoint !== "string" || !endpoint.startsWith("/") || endpoint.startsWith("//")) {
         return json(503, { success: false, code: "PLAYBACK_PROVIDER_INCOMPLETE", error: "The active video provider is missing its playback authorization contract." });
@@ -58,7 +68,7 @@ if (import.meta.main) {
         method: "POST",
         headers: { "Content-Type": "application/json", [authorizationHeader]: authorizationPrefix + provider.credential },
         body: JSON.stringify({
-          entitlement: { ticket_id: ticket.id, screening_id: ticket.screening_id, email, expires_at: ticket.expires_at },
+          entitlement: { ticket_id: ticket.id, screening_id: ticket.screening_id, email, expires_at: ticket.expires_at, session_token_hash: sessionTokenHash },
           request: { issued_at: new Date().toISOString(), country: req.headers.get("cf-ipcountry") || null },
         }),
         signal: AbortSignal.timeout(10000),

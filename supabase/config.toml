@@ -19,7 +19,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.get-playback-url]
-verify_jwt = false
+verify_jwt = true
 
 [functions.record-watch-heartbeat]
 verify_jwt = false
@@ -41,4 +41,13 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.live-stream-webhook]
+verify_jwt = false
+
+[functions.manage-event-invitations]
+verify_jwt = false
+
+[functions.process-event-contribution]
+verify_jwt = false
+
+[functions.dispatch-event-notifications]
 verify_jwt = false

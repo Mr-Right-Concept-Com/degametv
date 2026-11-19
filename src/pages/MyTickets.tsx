@@ -66,8 +66,9 @@ export default function MyTickets() {
   }, [user]);
 
   const now = new Date();
-  const activeTickets = tickets.filter(t => (t._kind === 'live' || t.payment_status === 'completed') && new Date(t.expires_at) > now);
-  const expiredTickets = tickets.filter(t => (t._kind === 'live' || t.payment_status === 'completed') && new Date(t.expires_at) <= now);
+  const hasOpenEventWindow = (ticket: any) => String(ticket.expires_at).toLowerCase() === 'infinity';
+  const activeTickets = tickets.filter(t => (t._kind === 'live' || t.payment_status === 'completed') && (hasOpenEventWindow(t) || new Date(t.expires_at) > now));
+  const expiredTickets = tickets.filter(t => (t._kind === 'live' || t.payment_status === 'completed') && !hasOpenEventWindow(t) && new Date(t.expires_at) <= now);
   const pendingTickets = tickets.filter(t => t.payment_status === 'pending');
 
   const copyLink = (watchCode: string, email: string) => {
@@ -201,7 +202,8 @@ function TicketCard({ ticket, onCopy, type }: { ticket: any; onCopy: (wc: string
         )}
 
         <p className="text-[10px] text-muted-foreground mt-2">
-          {type === 'active' ? `Expires ${new Date(ticket.expires_at).toLocaleDateString()}` : 
+          {type === 'active' && String(ticket.expires_at).toLowerCase() === 'infinity' ? 'Valid until the live event ends' :
+           type === 'active' ? `Expires ${new Date(ticket.expires_at).toLocaleDateString()}` :
            type === 'pending' ? 'Awaiting payment confirmation' :
            `Expired ${new Date(ticket.expires_at).toLocaleDateString()}`}
         </p>

@@ -16,7 +16,10 @@ if (import.meta.main) {
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
       );
 
-      const { watchCode, email } = await req.json();
+      const { watchCode, email, sessionToken: suppliedSessionToken } = await req.json();
+      const sessionToken = typeof suppliedSessionToken === 'string' && /^[a-f0-9]{64}$/.test(suppliedSessionToken)
+        ? suppliedSessionToken
+        : Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
       if (!watchCode) {
         return new Response(JSON.stringify({ error: 'Watch code is required' }), { status: 400, headers: corsHeaders });
       }
@@ -39,6 +42,9 @@ if (import.meta.main) {
       }
       if (ticket.refunded_at) {
         return new Response(JSON.stringify({ error: 'This ticket was refunded and is no longer valid' }), { status: 403, headers: corsHeaders });
+      }
+      if (ticket.revoked_at) {
+        return new Response(JSON.stringify({ error: 'This screening invitation or ticket was revoked and is no longer valid' }), { status: 403, headers: corsHeaders });
       }
       if (new Date(ticket.expires_at) < new Date()) {
         return new Response(JSON.stringify({ error: 'Ticket has expired' }), { status: 403, headers: corsHeaders });
@@ -63,23 +69,47 @@ if (import.meta.main) {
         }
       }
 
-      // Do not consume first-play access or expose media until a provider can
-      // enforce short-lived, signed playback delivery at the origin.
-      return new Response(JSON.stringify({ error: 'Secure streaming is not configured for this screening. Your viewing window has not started.' }), {
-        status: 503,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      const maxStreams = Number(s.max_streams_per_ticket ?? 5);
+      if (!Number.isInteger(maxStreams) || maxStreams < 1) {
+        return new Response(JSON.stringify({ error: 'This screening has an invalid playback policy.' }), {
+          status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+      const supabaseUrl = Deno.env.get('SUPABASE_URL');
+      if (!serviceKey || !supabaseUrl) {
+        return new Response(JSON.stringify({ error: 'Secure playback authorization is temporarily unavailable.' }), {
+          status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const deliveryResponse = await fetch(supabaseUrl + '/functions/v1/get-playback-url', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + serviceKey, apikey: serviceKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ watchCode, email: ticket.email, sessionToken }),
+        signal: AbortSignal.timeout(15000),
+      }).catch(() => null);
+      const delivery = await deliveryResponse?.json().catch(() => null);
+      if (!deliveryResponse?.ok || delivery?.success !== true || typeof delivery.playbackUrl !== 'string' || typeof delivery.expiresAt !== 'string') {
+        return new Response(JSON.stringify({
+          error: delivery?.error || 'The secure video provider could not authorize this ticket. Your viewing window has not started.',
+          code: delivery?.code || 'PLAYBACK_PROVIDER_UNAVAILABLE',
+        }), { status: deliveryResponse?.status === 403 ? 403 : 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      const sessionTokenHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(sessionToken))), b => b.toString(16).padStart(2, '0')).join('');
+      const ipHash = ip ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip))), b => b.toString(16).padStart(2, '0')).join('') : null;
+      const { data: session, error: sessionError } = await supabase.rpc('claim_screening_ticket_playback', {
+        p_ticket_id: ticket.id, p_session_token_hash: sessionTokenHash, p_ip_hash: ipHash, p_country_code: country,
       });
-
-      // Stream cap
-      const maxStreams = s.max_streams_per_ticket ?? 5;
-      const streamsRemaining = Math.max(0, maxStreams - (ticket.stream_count || 0));
-
-      await supabase.from('screening_tickets').update({
-        used_at: new Date().toISOString(),
-        ...(ticket.first_played_at ? {} : { first_played_at: new Date().toISOString() }),
-        last_ip: ip,
-        last_country: country,
-      }).eq('id', ticket.id);
+      if (sessionError || !session?.session_id) {
+        const reason = sessionError?.message || '';
+        const message = reason.includes('ticket_concurrent_stream_limit') ? 'This ticket is already being used on the maximum number of devices. Close another playback session or try again later.'
+          : reason.includes('ticket_stream_limit_reached') ? 'The maximum number of playback sessions for this ticket has been reached.'
+          : reason.includes('ticket_viewing_window_expired') ? 'Your timed viewing window has ended.'
+          : 'This ticket could not claim a secure playback session. Please retry.';
+        return new Response(JSON.stringify({ error: message }), { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
 
       return new Response(JSON.stringify({
         success: true,
@@ -91,10 +121,15 @@ if (import.meta.main) {
           expiresAt: ticket.expires_at,
           location: ticket.location,
           email: ticket.email,
-          streamsRemaining,
+          streamsRemaining: Number(session.streams_remaining ?? 0),
           maxStreams,
           maxConcurrent: s.max_concurrent_streams ?? 1,
           country,
+          playbackUrl: delivery.playbackUrl,
+          playbackExpiresAt: delivery.expiresAt,
+          deliveryProvider: delivery.provider,
+          sessionToken,
+          sessionExpiresAt: session.expires_at,
         },
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     } catch (error) {

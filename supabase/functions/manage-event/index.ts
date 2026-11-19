@@ -4,10 +4,21 @@ import { z } from "npm:zod@3";
 
 const Body = z.object({
   screeningId: z.string().uuid(),
-  action: z.enum(["upcoming", "live", "replay", "archived", "cancel"]),
+  action: z.enum(["upcoming", "live", "replay", "archived", "cancel", "configure"]),
   replayPriceNgn: z.number().min(0).max(10_000_000).optional(),
   replayPriceUsd: z.number().min(0).max(100_000).optional(),
-  replayAccessHours: z.number().int().min(1).max(720).optional(),
+  replayAccessHours: z.number().int().min(1).max(8760).optional(),
+  salesOpenAt: z.string().datetime().nullable().optional(),
+  salesCloseAt: z.string().datetime().nullable().optional(),
+  earlyBirdPrice: z.number().min(0).max(100_000_000).nullable().optional(),
+  earlyBirdCurrency: z.string().regex(/^[A-Z]{3}$/).nullable().optional(),
+  earlyBirdEndsAt: z.string().datetime().nullable().optional(),
+  earlyBirdCapacity: z.number().int().positive().nullable().optional(),
+  ticketCapacity: z.number().int().positive().nullable().optional(),
+  eventVisibility: z.enum(["public", "unlisted", "private", "invite_only"]).optional(),
+  settlementHoldHours: z.number().int().min(24).max(72).optional(),
+  eventTimezone: z.string().min(1).max(80).optional(),
+  presaleEnabled: z.boolean().optional(),
   reason: z.string().max(500).optional(),
 });
 
@@ -31,6 +42,66 @@ Deno.serve(async (req) => {
     const { data: c } = await admin.from("content").select("creator_id").eq("id", s.content_id).maybeSingle();
     const { data: isAdmin } = await admin.rpc("is_super_admin", { _user_id: user.id });
     if (!isAdmin && c?.creator_id !== user.id) return json({ error: "Not allowed" }, 403);
+
+    if (p.action === "configure") {
+      const patch: Record<string, unknown> = {};
+      if (p.salesOpenAt !== undefined) patch.sales_open_at = p.salesOpenAt;
+      if (p.salesCloseAt !== undefined) patch.sales_close_at = p.salesCloseAt;
+      if (p.earlyBirdPrice !== undefined) patch.early_bird_price = p.earlyBirdPrice;
+      if (p.earlyBirdCurrency !== undefined) patch.early_bird_currency = p.earlyBirdCurrency;
+      if (p.earlyBirdEndsAt !== undefined) patch.early_bird_ends_at = p.earlyBirdEndsAt;
+      if (p.earlyBirdCapacity !== undefined) patch.early_bird_capacity = p.earlyBirdCapacity;
+      if (p.ticketCapacity !== undefined) patch.ticket_capacity = p.ticketCapacity;
+      if (p.eventVisibility !== undefined) {
+        patch.event_visibility = p.eventVisibility;
+        patch.invite_only = p.eventVisibility === "private" || p.eventVisibility === "invite_only";
+      }
+      if (p.settlementHoldHours !== undefined) patch.settlement_hold_hours = p.settlementHoldHours;
+      if (p.eventTimezone !== undefined) patch.event_timezone = p.eventTimezone;
+      if (p.presaleEnabled !== undefined) patch.presale_enabled = p.presaleEnabled;
+      if (p.salesOpenAt && p.salesCloseAt && new Date(p.salesCloseAt) <= new Date(p.salesOpenAt)) {
+        return json({ error: "Sales closing time must be after sales opening time." }, 400);
+      }
+      if (p.earlyBirdPrice !== undefined && p.earlyBirdPrice !== null) {
+        const regularPrice = Number(s.base_price ?? s.live_price_ngn ?? s.live_price_usd ?? 0);
+        if (!Number.isFinite(regularPrice) || regularPrice <= 0 || p.earlyBirdPrice >= regularPrice) {
+          return json({ error: "Early-bird pricing must be lower than the published regular ticket price." }, 400);
+        }
+        if (!p.earlyBirdEndsAt || new Date(p.earlyBirdEndsAt).getTime() <= Date.now()) {
+          return json({ error: "Early-bird pricing requires a future end time." }, 400);
+        }
+        const baseCurrency = String(s.base_currency || p.earlyBirdCurrency || "").toUpperCase();
+        if (!baseCurrency || String(p.earlyBirdCurrency || "").toUpperCase() !== baseCurrency) {
+          return json({ error: "Early-bird price must use the event's immutable base currency." }, 400);
+        }
+      } else if (p.earlyBirdCapacity != null || p.earlyBirdEndsAt) {
+        return json({ error: "Early-bird capacity and end time require an early-bird price." }, 400);
+      }
+      if (p.earlyBirdCapacity != null && (!Number.isInteger(p.earlyBirdCapacity) || p.earlyBirdCapacity < 1)) {
+        return json({ error: "Early-bird capacity must be a positive whole number." }, 400);
+      }
+      if (p.ticketCapacity != null && (!Number.isInteger(p.ticketCapacity) || p.ticketCapacity < 1)) {
+        return json({ error: "Ticket capacity must be a positive whole number." }, 400);
+      }
+      if (p.eventTimezone) {
+        try { new Intl.DateTimeFormat("en", { timeZone: p.eventTimezone }); }
+        catch { return json({ error: "Choose a valid IANA event timezone." }, 400); }
+      }
+      if (p.earlyBirdPrice !== undefined && p.earlyBirdPrice !== null && p.earlyBirdCurrency === undefined) {
+        return json({ error: "Early-bird pricing requires an explicit ISO currency." }, 400);
+      }
+      if (p.earlyBirdEndsAt && p.salesCloseAt && new Date(p.earlyBirdEndsAt) > new Date(p.salesCloseAt)) {
+        return json({ error: "Early-bird sales cannot end after the event sales window." }, 400);
+      }
+      if (!Object.keys(patch).length) return json({ error: "No event settings were supplied." }, 400);
+      const { error } = await admin.from("screenings").update(patch).eq("id", s.id);
+      if (error) return json({ error: "Event settings could not be saved." }, 500);
+      await admin.from("audit_logs").insert({
+        user_id: user.id, action: "event.sales_and_access_configured", entity_type: "screening", entity_id: s.id,
+        new_data: patch,
+      });
+      return json({ success: true, settings: patch });
+    }
 
     if (p.action !== "cancel") {
       const patch: Record<string, unknown> = { lifecycle: p.action };

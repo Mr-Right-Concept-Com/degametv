@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Calendar, Loader2, Film, BarChart3 } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { EventLifecycleControls } from '@/components/studio/EventLifecycleControls';
+import { EventInvitationsDialog } from '@/components/studio/EventInvitationsDialog';
 
 interface ScreeningRow {
   id: string;
@@ -17,6 +18,8 @@ interface ScreeningRow {
   screening_date: string | null;
   slug: string;
   lifecycle: string;
+  event_visibility?: string;
+  invite_only?: boolean;
 }
 
 export default function StudioScreenings() {
@@ -34,7 +37,7 @@ export default function StudioScreenings() {
       if (contentIds.length === 0) { setLoading(false); return; }
       const { data } = await supabase
         .from('screenings')
-        .select('id, title, status, screening_date, slug, lifecycle')
+        .select('id, title, status, screening_date, slug, lifecycle, event_visibility, invite_only')
         .in('content_id', contentIds)
         .order('screening_date', { ascending: false });
 
@@ -82,6 +85,7 @@ export default function StudioScreenings() {
                   <Badge className={statusColor[s.status] || statusColor.draft}>{s.status}</Badge>
                   <Badge variant="outline" className="capitalize">{s.lifecycle}</Badge>
                   <EventLifecycleControls screeningId={s.id} lifecycle={s.lifecycle} onDone={() => setReload(r => r + 1)} />
+                  {(s.event_visibility === 'private' || s.event_visibility === 'invite_only' || s.invite_only) && <EventInvitationsDialog screeningId={s.id} title={s.title} />}
                   <Button variant="outline" size="sm" className="rounded-full h-8 text-xs" asChild>
                     <Link to={`/studio/analytics/${s.id}`}><BarChart3 className="w-3 h-3 mr-1" /> Analytics</Link>
                   </Button>

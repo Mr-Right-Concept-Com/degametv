@@ -4,12 +4,13 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, CalendarDays, Clock, Share2, Ticket, Film } from 'lucide-react';
+import { Loader2, CalendarDays, Clock, Share2, Ticket, Film, Heart, Gift } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { useRuntimeConfig } from '@/contexts/RuntimeConfigContext';
 
 interface PublicContent {
   id: string; title: string; description: string | null; type: string;
@@ -21,17 +22,27 @@ interface PublicScreening {
   live_price_ngn: number | null; live_price_usd: number | null;
   replay_price_ngn: number | null; replay_price_usd: number | null;
   live_replay_ready_at: string | null; live_recording_status: string | null;
+  early_bird_price: number | null; early_bird_currency: string | null; early_bird_ends_at: string | null;
+  sales_open_at: string | null; sales_close_at: string | null; event_timezone?: string | null;
 }
 
 export default function ContentLanding() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const runtime = useRuntimeConfig();
   const [content, setContent] = useState<PublicContent | null>(null);
   const [screenings, setScreenings] = useState<PublicScreening[]>([]);
   const [loading, setLoading] = useState(true);
   const [guestEmail, setGuestEmail] = useState('');
   const [currency, setCurrency] = useState<'NGN' | 'USD'>('NGN');
   const [checkoutBusy, setCheckoutBusy] = useState<string | null>(null);
+  const [supportAmount, setSupportAmount] = useState('500');
+  const [supportType, setSupportType] = useState<'tip' | 'gift'>('tip');
+  const [giftKey, setGiftKey] = useState('heart');
+  const [supportEmail, setSupportEmail] = useState('');
+  const [supportMessage, setSupportMessage] = useState('');
+  const [supportAnonymous, setSupportAnonymous] = useState(false);
+  const [supportBusy, setSupportBusy] = useState(false);
   usePageTitle(content?.title ? content.title + ' — DeGameTV' : 'DeGameTV');
 
   useEffect(() => {
@@ -45,8 +56,10 @@ export default function ContentLanding() {
       if (error || !data) { setContent(null); setLoading(false); return; }
       setContent(data as PublicContent);
       const { data: events, error: eventError } = await supabase.from('screenings')
-        .select('id,title,slug,screening_date,live_price_ngn,live_price_usd,replay_price_ngn,replay_price_usd,live_replay_ready_at,live_recording_status')
-        .eq('content_id', id).eq('status', 'published').order('screening_date', { ascending: true });
+        .select('id,title,slug,screening_date,live_price_ngn,live_price_usd,replay_price_ngn,replay_price_usd,live_replay_ready_at,live_recording_status,early_bird_price,early_bird_currency,early_bird_ends_at,sales_open_at,sales_close_at,event_timezone')
+        .eq('content_id', id).eq('status', 'published')
+        .in('event_visibility', ['public', 'unlisted']).eq('invite_only', false)
+        .order('screening_date', { ascending: true });
       if (!active) return;
       if (eventError) toast.error('Screening details could not be loaded. Please refresh.');
       setScreenings((events ?? []) as PublicScreening[]);
@@ -74,6 +87,31 @@ export default function ContentLanding() {
     } finally { setCheckoutBusy(null); }
   };
 
+  const supportCreator = async () => {
+    if (!content || !id) return;
+    const amount = Number(supportAmount);
+    if (!Number.isFinite(amount) || amount <= 0) { toast.error('Enter a valid contribution amount.'); return; }
+    if (!user && !/^\S+@\S+\.\S+$/.test(supportEmail.trim())) { toast.error('Enter an email address for your contribution receipt.'); return; }
+    const target = screenings[0]?.id ? { screeningId: screenings[0].id } : { contentId: id };
+    setSupportBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('process-event-contribution', {
+        body: {
+          ...target, contributionType: supportType, ...(supportType === 'gift' ? { giftCatalogKey: giftKey } : {}),
+          amount, currency: runtime.config?.currency || currency,
+          countryCode: runtime.config?.geo.countryCode || runtime.config?.countryCurrency?.country_code || undefined,
+          ...(!user ? { email: supportEmail.trim() } : {}),
+          message: supportMessage.trim() || undefined, anonymous: supportAnonymous,
+        },
+      });
+      if (error || !data?.success || typeof data.checkoutUrl !== 'string') {
+        toast.error(data?.error || error?.message || 'Creator support checkout could not be started.');
+        return;
+      }
+      window.location.assign(data.checkoutUrl);
+    } finally { setSupportBusy(false); }
+  };
+
   const share = async () => {
     const url = window.location.href;
     try {
@@ -82,9 +120,23 @@ export default function ContentLanding() {
     } catch { toast.message('Copy this page address to share it.'); }
   };
 
-  const money = (amount: number | null) => amount == null || amount <= 0
-    ? 'Unavailable'
-    : currency === 'NGN' ? '₦' + amount.toLocaleString() : '$' + amount.toLocaleString();
+  const money = (amount: number | null) => {
+    if (amount == null || amount <= 0) return 'Unavailable';
+    try { return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount); }
+    catch { return currency + ' ' + amount.toLocaleString(); }
+  };
+
+  const liveEventPrice = (event: PublicScreening) => event.early_bird_price != null &&
+    event.early_bird_ends_at && new Date(event.early_bird_ends_at).getTime() > Date.now() &&
+    event.early_bird_currency === currency ? event.early_bird_price :
+    (currency === 'NGN' ? event.live_price_ngn : event.live_price_usd);
+  const eventCountdown = (date: string | null) => {
+    if (!date) return '';
+    const remaining = new Date(date).getTime() - Date.now();
+    if (remaining <= 0) return 'Starting now';
+    const days = Math.floor(remaining / 86400000), hours = Math.floor((remaining % 86400000) / 3600000);
+    return days > 0 ? `Starts in ${days}d ${hours}h` : `Starts in ${hours}h`;
+  };
 
   if (loading) return <MainLayout><div className="flex min-h-[60vh] items-center justify-center"><Loader2 className="h-7 w-7 animate-spin" /></div></MainLayout>;
   if (!content) return <MainLayout><div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center px-4 text-center"><Film className="mb-4 h-12 w-12 text-muted-foreground" /><h1 className="text-xl font-bold">This title is not available</h1><p className="mt-2 text-sm text-muted-foreground">The page may be unpublished or the link may be incorrect.</p><Button asChild className="mt-5"><Link to="/cinema">Browse cinema</Link></Button></div></MainLayout>;
@@ -109,6 +161,17 @@ export default function ContentLanding() {
         </div>
       </div>
       {content.type === 'live' && !user && <div className="mt-8 max-w-md space-y-2"><label htmlFor="live-ticket-email" className="text-sm font-medium">Email for ticket delivery</label><Input id="live-ticket-email" type="email" autoComplete="email" placeholder="you@example.com" value={guestEmail} onChange={e => setGuestEmail(e.target.value)} /><p className="text-xs text-muted-foreground">Your secure ticket claim link will be sent after payment is confirmed.</p></div>}
+      <section className="mt-8 rounded-[1.5rem] border border-border/70 bg-card p-5 shadow-sm sm:p-6">
+        <div className="mb-4 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10"><Heart className="h-5 w-5 text-primary"/></div><div><h2 className="font-semibold">Support this creator</h2><p className="text-xs text-muted-foreground">Send a tip or a virtual gift. Contributions do not unlock content.</p></div></div>
+        {!user && <div className="mb-3 max-w-md space-y-1"><label htmlFor="support-email" className="text-sm font-medium">Email for payment receipt</label><Input id="support-email" type="email" value={supportEmail} onChange={e=>setSupportEmail(e.target.value)} placeholder="you@example.com"/></div>}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1"><label className="text-sm font-medium">Support type</label><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={supportType} onChange={e=>setSupportType(e.target.value as 'tip'|'gift')}><option value="tip">Tip</option><option value="gift">Virtual gift</option></select></div>
+          {supportType === 'gift' && <div className="space-y-1"><label className="text-sm font-medium">Gift</label><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={giftKey} onChange={e=>setGiftKey(e.target.value)}><option value="heart">Heart</option><option value="star">Star</option><option value="clap">Applause</option><option value="crown">Crown</option></select></div>}
+          <div className="space-y-1"><label className="text-sm font-medium">Amount ({currency})</label><Input type="number" min="1" step="any" value={supportAmount} onChange={e=>setSupportAmount(e.target.value)}/></div>
+          <div className="space-y-1"><label className="text-sm font-medium">Message (optional)</label><Input maxLength={280} value={supportMessage} onChange={e=>setSupportMessage(e.target.value)} placeholder="Send a message with your support"/></div>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><label className="flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={supportAnonymous} onChange={e=>setSupportAnonymous(e.target.checked)}/>Send anonymously</label><Button onClick={()=>void supportCreator()} disabled={supportBusy} className="rounded-full">{supportBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Gift className="mr-2 h-4 w-4"/>}{supportType === 'gift' ? 'Send gift' : 'Send tip'}</Button></div>
+      </section>
       <section className="mt-12 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold">Screenings & access</h2>
