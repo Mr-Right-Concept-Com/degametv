@@ -58,7 +58,7 @@ serve(async(req:Request)=>{
   const {count:currencyCount}=await db.from("country_currency_rules").select("country_code",{count:"exact",head:true}).eq("currency_code",currency).eq("enabled",true);
   if(!currencyCount)return json(422,{error:"The selected transaction currency is not enabled."});
 
-  const {data:screening,error}=await db.from("screenings").select("id,tenant_id,content_id,title,slug,status,live_price_ngn,live_price_usd,replay_price_ngn,replay_price_usd,replay_access_hours,replay_access_model,access_model,live_recording_status,live_replay_ready_at").eq("id",screeningId).eq("status","published").maybeSingle();
+  const {data:screening,error}=await db.from("screenings").select("id,tenant_id,content_id,title,slug,status,live_price_ngn,live_price_usd,replay_price_ngn,replay_price_usd,base_price,base_currency,replay_base_price,replay_access_hours,replay_access_model,access_model,live_recording_status,live_replay_ready_at").eq("id",screeningId).eq("status","published").maybeSingle();
   if(error||!screening)return json(404,{error:"Published event not found."});
   const {data:stream}=await db.from("live_streams").select("id,tenant_id,status,metadata").eq("tenant_id",screening.tenant_id).contains("metadata",{screening_id:screening.id}).maybeSingle();
   if(!stream)return json(409,{error:"Live event has not been provisioned."});
@@ -68,11 +68,12 @@ serve(async(req:Request)=>{
   if(ticketType==="replay"&&(!screening.live_replay_ready_at||screening.live_recording_status!=="ready"))return json(409,{error:"Replay is not ready yet."});
 
   const isNigeria=countryCode==="NG";
-  const sourceCurrency=isNigeria?"NGN":"USD";
-  const livePrice=Number(isNigeria?screening.live_price_ngn:screening.live_price_usd)||0;
-  const replayPrice=Number(isNigeria?screening.replay_price_ngn:screening.replay_price_usd)||0;
+  const hasBasePrice=screening.base_price!==null&&screening.base_price!==undefined;
+  const sourceCurrency=hasBasePrice?String(screening.base_currency||"").toUpperCase():(isNigeria?"NGN":"USD");
+  const livePrice=Number(hasBasePrice?screening.base_price:(isNigeria?screening.live_price_ngn:screening.live_price_usd))||0;
+  const replayPrice=Number(hasBasePrice?screening.replay_base_price:(isNigeria?screening.replay_price_ngn:screening.replay_price_usd))||0;
   const baseAmount=ticketType==="live"?livePrice:ticketType==="replay"?replayPrice:livePrice+(screening.replay_access_model==="SEPARATE_PRICE"?replayPrice:0);
-  if(!Number.isFinite(baseAmount)||baseAmount<=0)return json(409,{error:"This ticket price is not configured for your country."});
+  if(!/^[A-Z]{3}$/.test(sourceCurrency)||!Number.isFinite(baseAmount)||baseAmount<=0)return json(409,{error:"This ticket price is not configured in a supported currency."});
 
   const {data:providers,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:"payments"});
   if(providerError||!Array.isArray(providers)||!providers.length)return json(503,{error:"No payment provider is enabled in Admin Provider Vault."});
