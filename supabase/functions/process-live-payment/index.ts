@@ -100,7 +100,7 @@ serve(async(req:Request)=>{
   const candidate=usable[0];
   const {error:insertError}=await db.from("live_payment_orders").insert({
    tenant_id:screening.tenant_id,user_id:user?.id??null,guest_checkout:!user,screening_id:screening.id,stream_id:stream.id,
-   ticket_type:ticketType,provider:candidate.provider_key,provider_reference:reference,provider_mode:"live",email,amount_minor:minor,currency,
+   ticket_type:ticketType,provider:candidate.provider_key,provider_reference:reference,provider_mode:"live",email,amount_minor:minor,amount_major:convertedAmount,currency,
    metadata:{created_from:"viewer_checkout",guest_checkout:!user,provider_mode:"live",country_code:countryCode,source_currency:sourceCurrency,base_amount:baseAmount},
   });
   if(insertError)return json(503,{error:"Could not create a secure ticket order. No charge was made."});
