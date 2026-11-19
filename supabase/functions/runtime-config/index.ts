@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
   const profileQuery = userId
     ? db.from("profiles").select("preferred_country,preferred_currency,locale_code").eq("user_id", userId).maybeSingle()
     : Promise.resolve({ data: null, error: null });
-  const [countries, features, profileResult, siteSetting] = await Promise.all([
+  const [countries, features, profileResult, siteSetting, baseSetting] = await Promise.all([
     db.from("country_currency_rules")
       .select("country_code,currency_code,currency_symbol,locale_code,timezone_name,metadata")
       .eq("enabled", true).order("country_code"),
@@ -46,12 +46,15 @@ Deno.serve(async (req) => {
       .select("feature_key,enabled,rollout_percentage,release_state"),
     profileQuery,
     db.from("platform_settings").select("setting_value,is_public").eq("setting_key","public_site_url").maybeSingle(),
+    db.from("platform_settings").select("setting_value").eq("setting_key","base_currency").maybeSingle(),
   ]);
-  if (countries.error || features.error || profileResult.error || siteSetting.error) {
+  if (countries.error || features.error || profileResult.error || siteSetting.error || baseSetting.error) {
     return response({ error: "Runtime configuration could not be loaded." }, 503);
   }
 
   const profile = profileResult.data;
+  const configuredBaseCurrency = typeof baseSetting.data?.setting_value === "string" ? baseSetting.data.setting_value.toUpperCase() : "";
+  if (!/^[A-Z]{3}$/.test(configuredBaseCurrency)) return response({ error: "Platform base currency is not configured." }, 503);
   const enabledCountries = countries.data ?? [];
   const enabledCountryCodes = new Set(enabledCountries.map((item) => item.country_code));
   const edgeCountry = req.headers.get("cf-ipcountry")?.toUpperCase();
@@ -62,7 +65,6 @@ Deno.serve(async (req) => {
   const candidate = [preferredCountry, edgeCountry, requestedCountry, localeRegion]
     .find((value) => value && countrySchema.safeParse(value).success && enabledCountryCodes.has(value)) ?? null;
   const country = candidate ? enabledCountries.find((item) => item.country_code === candidate) : undefined;
-  const configuredBaseCurrency = typeof baseSetting?.setting_value === "string" && currencySchema.safeParse(baseSetting.setting_value).success ? baseSetting.setting_value : "USD";
 
   const supportedCurrencies = new Set(enabledCountries.map((item) => item.currency_code));
   const requestedCurrency = String(body?.currency ?? requestUrl.searchParams.get("currency") ?? "").toUpperCase();
