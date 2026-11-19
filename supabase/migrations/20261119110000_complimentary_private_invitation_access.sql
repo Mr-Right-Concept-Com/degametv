@@ -98,7 +98,7 @@ BEGIN
         v_valid_until:=v_screening.live_replay_ready_at+make_interval(hours=>v_screening.replay_access_hours);
       ELSE
         v_ticket_type:='live'; v_valid_from:=coalesce(v_screening.screening_date,now());
-        v_valid_until:=coalesce(v_screening.live_ended_at,v_screening.screening_date+interval '24 hours',now()+interval '24 hours');
+        v_valid_until:='infinity'::timestamptz;
       END IF;
       INSERT INTO public.event_ticket_reservations(
         tenant_id,screening_id,live_stream_id,invite_id,provider_reference,user_id,email,ticket_type,
