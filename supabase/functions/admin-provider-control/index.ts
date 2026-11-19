@@ -52,8 +52,8 @@ Deno.serve(async req => {
     if(p.capability==="payments"){
       const currencies=p.settings.supported_currencies;
       const origins=p.settings.allowed_checkout_origins;
-      if(!endpoint("checkout_initialize")||!endpoint("payment_verify")||!Array.isArray(currencies)||currencies.length===0||currencies.some((v:any)=>typeof v!=="string"||!/^[A-Z]{3}$/.test(v))||!Array.isArray(origins)||origins.length===0||origins.some((v:any)=>{try{const u=new URL(v);return u.protocol!=="https:"||u.origin!==v;}catch{return true;}}))
-        return json({error:"Payment adapters require checkout_initialize and payment_verify endpoints, ISO supported_currencies, and HTTPS allowed_checkout_origins."},400);
+      if(!endpoint("checkout_initialize")||!endpoint("payment_verify")||!endpoint("refund")||!Array.isArray(currencies)||currencies.length===0||currencies.some((v:any)=>typeof v!=="string"||!/^[A-Z]{3}$/.test(v))||!Array.isArray(origins)||origins.length===0||origins.some((v:any)=>{try{const u=new URL(v);return u.protocol!=="https:"||u.origin!==v;}catch{return true;}}))
+        return json({error:"Payment adapters require checkout_initialize, payment_verify and refund endpoints, ISO supported_currencies, and HTTPS allowed_checkout_origins."},400);
       if(!["paystack","stripe","flutterwave","generic"].includes(adapter))return json({error:"Unsupported normalized payment adapter. Use paystack, stripe, flutterwave or generic."},400);
     }
     if(p.capability==="email"){
