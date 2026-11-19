@@ -219,6 +219,7 @@ export default function BuyTicket() {
   const replayPrice = hasBasePrice ? screening.replay_base_price : (location === 'nigeria' ? screening.replay_price_ngn : screening.replay_price_usd);
   const basePrice = isReplay && replayPrice != null ? Number(replayPrice) : hasBasePrice ? Number(screening.base_price) : Number(pricing[location] ?? 0);
   const currency = hasBasePrice ? String(screening.base_currency || runtime.config?.baseCurrency || 'USD') : (location === 'nigeria' ? 'NGN' : 'USD');
+  const symbol = currency;
   const total = basePrice;
   const eligiblePaymentMethods = paymentMethods.filter(method => method.available && method.supportedCurrencies.includes(localCurrency ?? currency));
   const localPriceLabel = localConverted !== null && localCurrency ? new Intl.NumberFormat(undefined,{style:'currency',currency:localCurrency,maximumFractionDigits:2}).format(localConverted) : null;
