@@ -91,6 +91,15 @@ Deno.serve(async req => {
       if(!response.ok||(body?.ok!==true&&body?.status!==true))return json({error:"Provider health check failed. Provider mode was not changed."},502);
     }catch{return json({error:"Provider health check did not respond. Provider mode was not changed."},502);}
   }
+  if(p.action==="remove"&&p.capability==="payments"){
+    const [guestPending,livePending]=await Promise.all([
+      admin.from("guest_payment_orders").select("id",{count:"exact",head:true}).eq("provider",p.providerKey).eq("status","pending"),
+      admin.from("live_payment_orders").select("id",{count:"exact",head:true}).eq("provider",p.providerKey).eq("status","pending"),
+    ]);
+    if(guestPending.error||livePending.error)return json({error:"Pending payment orders could not be checked; provider removal was blocked."},503);
+    const pending=(guestPending.count??0)+(livePending.count??0);
+    if(pending>0)return json({error:"This provider cannot be removed while "+pending+" payment orders are pending. Disable new routing, allow pending orders to settle, then remove it."},409);
+  }
   const args=p.action==="remove"
     ? {p_capability:p.capability,p_provider_key:p.providerKey,p_enabled:false,p_is_live:false,p_remove:true}
     : {p_capability:p.capability,p_provider_key:p.providerKey,p_enabled:p.enabled,p_is_live:p.live,p_base_url:p.baseUrl,p_endpoints:p.endpoints,p_settings:p.settings,p_test_credential:p.testCredential??null,p_live_credential:p.liveCredential??null,p_test_webhook_secret:p.testWebhookSecret??null,p_live_webhook_secret:p.liveWebhookSecret??null,p_priority:p.priority};
