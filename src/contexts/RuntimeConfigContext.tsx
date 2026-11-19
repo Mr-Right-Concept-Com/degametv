@@ -9,7 +9,7 @@ type RuntimeConfig = {
  currencySymbol:string|null;
  countryCurrency:RuntimeCountry|null;
  countries:RuntimeCountry[];
- features:Array<{key:string}>;
+ features:Array<{key:string;enabled:boolean}>;
  generatedAt:string;
 };
 type RuntimeState = {config:RuntimeConfig|null;loading:boolean;refresh:()=>Promise<void>};
