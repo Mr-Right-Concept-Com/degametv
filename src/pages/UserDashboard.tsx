@@ -419,8 +419,10 @@ export default function UserDashboard() {
 }
 
 function TicketRow({ ticket, type, onCopy }: { ticket: any; type: string; onCopy: (wc: string, email: string) => void }) {
-  const currency = /^[A-Z]{3}$/.test(ticket.currency || '') ? ticket.currency : 'USD';
-  const formattedPrice = new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(ticket.price || 0));
+  const currency = typeof ticket.currency === 'string' && /^[A-Z]{3}$/.test(ticket.currency) ? ticket.currency : null;
+  const formattedPrice = currency
+    ? new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(ticket.price || 0))
+    : Number(ticket.price || 0).toLocaleString();
   const title = ticket.screening?.title || 'Screening';
 
   return (
