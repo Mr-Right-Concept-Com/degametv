@@ -14,24 +14,44 @@ ALTER TABLE public.event_settlement_holds ADD CONSTRAINT event_settlement_holds_
 
 CREATE OR REPLACE FUNCTION public.guard_event_settlement_hold()
 RETURNS trigger LANGUAGE plpgsql SET search_path=public,pg_temp AS $$
-DECLARE v_creator uuid; v_tenant uuid; v_event_end timestamptz; v_delivered timestamptz; v_hours integer;
+DECLARE
+ v_creator uuid; v_tenant uuid; v_event_end timestamptz; v_delivered timestamptz;
+ v_hours integer; v_event_type text; v_stream_id uuid;
 BEGIN
- IF NEW.screening_id IS NOT NULL THEN
-  SELECT c.creator_id,s.tenant_id,coalesce(s.live_ended_at,s.screening_date,s.release_date),s.live_replay_ready_at,s.settlement_hold_hours
-   INTO v_creator,v_tenant,v_event_end,v_delivered,v_hours
-   FROM public.screenings s JOIN public.content c ON c.id=s.content_id WHERE s.id=NEW.screening_id;
- ELSIF NEW.live_stream_id IS NOT NULL THEN
+ IF NEW.live_stream_id IS NOT NULL THEN
   SELECT l.creator_id,l.tenant_id,l.actual_ended_at,
    CASE WHEN l.recording_enabled AND l.settlement_delivery_required
      THEN CASE WHEN l.vod_replay_asset_url IS NOT NULL THEN l.actual_ended_at ELSE NULL END
      ELSE l.actual_ended_at END,
    l.settlement_hold_hours
-   INTO v_creator,v_tenant,v_event_end,v_delivered,v_hours FROM public.live_streams l WHERE l.id=NEW.live_stream_id;
+   INTO v_creator,v_tenant,v_event_end,v_delivered,v_hours
+   FROM public.live_streams l WHERE l.id=NEW.live_stream_id;
+ ELSIF NEW.screening_id IS NOT NULL THEN
+  SELECT c.creator_id,s.tenant_id,coalesce(s.live_ended_at,s.screening_date,s.release_date),
+   s.live_replay_ready_at,s.settlement_hold_hours,s.event_type
+   INTO v_creator,v_tenant,v_event_end,v_delivered,v_hours,v_event_type
+   FROM public.screenings s JOIN public.content c ON c.id=s.content_id WHERE s.id=NEW.screening_id;
+  IF v_event_type='live' THEN
+   SELECT l.id INTO v_stream_id FROM public.live_streams l
+    WHERE l.tenant_id=v_tenant AND l.metadata->>'screening_id'=NEW.screening_id::text
+    ORDER BY l.created_at DESC LIMIT 1;
+   IF v_stream_id IS NOT NULL THEN
+    SELECT l.actual_ended_at,
+     CASE WHEN l.recording_enabled AND l.settlement_delivery_required
+       THEN CASE WHEN l.vod_replay_asset_url IS NOT NULL THEN l.actual_ended_at ELSE NULL END
+       ELSE l.actual_ended_at END,
+     l.settlement_hold_hours
+     INTO v_event_end,v_delivered,v_hours FROM public.live_streams l WHERE l.id=v_stream_id;
+   END IF;
+  END IF;
  ELSE
   SELECT c.creator_id,c.tenant_id,now(),now(),48
-   INTO v_creator,v_tenant,v_event_end,v_delivered,v_hours FROM public.content c WHERE c.id=NEW.content_id AND c.status='published';
+   INTO v_creator,v_tenant,v_event_end,v_delivered,v_hours
+   FROM public.content c WHERE c.id=NEW.content_id AND c.status='published';
  END IF;
- IF v_creator IS NULL OR v_creator<>NEW.creator_id OR v_tenant<>NEW.tenant_id THEN RAISE EXCEPTION 'settlement_event_owner_mismatch' USING ERRCODE='42501'; END IF;
+ IF v_creator IS NULL OR v_creator<>NEW.creator_id OR v_tenant<>NEW.tenant_id THEN
+  RAISE EXCEPTION 'settlement_event_owner_mismatch' USING ERRCODE='42501';
+ END IF;
  IF NEW.hold_hours IS NULL OR NEW.hold_hours=48 THEN NEW.hold_hours:=coalesce(v_hours,48); END IF;
  NEW.event_ended_at:=coalesce(NEW.event_ended_at,v_event_end);
  NEW.delivery_confirmed_at:=coalesce(NEW.delivery_confirmed_at,v_delivered);
