@@ -180,6 +180,16 @@ export default function StudioSubmit() {
     replay_access_model: 'INCLUDED_WITH_TICKET',
     replay_base_price: '',
     replay_access_hours: '48',
+    sales_open_at: '',
+    sales_close_at: '',
+    early_bird_price: '',
+    early_bird_ends_at: '',
+    early_bird_capacity: '',
+    ticket_capacity: '',
+    event_visibility: 'public' as 'public' | 'unlisted' | 'private' | 'invite_only',
+    settlement_hold_hours: '48',
+    presale_enabled: true,
+    event_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
   });
 
   useEffect(() => {
@@ -302,6 +312,28 @@ export default function StudioSubmit() {
       return;
     }
     if (!validateStep3()) return;
+    const salesOpenDate = form.sales_open_at ? new Date(form.sales_open_at) : null;
+    const salesCloseDate = form.sales_close_at ? new Date(form.sales_close_at) : null;
+    const earlyBirdEndDate = form.early_bird_ends_at ? new Date(form.early_bird_ends_at) : null;
+    if ((salesOpenDate && !Number.isFinite(salesOpenDate.getTime())) || (salesCloseDate && !Number.isFinite(salesCloseDate.getTime())) ||
+        (earlyBirdEndDate && !Number.isFinite(earlyBirdEndDate.getTime()))) {
+      toast.error('Check the event sales and early-bird dates.');
+      return;
+    }
+    if (salesOpenDate && salesCloseDate && salesCloseDate <= salesOpenDate) {
+      toast.error('Ticket sales must close after they open.');
+      return;
+    }
+    if (form.early_bird_price.trim() && (!Number.isFinite(Number(form.early_bird_price)) || Number(form.early_bird_price) <= 0 ||
+        !earlyBirdEndDate || (salesCloseDate && earlyBirdEndDate > salesCloseDate))) {
+      toast.error('Early-bird pricing needs a positive price and an end time inside the sales window.');
+      return;
+    }
+    const holdHours = Number(form.settlement_hold_hours);
+    if (![24, 48, 72].includes(holdHours)) {
+      toast.error('Choose a settlement hold of 24, 48 or 72 hours.');
+      return;
+    }
     if (form.project_type === 'live' && form.auto_convert_to_vod) {
       const hours = Number(form.replay_access_hours);
       if (!Number.isInteger(hours) || hours < 1 || hours > 8760) {
@@ -425,6 +457,29 @@ export default function StudioSubmit() {
         }
         const screeningId = (event as { screening_id: string }).screening_id;
         setCreatedScreeningId(screeningId);
+        const { data: eventSettings, error: eventSettingsError } = await supabase.functions.invoke('manage-event', {
+          body: {
+            screeningId,
+            action: 'configure',
+            salesOpenAt: form.sales_open_at ? new Date(form.sales_open_at).toISOString() : null,
+            salesCloseAt: form.sales_close_at ? new Date(form.sales_close_at).toISOString() : null,
+            earlyBirdPrice: form.early_bird_price.trim() ? Number(form.early_bird_price) : null,
+            earlyBirdCurrency: form.early_bird_price.trim() ? runtime.config?.baseCurrency : null,
+            earlyBirdEndsAt: form.early_bird_ends_at ? new Date(form.early_bird_ends_at).toISOString() : null,
+            earlyBirdCapacity: form.early_bird_capacity.trim() ? Number(form.early_bird_capacity) : null,
+            ticketCapacity: form.ticket_capacity.trim() ? Number(form.ticket_capacity) : null,
+            eventVisibility: form.event_visibility,
+            settlementHoldHours: Number(form.settlement_hold_hours),
+            settlementDeliveryRequired: form.project_type !== 'live' || form.auto_convert_to_vod,
+            eventTimezone: form.event_timezone,
+            presaleEnabled: form.presale_enabled,
+          },
+        });
+        if (eventSettingsError || !eventSettings?.success) {
+          toast.error(eventSettings?.error || 'The event was created, but its sales and settlement settings need attention in Studio.');
+          setSubmitting(false);
+          return;
+        }
         if (form.project_type === 'live') {
           const { data: pricingResult, error: pricingError } = await supabase.functions.invoke('manage-live-pricing', {
             body: {
@@ -775,6 +830,27 @@ export default function StudioSubmit() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2"><Label>Event date</Label><Input type="date" required value={form.premiere_date} onChange={e => setForm(f => ({ ...f, premiere_date: e.target.value }))} /></div>
                     <div className="space-y-2"><Label>Start time</Label><Input type="time" required value={form.premiere_time} onChange={e => setForm(f => ({ ...f, premiere_time: e.target.value }))} /></div>
+                  </div>
+                  <Card className="border-border/70">
+                    <CardHeader className="pb-3"><CardTitle className="text-base">Advance ticket sales</CardTitle><CardDescription>Publish the event now and let viewers reserve tickets ahead of the start time.</CardDescription></CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div className="space-y-1"><Label>Sales open (optional)</Label><Input type="datetime-local" value={form.sales_open_at} onChange={e=>setForm(f=>({...f,sales_open_at:e.target.value}))}/></div>
+                        <div className="space-y-1"><Label>Sales close (optional)</Label><Input type="datetime-local" value={form.sales_close_at} onChange={e=>setForm(f=>({...f,sales_close_at:e.target.value}))}/></div>
+                        <div className="space-y-1"><Label>Ticket capacity (optional)</Label><Input type="number" min="1" step="1" placeholder="Unlimited" value={form.ticket_capacity} onChange={e=>setForm(f=>({...f,ticket_capacity:e.target.value}))}/></div>
+                        <div className="space-y-1"><Label>Event visibility</Label><Select value={form.event_visibility} onValueChange={v=>setForm(f=>({...f,event_visibility:v as typeof f.event_visibility}))}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="public">Public discovery</SelectItem><SelectItem value="unlisted">Unlisted link</SelectItem><SelectItem value="private">Private invitations</SelectItem><SelectItem value="invite_only">Invite-only tickets</SelectItem></SelectContent></Select></div>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <div className="space-y-1"><Label>Early-bird price ({runtime.config?.baseCurrency || 'base currency'})</Label><Input inputMode="decimal" placeholder="Optional discount" value={form.early_bird_price} onChange={e=>setForm(f=>({...f,early_bird_price:e.target.value}))}/></div>
+                        <div className="space-y-1"><Label>Early-bird ends</Label><Input type="datetime-local" value={form.early_bird_ends_at} onChange={e=>setForm(f=>({...f,early_bird_ends_at:e.target.value}))}/></div>
+                        <div className="space-y-1"><Label>Early-bird ticket limit</Label><Input type="number" min="1" step="1" placeholder="Optional" value={form.early_bird_capacity} onChange={e=>setForm(f=>({...f,early_bird_capacity:e.target.value}))}/></div>
+                      </div>
+                      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.presale_enabled} onChange={e=>setForm(f=>({...f,presale_enabled:e.target.checked}))}/>Allow advance ticket sales before the event starts</label>
+                    </CardContent>
+                  </Card>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-1"><Label>Creator settlement hold</Label><Select value={form.settlement_hold_hours} onValueChange={v=>setForm(f=>({...f,settlement_hold_hours:v}))}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="24">24 hours</SelectItem><SelectItem value="48">48 hours (default)</SelectItem><SelectItem value="72">72 hours</SelectItem></SelectContent></Select><p className="text-xs text-muted-foreground">Funds remain held until the event ends, promised delivery is verified, and this hold expires.</p></div>
+                    <div className="space-y-1"><Label>Event timezone</Label><Input value={form.event_timezone} onChange={e=>setForm(f=>({...f,event_timezone:e.target.value}))} placeholder="Africa/Lagos"/><p className="text-xs text-muted-foreground">Use an IANA timezone, e.g. Africa/Lagos.</p></div>
                   </div>
                   {form.project_type === 'live' && <div className="space-y-2">
                     <Label>Admission model</Label>
