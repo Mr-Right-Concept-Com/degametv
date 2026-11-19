@@ -46,7 +46,9 @@ export default function ContentLanding() {
       setContent(data as PublicContent);
       const { data: events, error: eventError } = await supabase.from('screenings')
         .select('id,title,slug,screening_date,live_price_ngn,live_price_usd,replay_price_ngn,replay_price_usd,live_replay_ready_at,live_recording_status')
-        .eq('content_id', id).eq('status', 'published').order('screening_date', { ascending: true });
+        .eq('content_id', id).eq('status', 'published')
+        .in('event_visibility', ['public', 'unlisted']).eq('invite_only', false)
+        .order('screening_date', { ascending: true });
       if (!active) return;
       if (eventError) toast.error('Screening details could not be loaded. Please refresh.');
       setScreenings((events ?? []) as PublicScreening[]);
