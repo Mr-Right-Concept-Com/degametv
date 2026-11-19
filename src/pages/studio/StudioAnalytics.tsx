@@ -43,11 +43,16 @@ export default function StudioAnalytics() {
   }
 
   const completed = tickets.filter(t => t.payment_status === 'completed');
-  const revenue = completed.reduce((totals, ticket) => {
-    const currency = ticket.currency === 'USD' ? 'USD' : ticket.currency === 'NGN' ? 'NGN' : null;
-    if (currency) totals[currency] += Number(ticket.price) || 0;
+  const revenue = completed.reduce<Record<string, number>>((totals, ticket) => {
+    const currency = typeof ticket.currency === 'string' && /^[A-Z]{3}$/.test(ticket.currency) ? ticket.currency : null;
+    if (currency) totals[currency] = (totals[currency] || 0) + (Number(ticket.price) || 0);
     return totals;
-  }, { NGN: 0, USD: 0 });
+  }, {});
+  const formatMoney = (amount: number, currency: string) => {
+    try { return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(amount); }
+    catch { return currency + ' ' + amount.toLocaleString(); }
+  };
+  const revenueDisplay = Object.entries(revenue).sort(([a], [b]) => a.localeCompare(b)).map(([currency, amount]) => formatMoney(amount, currency)).join(' · ') || '—';
   const totalSeconds = history.reduce((s, h) => s + (Number(h.watch_duration_seconds) || 0), 0);
   const avgSeconds = history.length ? Math.round(totalSeconds / history.length) : 0;
   const fmt = (s: number) => `${Math.floor(s / 60)}m ${s % 60}s`;
@@ -65,7 +70,7 @@ export default function StudioAnalytics() {
 
   const stats: Stat[] = [
     { label: 'Tickets Sold', value: completed.length.toString(), icon: Users },
-    { label: 'Revenue', value: `₦${revenue.toLocaleString()}`, icon: DollarSign },
+    { label: 'Revenue', value: revenueDisplay, icon: DollarSign },
     { label: 'Unique Viewers', value: new Set(history.map(row => row.user_id || row.session_id).filter(Boolean)).size.toString(), icon: Eye },
     { label: 'Avg Watch Time', value: fmt(avgSeconds), icon: Clock, sub: `${Math.round(totalSeconds / 60)} total mins` },
   ];
@@ -89,7 +94,7 @@ export default function StudioAnalytics() {
                   <p className="text-xs text-muted-foreground">{s.label}</p>
                   <s.icon className="w-4 h-4 text-muted-foreground" />
                 </div>
-                  <p className="text-2xl font-bold">{s.label === 'Revenue' ? `₦${revenue.NGN.toLocaleString()} · $${revenue.USD.toLocaleString()}` : s.value}</p>
+                  <p className="text-2xl font-bold">{s.value}</p>
                 {s.sub && <p className="text-[10px] text-muted-foreground mt-1">{s.sub}</p>}
               </CardContent>
             </Card>
@@ -132,7 +137,7 @@ export default function StudioAnalytics() {
                     <p className="text-xs text-muted-foreground">{new Date(t.created_at).toLocaleString()} · {t.last_country || t.location || '—'}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold">{t.currency === 'USD' ? '$' : '₦'}{Number(t.price).toLocaleString()}</p>
+                    <p className="font-semibold">{formatMoney(Number(t.price) || 0, /^[A-Z]{3}$/.test(t.currency || '') ? t.currency : 'USD')}</p>
                     <p className="text-[10px] text-muted-foreground">{t.stream_count || 0} streams</p>
                   </div>
                 </div>
