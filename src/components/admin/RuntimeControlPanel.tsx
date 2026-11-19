@@ -8,7 +8,7 @@ import { invokeFn } from "@/lib/invokeFn";
 import { toast } from "sonner";
 import { Loader2, RefreshCw } from "lucide-react";
 
-type CountryRule = {country_code:string;currency_code:string;currency_symbol:string|null;locale_code:string;timezone_name:string|null;enabled:boolean;source:string;updated_at:string};
+type CountryRule = {country_code:string;currency_code:string;metadata?:Record<string,unknown>;currency_symbol:string|null;locale_code:string;timezone_name:string|null;enabled:boolean;source:string;updated_at:string};
 type Feature = {feature_key:string;enabled:boolean;rollout_percentage:number;release_state:string;config:Record<string,unknown>;change_reason:string;updated_at:string;updated_by:string};
 async function call<T>(body:Record<string,unknown>){const r=await invokeFn<{result:T}>("admin-godmode",body);if(!r.ok)throw new Error(r.error);return r.data?.result as T;}
 
@@ -43,7 +43,7 @@ export function RuntimeControlPanel(){
    </div>
    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={country.enabled} onChange={e=>setCountry(v=>({...v,enabled:e.target.checked}))}/> Country policy enabled</label>
    <Button onClick={()=>void saveCountry()} disabled={saving||country.countryCode.length!==2||country.currencyCode.length!==3||country.reason.trim().length<3}>{saving&&<Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Save country policy</Button>
-   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{countries.map(r=><button key={r.country_code} type="button" onClick={()=>editCountry(r)} className="rounded-lg border p-3 text-left hover:bg-muted/50"><div className="flex items-center justify-between"><span className="font-medium">{r.country_code} · {r.currency_code}</span><Badge variant={r.enabled?"default":"secondary"}>{r.enabled?"Enabled":"Disabled"}</Badge></div><p className="text-sm text-muted-foreground">{r.currency_symbol||""} · {r.locale_code} · {r.timezone_name||"Timezone not set"}</p></button>)}</div>
+   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{countries.map(r=><button key={r.country_code} type="button" onClick={()=>editCountry(r)} className="rounded-lg border p-3 text-left hover:bg-muted/50"><div className="flex items-center justify-between"><span className="font-medium">{String(r.metadata?.country_name || r.country_code)} ({r.country_code}) · {r.currency_code}</span><Badge variant={r.enabled?"default":"secondary"}>{r.enabled?"Enabled":"Disabled"}</Badge></div><p className="text-sm text-muted-foreground">{r.currency_symbol||""} · {r.locale_code} · {r.timezone_name||"Timezone not set"}</p></button>)}</div>
   </CardContent></Card>
   <Card><CardHeader><CardTitle className="text-base">Feature controls and safe release</CardTitle><CardDescription>Draft, canary, release, pause or roll back runtime features without shipping a new client build. Runtime consumers must enforce these controls before a feature is considered live.</CardDescription></CardHeader><CardContent className="space-y-4">
    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
