@@ -48,6 +48,9 @@ if (import.meta.main) {
         return json(503, { success: false, code: "PLAYBACK_PROVIDER_NOT_CONFIGURED", error: "Secure playback is not configured. Your ticket remains valid." });
       }
       const provider = delivery[0];
+      if (provider.settings?.session_bound_playback !== true) {
+        return json(503, { success: false, code: "PLAYBACK_SESSION_BINDING_REQUIRED", error: "The active video provider has not confirmed session-bound playback enforcement." });
+      }
       const endpoint = provider.endpoints?.playback_authorize;
       if (!provider.credential || typeof endpoint !== "string" || !endpoint.startsWith("/") || endpoint.startsWith("//")) {
         return json(503, { success: false, code: "PLAYBACK_PROVIDER_INCOMPLETE", error: "The active video provider is missing its playback authorization contract." });
