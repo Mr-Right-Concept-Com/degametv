@@ -17,7 +17,6 @@ const Body = z.object({
   ticketCapacity: z.number().int().positive().nullable().optional(),
   eventVisibility: z.enum(["public", "unlisted", "private", "invite_only"]).optional(),
   settlementHoldHours: z.number().int().min(24).max(72).optional(),
-  settlementDeliveryRequired: z.boolean().optional(),
   eventTimezone: z.string().min(1).max(80).optional(),
   presaleEnabled: z.boolean().optional(),
   reason: z.string().max(500).optional(),
@@ -58,7 +57,6 @@ Deno.serve(async (req) => {
         patch.invite_only = p.eventVisibility === "private" || p.eventVisibility === "invite_only";
       }
       if (p.settlementHoldHours !== undefined) patch.settlement_hold_hours = p.settlementHoldHours;
-      if (p.settlementDeliveryRequired !== undefined) patch.settlement_delivery_required = p.settlementDeliveryRequired;
       if (p.eventTimezone !== undefined) patch.event_timezone = p.eventTimezone;
       if (p.presaleEnabled !== undefined) patch.presale_enabled = p.presaleEnabled;
       if (p.salesOpenAt && p.salesCloseAt && new Date(p.salesCloseAt) <= new Date(p.salesOpenAt)) {
