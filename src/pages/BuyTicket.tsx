@@ -90,7 +90,9 @@ export default function BuyTicket() {
 
   useEffect(() => {
     let active = true;
-    void supabase.functions.invoke('runtime-config', { body: {} }).then(({ data, error }) => {
+    let visitorId = localStorage.getItem('degame_runtime_visitor');
+    if (!visitorId) { visitorId = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `visitor-${Date.now()}-${Math.random().toString(36).slice(2)}`; localStorage.setItem('degame_runtime_visitor', visitorId); }
+    void supabase.functions.invoke('runtime-config', { body: { visitorId } }).then(({ data, error }) => {
       if (!active || error || !data) return;
       const detectedCountry = typeof data.geo?.countryCode === 'string' ? data.geo.countryCode : null;
       const detectedCurrency = typeof data.currency === 'string' ? data.currency : null;
