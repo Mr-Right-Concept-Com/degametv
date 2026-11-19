@@ -51,6 +51,7 @@ const BuyTicket = lazy(() => import("./pages/BuyTicket"));
 const WatchMovie = lazy(() => import("./pages/WatchMovie"));
 const LiveWatch = lazy(() => import("./pages/LiveWatch"));
 const LiveGuestClaim = lazy(() => import("./pages/LiveGuestClaim"));
+const InviteLanding = lazy(() => import("./pages/InviteLanding"));
 const PaymentReturn = lazy(() => import("./pages/PaymentReturn"));
 const UserDashboard = lazy(() => import("./pages/UserDashboard"));
 
@@ -105,6 +106,7 @@ const App = () => (
               <Route path="/watch/:watchCode" element={<FeatureGate featureKey="cinema.replay"><WatchMovie /></FeatureGate>} />
               <Route path="/live/watch/:streamId" element={<FeatureGate featureKey="cinema.live_playback"><LiveWatch /></FeatureGate>} />
               <Route path="/live/claim" element={<FeatureGate featureKey="cinema.guest_claim"><LiveGuestClaim /></FeatureGate>} />
+              <Route path="/invite/:token" element={<InviteLanding />} />
               <Route path="/payment/return" element={<PaymentReturn />} />
               <Route path="/tickets" element={<FeatureGate featureKey="cinema.ticketing"><ProtectedRoute><Navigate to="/dashboard?tab=tickets" replace /></ProtectedRoute></FeatureGate>} />
               <Route path="/dashboard" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
