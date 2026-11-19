@@ -2104,6 +2104,8 @@ export type Database = {
           refunded_at?: string | null
           revoked_at?: string | null
           revocation_reason?: string | null
+          revoked_at?: string | null
+          revocation_reason?: string | null
           reminder_1h_sent_at?: string | null
           reminder_24h_sent_at?: string | null
           screening_id: string
