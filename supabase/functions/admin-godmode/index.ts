@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
       }
       case "runtime_controls": {
         const [countries,features] = await Promise.all([
-          admin.from("country_currency_rules").select("country_code,currency_code,currency_symbol,locale_code,timezone_name,enabled,source,updated_at").order("country_code"),
+          admin.from("country_currency_rules").select("country_code,currency_code,currency_symbol,locale_code,timezone_name,enabled,source,metadata,updated_at").order("country_code"),
           admin.from("platform_feature_controls").select("feature_key,enabled,rollout_percentage,release_state,config,change_reason,updated_at,updated_by").order("feature_key"),
         ]);
         if (countries.error || features.error) return json({error:"Runtime controls could not be loaded."},503);
