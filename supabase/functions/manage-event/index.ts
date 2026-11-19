@@ -62,6 +62,31 @@ Deno.serve(async (req) => {
       if (p.salesOpenAt && p.salesCloseAt && new Date(p.salesCloseAt) <= new Date(p.salesOpenAt)) {
         return json({ error: "Sales closing time must be after sales opening time." }, 400);
       }
+      if (p.earlyBirdPrice !== undefined && p.earlyBirdPrice !== null) {
+        const regularPrice = Number(s.base_price ?? s.live_price_ngn ?? s.live_price_usd ?? 0);
+        if (!Number.isFinite(regularPrice) || regularPrice <= 0 || p.earlyBirdPrice >= regularPrice) {
+          return json({ error: "Early-bird pricing must be lower than the published regular ticket price." }, 400);
+        }
+        if (!p.earlyBirdEndsAt || new Date(p.earlyBirdEndsAt).getTime() <= Date.now()) {
+          return json({ error: "Early-bird pricing requires a future end time." }, 400);
+        }
+        const baseCurrency = String(s.base_currency || p.earlyBirdCurrency || "").toUpperCase();
+        if (!baseCurrency || String(p.earlyBirdCurrency || "").toUpperCase() !== baseCurrency) {
+          return json({ error: "Early-bird price must use the event's immutable base currency." }, 400);
+        }
+      } else if (p.earlyBirdCapacity != null || p.earlyBirdEndsAt) {
+        return json({ error: "Early-bird capacity and end time require an early-bird price." }, 400);
+      }
+      if (p.earlyBirdCapacity != null && (!Number.isInteger(p.earlyBirdCapacity) || p.earlyBirdCapacity < 1)) {
+        return json({ error: "Early-bird capacity must be a positive whole number." }, 400);
+      }
+      if (p.ticketCapacity != null && (!Number.isInteger(p.ticketCapacity) || p.ticketCapacity < 1)) {
+        return json({ error: "Ticket capacity must be a positive whole number." }, 400);
+      }
+      if (p.eventTimezone) {
+        try { new Intl.DateTimeFormat("en", { timeZone: p.eventTimezone }); }
+        catch { return json({ error: "Choose a valid IANA event timezone." }, 400); }
+      }
       if (p.earlyBirdPrice !== undefined && p.earlyBirdPrice !== null && p.earlyBirdCurrency === undefined) {
         return json({ error: "Early-bird pricing requires an explicit ISO currency." }, 400);
       }
