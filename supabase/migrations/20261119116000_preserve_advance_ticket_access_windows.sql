@@ -33,11 +33,10 @@ BEGIN
   v_until:=s.live_replay_ready_at+make_interval(hours=>s.replay_access_hours);
  ELSIF o.ticket_type='combo' THEN
   v_from:=coalesce(s.screening_date,now());
-  v_until:=coalesce(s.live_replay_ready_at,s.live_ended_at,s.screening_date+interval '24 hours',now()+interval '24 hours')
-    +make_interval(hours=>s.replay_access_hours);
+  v_until:='infinity'::timestamptz;
  ELSE
   v_from:=coalesce(s.screening_date,now());
-  v_until:=coalesce(s.live_ended_at,s.screening_date+interval '24 hours',now()+interval '24 hours');
+  v_until:='infinity'::timestamptz;
  END IF;
  v_amount_major:=coalesce(o.amount_major,o.amount_minor::numeric/100);
  v_fee:=least(v_amount_major,greatest(0,coalesce(o.platform_fee_major,0)));
@@ -110,3 +109,33 @@ END;
 $function$;
 REVOKE ALL ON FUNCTION public.create_guest_payment_order_v3(text,text,uuid,uuid,text,bigint,numeric,numeric,text,text,text,text,text) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.create_guest_payment_order_v3(text,text,uuid,uuid,text,bigint,numeric,numeric,text,text,text,text,text) TO service_role;
+
+
+CREATE OR REPLACE FUNCTION public.sync_event_ticket_validity_windows()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path=public,pg_temp
+AS $$
+BEGIN
+ IF NEW.live_ended_at IS NOT NULL AND OLD.live_ended_at IS NULL THEN
+  UPDATE public.tickets SET valid_until=NEW.live_ended_at+interval '24 hours'
+   WHERE metadata->>'screening_id'=NEW.id::text AND ticket_type='live' AND valid_until='infinity'::timestamptz AND revoked_at IS NULL;
+  UPDATE public.screening_tickets SET expires_at=NEW.live_ended_at+interval '24 hours'
+   WHERE screening_id=NEW.id AND ticket_kind='live' AND refunded_at IS NULL AND revoked_at IS NULL;
+ END IF;
+ IF NEW.live_replay_ready_at IS NOT NULL AND OLD.live_replay_ready_at IS NULL THEN
+  UPDATE public.tickets SET valid_from=coalesce(valid_from,NEW.live_replay_ready_at),
+    valid_until=NEW.live_replay_ready_at+make_interval(hours=>NEW.replay_access_hours)
+   WHERE metadata->>'screening_id'=NEW.id::text AND ticket_type IN ('replay','combo') AND revoked_at IS NULL;
+  UPDATE public.screening_tickets SET expires_at=NEW.live_replay_ready_at+make_interval(hours=>NEW.replay_access_hours)
+   WHERE screening_id=NEW.id AND ticket_kind='replay' AND refunded_at IS NULL AND revoked_at IS NULL;
+ END IF;
+ RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS screening_ticket_validity_windows ON public.screenings;
+CREATE TRIGGER screening_ticket_validity_windows
+AFTER UPDATE OF live_ended_at,live_replay_ready_at ON public.screenings
+FOR EACH ROW EXECUTE FUNCTION public.sync_event_ticket_validity_windows();
+REVOKE ALL ON FUNCTION public.sync_event_ticket_validity_windows() FROM PUBLIC,anon,authenticated;
