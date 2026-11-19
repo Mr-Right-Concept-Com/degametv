@@ -285,7 +285,7 @@ export default function StudioSubmit() {
   };
 
   const validateStep3 = () => {
-    const result = step3Schema.safeParse({ distribution_rights: form.distribution_rights, release_strategy: form.release_strategy, trailer_url: form.trailer_url, screener_url: form.screener_url, premiere_date: form.premiere_date, premiere_time: form.premiere_time, admission_model: form.admission_model, live_price_ngn: form.live_price_ngn, live_price_usd: form.live_price_usd, rights_territories: form.rights_territories, prior_screenings: form.prior_screenings, poster_url: form.poster_url, video_url: form.video_url });
+    const result = step3Schema.safeParse({ distribution_rights: form.distribution_rights, release_strategy: form.release_strategy, trailer_url: form.trailer_url, screener_url: form.screener_url, premiere_date: form.premiere_date, premiere_time: form.premiere_time, admission_model: form.admission_model, base_price: form.base_price, rights_territories: form.rights_territories, prior_screenings: form.prior_screenings, poster_url: form.poster_url, video_url: form.video_url });
     if (!result.success) {
       const errs: Record<string, string> = {};
       result.error.errors.forEach(e => { errs[e.path[0] as string] = e.message; });
@@ -306,8 +306,8 @@ export default function StudioSubmit() {
         return;
       }
       if (form.replay_access_model === 'SEPARATE_PRICE'
-        && Number(form.replay_price_ngn || 0) <= 0 && Number(form.replay_price_usd || 0) <= 0) {
-        toast.error('Set a positive NGN or USD replay price for separately priced replay.');
+        && Number(form.replay_base_price || 0) <= 0) {
+        toast.error('Set a positive replay price in the platform base currency.');
         return;
       }
     }
@@ -411,7 +411,7 @@ export default function StudioSubmit() {
         const { data: event, error: eventError } = await supabase.rpc('create_creator_screening', {
           p_content_id: contentId,
           p_screening_date: scheduledDate.toISOString(),
-          p_location_pricing: { nigeria: Number(form.live_price_ngn), international: Number(form.live_price_usd) },
+          p_location_pricing: { base: Number(form.base_price || 0), currency: runtime.config?.baseCurrency || '' },
           p_event_type: eventType,
           p_slug: form.project_title,
         });
@@ -426,10 +426,10 @@ export default function StudioSubmit() {
           const { data: pricingResult, error: pricingError } = await supabase.functions.invoke('manage-live-pricing', {
             body: {
               screeningId,
-              livePriceNgn: Number(form.live_price_ngn || 0),
-              livePriceUsd: Number(form.live_price_usd || 0),
-              replayPriceNgn: form.replay_price_ngn.trim() ? Number(form.replay_price_ngn) : null,
-              replayPriceUsd: form.replay_price_usd.trim() ? Number(form.replay_price_usd) : null,
+              basePrice: Number(form.base_price || 0),
+              baseCurrency: runtime.config?.baseCurrency,
+              replayBasePrice: form.replay_base_price.trim() ? Number(form.replay_base_price) : null,
+              admissionModel: form.admission_model,
               replayAccessHours: Number(form.replay_access_hours || 48),
               replayAccessModel: form.replay_access_model,
               autoConvertToVod: form.auto_convert_to_vod,
@@ -633,7 +633,7 @@ export default function StudioSubmit() {
                 </div>}
                 {!liveFlow && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2"><Label>Original language</Label><Select value={form.original_language} onValueChange={v => setForm(f => ({...f, original_language:v}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{LANGUAGES.map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select></div>
-                  <div className="space-y-2"><Label>Production country</Label><Select value={form.production_country} onValueChange={v => setForm(f => ({...f, production_country:v}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{COUNTRIES.map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Production country</Label><Select value={form.production_country} onValueChange={v => setForm(f => ({...f, production_country:v}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{(runtime.config?.countries ?? []).map(country=><SelectItem key={country.country_code} value={country.country_code}>{String(country.metadata?.country_name || country.country_code)} ({country.country_code})</SelectItem>)}</SelectContent></Select></div>
                   <div className="space-y-2"><Label>Audience rating</Label><Select value={form.content_rating} onValueChange={v => setForm(f => ({...f, content_rating:v as typeof f.content_rating}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTENT_RATINGS.map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select></div>
                   <div className="space-y-2"><Label>Master aspect ratio</Label><Select value={form.aspect_ratio} onValueChange={v => setForm(f => ({...f, aspect_ratio:v as typeof f.aspect_ratio}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ASPECT_RATIOS.map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select></div>
                 </div>}
@@ -764,10 +764,7 @@ export default function StudioSubmit() {
                         </SelectContent>
                       </Select>
                     </div>
-                    {form.replay_access_model === 'SEPARATE_PRICE' && <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1"><Label>Replay price (NGN)</Label><Input inputMode="decimal" value={form.replay_price_ngn} onChange={e=>setForm(f=>({...f,replay_price_ngn:e.target.value}))} placeholder="e.g. 1500"/></div>
-                      <div className="space-y-1"><Label>Replay price (USD)</Label><Input inputMode="decimal" value={form.replay_price_usd} onChange={e=>setForm(f=>({...f,replay_price_usd:e.target.value}))} placeholder="e.g. 3"/></div>
-                    </div>}
+                    {form.replay_access_model === 'SEPARATE_PRICE' && <div className="space-y-1"><Label>Replay price ({runtime.config?.baseCurrency || "base currency"})</Label><Input inputMode="decimal" value={form.replay_base_price} onChange={e=>setForm(f=>({...f,replay_base_price:e.target.value}))} placeholder="Enter replay price"/></div>}
                     <div className="space-y-1"><Label>Replay access window (hours)</Label><Input type="number" min="1" max="8760" value={form.replay_access_hours} onChange={e=>setForm(f=>({...f,replay_access_hours:e.target.value}))}/></div>
                   </>}
                 </div>}
@@ -779,8 +776,8 @@ export default function StudioSubmit() {
                   {form.project_type === 'live' && <div className="space-y-2">
                     <Label>Admission model</Label>
                     <div role="group" aria-label="Admission model" className="grid grid-cols-2 gap-2">
-                      <Button type="button" variant={form.admission_model === 'FREE' ? 'default' : 'outline'} aria-pressed={form.admission_model === 'FREE'} onClick={() => setForm(f => ({ ...f, admission_model: 'FREE', live_price_ngn: '0', live_price_usd: '0' }))}>Free access</Button>
-                      <Button type="button" variant={form.admission_model === 'TICKETED' ? 'default' : 'outline'} aria-pressed={form.admission_model === 'TICKETED'} onClick={() => setForm(f => ({ ...f, admission_model: 'TICKETED', live_price_ngn: f.live_price_ngn === '0' ? '' : f.live_price_ngn, live_price_usd: f.live_price_usd === '0' ? '' : f.live_price_usd }))}>Paid tickets</Button>
+                      <Button type="button" variant={form.admission_model === 'FREE' ? 'default' : 'outline'} aria-pressed={form.admission_model === 'FREE'} onClick={() => setForm(f => ({ ...f, admission_model: 'FREE', base_price: '0' }))}>Free access</Button>
+                      <Button type="button" variant={form.admission_model === 'TICKETED' ? 'default' : 'outline'} aria-pressed={form.admission_model === 'TICKETED'} onClick={() => setForm(f => ({ ...f, admission_model: 'TICKETED', base_price: f.base_price === '0' ? '' : f.base_price }))}>Paid tickets</Button>
                     </div>
                     {form.admission_model === 'FREE' && <p className="text-xs text-muted-foreground">Viewers can claim a free pass. No payment is collected.</p>}
                   </div>}
