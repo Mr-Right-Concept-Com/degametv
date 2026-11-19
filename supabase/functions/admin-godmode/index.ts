@@ -10,6 +10,9 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("role_set"), userId: z.string().uuid(), role: z.enum(["super_admin", "platform_admin", "moderator", "viewer"]), grant: z.boolean() }),
   z.object({ action: z.literal("withdrawal_set"), id: z.string().uuid(), status: z.enum(["pending", "approved", "paid", "rejected"]), note: z.string().max(500).optional() }),
   z.object({ action: z.literal("impersonate"), userId: z.string().uuid(), redirectTo: z.string().url().optional() }),
+  z.object({ action: z.literal("runtime_controls") }),
+  z.object({ action: z.literal("country_currency_set"), countryCode: z.string().regex(/^[A-Z]{2}$/), currencyCode: z.string().regex(/^[A-Z]{3}$/), currencySymbol: z.string().max(12).nullable(), localeCode: z.string().min(2).max(24), timezoneName: z.string().max(100).nullable(), enabled: z.boolean(), reason: z.string().min(3).max(500) }),
+  z.object({ action: z.literal("feature_control_set"), featureKey: z.string().regex(/^[a-z][a-z0-9_.-]{1,119}$/), enabled: z.boolean(), rolloutPercentage: z.number().int().min(0).max(100), releaseState: z.enum(["draft","canary","released","paused","rolled_back"]), config: z.record(z.string(), jsonValue), reason: z.string().min(3).max(500) }),
 ]);
 
 const editableSettings = new Set([
@@ -82,6 +85,38 @@ Deno.serve(async (req) => {
         const { error } = await admin.from("withdrawal_requests").update({ status: p.status, admin_note: p.note ?? null }).eq("id", p.id);
         if (error) return json({ error: error.message }, 500);
         entityId = p.id;
+        break;
+      }
+      case "runtime_controls": {
+        const [countries,features] = await Promise.all([
+          admin.from("country_currency_rules").select("country_code,currency_code,currency_symbol,locale_code,timezone_name,enabled,source,updated_at").order("country_code"),
+          admin.from("platform_feature_controls").select("feature_key,enabled,rollout_percentage,release_state,config,change_reason,updated_at,updated_by").order("feature_key"),
+        ]);
+        if (countries.error || features.error) return json({error:"Runtime controls could not be loaded."},503);
+        result = { countries:countries.data ?? [], features:features.data ?? [], administratorId:user.id };
+        break;
+      }
+      case "country_currency_set": {
+        const {data:previous} = await admin.from("country_currency_rules").select("*").eq("country_code",p.countryCode).maybeSingle();
+        const {data,error} = await admin.from("country_currency_rules").upsert({
+          country_code:p.countryCode,currency_code:p.currencyCode,currency_symbol:p.currencySymbol,
+          locale_code:p.localeCode,timezone_name:p.timezoneName,enabled:p.enabled,source:"admin",updated_by:user.id,updated_at:new Date().toISOString()
+        },{onConflict:"country_code"}).select().single();
+        if(error)return json({error:error.message},400);
+        result=data;entityId=p.countryCode;
+        await admin.from("audit_logs").insert({user_id:user.id,action:"country_currency_rule.upsert",entity_type:"country_currency_rule",entity_id:null,old_data:previous??{},new_data:{...data,reason:p.reason}});
+        break;
+      }
+      case "feature_control_set": {
+        if(p.releaseState==="released"&&p.rolloutPercentage!==100)return json({error:"A released feature must have 100% rollout. Use canary for partial rollout."},400);
+        const {data:previous} = await admin.from("platform_feature_controls").select("*").eq("feature_key",p.featureKey).maybeSingle();
+        const {data,error} = await admin.from("platform_feature_controls").upsert({
+          feature_key:p.featureKey,enabled:p.enabled,rollout_percentage:p.rolloutPercentage,release_state:p.releaseState,
+          config:p.config,change_reason:p.reason,updated_by:user.id,updated_at:new Date().toISOString()
+        },{onConflict:"feature_key"}).select().single();
+        if(error)return json({error:error.message},400);
+        result=data;entityId=p.featureKey;
+        await admin.from("audit_logs").insert({user_id:user.id,action:"platform_feature_control.upsert",entity_type:"platform_feature_control",entity_id:null,old_data:previous??{},new_data:data});
         break;
       }
       case "impersonate": {
