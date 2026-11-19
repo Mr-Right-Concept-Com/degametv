@@ -61,7 +61,11 @@ BEGIN
    THEN NEW.delivery_confirmed_at + make_interval(hours=>NEW.hold_hours) ELSE NULL END;
  IF NEW.release_at IS NULL THEN NEW.hold_status:='held'; ELSIF NEW.release_at<=now() THEN NEW.hold_status:='eligible'; ELSE NEW.hold_status:='held'; END IF;
  RETURN NEW;
-END $$;
+END $;
+
+-- Re-evaluate pre-existing holds against authoritative event and media delivery state.
+UPDATE public.event_settlement_holds
+ SET event_ended_at=event_ended_at,delivery_confirmed_at=delivery_confirmed_at,hold_hours=hold_hours;
 
 CREATE OR REPLACE FUNCTION public.create_event_contribution_settlement_hold()
 RETURNS trigger
