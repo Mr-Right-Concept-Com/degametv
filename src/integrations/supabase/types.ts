@@ -2790,6 +2790,7 @@ export type Database = {
           account_number: string
           admin_note: string | null
           amount: number
+          bank_country: string | null
           bank_name: string
           created_at: string
           currency: string
@@ -2803,6 +2804,7 @@ export type Database = {
           account_number: string
           admin_note?: string | null
           amount: number
+          bank_country?: string | null
           bank_name: string
           created_at?: string
           currency?: string
@@ -2816,6 +2818,7 @@ export type Database = {
           account_number?: string
           admin_note?: string | null
           amount?: number
+          bank_country?: string | null
           bank_name?: string
           created_at?: string
           currency?: string
@@ -3113,6 +3116,17 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      request_wallet_withdrawal: {
+        Args: {
+          p_account_name: string
+          p_account_number: string
+          p_amount: number
+          p_bank_country: string
+          p_bank_name: string
+          p_currency: string
+        }
+        Returns: Json
       }
       resolve_release_domain: {
         Args: { p_hostname: string }
