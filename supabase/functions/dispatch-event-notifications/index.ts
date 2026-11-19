@@ -14,6 +14,8 @@ Deno.serve(async req => {
   try {
     const { data: reminderCount, error: reminderError } = await admin.rpc("enqueue_event_reminders");
     if (reminderError) console.error("enqueue_event_reminders", reminderError);
+    const { data: releasedHolds, error: settlementError } = await admin.rpc("release_eligible_event_settlement_holds", { p_limit: 500 });
+    if (settlementError) console.error("release_eligible_event_settlement_holds", settlementError);
     const { data: rows, error: claimError } = await admin.rpc("claim_event_notification_outbox", { p_limit: limit });
     if (claimError) return json({ error: "Notification queue could not be claimed." }, 503);
     const { data: setting } = await admin.from("platform_settings").select("setting_value,is_public").eq("setting_key", "public_site_url").maybeSingle();
@@ -80,7 +82,7 @@ Deno.serve(async req => {
       }).eq("id", row.id);
       if (delivered) sent++; else failed++;
     }
-    return json({ processed: (rows || []).length, sent, failed, reminders_enqueued: reminderCount || 0 });
+    return json({ processed: (rows || []).length, sent, failed, reminders_enqueued: reminderCount || 0, settlement_holds_released: releasedHolds || 0 });
   } catch (error) {
     console.error("dispatch-event-notifications", error);
     return json({ error: "Notification worker failed safely." }, 500);
