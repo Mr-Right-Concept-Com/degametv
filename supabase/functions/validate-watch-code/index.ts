@@ -40,6 +40,9 @@ if (import.meta.main) {
       if (ticket.refunded_at) {
         return new Response(JSON.stringify({ error: 'This ticket was refunded and is no longer valid' }), { status: 403, headers: corsHeaders });
       }
+      if (ticket.revoked_at) {
+        return new Response(JSON.stringify({ error: 'This screening invitation or ticket was revoked and is no longer valid' }), { status: 403, headers: corsHeaders });
+      }
       if (new Date(ticket.expires_at) < new Date()) {
         return new Response(JSON.stringify({ error: 'Ticket has expired' }), { status: 403, headers: corsHeaders });
       }
