@@ -130,7 +130,7 @@ export default function Payouts() {
                     <TableCell><Badge variant="secondary">{w.status}</Badge></TableCell>
                     <TableCell className="space-x-1 whitespace-nowrap">
                       {w.status === 'pending' && <><Button size="sm" onClick={() => setW(w.id, 'approved')}>Approve</Button><Button size="sm" variant="outline" onClick={() => setW(w.id, 'rejected')}>Reject</Button></>}
-                      {w.status === 'approved' && <Button size="sm" onClick={() => setW(w.id, 'paid')}>Mark paid</Button>}
+                      {w.status === 'approved' && <span className="text-xs text-muted-foreground">Awaiting provider-confirmed payout</span>}
                     </TableCell>
                   </TableRow>
                 ))}
