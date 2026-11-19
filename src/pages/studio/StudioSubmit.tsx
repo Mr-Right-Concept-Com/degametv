@@ -378,12 +378,16 @@ export default function StudioSubmit() {
       },
     });
 
-    if (error || !submission?.content_id) {
+    const submissionRecord = submission && typeof submission === 'object' && !Array.isArray(submission)
+      ? submission as Record<string, unknown>
+      : null;
+    const contentId = typeof submissionRecord?.content_id === 'string' ? submissionRecord.content_id : null;
+    if (error || !contentId) {
       toast.error('Content could not be created: ' + (error?.message || 'Please retry.'));
       setSubmitting(false);
       return;
     }
-    setCreatedContentId(submission.content_id);
+    setCreatedContentId(contentId);
 
     if (form.project_type === 'live' || (form.poster_url && (form.video_url || ['series'].includes(form.project_type) || (form.project_type === 'trailer' && form.trailer_url)))) {
       const needsScreening = form.project_type === 'live' || form.release_strategy === 'premiere';
@@ -401,7 +405,7 @@ export default function StudioSubmit() {
         }
         const eventType = form.project_type === 'live' ? 'live' : form.project_type === 'series' ? 'series' : 'film';
         const { data: event, error: eventError } = await supabase.rpc('create_creator_screening', {
-          p_content_id: submission.content_id,
+          p_content_id: contentId,
           p_screening_date: scheduledDate.toISOString(),
           p_location_pricing: { nigeria: Number(form.live_price_ngn), international: Number(form.live_price_usd) },
           p_event_type: eventType,
@@ -434,7 +438,7 @@ export default function StudioSubmit() {
         setPublished(true);
         toast.success(form.project_type === 'live' ? 'Live event published. Continue below to provision its secure encoder.' : 'Ticketed premiere published and scheduled.');
       } else {
-        const { data: publication, error: publishError } = await supabase.rpc('publish_creator_content', { p_content_id: submission.content_id });
+        const { data: publication, error: publishError } = await supabase.rpc('publish_creator_content', { p_content_id: contentId });
         if (!publishError && (publication as { status?: string } | null)?.status === 'published') setPublished(true);
         else toast.info('Your draft is saved. Complete the required master, artwork and rights declaration before publishing.');
       }
