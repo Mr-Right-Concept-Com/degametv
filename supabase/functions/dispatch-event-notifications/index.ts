@@ -25,7 +25,7 @@ Deno.serve(async req => {
       if (setting?.is_public === true && parsed.protocol === "https:" && !parsed.username && !parsed.password) origin = parsed.origin;
     } catch { /* no public site configured */ }
     if (!origin && (rows || []).length) {
-      await Promise.all((rows || []).map((row: any) => admin.from("event_notification_outbox").update({ status: "failed", last_error: "public_site_url_not_configured" }).eq("id", row.id)));
+      await Promise.all((rows || []).map((row: any) => admin.from("event_notification_outbox").update({ status: "failed", claimed_at: null, last_error: "public_site_url_not_configured" }).eq("id", row.id)));
       return json({ processed: 0, failed: rows.length, error: "Canonical public site URL is not configured." }, 503);
     }
 
@@ -78,6 +78,7 @@ Deno.serve(async req => {
       await admin.from("event_notification_outbox").update({
         status: delivered ? "sent" : "failed",
         sent_at: delivered ? new Date().toISOString() : null,
+        claimed_at: null,
         last_error: delivered ? null : "email_delivery_failed",
       }).eq("id", row.id);
       if (delivered) sent++; else failed++;
