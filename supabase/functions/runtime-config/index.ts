@@ -5,7 +5,7 @@ const headers = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, cf-ipcountry",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Cache-Control": "public, max-age=60, stale-while-revalidate=300",
+  "Cache-Control": "no-store",
   "Vary": "cf-ipcountry, accept-language",
   "Content-Type": "application/json",
 };
