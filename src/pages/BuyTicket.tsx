@@ -72,6 +72,8 @@ export default function BuyTicket() {
         .select('id,content_id,title,slug,description,poster_url,banner_url,trailer_url,release_date,screening_date,duration,location_pricing,base_price,base_currency,replay_base_price,status,access_model,event_type,lifecycle,live_price_ngn,live_price_usd,live_recording_status,live_started_at,live_ended_at,live_replay_ready_at,replay_price_ngn,replay_price_usd,replay_access_hours,replay_access_model,refund_policy,cast_crew,gallery_images,age_rating,star_rating,review_count,allowed_countries,blocked_countries,cancelled_at,created_at,updated_at')
         .eq('slug', slug)
         .eq('status', 'published')
+        .in('event_visibility', ['public', 'unlisted'])
+        .eq('invite_only', false)
         .maybeSingle();
       
       if (data) {
