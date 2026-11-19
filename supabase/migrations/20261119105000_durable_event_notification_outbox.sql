@@ -6,7 +6,8 @@ BEGIN
  v_screening:=nullif(NEW.metadata->>'screening_id','')::uuid;
  IF v_screening IS NULL OR NEW.user_id IS NULL THEN RETURN NEW; END IF;
  SELECT s.tenant_id,s.title INTO v_tenant,v_title FROM public.screenings s WHERE s.id=v_screening;
- IF NEW.user_id IS NOT NULL THEN SELECT email INTO v_email FROM auth.users WHERE id=NEW.user_id; ELSE v_email:=NEW.guest_email; END IF;
+ IF NEW.user_id IS NULL THEN RETURN NEW; END IF;
+ SELECT email INTO v_email FROM auth.users WHERE id=NEW.user_id;
  IF v_email IS NULL THEN RETURN NEW; END IF;
  INSERT INTO public.event_notification_outbox(tenant_id,screening_id,recipient_email,recipient_user_id,notification_type,idempotency_key,payload)
  VALUES(v_tenant,v_screening,lower(v_email),NEW.user_id,'ticket_confirmation','ticket-confirmation:'||NEW.id::text,
@@ -67,8 +68,10 @@ BEGIN
     FROM public.screening_tickets st
     WHERE st.screening_id=v_event.id AND st.payment_status='completed' AND st.refunded_at IS NULL
     UNION ALL
-    SELECT coalesce(t.guest_email,u.email) AS email,t.user_id AS user_id,t.id AS ticket_id
-    FROM public.tickets t LEFT JOIN auth.users u ON u.id=t.user_id
+    SELECT coalesce(o.email,u.email) AS email,t.user_id AS user_id,t.id AS ticket_id
+    FROM public.tickets t
+    LEFT JOIN auth.users u ON u.id=t.user_id
+    LEFT JOIN public.live_payment_orders o ON o.provider_reference=t.metadata->>'payment_reference'
     WHERE t.metadata->>'screening_id'=v_event.id::text AND t.revoked_at IS NULL AND t.valid_until>now()
    LOOP
     IF v_ticket.email IS NULL THEN CONTINUE; END IF;
