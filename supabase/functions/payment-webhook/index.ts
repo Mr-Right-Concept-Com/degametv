@@ -6,8 +6,8 @@ async function hmac(secret:string,body:string,algorithm:"SHA-256"|"SHA-512"){con
 function equal(a:string,b:string){if(a.length!==b.length)return false;let mismatch=0;for(let i=0;i<a.length;i++)mismatch|=a.charCodeAt(i)^b.charCodeAt(i);return mismatch===0;}
 async function sendTicketEmail(admin:ReturnType<typeof createClient>,url:string,service:string,reference:string){
  const {data:order}=await admin.from("guest_payment_orders").select("id,ticket_id,email,currency,app_origin,email_sent_at").eq("provider_reference",reference).maybeSingle();
- if(!order||order.email_sent_at||!order.app_origin)return false;
- const {data:claim}=await admin.from("guest_payment_orders").update({email_sent_at:new Date().toISOString()}).eq("id",order.id).is("email_sent_at",null).select("id").maybeSingle();
+ if(!order||order.email_sent_at)return false;
+ const {data:siteSetting}=await admin.from("platform_settings").select("setting_value,is_public").eq("setting_key","public_site_url").maybeSingle();\n const origin=typeof siteSetting?.setting_value==="string"?siteSetting.setting_value:"";\n if(siteSetting?.is_public!==true||!origin.startsWith("https://"))return false;\n const {data:claim}=await admin.from("guest_payment_orders").update({email_sent_at:new Date().toISOString()}).eq("id",order.id).is("email_sent_at",null).select("id").maybeSingle();
  if(!claim)return false;
  const {data:ticket}=await admin.from("screening_tickets").select("ticket_code,watch_code,expires_at,screening_id,location,price").eq("id",order.ticket_id).maybeSingle();
  const {data:screening}=ticket?await admin.from("screenings").select("title").eq("id",ticket.screening_id).maybeSingle():{data:null};
@@ -28,17 +28,17 @@ if(import.meta.main)serve(async(req:Request)=>{
   if(typeof reference!=="string"||!/^DTV_[A-Za-z0-9]+$/.test(reference)&&!/^DTVL_[A-Za-z0-9]+$/.test(reference))return json(400,{error:"Invalid payment reference."});
   const liveOrder=reference.startsWith("DTVL_");
   const orderLookup=liveOrder
-    ? await admin.from("live_payment_orders").select("provider,metadata").eq("provider_reference",reference).maybeSingle()
-    : await admin.from("guest_payment_orders").select("provider").eq("provider_reference",reference).maybeSingle();
+    ? await admin.from("live_payment_orders").select("provider,provider_mode,metadata,email_sent_at,status,user_id").eq("provider_reference",reference).maybeSingle()
+    : await admin.from("guest_payment_orders").select("provider,provider_mode").eq("provider_reference",reference).maybeSingle();
   if(orderLookup.error||!orderLookup.data?.provider)return json(404,{error:"Payment order not found."});
   const [{data:binding,error:bindingError},{data:secrets,error:secretError}]=await Promise.all([
    admin.from("service_provider_bindings").select("provider_key,base_url,endpoints,settings,is_live").eq("capability","payments").eq("provider_key",orderLookup.data.provider).maybeSingle(),
    admin.rpc("get_service_provider_admin_secret",{p_capability:"payments",p_provider_key:orderLookup.data.provider})
   ]);
   const vault=Array.isArray(secrets)?secrets[0]:null;
-  const mode=orderLookup.data?.metadata?.provider_mode==="live"||(orderLookup.data?.metadata?.provider_mode==null&&binding?.is_live===true)?"live":"test";
-  const config=binding?{...binding,credential:mode==="live"?(vault?.live_credential||vault?.test_credential):(vault?.test_credential||vault?.live_credential),webhook_secret:mode==="live"?(vault?.live_webhook_secret||vault?.test_webhook_secret):(vault?.test_webhook_secret||vault?.live_webhook_secret)}:null;
-  if(bindingError||secretError||!config?.credential||!config?.webhook_secret)return json(503,{error:"The provider used by this payment has no retained webhook credentials."});
+  const mode=orderLookup.data.provider_mode==="live"||(orderLookup.data.provider_mode==null&&binding?.is_live===true)?"live":"test";
+  const config=binding?{...binding,credential:mode==="live"?vault?.live_credential:vault?.test_credential,webhook_secret:mode==="live"?vault?.live_webhook_secret:vault?.test_webhook_secret}:null;
+  if(bindingError||secretError||!config?.credential||!config?.webhook_secret)return json(503,{error:"The provider used by this payment has no retained webhook credentials."});\n  if(liveOrder&&orderLookup.data.status==="paid"&&orderLookup.data.email_sent_at)return json(200,{received:true,verified:true,alreadyPaid:true,emailSent:true});
   const settings=config.settings||{};
   const signatureHeader=typeof settings.signature_header==="string"?settings.signature_header:"x-provider-signature";
   const algorithm=settings.signature_algorithm==="SHA-256"?"SHA-256":"SHA-512";
@@ -65,18 +65,16 @@ if(import.meta.main)serve(async(req:Request)=>{
   const {data:completed,error:completeError}=await admin.rpc(liveOrder?"complete_live_payment_order":"complete_guest_payment_order",args);
   if(completeError)return json(409,{error:"Payment verification did not match the pending order."});
   let emailSent=false;
-  if(liveOrder&&completed?.ticket_id&&completed?.email){
-   const configuredSite=Deno.env.get("SITE_URL")||req.headers.get("origin")||"";
-   let deliveryUrl:string|null=null;
-   try {
-    const siteUrl=new URL(configuredSite);
-    if(siteUrl.protocol==="https:"||siteUrl.hostname==="localhost") {
-     deliveryUrl=new URL(claimToken?"/live/claim?token="+encodeURIComponent(claimToken):"/tickets",siteUrl).toString();
-    }
-   } catch { deliveryUrl=null; }
-   if(deliveryUrl) {
-    const mail=await fetch(url+"/functions/v1/send-watch-email",{method:"POST",headers:{"Authorization":"Bearer "+service,"apikey":service,"Content-Type":"application/json"},body:JSON.stringify({email:completed.email,movieTitle:completed.title||"Live event",watchUrl:deliveryUrl,ticketCode:completed.ticket_code,expiresAt:completed.valid_until,location:completed.currency==="NGN"?"nigeria":"international",price:Number(completed.price),currency:completed.currency})}).catch(()=>null);
+  if(liveOrder&&completed?.ticket_id&&completed?.email&&liveOrderRow?.user_id===null){
+   const {data:emailClaim}=await admin.from("live_payment_orders").update({email_sent_at:new Date().toISOString()}).eq("provider_reference",reference).is("email_sent_at",null).select("id").maybeSingle();
+   if(emailClaim){
+    const {data:siteSetting}=await admin.from("platform_settings").select("setting_value,is_public").eq("setting_key","public_site_url").maybeSingle();
+    const origin=typeof siteSetting?.setting_value==="string"?siteSetting.setting_value:"";
+    let deliveryUrl:string|null=null;
+    try{const siteUrl=new URL(origin);if(siteSetting?.is_public===true&&siteUrl.protocol==="https:")deliveryUrl=new URL("/live/claim?token="+encodeURIComponent(claimToken!),siteUrl).toString();}catch{deliveryUrl=null;}
+    const mail=deliveryUrl?await fetch(url+"/functions/v1/send-watch-email",{method:"POST",headers:{"Authorization":"Bearer "+service,"apikey":service,"Content-Type":"application/json"},body:JSON.stringify({email:completed.email,movieTitle:completed.title||"Live event",watchUrl:deliveryUrl,ticketCode:completed.ticket_code,expiresAt:completed.valid_until,location:liveOrderRow?.metadata?.country_code||"Global",price:Number(completed.price),currency:completed.currency})}).catch(()=>null):null;
     emailSent=Boolean(mail?.ok);
+    if(!emailSent)await admin.from("live_payment_orders").update({email_sent_at:null}).eq("provider_reference",reference);
    }
   } else if(!liveOrder) emailSent=await sendTicketEmail(admin,url,service,reference);
   return json(200,{received:true,verified:true,fulfillment:completed,emailSent});
