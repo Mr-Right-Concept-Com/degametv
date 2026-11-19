@@ -1982,6 +1982,8 @@ export type Database = {
           description: string | null
           duration: number | null
           event_type: string
+          event_visibility: string
+          invite_only: boolean
           gallery_images: string[] | null
           id: string
           lifecycle: string
@@ -2030,6 +2032,8 @@ export type Database = {
           description?: string | null
           duration?: number | null
           event_type?: string
+          event_visibility?: string
+          invite_only?: boolean
           gallery_images?: string[] | null
           id?: string
           lifecycle?: string
@@ -2078,6 +2082,8 @@ export type Database = {
           description?: string | null
           duration?: number | null
           event_type?: string
+          event_visibility?: string
+          invite_only?: boolean
           gallery_images?: string[] | null
           id?: string
           lifecycle?: string
