@@ -10,12 +10,12 @@ import { invokeFn } from '@/lib/invokeFn';
 import { toast } from 'sonner';
 import { Loader2, RefreshCw, Trash2 } from 'lucide-react';
 
-type Capability = 'payments'|'identity'|'bank_verification'|'video_delivery'|'email'|'live_streaming';
+type Capability = 'payments'|'identity'|'bank_verification'|'video_delivery'|'email'|'live_streaming'|'fx_rates';
 type Provider = { id:string; capability:Capability; provider_key:string; enabled:boolean; is_live:boolean; base_url:string|null; endpoints:Record<string,unknown>; settings:Record<string,unknown>; updated_at:string; removed_at:string|null; priority:number; hasTestCredential:boolean; hasLiveCredential:boolean; hasTestWebhookSecret:boolean; hasLiveWebhookSecret:boolean };
 const capabilities: {value:Capability;label:string}[] = [
   {value:'payments',label:'Payments'},{value:'identity',label:'Identity & liveness'},
   {value:'bank_verification',label:'Bank verification'},{value:'video_delivery',label:'Video delivery'},
-  {value:'email',label:'Email delivery'},{value:'live_streaming',label:'Live streaming'},
+  {value:'email',label:'Email delivery'},{value:'live_streaming',label:'Live streaming'},{value:'fx_rates',label:'Foreign exchange (FX)'},
 ];
 export function ProviderRegistryPanel(){
   const [rows,setRows]=useState<Provider[]>([]);
@@ -65,7 +65,7 @@ export function ProviderRegistryPanel(){
     catch(e){toast.error((e as Error).message);}finally{setSaving(false);}
   };
   return <div className="space-y-4">
-    <Card><CardHeader><CardTitle className="text-base">Unified provider registry</CardTitle><CardDescription>One runtime control plane for payments, identity, banking, media, live streaming and email. Save test keys first, run a health check even while disabled, then enable test mode. Add live keys and switch to live only after a successful health check. Secrets stay in Vault and changes apply immediately without a rebuild.</CardDescription></CardHeader>
+    <Card><CardHeader><CardTitle className="text-base">Unified provider registry</CardTitle><CardDescription>One runtime control plane for payments, identity, banking, media, live streaming, email and foreign exchange. Save test keys first, run a health check even while disabled, then enable test mode. Add live keys and switch to live only after a successful health check. Secrets stay in Vault and changes apply immediately without a rebuild.</CardDescription></CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2"><Label>Capability</Label><Select value={capability} onValueChange={v=>setCapability(v as Capability)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{capabilities.map(c=><SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
         <div className="space-y-2"><Label>Provider adapter key</Label><Input value={providerKey} onChange={e=>setProviderKey(e.target.value.trim().toLowerCase())} placeholder="Your provider adapter identifier"/></div>
