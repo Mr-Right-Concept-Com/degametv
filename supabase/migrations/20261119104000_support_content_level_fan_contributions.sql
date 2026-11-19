@@ -53,8 +53,9 @@ BEGIN
   RAISE EXCEPTION 'settlement_event_owner_mismatch' USING ERRCODE='42501';
  END IF;
  IF NEW.hold_hours IS NULL OR NEW.hold_hours=48 THEN NEW.hold_hours:=coalesce(v_hours,48); END IF;
- NEW.event_ended_at:=coalesce(NEW.event_ended_at,v_event_end);
- NEW.delivery_confirmed_at:=coalesce(NEW.delivery_confirmed_at,v_delivered);
+ -- Never trust timestamps supplied by the caller; derive both from authoritative event/media state.
+ NEW.event_ended_at:=v_event_end;
+ NEW.delivery_confirmed_at:=v_delivered;
  NEW.release_at:=CASE WHEN NEW.event_ended_at IS NOT NULL AND NEW.event_ended_at<=now() AND NEW.delivery_confirmed_at IS NOT NULL
    THEN NEW.event_ended_at + make_interval(hours=>NEW.hold_hours) ELSE NULL END;
  IF NEW.release_at IS NULL THEN NEW.hold_status:='held'; ELSIF NEW.release_at<=now() THEN NEW.hold_status:='eligible'; ELSE NEW.hold_status:='held'; END IF;
