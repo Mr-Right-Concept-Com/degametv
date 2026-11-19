@@ -11,17 +11,19 @@ import { useAuth } from '@/hooks/useAuth';
 import { DollarSign, Percent, Lock, Wallet, Loader2 } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
+import { useRuntimeConfig } from '@/contexts/RuntimeConfigContext';
 
 const wSchema = z.object({
   amount: z.number().positive('Enter an amount'),
   currency: z.string().regex(/^[A-Z]{3}$/, 'Choose a valid currency'),
+  bank_country: z.string().regex(/^[A-Z]{2}$/, 'Choose a bank country'),
   bank_name: z.string().trim().min(2, 'Bank required').max(100),
-  account_number: z.string().trim().regex(/^\d{10}$/, '10-digit account number'),
+  account_number: z.string().trim().regex(/^[A-Za-z0-9 -]{4,34}$/, 'Enter a valid local account number or IBAN'),
   account_name: z.string().trim().min(2, 'Account name required').max(150),
 });
 
 type Bal = { currency: string; gross: number; fees: number; escrow: number; withdrawable: number };
-type WR = { id: string; amount: number; currency: string; status: string; created_at: string; bank_name: string };
+type WR = { id: string; amount: number; currency: string; bank_country: string | null; status: string; created_at: string; bank_name: string };
 const money = (n: number, currency: string) => {
   try {
     return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(n || 0));
@@ -33,10 +35,11 @@ const money = (n: number, currency: string) => {
 export default function StudioEarnings() {
   usePageTitle('Studio: Wallet & Earnings');
   const { user } = useAuth();
+  const runtime = useRuntimeConfig();
   const [loading, setLoading] = useState(true);
   const [balances, setBalances] = useState<Bal[]>([]);
   const [reqs, setReqs] = useState<WR[]>([]);
-  const [form, setForm] = useState({ amount: '', currency: '', bank_name: '', account_number: '', account_name: '' });
+  const [form, setForm] = useState({ amount: '', currency: '', bank_country: '', bank_name: '', account_number: '', account_name: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
@@ -44,16 +47,17 @@ export default function StudioEarnings() {
     if (!user) return;
     const [b, w] = await Promise.all([
       supabase.rpc('wallet_balance_by_currency', { _user_id: user.id }),
-      supabase.from('withdrawal_requests').select('id, amount, currency, status, created_at, bank_name').eq('user_id', user.id).order('created_at', { ascending: false }),
+      supabase.from('withdrawal_requests').select('id, amount, currency, bank_country, status, created_at, bank_name').eq('user_id', user.id).order('created_at', { ascending: false }),
     ]);
     if (b.error) toast.error('Wallet balances could not be loaded.');
     const rows = (b.data as Bal[] | null) || [];
     setBalances(rows.map(row => ({ ...row, gross: Number(row.gross), fees: Number(row.fees), escrow: Number(row.escrow), withdrawable: Number(row.withdrawable) })));
-    setForm(current => ({ ...current, currency: current.currency || rows[0]?.currency || '' }));
+    setForm(current => ({ ...current, currency: current.currency || rows[0]?.currency || '', bank_country: current.bank_country || runtime.config?.geo.countryCode || '' }));
     setReqs((w.data as WR[]) || []);
     setLoading(false);
   };
   useEffect(() => { void load(); }, [user?.id]);
+  useEffect(() => { if (!form.bank_country && runtime.config?.geo.countryCode) setForm(current => ({ ...current, bank_country: runtime.config!.geo.countryCode! })); }, [runtime.config?.geo.countryCode, form.bank_country]);
 
   const selectedBalance = balances.find(row => row.currency === form.currency);
   const request = async () => {
@@ -71,7 +75,7 @@ export default function StudioEarnings() {
       return;
     }
     setBusy(true);
-    const { error } = await supabase.from('withdrawal_requests').insert({ ...r.data, user_id: user.id } as never);
+    const { data: withdrawal, error } = await supabase.rpc('request_wallet_withdrawal', { p_amount: r.data.amount, p_currency: r.data.currency, p_bank_country: r.data.bank_country, p_bank_name: r.data.bank_name, p_account_number: r.data.account_number, p_account_name: r.data.account_name });
     setBusy(false);
     if (error) return toast.error(error.message);
     toast.success('Withdrawal requested in ' + r.data.currency + '.');
@@ -124,7 +128,15 @@ export default function StudioEarnings() {
                   </select>
                   {errors.currency && <p className="text-xs text-destructive">{errors.currency}</p>}
                 </div>
-                {([['amount', 'Amount', 'number'], ['bank_name', 'Bank', 'text'], ['account_number', 'Account number', 'text'], ['account_name', 'Account name', 'text']] as const).map(([key, label, type]) => (
+                <div className="space-y-1">
+                  <Label htmlFor="bank_country">Bank country / destination</Label>
+                  <select id="bank_country" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.bank_country} onChange={e => setForm(current => ({ ...current, bank_country: e.target.value }))}>
+                    <option value="">Choose destination country</option>
+                    {(runtime.config?.countries ?? []).map(country => <option key={country.country_code} value={country.country_code}>{String(country.metadata?.country_name || country.country_code)} · {country.country_code}</option>)}
+                  </select>
+                  {errors.bank_country && <p className="text-xs text-destructive">{errors.bank_country}</p>}
+                </div>
+                {([['amount', 'Amount', 'number'], ['bank_name', 'Bank / payout institution', 'text'], ['account_number', 'Account number / IBAN', 'text'], ['account_name', 'Account holder name', 'text']] as const).map(([key, label, type]) => (
                   <div key={key} className="space-y-1">
                     <Label htmlFor={key}>{label}</Label>
                     <Input id={key} type={type} value={form[key]} onChange={e => setForm(current => ({ ...current, [key]: e.target.value }))} />
@@ -145,7 +157,7 @@ export default function StudioEarnings() {
                   <div key={row.id} className="flex items-center justify-between border-b border-border py-2 last:border-0">
                     <div>
                       <p className="font-medium text-sm">{money(row.amount, row.currency)}</p>
-                      <p className="text-xs text-muted-foreground">{row.bank_name} · {new Date(row.created_at).toLocaleDateString()}</p>
+                      <p className="text-xs text-muted-foreground">{row.bank_name} · {row.bank_country || '—'} · {new Date(row.created_at).toLocaleDateString()}</p>
                     </div>
                     <Badge className={statusCls[row.status] || ''}>{row.status}</Badge>
                   </div>
