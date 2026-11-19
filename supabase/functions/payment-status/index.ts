@@ -66,7 +66,7 @@ async function publicOrigin(admin:ReturnType<typeof createClient>){
  const value=typeof data?.setting_value==="string"?data.setting_value:"";
  try{const u=new URL(value);if(error||data?.is_public!==true||u.protocol!=="https:"||u.username||u.password)return null;return u.origin;}catch{return null;}
 }
-async function dispatchTicketEmail(admin:ReturnType<typeof createClient>,url:string,service:string,message:Record<string,unknown>){
+async function dispatchTicketEmail(url:string,service:string,message:Record<string,unknown>){
  const response=await fetch(url+"/functions/v1/send-watch-email",{method:"POST",headers:{Authorization:"Bearer "+service,apikey:service,"Content-Type":"application/json"},body:JSON.stringify(message),signal:AbortSignal.timeout(20000)}).catch(()=>null);
  return Boolean(response?.ok);
 }
@@ -83,10 +83,8 @@ serve(async(req:Request)=>{
   if(reference.startsWith("DTVL_")){
    const {data:order,error}=await admin.from("live_payment_orders").select("id,status,email,user_id,provider_reference,provider,provider_mode,amount_minor,amount_major,currency,stream_id,screening_id,ticket_type,metadata,email_sent_at").eq("provider_reference",reference).maybeSingle();
    if(error||!order)return json(404,{error:"No live event payment could be found for that reference."});
-   let verifiedState="paid";
    if(order.status==="pending"){
     const verified=await verifyProviderPayment(admin,reference,order);
-    verifiedState=verified.state;
     if(verified.state==="failed")await admin.from("live_payment_orders").update({status:"failed"}).eq("id",order.id).eq("status","pending");
     if(verified.state==="paid"){
      const token=order.user_id===null?randomToken():null;
@@ -107,7 +105,7 @@ serve(async(req:Request)=>{
      if(claim){
       const origin=await publicOrigin(admin);
       const deliveryUrl=origin?new URL("/live/claim?token="+encodeURIComponent(token),origin).toString():null;
-      emailSent=deliveryUrl?await dispatchTicketEmail(admin,url,service,{email:completed.email,movieTitle:completed.title||"Live event",watchUrl:deliveryUrl,ticketCode:completed.ticket_code,expiresAt:completed.valid_until,location:latest?.metadata?.country_code||"Global",price:Number(completed.price),currency:completed.currency}):false;
+      emailSent=deliveryUrl?await dispatchTicketEmail(url,service,{email:completed.email,movieTitle:completed.title||"Live event",watchUrl:deliveryUrl,ticketCode:completed.ticket_code,expiresAt:completed.valid_until,location:latest?.metadata?.country_code||"Global",price:Number(completed.price),currency:completed.currency}):false;
       if(!emailSent)await admin.from("live_payment_orders").update({email_sent_at:null}).eq("id",order.id);
      }
     }
