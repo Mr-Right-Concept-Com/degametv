@@ -2143,8 +2143,6 @@ export type Database = {
           refunded_at?: string | null
           revoked_at?: string | null
           revocation_reason?: string | null
-          revoked_at?: string | null
-          revocation_reason?: string | null
           reminder_1h_sent_at?: string | null
           reminder_24h_sent_at?: string | null
           screening_id: string
@@ -2183,6 +2181,8 @@ export type Database = {
           price?: number
           refund_reason?: string | null
           refunded_at?: string | null
+          revoked_at?: string | null
+          revocation_reason?: string | null
           reminder_1h_sent_at?: string | null
           reminder_24h_sent_at?: string | null
           screening_id?: string
@@ -2285,17 +2285,6 @@ export type Database = {
           event_type?: string
           event_visibility?: string
           invite_only?: boolean
-          early_bird_capacity?: number | null
-          early_bird_currency?: string | null
-          early_bird_ends_at?: string | null
-          early_bird_price?: number | null
-          event_timezone?: string | null
-          presale_enabled?: boolean
-          sales_close_at?: string | null
-          sales_open_at?: string | null
-          settlement_delivery_required?: boolean
-          settlement_hold_hours?: number
-          ticket_capacity?: number | null
           early_bird_capacity?: number | null
           early_bird_currency?: string | null
           early_bird_ends_at?: string | null
