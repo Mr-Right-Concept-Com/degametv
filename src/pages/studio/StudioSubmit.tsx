@@ -457,6 +457,23 @@ export default function StudioSubmit() {
         }
         const screeningId = (event as { screening_id: string }).screening_id;
         setCreatedScreeningId(screeningId);
+        if (form.project_type === 'live') {
+          const { data: pricingResult, error: pricingError } = await supabase.functions.invoke('manage-live-pricing', {
+            body: {
+              screeningId,
+              basePrice: Number(form.base_price || 0),
+              baseCurrency: runtime.config?.baseCurrency,
+              replayBasePrice: form.replay_base_price.trim() ? Number(form.replay_base_price) : null,
+              admissionModel: form.admission_model,
+              replayAccessHours: Number(form.replay_access_hours || 48),
+              replayAccessModel: form.replay_access_model,
+              autoConvertToVod: form.auto_convert_to_vod,
+            },
+          });
+          if (pricingError || !pricingResult?.success) {
+            toast.error(pricingResult?.error || 'Event is published, but replay settings could not be saved. Update them in Go Live settings.');
+          }
+        }
         const { data: eventSettings, error: eventSettingsError } = await supabase.functions.invoke('manage-event', {
           body: {
             screeningId,
@@ -478,23 +495,6 @@ export default function StudioSubmit() {
           toast.error(eventSettings?.error || 'The event was created, but its sales and settlement settings need attention in Studio.');
           setSubmitting(false);
           return;
-        }
-        if (form.project_type === 'live') {
-          const { data: pricingResult, error: pricingError } = await supabase.functions.invoke('manage-live-pricing', {
-            body: {
-              screeningId,
-              basePrice: Number(form.base_price || 0),
-              baseCurrency: runtime.config?.baseCurrency,
-              replayBasePrice: form.replay_base_price.trim() ? Number(form.replay_base_price) : null,
-              admissionModel: form.admission_model,
-              replayAccessHours: Number(form.replay_access_hours || 48),
-              replayAccessModel: form.replay_access_model,
-              autoConvertToVod: form.auto_convert_to_vod,
-            },
-          });
-          if (pricingError || !pricingResult?.success) {
-            toast.error(pricingResult?.error || 'Event is published, but replay settings could not be saved. Update them in Go Live settings.');
-          }
         }
         setPublished(true);
         toast.success(form.project_type === 'live' ? 'Live event published. Continue below to provision its secure encoder.' : 'Ticketed premiere published and scheduled.');
