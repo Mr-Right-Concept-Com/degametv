@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { z } from "npm:zod@3.25.76";
-const schema=z.object({screeningId:z.string().uuid(),ticketType:z.enum(["live","replay","combo"]),currency:z.enum(["NGN","USD"]),email:z.string().trim().email().max(254).optional()}).strict();
+const schema=z.object({screeningId:z.string().uuid(),ticketType:z.enum(["live","replay","combo"]),currency:z.enum(["NGN","USD"]),email:z.string().trim().email().max(254).optional(),cohortId:z.string().min(8).max(128).optional()}).strict();
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, x-client-info, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
 async function featureEnabled(db: ReturnType<typeof createClient>, key: string, subject: string): Promise<boolean> {
  const {data:flag,error}=await db.from("platform_feature_controls").select("enabled,rollout_percentage,release_state").eq("feature_key",key).maybeSingle();
@@ -30,7 +30,7 @@ if(import.meta.main)serve(async(req:Request)=>{
   return json(400,{error:"Enter an email address for guest ticket delivery."});
  }
  const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
- const cohortSubject=user?.id??parsed.data.email?.toLowerCase()??"guest";
+ const cohortSubject=parsed.data.cohortId??user?.id??parsed.data.email?.toLowerCase()??"guest";
  if(!await featureEnabled(db,"cinema.ticketing",cohortSubject))return json(403,{error:"Ticket checkout is paused for this release cohort."});
  try{
   const {screeningId,ticketType,currency}=parsed.data;
