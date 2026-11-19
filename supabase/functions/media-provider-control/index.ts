@@ -6,6 +6,15 @@ const schema=z.discriminatedUnion("action",[
  z.object({action:z.literal("create_live"),screeningId:z.string().uuid(),title:z.string().trim().min(2).max(180),description:z.string().max(2000).optional(),scheduledStart:z.string().datetime({offset:true}).optional(),recordingEnabled:z.boolean().default(true)}),
  z.object({action:z.literal("stop_live"),streamId:z.string().uuid()}),
 ]);
+async function featureEnabled(db: ReturnType<typeof createClient>, key: string, subject: string): Promise<boolean> {
+ const {data:flag,error}=await db.from("platform_feature_controls").select("enabled,rollout_percentage,release_state").eq("feature_key",key).maybeSingle();
+ if(error)return false;
+ if(!flag)return true;
+ if(!flag.enabled||["draft","paused","rolled_back"].includes(flag.release_state))return false;
+ if(flag.release_state==="released")return flag.rollout_percentage===100;
+ const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(subject+":"+key));
+ return new DataView(digest).getUint32(0,false)%100<flag.rollout_percentage;
+}
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json"}});
 const endpoint=(base:string,path:unknown)=>{if(typeof path!=="string"||!path.startsWith("/")||path.startsWith("//"))throw new Error("provider_endpoint_missing");const u=new URL(path,base);if(u.origin!==new URL(base).origin)throw new Error("provider_endpoint_invalid");return u;};
 Deno.serve(async req=>{
@@ -22,6 +31,7 @@ Deno.serve(async req=>{
  const {data:approved}=await db.rpc("is_approved_creator",{p_user_id:user.id});
  if(!approved)return json({error:"Approved creator access is required."},403);
  const p=parsed.data;
+ if(p.action==="create_live"&&!await featureEnabled(db,"creator.live",user.id))return json({error:"Live creation is currently unavailable for this release cohort."},403);
  const capability=p.action==="create_live"||p.action==="stop_live"?"live_streaming":"video_delivery";
  const {data:providers,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:capability});
  if(providerError||!Array.isArray(providers))return json({error:"Media provider registry is unavailable."},503);
