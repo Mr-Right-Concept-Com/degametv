@@ -29,7 +29,7 @@ if (import.meta.main) {
       const db = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
       const { data: ticket, error } = await db
         .from("screening_tickets")
-        .select("id,payment_status,refunded_at,expires_at,screening_id,screening:screenings(id,status)")
+        .select("id,payment_status,refunded_at,revoked_at,expires_at,screening_id,screening:screenings(id,status,cancelled_at)")
         .eq("watch_code", watchCode)
         .eq("email", email)
         .maybeSingle();
@@ -37,6 +37,8 @@ if (import.meta.main) {
       if (error) return json(503, { success: false, error: "Playback authorization could not be checked. Please retry." });
       if (!ticket || ticket.payment_status !== "completed") return json(404, { success: false, error: "Ticket not found or payment not confirmed." });
       if (ticket.refunded_at) return json(403, { success: false, error: "This ticket has been refunded." });
+      if (ticket.revoked_at) return json(403, { success: false, error: "This ticket or invitation has been revoked." });
+      if (!ticket.screening || ticket.screening.status !== "published" || ticket.screening.cancelled_at) return json(403, { success: false, error: "This screening is no longer available." });
       if (!ticket.expires_at || new Date(ticket.expires_at).getTime() <= Date.now()) return json(403, { success: false, error: "This ticket has expired." });
 
       const { data: delivery, error: providerError } = await db.rpc("get_service_provider_runtime_config", { p_capability: "video_delivery" });
