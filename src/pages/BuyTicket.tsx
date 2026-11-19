@@ -41,7 +41,10 @@ interface Screening {
 export default function BuyTicket() {
   const { slug } = useParams<{ slug: string }>();
   const [step, setStep] = useState<'location' | 'email' | 'payment' | 'confirmation'>('location');
-  const [location, setLocation] = useState<'nigeria' | 'international'>('nigeria');
+  const [location, setLocation] = useState<'nigeria' | 'international'>('international');
+  const [countryCode, setCountryCode] = useState<string | null>(null);
+  const [localCurrency, setLocalCurrency] = useState<string | null>(null);
+  const [localConverted, setLocalConverted] = useState<number | null>(null);
   const [email, setEmail] = useState('');
   const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<Array<{id:string;name:string;mode:string;available:boolean}>>([]);
@@ -84,6 +87,41 @@ export default function BuyTicket() {
     });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    void supabase.functions.invoke('runtime-config', { body: {} }).then(({ data, error }) => {
+      if (!active || error || !data) return;
+      const detectedCountry = typeof data.geo?.countryCode === 'string' ? data.geo.countryCode : null;
+      const detectedCurrency = typeof data.currency === 'string' ? data.currency : null;
+      setCountryCode(detectedCountry);
+      setLocalCurrency(detectedCurrency);
+      if (!sessionStorage.getItem('degame_checkout_location') && detectedCountry) {
+        setLocation(detectedCountry === 'NG' ? 'nigeria' : 'international');
+      }
+    });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!screening || !localCurrency) return;
+    const isNigeria = location === 'nigeria';
+    const isReplayPrice = screening.lifecycle === 'replay';
+    const replay = isReplayPrice ? (isNigeria ? screening.replay_price_ngn : screening.replay_price_usd) : null;
+    const amount = replay != null ? Number(replay) : Number(screening.location_pricing?.[location] ?? 0);
+    const fromCurrency = isNigeria ? 'NGN' : 'USD';
+    if (!Number.isFinite(amount) || amount <= 0 || localCurrency === fromCurrency) {
+      setLocalConverted(null);
+      return;
+    }
+    let active = true;
+    void supabase.functions.invoke('convert-currency', {
+      body: { amount, fromCurrency, toCurrency: localCurrency, country: countryCode ?? undefined },
+    }).then(({ data, error }) => {
+      if (active) setLocalConverted(!error && Number.isFinite(data?.converted) ? Number(data.converted) : null);
+    });
+    return () => { active = false; };
+  }, [screening, location, localCurrency, countryCode]);
 
   useEffect(() => {
     if (!screening) return;
@@ -410,6 +448,8 @@ export default function BuyTicket() {
                   <div className="flex justify-between"><span className="text-muted-foreground">Ticket</span><span>{symbol}{basePrice.toLocaleString()}</span></div>
                   <Separator />
                   <div className="flex justify-between font-bold text-base"><span>Total</span><span className="text-primary">{symbol}{total.toLocaleString()}</span></div>
+                   {localConverted !== null && localCurrency && <p className="text-right text-xs text-muted-foreground">Approx. {new Intl.NumberFormat(undefined, { style: "currency", currency: localCurrency }).format(localConverted)} · display estimate only; charged in {currency}</p>}
+                   {countryCode && <p className="text-right text-[11px] text-muted-foreground">Detected region: {countryCode}. You can change the ticket pricing region above.</p>}
                   <p className="text-xs text-muted-foreground">Final amount is calculated and validated by the payment server.</p>
                 </div>
 
