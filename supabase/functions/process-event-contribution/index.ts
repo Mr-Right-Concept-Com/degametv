@@ -47,12 +47,18 @@ Deno.serve(async req => {
     let tenantId: string, creatorId: string, screeningId: string | null = p.screeningId ?? null, liveStreamId: string | null = p.liveStreamId ?? null, contentId: string | null = p.contentId ?? null, title: string;
     if (screeningId) {
       const { data: screening, error } = await admin.from("screenings")
-        .select("id,tenant_id,content_id,title,status,event_visibility,invite_only")
+        .select("id,tenant_id,content_id,title,status,event_type,event_visibility,invite_only")
         .eq("id", screeningId).eq("status", "published").maybeSingle();
       if (error || !screening || !["public", "unlisted"].includes(screening.event_visibility) || screening.invite_only) return json({ error: "This event is not accepting public fan contributions." }, 404);
       const { data: content } = await admin.from("content").select("creator_id").eq("id", screening.content_id).maybeSingle();
       if (!content?.creator_id) return json({ error: "The creator for this event could not be verified." }, 409);
       tenantId = screening.tenant_id; creatorId = content.creator_id; title = screening.title;
+      if (screening.event_type === "live") {
+        const { data: ensuredStreamId, error: ensureError } = await admin.rpc("ensure_screening_live_stream", { p_screening_id: screening.id });
+        if (ensureError || !ensuredStreamId) return json({ error: "The scheduled live event stream could not be prepared for fan support." }, 503);
+        liveStreamId = ensuredStreamId;
+        screeningId = null;
+      }
     } else if (liveStreamId) {
       const { data: stream, error } = await admin.from("live_streams")
         .select("id,tenant_id,creator_id,title,event_visibility,invite_only,status,metadata")
