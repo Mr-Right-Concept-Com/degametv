@@ -66,24 +66,50 @@ if (import.meta.main) {
         }
       }
 
-      // Do not consume first-play access or expose media until a provider can
-      // enforce short-lived, signed playback delivery at the origin.
-      return new Response(JSON.stringify({ error: 'Secure streaming is not configured for this screening. Your viewing window has not started.' }), {
-        status: 503,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      const maxStreams = Number(s.max_streams_per_ticket ?? 5);
+      const usedStreams = Number(ticket.stream_count || 0);
+      if (!Number.isInteger(maxStreams) || maxStreams < 1 || usedStreams >= maxStreams) {
+        return new Response(JSON.stringify({ error: 'The maximum number of playback sessions for this ticket has been reached.' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
 
-      // Stream cap
-      const maxStreams = s.max_streams_per_ticket ?? 5;
-      const streamsRemaining = Math.max(0, maxStreams - (ticket.stream_count || 0));
+      const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+      const supabaseUrl = Deno.env.get('SUPABASE_URL');
+      if (!serviceKey || !supabaseUrl) {
+        return new Response(JSON.stringify({ error: 'Secure playback authorization is temporarily unavailable.' }), {
+          status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const deliveryResponse = await fetch(supabaseUrl + '/functions/v1/get-playback-url', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + serviceKey, apikey: serviceKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ watchCode, email: ticket.email }),
+        signal: AbortSignal.timeout(15000),
+      }).catch(() => null);
+      const delivery = await deliveryResponse?.json().catch(() => null);
+      if (!deliveryResponse?.ok || delivery?.success !== true || typeof delivery.playbackUrl !== 'string' || typeof delivery.expiresAt !== 'string') {
+        return new Response(JSON.stringify({
+          error: delivery?.error || 'The secure video provider could not authorize this ticket. Your viewing window has not started.',
+          code: delivery?.code || 'PLAYBACK_PROVIDER_UNAVAILABLE',
+        }), { status: deliveryResponse?.status === 403 ? 403 : 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
 
-      await supabase.from('screening_tickets').update({
-        used_at: new Date().toISOString(),
-        ...(ticket.first_played_at ? {} : { first_played_at: new Date().toISOString() }),
+      const now = new Date().toISOString();
+      const { error: usageError } = await supabase.from('screening_tickets').update({
+        used_at: now,
+        stream_count: usedStreams + 1,
+        ...(ticket.first_played_at ? {} : { first_played_at: now }),
         last_ip: ip,
         last_country: country,
-      }).eq('id', ticket.id);
+      }).eq('id', ticket.id).is('revoked_at', null).is('refunded_at', null);
+      if (usageError) {
+        return new Response(JSON.stringify({ error: 'Playback was authorized but ticket usage could not be recorded. Please retry.' }), {
+          status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
 
+      const streamsRemaining = Math.max(0, maxStreams - usedStreams - 1);
       return new Response(JSON.stringify({
         success: true,
         ticket: {
@@ -98,6 +124,9 @@ if (import.meta.main) {
           maxStreams,
           maxConcurrent: s.max_concurrent_streams ?? 1,
           country,
+          playbackUrl: delivery.playbackUrl,
+          playbackExpiresAt: delivery.expiresAt,
+          deliveryProvider: delivery.provider,
         },
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     } catch (error) {
