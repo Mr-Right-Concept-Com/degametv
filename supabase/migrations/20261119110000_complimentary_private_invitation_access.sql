@@ -19,6 +19,7 @@ DECLARE
   v_screening public.screenings%ROWTYPE;
   v_user_email text;
   v_stream_id uuid;
+  v_creator_id uuid;
   v_ticket_id uuid;
   v_ticket_type text;
   v_ticket_code text;
@@ -44,6 +45,9 @@ BEGIN
   SELECT * INTO v_screening FROM public.screenings
    WHERE id=v_invite.screening_id AND status='published' FOR SHARE;
   IF NOT FOUND THEN RAISE EXCEPTION 'screening_unavailable'; END IF;
+  SELECT creator_id INTO v_creator_id FROM public.content
+   WHERE id=v_screening.content_id AND tenant_id=v_screening.tenant_id;
+  IF v_creator_id IS NULL THEN RAISE EXCEPTION 'screening_creator_unavailable'; END IF;
 
   IF v_invite.complimentary_ticket_id IS NOT NULL THEN
     UPDATE public.event_access_invites SET status='accepted',accepted_at=coalesce(accepted_at,now()),invited_user_id=p_user_id WHERE id=v_invite.id;
@@ -78,7 +82,7 @@ BEGIN
           early_bird_capacity,event_visibility,invite_only,ticket_capacity,settlement_hold_hours,
           settlement_delivery_required,event_timezone,presale_enabled
         ) VALUES (
-          v_screening.tenant_id,v_screening.content_id,v_screening.title,v_screening.description,v_screening.poster_url,
+          v_screening.tenant_id,v_creator_id,v_screening.title,v_screening.description,v_screening.poster_url,
           'scheduled',CASE WHEN upper(coalesce(v_screening.access_model,''))='FREE' THEN 'free'::public.monetization_type ELSE 'ticket'::public.monetization_type END,
           false,v_screening.screening_date,true,true,0,v_currency,
           jsonb_build_object('screening_id',v_screening.id,'content_id',v_screening.content_id,'source','private_invitation'),
