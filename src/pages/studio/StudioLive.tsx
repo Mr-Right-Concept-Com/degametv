@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useRuntimeConfig } from '@/contexts/RuntimeConfigContext';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -23,7 +24,8 @@ type EncoderGrant = { streamId: string; ingestUrl: string; streamKey: string; pl
 export default function StudioLive() {
   usePageTitle('Go Live — Studio');
   const { user } = useAuth();
-  const [events, setEvents] = useState<{ id: string; title: string; lifecycle: string; live_price_ngn: number | null; live_price_usd: number | null; replay_price_ngn: number | null; replay_price_usd: number | null; replay_access_hours: number }[]>([]);
+  const runtime = useRuntimeConfig();
+  const [events, setEvents] = useState<{ id: string; title: string; lifecycle: string; base_price: number | null; base_currency: string | null; replay_base_price: number | null; live_price_ngn: number | null; live_price_usd: number | null; replay_price_ngn: number | null; replay_price_usd: number | null; replay_access_hours: number }[]>([]);
   const [screeningId, setScreeningId] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -32,6 +34,8 @@ export default function StudioLive() {
   const [status, setStatus] = useState<'idle' | 'scheduled' | 'ended'>('idle');
   const [broadcastLifecycle, setBroadcastLifecycle] = useState<{ lifecycle_status: string; reconnect_grace_expires_at: string | null; actual_started_at: string | null; actual_ended_at: string | null } | null>(null);
   const [replayDraftId, setReplayDraftId] = useState<string | null>(null);
+  const [basePrice, setBasePrice] = useState('');
+  const [replayBasePrice, setReplayBasePrice] = useState('');
   const [liveNgn, setLiveNgn] = useState('');
   const [liveUsd, setLiveUsd] = useState('');
   const [replayNgn, setReplayNgn] = useState('');
@@ -46,7 +50,7 @@ export default function StudioLive() {
       if (contentError) { toast.error('Your creator events could not be loaded. Please retry.'); return; }
       const ids = (content || []).map(item => item.id);
       if (!ids.length) { if (active) setEvents([]); return; }
-      const { data, error } = await supabase.from('screenings').select('id,title,lifecycle,live_price_ngn,live_price_usd,replay_price_ngn,replay_price_usd,replay_access_hours').in('content_id', ids);
+      const { data, error } = await supabase.from('screenings').select('id,title,lifecycle,base_price,base_currency,replay_base_price,live_price_ngn,live_price_usd,replay_price_ngn,replay_price_usd,replay_access_hours').in('content_id', ids);
       if (error) { toast.error('Your scheduled events could not be loaded.'); return; }
       if (active) setEvents(data || []);
     })();
@@ -55,7 +59,7 @@ export default function StudioLive() {
 
   useEffect(() => {
     const event = events.find(item => item.id === screeningId);
-    if (event) { setTitle(event.title); setLiveNgn(event.live_price_ngn == null ? '' : String(event.live_price_ngn)); setLiveUsd(event.live_price_usd == null ? '' : String(event.live_price_usd)); setReplayNgn(event.replay_price_ngn == null ? '' : String(event.replay_price_ngn)); setReplayUsd(event.replay_price_usd == null ? '' : String(event.replay_price_usd)); setReplayHours(String(event.replay_access_hours || 48)); }
+    if (event) { setTitle(event.title); setBasePrice(event.base_price == null ? '' : String(event.base_price)); setReplayBasePrice(event.replay_base_price == null ? '' : String(event.replay_base_price)); setLiveNgn(event.live_price_ngn == null ? '' : String(event.live_price_ngn)); setLiveUsd(event.live_price_usd == null ? '' : String(event.live_price_usd)); setReplayNgn(event.replay_price_ngn == null ? '' : String(event.replay_price_ngn)); setReplayUsd(event.replay_price_usd == null ? '' : String(event.replay_price_usd)); setReplayHours(String(event.replay_access_hours || 48)); }
   }, [events, screeningId]);
 
   useEffect(() => {
@@ -84,15 +88,23 @@ export default function StudioLive() {
   }, [screeningId, user?.id]);
 
   const savePricing = async () => {
-    const numeric = (value: string) => value.trim() === '' ? null : Number(value);
-    const values = [liveNgn, liveUsd, replayNgn, replayUsd].map(numeric);
-    if (values.some(value => value !== null && (!Number.isFinite(value) || value < 0))) { toast.error('Prices must be valid non-negative amounts.'); return; }
     const hours = Number(replayHours);
-    if (!Number.isInteger(hours) || hours < 1 || hours > 8760 || !screeningId) { toast.error('Choose an event and a replay access duration from 1 to 8760 hours.'); return; }
+    const event = events.find(item => item.id === screeningId);
+    if (!Number.isInteger(hours) || hours < 1 || hours > 8760 || !screeningId || !event) { toast.error('Choose an event and a replay access duration from 1 to 8760 hours.'); return; }
+    const baseMode = event.base_price !== null;
+    const base = basePrice.trim() === '' ? null : Number(basePrice);
+    const replay = replayBasePrice.trim() === '' ? null : Number(replayBasePrice);
+    const legacy = [liveNgn, liveUsd, replayNgn, replayUsd].map(value => value.trim() === '' ? null : Number(value));
+    if (baseMode ? base === null || !Number.isFinite(base) || base < 0 || (replay !== null && (!Number.isFinite(replay) || replay < 0)) : legacy.some(value => value !== null && (!Number.isFinite(value) || value < 0))) {
+      toast.error('Prices must be valid non-negative amounts.'); return;
+    }
+    if (baseMode && !event.base_currency) { toast.error('This event has no retained base currency. Contact platform support before editing its price.'); return; }
     setBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke('manage-live-pricing', { body: {
-        screeningId, livePriceNgn: values[0], livePriceUsd: values[1], replayPriceNgn: values[2], replayPriceUsd: values[3], replayAccessHours: hours,
+      const { data, error } = await supabase.functions.invoke('manage-live-pricing', { body: baseMode ? {
+        screeningId, basePrice: base, baseCurrency: event.base_currency, replayBasePrice: replay, replayAccessHours: hours,
+      } : {
+        screeningId, livePriceNgn: legacy[0], livePriceUsd: legacy[1], replayPriceNgn: legacy[2], replayPriceUsd: legacy[3], replayAccessHours: hours,
       }});
       if (error || !data?.success) { toast.error(data?.error || 'Pricing could not be saved.'); return; }
       toast.success('Live admission and replay pricing saved.');
@@ -173,11 +185,18 @@ export default function StudioLive() {
             <div><Label htmlFor="live-description">Description</Label><Input id="live-description" value={description} maxLength={2000} onChange={event => setDescription(event.target.value)} /></div>
             <div className="border-t pt-4 space-y-3">
               <div><p className="font-medium text-sm">Paid access</p><p className="text-xs text-muted-foreground">Live admission and replay are priced separately.</p></div>
-              <div className="grid grid-cols-2 gap-2">
-                <div><Label htmlFor="live-ngn">Live price (NGN)</Label><Input id="live-ngn" inputMode="decimal" value={liveNgn} onChange={e => setLiveNgn(e.target.value)} placeholder="0 = free" /></div>
-                <div><Label htmlFor="live-usd">Live price (USD)</Label><Input id="live-usd" inputMode="decimal" value={liveUsd} onChange={e => setLiveUsd(e.target.value)} placeholder="0 = free" /></div>
-                <div><Label htmlFor="replay-ngn">Replay price (NGN)</Label><Input id="replay-ngn" inputMode="decimal" value={replayNgn} onChange={e => setReplayNgn(e.target.value)} placeholder="Not available" /></div>
-                <div><Label htmlFor="replay-usd">Replay price (USD)</Label><Input id="replay-usd" inputMode="decimal" value={replayUsd} onChange={e => setReplayUsd(e.target.value)} placeholder="Not available" /></div>
+              {events.find(event => event.id === screeningId)?.base_price !== null && events.find(event => event.id === screeningId)?.base_price !== undefined ? <div className="space-y-3">
+                <div><Label htmlFor="live-base">Admission price ({events.find(event => event.id === screeningId)?.base_currency || runtime.config?.baseCurrency || 'base currency'})</Label><Input id="live-base" inputMode="decimal" value={basePrice} onChange={e => setBasePrice(e.target.value)} placeholder="0 = free"/></div>
+                <div><Label htmlFor="replay-base">Separate replay price ({events.find(event => event.id === screeningId)?.base_currency || runtime.config?.baseCurrency || 'base currency'})</Label><Input id="replay-base" inputMode="decimal" value={replayBasePrice} onChange={e => setReplayBasePrice(e.target.value)} placeholder="Leave blank when included or free"/></div>
+                <p className="text-xs text-muted-foreground">Creator prices remain in the event's immutable base currency. Viewer checkout converts using the active FX provider and their selected country currency.</p>
+              </div> : <div className="space-y-2">
+                <p className="text-xs text-amber-600">Legacy regional pricing. Existing NGN/USD prices are retained for this event; new events use the configurable platform base currency.</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div><Label htmlFor="live-ngn">Legacy live price (NGN)</Label><Input id="live-ngn" inputMode="decimal" value={liveNgn} onChange={e => setLiveNgn(e.target.value)} placeholder="0 = free" /></div>
+                  <div><Label htmlFor="live-usd">Legacy live price (USD)</Label><Input id="live-usd" inputMode="decimal" value={liveUsd} onChange={e => setLiveUsd(e.target.value)} placeholder="0 = free" /></div>
+                  <div><Label htmlFor="replay-ngn">Legacy replay price (NGN)</Label><Input id="replay-ngn" inputMode="decimal" value={replayNgn} onChange={e => setReplayNgn(e.target.value)} placeholder="Not available" /></div>
+                  <div><Label htmlFor="replay-usd">Legacy replay price (USD)</Label><Input id="replay-usd" inputMode="decimal" value={replayUsd} onChange={e => setReplayUsd(e.target.value)} placeholder="Not available" /></div>
+                </div>
               </div>
               <div><Label htmlFor="replay-hours">Replay access duration (hours)</Label><Input id="replay-hours" type="number" min="1" max="8760" value={replayHours} onChange={e => setReplayHours(e.target.value)} /></div>
               <Button className="w-full" variant="outline" disabled={busy || !screeningId} onClick={savePricing}>Save access pricing</Button>
