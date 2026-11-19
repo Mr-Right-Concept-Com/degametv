@@ -76,13 +76,19 @@ export default function Cinema() {
 
   const getPrice = (screening: ScreeningRow) => {
     if (screening.early_bird_price != null && screening.early_bird_ends_at && new Date(screening.early_bird_ends_at).getTime() > Date.now()) {
-      try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: screening.early_bird_currency || 'NGN', maximumFractionDigits: 2 }).format(Number(screening.early_bird_price)); }
-      catch { return Number(screening.early_bird_price).toLocaleString() + ' ' + (screening.early_bird_currency || ''); }
+      try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: screening.early_bird_currency || screening.base_currency || 'NGN' }).format(Number(screening.early_bird_price)); }
+      catch { return Number(screening.early_bird_price).toLocaleString() + ' ' + (screening.early_bird_currency || screening.base_currency || ''); }
     }
     const p = typeof screening.location_pricing === 'string' ? JSON.parse(screening.location_pricing) : screening.location_pricing;
-    if (p?.base != null && p?.currency) return Number(p.base).toLocaleString() + ' ' + String(p.currency);
+    if (p?.base != null && p?.currency) return new Intl.NumberFormat(undefined, { style: 'currency', currency: String(p.currency) }).format(Number(p.base));
     if (p?.nigeria != null) return '₦' + Number(p.nigeria).toLocaleString();
-    if (p?.international != null) return '
+    if (p?.international != null) return '$' + Number(p.international).toLocaleString();
+    if (screening.base_price != null && screening.base_currency) {
+      try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: screening.base_currency }).format(Number(screening.base_price)); }
+      catch { return Number(screening.base_price).toLocaleString() + ' ' + screening.base_currency; }
+    }
+    return 'Free admission';
+  };
 
   return (
     <MainLayout>
