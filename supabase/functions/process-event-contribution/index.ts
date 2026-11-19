@@ -78,7 +78,7 @@ Deno.serve(async req => {
     const countryCode = p.countryCode?.toUpperCase() ?? (edgeCountry && /^[A-Z]{2}$/.test(edgeCountry) ? edgeCountry : null);
     if (!countryCode) return json({ error: "Choose your country before supporting this creator." }, 422);
     const { data: countryRule, error: countryError } = await admin.from("country_currency_rules")
-      .select("country_code,currency_code").eq("country_code", countryCode).eq("enabled", true).maybeSingle();
+      .select("country_code").eq("country_code", countryCode).eq("enabled", true).limit(1).maybeSingle();
     if (countryError || !countryRule) return json({ error: "Fan contributions are not enabled for this country." }, 422);
     const currency = p.currency.toUpperCase();
     const { count: currencyCount } = await admin.from("country_currency_rules")
