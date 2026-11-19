@@ -125,13 +125,18 @@ if (import.meta.main) serve(async (req: Request) => {
     const convertedMajor = await convertAmount(url, service, major, sourceCurrency, currency, countryCode);
     const fractionDigits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits;
     const amountMinor = Math.round(convertedMajor * Math.pow(10, fractionDigits));
+    const { data: commissionSetting, error: commissionError } = await admin.from("platform_settings").select("setting_value").eq("setting_key", "commission_rates").maybeSingle();
+    const creatorCommissionRate = Number(commissionSetting?.setting_value?.creator);
+    if (commissionError || !Number.isFinite(creatorCommissionRate) || creatorCommissionRate < 0 || creatorCommissionRate > 0.5) return json(503, { success: false, error: "Creator commission policy is not configured safely." });
+    const platformFeeMinor = Math.round(amountMinor * creatorCommissionRate);
+    const platformFeeMajor = platformFeeMinor / Math.pow(10, fractionDigits);
     const reference = "DTV_" + crypto.randomUUID().replaceAll("-", "");
     const ticketCode = randomCode(8).toUpperCase();
     const watchCode = randomCode(20);
 
-    const { data: ticketId, error: orderError } = await admin.rpc("create_guest_payment_order_v2", {
+    const { data: ticketId, error: orderError } = await admin.rpc("create_guest_payment_order_v3", {
       p_provider: method, p_reference: reference, p_screening_id: screening.id, p_tenant_id: screening.tenant_id,
-      p_email: email, p_amount_minor: amountMinor, p_amount_major: convertedMajor, p_currency: currency, p_location: effectiveLocation,
+      p_email: email, p_amount_minor: amountMinor, p_amount_major: convertedMajor, p_platform_fee_major: platformFeeMajor, p_currency: currency, p_location: effectiveLocation,
       p_ticket_code: ticketCode, p_watch_code: watchCode, p_app_origin: siteOrigin,
     });
     if (orderError || !ticketId) return json(503, { success: false, error: "A secure ticket order could not be created. No charge was made." });
