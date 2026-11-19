@@ -60,6 +60,7 @@ Deno.serve(async (req) => {
     return { key: feature.feature_key, enabled: bucket < feature.rollout_percentage };
   }));
   return response({
+    cohortId: visitorId,
     geo: { countryCode: candidate, source: edgeCountry ? "edge" : requestedCountry ? "explicit" : localeRegion ? "locale_hint" : "unknown" },
     locale: country?.locale_code ?? req.headers.get("accept-language")?.split(",")[0] ?? "en",
     currency: validOverride ?? country?.currency_code ?? "USD",
