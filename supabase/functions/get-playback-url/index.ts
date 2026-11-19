@@ -20,6 +20,9 @@ if (import.meta.main) {
       const url = Deno.env.get("SUPABASE_URL");
       const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
       if (!url || !serviceKey) return json(503, { success: false, error: "Playback authorization is temporarily unavailable." });
+      if (req.headers.get("Authorization") !== `Bearer ${serviceKey}`) {
+        return json(403, { success: false, error: "This playback authorization endpoint is internal to the ticket validator." });
+      }
 
       const body = await req.json().catch(() => null);
       const watchCode = typeof body?.watchCode === "string" ? body.watchCode.trim() : "";
