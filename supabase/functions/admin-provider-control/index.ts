@@ -11,6 +11,7 @@ const schema = z.discriminatedUnion("action", [
     providerKey: z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/),
     enabled: z.boolean(),
     live: z.boolean(),
+    priority: z.number().int().min(0).max(10000).default(100),
     baseUrl: z.string().url().refine(v => new URL(v).protocol === "https:"),
     endpoints: z.record(z.string(), z.unknown()).default({}),
     settings: z.record(z.string(), z.unknown()).default({}),
@@ -92,8 +93,10 @@ Deno.serve(async req => {
   }
   const args=p.action==="remove"
     ? {p_capability:p.capability,p_provider_key:p.providerKey,p_enabled:false,p_is_live:false,p_remove:true}
-    : {p_capability:p.capability,p_provider_key:p.providerKey,p_enabled:p.enabled,p_is_live:p.live,p_base_url:p.baseUrl,p_endpoints:p.endpoints,p_settings:p.settings,p_test_credential:p.testCredential??null,p_live_credential:p.liveCredential??null,p_test_webhook_secret:p.testWebhookSecret??null,p_live_webhook_secret:p.liveWebhookSecret??null,p_remove:false};
-  const {data,error}=await caller.rpc("admin_configure_service_provider_modes",args);
+    : {p_capability:p.capability,p_provider_key:p.providerKey,p_enabled:p.enabled,p_is_live:p.live,p_base_url:p.baseUrl,p_endpoints:p.endpoints,p_settings:p.settings,p_test_credential:p.testCredential??null,p_live_credential:p.liveCredential??null,p_test_webhook_secret:p.testWebhookSecret??null,p_live_webhook_secret:p.liveWebhookSecret??null,p_priority:p.priority};
+  const {data,error}=p.action==="remove"
+    ? await caller.rpc("admin_configure_service_provider_modes",args)
+    : await caller.rpc("admin_configure_service_provider_modes_with_priority",args);
   if(error)return json({error:"Provider change was rejected.",code:error.message},400);
   return json({success:true,result:data});
 });
