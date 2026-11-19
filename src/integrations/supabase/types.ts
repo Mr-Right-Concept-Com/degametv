@@ -3205,6 +3205,16 @@ export type Database = {
           withdrawable: number
         }[]
       }
+      wallet_balance_by_currency: {
+        Args: { _user_id: string }
+        Returns: {
+          currency: string
+          escrow: number
+          fees: number
+          gross: number
+          withdrawable: number
+        }[]
+      }
     }
     Enums: {
       app_role:
