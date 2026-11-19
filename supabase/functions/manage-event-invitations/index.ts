@@ -104,15 +104,34 @@ Deno.serve(async req => {
 
       if (p.action === "revoke") {
         if (!p.inviteId) return json({ error: "Invitation id is required." }, 400);
+        const { data: invite, error: inviteError } = await db.from("event_access_invites")
+          .select("id,status,complimentary_ticket_id,complimentary_ticket_type")
+          .eq("id", p.inviteId).eq("screening_id", screening.id).maybeSingle();
+        if (inviteError || !invite || ["revoked","expired"].includes(invite.status)) return json({ error: "Invitation could not be found or is already revoked." }, 409);
+        const { data: activeReservation, error: reservationError } = await db.from("event_ticket_reservations")
+          .select("id,status").eq("invite_id", invite.id).in("status", ["pending","paid"]).maybeSingle();
+        if (reservationError) return json({ error: "Ticket reservation status could not be verified." }, 503);
+        if (activeReservation) return json({ error: activeReservation.status === "paid"
+          ? "This guest already has a paid ticket. Complete the provider-confirmed refund before revoking access."
+          : "This guest has a payment checkout in progress. Wait for it to complete or expire before revoking the invitation." }, 409);
+        if (invite.complimentary_ticket_id && invite.complimentary_ticket_type === "live_ticket") {
+          await db.from("tickets").update({ revoked_at: new Date().toISOString(), revocation_reason: "private_invitation_revoked" }).eq("id", invite.complimentary_ticket_id);
+          await db.from("screening_playback_sessions").update({ revoked_at: new Date().toISOString() }).eq("ticket_id", invite.complimentary_ticket_id).is("revoked_at", null);
+        } else if (invite.complimentary_ticket_id && invite.complimentary_ticket_type === "screening_ticket") {
+          await db.from("screening_tickets").update({
+            revoked_at: new Date().toISOString(), revocation_reason: "private_invitation_revoked",
+            active_session_expires_at: new Date().toISOString(), active_session_token: null,
+          }).eq("id", invite.complimentary_ticket_id);
+        }
         const { data, error } = await db.from("event_access_invites")
-          .update({ status: "revoked" }).eq("id", p.inviteId).eq("screening_id", screening.id)
+          .update({ status: "revoked" }).eq("id", invite.id).eq("screening_id", screening.id)
           .in("status", ["pending", "sent", "accepted"]).select("id").maybeSingle();
         if (error || !data) return json({ error: "Invitation could not be revoked." }, 409);
         await db.from("audit_logs").insert({
           user_id: user.id, action: "event.invitation.revoked", entity_type: "event_access_invite",
-          entity_id: data.id, new_data: { screening_id: screening.id },
+          entity_id: data.id, new_data: { screening_id: screening.id, complimentary_ticket_revoked: Boolean(invite.complimentary_ticket_id) },
         });
-        return json({ success: true });
+        return json({ success: true, accessRevoked: Boolean(invite.complimentary_ticket_id) });
       }
 
       if (!p.email) return json({ error: "Invitee email is required." }, 400);
