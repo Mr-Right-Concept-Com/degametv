@@ -70,10 +70,9 @@ if (import.meta.main) {
       }
 
       const maxStreams = Number(s.max_streams_per_ticket ?? 5);
-      const usedStreams = Number(ticket.stream_count || 0);
-      if (!Number.isInteger(maxStreams) || maxStreams < 1 || usedStreams >= maxStreams) {
-        return new Response(JSON.stringify({ error: 'The maximum number of playback sessions for this ticket has been reached.' }), {
-          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      if (!Number.isInteger(maxStreams) || maxStreams < 1) {
+        return new Response(JSON.stringify({ error: 'This screening has an invalid playback policy.' }), {
+          status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
