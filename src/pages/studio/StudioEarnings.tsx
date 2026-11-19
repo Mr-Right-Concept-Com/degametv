@@ -75,7 +75,7 @@ export default function StudioEarnings() {
       return;
     }
     setBusy(true);
-    const { data: withdrawal, error } = await supabase.rpc('request_wallet_withdrawal', { p_amount: r.data.amount, p_currency: r.data.currency, p_bank_country: r.data.bank_country, p_bank_name: r.data.bank_name, p_account_number: r.data.account_number, p_account_name: r.data.account_name });
+    const { error } = await supabase.rpc('request_wallet_withdrawal', { p_amount: r.data.amount, p_currency: r.data.currency, p_bank_country: r.data.bank_country, p_bank_name: r.data.bank_name, p_account_number: r.data.account_number, p_account_name: r.data.account_name });
     setBusy(false);
     if (error) return toast.error(error.message);
     toast.success('Withdrawal requested in ' + r.data.currency + '.');
