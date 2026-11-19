@@ -81,36 +81,59 @@ serve(async(req:Request)=>{
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
   const reference=parsed.data.reference;
   if(reference.startsWith("DTVL_")){
-   const {data:order,error}=await admin.from("live_payment_orders").select("id,status,email,user_id,provider_reference,provider,provider_mode,amount_minor,amount_major,currency,stream_id,screening_id,ticket_type,metadata,email_sent_at").eq("provider_reference",reference).maybeSingle();
+   const {data:order,error}=await admin.from("live_payment_orders").select("id,status,email,user_id,provider_reference,provider,provider_mode,amount_minor,amount_major,currency,provider_transaction_id,stream_id,screening_id,ticket_type,metadata,email_sent_at").eq("provider_reference",reference).maybeSingle();
    if(error||!order)return json(404,{error:"No live event payment could be found for that reference."});
-   if(order.status==="pending"){
+   let status=order.status;
+   let emailSent=Boolean(order.email_sent_at);
+   let claimToken:string|null=null;
+   let claimed=false;
+   let completed:any=null;
+   if(status==="pending"){
     const verified=await verifyProviderPayment(admin,reference,order);
-    if(verified.state==="failed")await admin.from("live_payment_orders").update({status:"failed"}).eq("id",order.id).eq("status","pending");
-    if(verified.state==="paid"){
-     const token=order.user_id===null?randomToken():null;
-     const {error:completeError}=await admin.rpc("complete_live_payment_order",{p_reference:reference,p_transaction_id:verified.transactionId,p_amount_minor:verified.amountMinor,p_currency:verified.currency,p_claim_token_hash:token?await sha256(token):null});
-     if(completeError)return json(409,{error:"Payment was verified but ticket fulfillment is delayed. Retry status shortly."});
-     order.status="paid";
-     if(token)(order as any)._claimToken=token;
-    }
-   }
-   const {data:latest}=await admin.from("live_payment_orders").select("status,email_sent_at,user_id,amount_major,currency,metadata").eq("id",order.id).maybeSingle();
-   const status=latest?.status??order.status;
-   let emailSent=Boolean(latest?.email_sent_at);
-   if(status==="paid"&&latest?.user_id===null&&!latest.email_sent_at){
-    const token=(order as any)._claimToken??randomToken();
-    const {data:completed,error:completeError}=await admin.rpc("complete_live_payment_order",{p_reference:reference,p_transaction_id:reference,p_amount_minor:order.amount_minor,p_currency:order.currency,p_claim_token_hash:await sha256(token)});
-    if(!completeError&&completed?.ticket_id&&completed?.email){
-     const {data:claim}=await admin.from("live_payment_orders").update({email_sent_at:new Date().toISOString()}).eq("id",order.id).is("email_sent_at",null).select("id").maybeSingle();
-     if(claim){
-      const origin=await publicOrigin(admin);
-      const deliveryUrl=origin?new URL("/live/claim?token="+encodeURIComponent(token),origin).toString():null;
-      emailSent=deliveryUrl?await dispatchTicketEmail(url,service,{email:completed.email,movieTitle:completed.title||"Live event",watchUrl:deliveryUrl,ticketCode:completed.ticket_code,expiresAt:completed.valid_until,location:latest?.metadata?.country_code||"Global",price:Number(completed.price),currency:completed.currency}):false;
-      if(!emailSent)await admin.from("live_payment_orders").update({email_sent_at:null}).eq("id",order.id);
+    if(verified.state==="failed"){
+     await admin.from("live_payment_orders").update({status:"failed"}).eq("id",order.id).eq("status","pending");
+     status="failed";
+    }else if(verified.state==="paid"){
+     if(order.user_id===null){
+      const {data:claim}=await admin.rpc("claim_live_payment_email",{p_reference:reference});
+      if(claim!==true)return json(200,{status:"pending",delivery:"email",email:order.email,provider:order.provider,emailSent:false});
+      claimed=true;claimToken=randomToken();
      }
+     const {data:result,error:completeError}=await admin.rpc("complete_live_payment_order",{
+      p_reference:reference,p_transaction_id:verified.transactionId,p_amount_minor:verified.amountMinor,p_currency:verified.currency,
+      p_claim_token_hash:claimToken?await sha256(claimToken):null,
+     });
+     if(completeError){
+      if(claimed)await admin.from("live_payment_orders").update({email_delivery_claimed_at:null}).eq("id",order.id);
+      return json(409,{error:"Payment was verified but ticket fulfillment is delayed. Retry status shortly."});
+     }
+     completed=result;status="paid";
     }
    }
-   return json(200,{status,delivery:latest?.user_id?"my_tickets":"email",email:order.email,provider:order.provider,emailSent});
+   if(status==="paid"&&order.user_id===null&&!emailSent&&!claimed){
+    const {data:claim}=await admin.rpc("claim_live_payment_email",{p_reference:reference});
+    if(claim===true){
+     claimed=true;claimToken=randomToken();
+     const {data:result,error:completeError}=await admin.rpc("complete_live_payment_order",{
+      p_reference:reference,p_transaction_id:order.provider_transaction_id||reference,p_amount_minor:order.amount_minor,p_currency:order.currency,
+      p_claim_token_hash:await sha256(claimToken),
+     });
+     if(completeError){
+      await admin.from("live_payment_orders").update({email_delivery_claimed_at:null}).eq("id",order.id);
+      return json(409,{error:"Your paid ticket is confirmed, but secure email delivery needs a retry."});
+     }
+     completed=result;
+    }
+   }
+   if(claimed&&claimToken&&completed?.ticket_id&&completed?.email){
+    const origin=await publicOrigin(admin);
+    const deliveryUrl=origin?new URL("/live/claim?token="+encodeURIComponent(claimToken),origin).toString():null;
+    emailSent=deliveryUrl?await dispatchTicketEmail(url,service,{email:completed.email,movieTitle:completed.title||"Live event",watchUrl:deliveryUrl,ticketCode:completed.ticket_code,expiresAt:completed.valid_until,location:order.metadata?.country_code||"Global",price:Number(completed.price),currency:completed.currency}):false;
+    await admin.from("live_payment_orders").update(emailSent?{email_sent_at:new Date().toISOString(),email_delivery_claimed_at:null}:{email_delivery_claimed_at:null}).eq("id",order.id);
+   }else if(claimed){
+    await admin.from("live_payment_orders").update({email_delivery_claimed_at:null}).eq("id",order.id);
+   }
+   return json(200,{status,delivery:order.user_id?"my_tickets":"email",email:order.email,provider:order.provider,emailSent});
   }
 
   const {data:order,error}=await admin.from("guest_payment_orders").select("id,ticket_id,status,email,provider_reference,provider,provider_mode,amount_minor,currency,app_origin,email_sent_at").eq("provider_reference",reference).maybeSingle();
