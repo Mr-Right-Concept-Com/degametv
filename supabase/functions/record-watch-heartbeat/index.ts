@@ -34,6 +34,17 @@ if (import.meta.main) serve(async (req: Request) => {
     if (ticketError || !ticket || ticket.payment_status !== "completed" || ticket.refunded_at || ticket.revoked_at) {
       return json(403, { error: "This ticket is no longer valid." });
     }
+    const country = (req.headers.get("cf-ipcountry") || "").toUpperCase() || null;
+    if (country) {
+      const { data: screening } = await supabase.from("screenings").select("allowed_countries,blocked_countries").eq("id", ticket.screening_id).maybeSingle();
+      const blocked = Array.isArray(screening?.blocked_countries) && screening.blocked_countries.includes(country);
+      const outsideAllowed = Array.isArray(screening?.allowed_countries) && screening.allowed_countries.length > 0 && !screening.allowed_countries.includes(country);
+      if (blocked || outsideAllowed) {
+        const deniedHash = await sha256(sessionToken);
+        await supabase.rpc("heartbeat_screening_ticket_playback", { p_ticket_id: ticket.id, p_session_token_hash: deniedHash, p_release: true });
+        return json(451, { error: "Playback is no longer permitted in your current territory." });
+      }
+    }
     const sessionHash = await sha256(sessionToken);
     const { data: lease, error: leaseError } = await supabase.rpc("heartbeat_screening_ticket_playback", {
       p_ticket_id: ticket.id, p_session_token_hash: sessionHash, p_release: action === "release",
@@ -41,7 +52,6 @@ if (import.meta.main) serve(async (req: Request) => {
     if (leaseError || !lease) return json(409, { error: "The playback session expired or was revoked. Revalidate your ticket." });
     if (action === "release") return json(200, { success: true, released: true });
 
-    const country = (req.headers.get("cf-ipcountry") || "").toUpperCase() || null;
     const delta = Math.max(0, Math.min(60, Math.round(Number(body.deltaSeconds) || 0)));
     const position = Math.max(0, Math.min(86400, Math.round(Number(body.position) || 0)));
     const { data: existing } = await supabase.from("watch_history")
