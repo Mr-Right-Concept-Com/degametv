@@ -9,6 +9,7 @@ const schema = z.object({
   location: z.enum(["nigeria", "international"]),
   countryCode: z.string().regex(/^[A-Za-z]{2}$/).optional(),
   currency: z.string().regex(/^[A-Za-z]{3}$/).optional(),
+  inviteToken: z.string().min(32).max(256).optional(),
   cohortId: z.string().min(8).max(128).optional(),
 }).strict();
 
@@ -107,25 +108,49 @@ if (import.meta.main) serve(async (req: Request) => {
     }
 
     const { data: screening, error: screeningError } = await admin.from("screenings")
-      .select("id,tenant_id,title,slug,status,location_pricing,screening_date,lifecycle,replay_price_ngn,replay_price_usd,base_price,base_currency,replay_base_price")
+      .select("id,tenant_id,title,slug,status,location_pricing,screening_date,lifecycle,replay_price_ngn,replay_price_usd,base_price,base_currency,replay_base_price,sales_open_at,sales_close_at,early_bird_price,early_bird_currency,early_bird_ends_at,early_bird_capacity,event_visibility,invite_only,presale_enabled,ticket_capacity")
       .eq("id", screeningId).eq("status", "published").maybeSingle();
     if (screeningError || !screening) return json(404, { success: false, error: "This screening is no longer available." });
-    if (screening.screening_date && new Date(screening.screening_date).getTime() < Date.now() && screening.lifecycle !== "replay") {
-      return json(409, { success: false, error: "Ticket sales for this screening have closed." });
-    }
 
     const pricing = typeof screening.location_pricing === "string" ? JSON.parse(screening.location_pricing) : screening.location_pricing;
     const legacyReplayPrice = effectiveLocation === "nigeria" ? screening.replay_price_ngn : screening.replay_price_usd;
     const legacyBasePrice = effectiveLocation === "nigeria" ? pricing?.nigeria : pricing?.international;
     const hasBasePrice = screening.base_price !== null && screening.base_price !== undefined;
-    const major = Number(screening.lifecycle === "replay"
+    let major = Number(screening.lifecycle === "replay"
       ? (hasBasePrice ? screening.replay_base_price : legacyReplayPrice)
       : (hasBasePrice ? screening.base_price : legacyBasePrice));
-    const priceCurrency = hasBasePrice ? String(screening.base_currency || "").toUpperCase() : sourceCurrency;
-    if (!Number.isFinite(major) || major <= 0 || !/^[A-Z]{3}$/.test(priceCurrency)) return json(409, { success: false, error: "Ticket pricing is not configured in a supported currency." });
+    let priceCurrency = hasBasePrice ? String(screening.base_currency || "").toUpperCase() : sourceCurrency;
+    if (!/^[A-Z]{3}$/.test(priceCurrency)) return json(409, { success: false, error: "Ticket currency is not configured safely." });
 
     const supportedCurrencies = Array.isArray(config.settings?.supported_currencies) ? config.settings.supported_currencies : [];
     if (!supportedCurrencies.includes(currency)) return json(422, { success: false, error: "The selected payment provider does not support this transaction currency." });
+    const reference = "DTV_" + crypto.randomUUID().replaceAll("-", "");
+    const inviteTokenHash = parsed.data.inviteToken
+      ? Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(parsed.data.inviteToken))), b => b.toString(16).padStart(2, "0")).join("")
+      : null;
+    const { data: reservation, error: reservationError } = await admin.rpc("reserve_event_ticket_capacity", {
+      p_screening_id: screening.id,
+      p_provider_reference: reference,
+      p_ticket_type: screening.lifecycle === "replay" ? "replay" : "live",
+      p_email: email,
+      p_user_id: null,
+      p_country_code: countryCode,
+      p_invite_token_hash: inviteTokenHash,
+    });
+    if (reservationError || !reservation) {
+      const message = reservationError?.message || "";
+      const errorMessage = message.includes("capacity") ? "All tickets for this event have been reserved."
+        : message.includes("sales") ? "Ticket sales are not currently open."
+        : message.includes("invitation") ? "A valid invitation for this private screening is required."
+        : "This event cannot accept a ticket reservation right now.";
+      return json(409, { success: false, error: errorMessage });
+    }
+    major = Number(reservation.base_amount);
+    priceCurrency = String(reservation.base_currency || "").toUpperCase();
+    if (!Number.isFinite(major) || major <= 0 || !/^[A-Z]{3}$/.test(priceCurrency)) {
+      await admin.from("event_ticket_reservations").update({ status: "failed" }).eq("provider_reference", reference);
+      return json(409, { success: false, error: "The event returned an invalid ticket quote." });
+    }
     const convertedMajor = await convertAmount(url, service, major, priceCurrency, currency, countryCode);
     const fractionDigits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits;
     const amountMinor = Math.round(convertedMajor * Math.pow(10, fractionDigits));
@@ -134,7 +159,6 @@ if (import.meta.main) serve(async (req: Request) => {
     if (commissionError || !Number.isFinite(creatorCommissionRate) || creatorCommissionRate < 0 || creatorCommissionRate > 0.5) return json(503, { success: false, error: "Creator commission policy is not configured safely." });
     const platformFeeMinor = Math.round(amountMinor * creatorCommissionRate);
     const platformFeeMajor = platformFeeMinor / Math.pow(10, fractionDigits);
-    const reference = "DTV_" + crypto.randomUUID().replaceAll("-", "");
     const ticketCode = randomCode(8).toUpperCase();
     const watchCode = randomCode(20);
 
@@ -143,7 +167,10 @@ if (import.meta.main) serve(async (req: Request) => {
       p_email: email, p_amount_minor: amountMinor, p_amount_major: convertedMajor, p_platform_fee_major: platformFeeMajor, p_currency: currency, p_location: effectiveLocation,
       p_ticket_code: ticketCode, p_watch_code: watchCode, p_app_origin: siteOrigin,
     });
-    if (orderError || !ticketId) return json(503, { success: false, error: "A secure ticket order could not be created. No charge was made." });
+    if (orderError || !ticketId) {
+      await admin.from("event_ticket_reservations").update({ status: "failed" }).eq("provider_reference", reference);
+      return json(503, { success: false, error: "A secure ticket order could not be created. No charge was made." });
+    }
 
     const checkoutUrl = new URL(checkoutEndpoint, config.base_url);
     if (checkoutUrl.origin !== new URL(config.base_url).origin) throw new Error("invalid_payment_endpoint");
