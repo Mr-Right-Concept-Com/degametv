@@ -26,7 +26,10 @@ interface Screening {
   banner_url: string;
   screening_date: string;
   duration: number;
-  location_pricing: { nigeria: number; international: number };
+  location_pricing: { nigeria?: number; international?: number; base?: number; currency?: string };
+  base_price?: number | null;
+  base_currency?: string | null;
+  replay_base_price?: number | null;
   status: string;
   event_type?: string;
   access_model?: 'FREE' | 'TICKETED';
@@ -66,7 +69,7 @@ export default function BuyTicket() {
       if (!slug) return;
       const { data, error } = await supabase
         .from('screenings')
-        .select('id,content_id,title,slug,description,poster_url,banner_url,trailer_url,release_date,screening_date,duration,location_pricing,status,access_model,event_type,lifecycle,live_price_ngn,live_price_usd,live_recording_status,live_started_at,live_ended_at,live_replay_ready_at,replay_price_ngn,replay_price_usd,replay_access_hours,replay_access_model,refund_policy,cast_crew,gallery_images,age_rating,star_rating,review_count,allowed_countries,blocked_countries,cancelled_at,created_at,updated_at')
+        .select('id,content_id,title,slug,description,poster_url,banner_url,trailer_url,release_date,screening_date,duration,location_pricing,base_price,base_currency,replay_base_price,status,access_model,event_type,lifecycle,live_price_ngn,live_price_usd,live_recording_status,live_started_at,live_ended_at,live_replay_ready_at,replay_price_ngn,replay_price_usd,replay_access_hours,replay_access_model,refund_policy,cast_crew,gallery_images,age_rating,star_rating,review_count,allowed_countries,blocked_countries,cancelled_at,created_at,updated_at')
         .eq('slug', slug)
         .eq('status', 'published')
         .maybeSingle();
@@ -104,12 +107,17 @@ export default function BuyTicket() {
   useEffect(() => {
     if (!screening || !localCurrency) return;
     const isNigeria = location === 'nigeria';
+    const hasBasePrice = screening.base_price !== null && screening.base_price !== undefined;
     const isReplayPrice = screening.lifecycle === 'replay';
-    const replay = isReplayPrice ? (isNigeria ? screening.replay_price_ngn : screening.replay_price_usd) : null;
-    const amount = replay != null ? Number(replay) : Number(screening.location_pricing?.[location] ?? 0);
-    const fromCurrency = isNigeria ? 'NGN' : 'USD';
-    if (!Number.isFinite(amount) || amount <= 0 || localCurrency === fromCurrency) {
+    const replay = isReplayPrice ? (hasBasePrice ? screening.replay_base_price : (isNigeria ? screening.replay_price_ngn : screening.replay_price_usd)) : null;
+    const amount = replay != null ? Number(replay) : hasBasePrice ? Number(screening.base_price) : Number(screening.location_pricing?.[location] ?? 0);
+    const fromCurrency = hasBasePrice ? String(screening.base_currency || '').toUpperCase() : (isNigeria ? 'NGN' : 'USD');
+    if (!Number.isFinite(amount) || amount <= 0 || !/^[A-Z]{3}$/.test(fromCurrency)) {
       setLocalConverted(null);
+      return;
+    }
+    if (localCurrency === fromCurrency) {
+      setLocalConverted(amount);
       return;
     }
     let active = true;
@@ -207,10 +215,10 @@ export default function BuyTicket() {
 
   const pricing = screening.location_pricing;
   const isReplay = screening.lifecycle === 'replay';
-  const replayPrice = location === 'nigeria' ? screening.replay_price_ngn : screening.replay_price_usd;
-  const basePrice = isReplay && replayPrice ? Number(replayPrice) : pricing[location];
-  const currency = location === 'nigeria' ? 'NGN' : 'USD';
-  const symbol = location === 'nigeria' ? '₦' : '$';
+  const hasBasePrice = screening.base_price !== null && screening.base_price !== undefined;
+  const replayPrice = hasBasePrice ? screening.replay_base_price : (location === 'nigeria' ? screening.replay_price_ngn : screening.replay_price_usd);
+  const basePrice = isReplay && replayPrice != null ? Number(replayPrice) : hasBasePrice ? Number(screening.base_price) : Number(pricing[location] ?? 0);
+  const currency = hasBasePrice ? String(screening.base_currency || runtime.config?.baseCurrency || 'USD') : (location === 'nigeria' ? 'NGN' : 'USD');
   const total = basePrice;
   const eligiblePaymentMethods = paymentMethods.filter(method => method.available && method.supportedCurrencies.includes(localCurrency ?? currency));
   const localPriceLabel = localConverted !== null && localCurrency ? new Intl.NumberFormat(undefined,{style:'currency',currency:localCurrency,maximumFractionDigits:2}).format(localConverted) : null;
@@ -391,7 +399,7 @@ export default function BuyTicket() {
                   <p className="text-xs text-muted-foreground">Detected country and currency are preselected where available. You can change them before checkout.</p>
                 </div>
                 <div className="rounded-xl bg-secondary/40 border border-border/50 p-4 space-y-1">
-                  <p className="text-xs text-muted-foreground">Regional ticket price</p>
+                  <p className="text-xs text-muted-foreground">Creator base price</p>
                   <p className="text-xl font-bold">{currency} {basePrice.toLocaleString()}</p>
                   {localPriceLabel && <p className="text-sm text-muted-foreground">Estimated local price: {localPriceLabel}</p>}
                   {!localPriceLabel && localCurrency && localCurrency !== currency && <p className="text-xs text-muted-foreground">Live FX estimate is unavailable. Checkout will not charge in a converted currency without a verified FX rate.</p>}
