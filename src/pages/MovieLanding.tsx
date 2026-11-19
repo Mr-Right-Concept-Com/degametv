@@ -15,7 +15,7 @@ import {
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { LifecycleBanner } from '@/components/cinema/LifecycleBanner';
 import { useRuntimeConfig } from '@/contexts/RuntimeConfigContext';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 
 interface CastMember {
   name: string;
