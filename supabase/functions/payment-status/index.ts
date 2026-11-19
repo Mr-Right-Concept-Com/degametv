@@ -20,12 +20,13 @@ async function verifyProviderPayment(admin:ReturnType<typeof createClient>,refer
  const adapter=String(binding.settings?.adapter??binding.provider_key).toLowerCase();
  const target=new URL(adapter==="paystack"?path.replace(/\/$/,"")+"/"+encodeURIComponent(reference):path.replace("{reference}",encodeURIComponent(reference)),binding.base_url);
  if(target.origin!==new URL(binding.base_url).origin)return {state:"pending" as const};
- const method=adapter==="paystack"||path.includes("{reference}")?"GET":String(binding.settings?.verify_method??"POST").toUpperCase();
+ const method=adapter==="paystack"||adapter==="stripe"||path.includes("{reference}")?"GET":String(binding.settings?.verify_method??"POST").toUpperCase();
  const referenceMode=String(binding.settings?.verify_reference_mode??"body");
- if(method==="GET"&&!path.includes("{reference}")&&adapter!=="paystack")target.searchParams.set(String(binding.settings?.verify_reference_param??"reference"),reference);
+ const referenceField=String(binding.settings?.verify_reference_field??"reference");
+ if(method==="GET"&&!path.includes("{reference}")&&adapter!=="paystack")target.searchParams.set(String(binding.settings?.verify_reference_param??"reference"),verificationReference);
  const authHeader=typeof binding.settings?.credential_header==="string"?binding.settings.credential_header:"Authorization";
  const authPrefix=typeof binding.settings?.credential_prefix==="string"?binding.settings.credential_prefix:"Bearer ";
- const response=await fetch(target,{method,headers:{[authHeader]:authPrefix+credential,"Content-Type":"application/json",Accept:"application/json"},...(method==="POST"?{body:JSON.stringify(referenceMode==="query"?{}:{reference})}:{}),signal:AbortSignal.timeout(12000)}).catch(()=>null);
+ const response=await fetch(target,{method,headers:{[authHeader]:authPrefix+credential,"Content-Type":"application/json",Accept:"application/json"},...(method==="POST"?{body:JSON.stringify(referenceMode==="query"?{}:{[referenceField]:reference})}:{}),signal:AbortSignal.timeout(12000)}).catch(()=>null);
  if(!response)return {state:"pending" as const};
  const payload=await response.json().catch(()=>null);
  if(!response.ok||!payload)return {state:"pending" as const};
@@ -81,7 +82,7 @@ serve(async(req:Request)=>{
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
   const reference=parsed.data.reference;
   if(reference.startsWith("DTVL_")){
-   const {data:order,error}=await admin.from("live_payment_orders").select("id,status,email,user_id,provider_reference,provider,provider_mode,amount_minor,amount_major,currency,provider_transaction_id,stream_id,screening_id,ticket_type,metadata,email_sent_at").eq("provider_reference",reference).maybeSingle();
+   const {data:order,error}=await admin.from("live_payment_orders").select("id,status,email,user_id,provider_reference,provider_checkout_id,provider,provider_mode,amount_minor,amount_major,currency,provider_transaction_id,stream_id,screening_id,ticket_type,metadata,email_sent_at").eq("provider_reference",reference).maybeSingle();
    if(error||!order)return json(404,{error:"No live event payment could be found for that reference."});
    let status=order.status;
    let emailSent=Boolean(order.email_sent_at);
@@ -136,7 +137,7 @@ serve(async(req:Request)=>{
    return json(200,{status,delivery:order.user_id?"my_tickets":"email",email:order.email,provider:order.provider,emailSent});
   }
 
-  const {data:order,error}=await admin.from("guest_payment_orders").select("id,ticket_id,status,email,provider_reference,provider,provider_mode,amount_minor,currency,app_origin,email_sent_at").eq("provider_reference",reference).maybeSingle();
+  const {data:order,error}=await admin.from("guest_payment_orders").select("id,ticket_id,status,email,provider_reference,provider_checkout_id,provider,provider_mode,amount_minor,currency,app_origin,email_sent_at").eq("provider_reference",reference).maybeSingle();
   if(error||!order)return json(404,{error:"No payment could be found for those details."});
   if(order.status==="pending"){
    const verified=await verifyProviderPayment(admin,reference,order);
