@@ -102,3 +102,24 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.heartbeat_screening_ticket_playback(uuid,text,boolean) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.heartbeat_screening_ticket_playback(uuid,text,boolean) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.revoke_screening_ticket_playback_on_ticket_invalidity()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path=public,pg_temp
+AS $$
+BEGIN
+ IF (NEW.refunded_at IS NOT NULL OR NEW.revoked_at IS NOT NULL OR NEW.payment_status<>'completed')
+    AND (OLD.refunded_at IS NULL AND OLD.revoked_at IS NULL AND OLD.payment_status='completed') THEN
+  UPDATE public.screening_ticket_playback_sessions SET revoked_at=now()
+   WHERE ticket_id=NEW.id AND revoked_at IS NULL;
+ END IF;
+ RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS screening_ticket_playback_revoke_on_invalidity ON public.screening_tickets;
+CREATE TRIGGER screening_ticket_playback_revoke_on_invalidity
+AFTER UPDATE OF refunded_at,revoked_at,payment_status ON public.screening_tickets
+FOR EACH ROW EXECUTE FUNCTION public.revoke_screening_ticket_playback_on_ticket_invalidity();
+REVOKE ALL ON FUNCTION public.revoke_screening_ticket_playback_on_ticket_invalidity() FROM PUBLIC,anon,authenticated;
