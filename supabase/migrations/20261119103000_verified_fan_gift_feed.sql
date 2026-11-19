@@ -47,6 +47,57 @@ USING (
   (live_stream_id IS NOT NULL AND EXISTS (
     SELECT 1 FROM public.live_streams l
     WHERE l.id=live_stream_id AND l.event_visibility IN ('public','unlisted') AND NOT l.invite_only
+      AND NOT EXISTS (
+        SELECT 1 FROM public.screenings s
+        WHERE s.id=CASE WHEN coalesce(l.metadata->>'screening_id','') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
+);
+
+CREATE OR REPLACE FUNCTION public.publish_verified_event_gift_feed_item()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path=public,pg_temp
+AS $$
+DECLARE v_event_type text;
+BEGIN
+  IF NEW.status IS DISTINCT FROM 'paid' OR (TG_OP='UPDATE' AND OLD.status='paid') THEN RETURN NEW; END IF;
+  IF NEW.screening_id IS NOT NULL THEN
+    SELECT event_type INTO v_event_type FROM public.screenings WHERE id=NEW.screening_id;
+  ELSE
+    v_event_type:='live';
+  END IF;
+  IF v_event_type<>'live' THEN RETURN NEW; END IF;
+  INSERT INTO public.event_live_gift_feed(
+    contribution_id,screening_id,live_stream_id,contribution_type,display_name,
+    gift_catalog_key,message,amount_minor,currency
+  ) VALUES (
+    NEW.id,NEW.screening_id,NEW.live_stream_id,NEW.contribution_type,
+    CASE WHEN NEW.is_anonymous THEN 'Anonymous supporter'
+         ELSE coalesce(nullif(trim(NEW.contributor_name),''),'A supporter') END,
+    NEW.gift_catalog_key,NEW.message,NEW.amount_minor,NEW.currency
+  ) ON CONFLICT(contribution_id) DO NOTHING;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS event_contribution_public_gift_feed ON public.event_contributions;
+CREATE TRIGGER event_contribution_public_gift_feed
+AFTER INSERT OR UPDATE OF status ON public.event_contributions
+FOR EACH ROW EXECUTE FUNCTION public.publish_verified_event_gift_feed_item();
+REVOKE ALL ON FUNCTION public.publish_verified_event_gift_feed_item() FROM PUBLIC,anon,authenticated;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname='supabase_realtime' AND schemaname='public' AND tablename='event_live_gift_feed'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.event_live_gift_feed;
+  END IF;
+END $$;
+
+          THEN (l.metadata->>'screening_id')::uuid ELSE NULL END
+          AND (s.event_visibility NOT IN ('public','unlisted') OR s.invite_only)
+      )
   ))
 );
 
