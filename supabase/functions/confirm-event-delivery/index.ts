@@ -47,6 +47,8 @@ Deno.serve(async (req) => {
         evidence = { kind: "platform_verified_live_end", stream_id: stream.id, actual_ended_at: stream.actual_ended_at, provider_reference: (stream.metadata as Record<string, unknown> | null)?.provider_reference || null };
       }
       liveStreamId = stream.id;
+      const streamMetadata = stream.metadata && typeof stream.metadata === "object" ? stream.metadata as Record<string, unknown> : {};
+      if (typeof streamMetadata.screening_id === "string") screeningId = streamMetadata.screening_id;
       eventEndedAt = stream.actual_ended_at;
       deliveryConfirmedAt = stream.actual_ended_at;
     } else if (sourceType === "screening") {
@@ -89,23 +91,29 @@ Deno.serve(async (req) => {
       evidence = { kind: "platform_verified_published_content", content_id: content.id, published_updated_at: content.updated_at };
     }
 
-    let query = db.from("event_settlement_holds").update({
-      event_ended_at: eventEndedAt,
-      delivery_confirmed_at: deliveryConfirmedAt,
-      delivery_evidence: { ...evidence, verified_by: user.id, verified_at: new Date().toISOString(), verification_source: "platform_admin_control_plane" },
-      updated_at: new Date().toISOString(),
-    }).eq("hold_status", "held");
-    if (liveStreamId) query = query.eq("live_stream_id", liveStreamId);
-    else if (screeningId) query = query.eq("screening_id", screeningId);
-    else if (contentId) query = query.eq("content_id", contentId);
-    const { data: updated, error: updateError } = await query.select("id,hold_status,release_at");
-    if (updateError) return json({ error: "Delivery evidence was verified but settlement holds could not be updated." }, 503);
+    const evidencePayload = { ...evidence, verified_by: user.id, verified_at: new Date().toISOString(), verification_source: "platform_admin_control_plane" };
+    const updated: Array<{ id: string; hold_status: string; release_at: string | null }> = [];
+    const targets = [
+      ...(liveStreamId ? [{ column: "live_stream_id", id: liveStreamId }] : []),
+      ...(screeningId ? [{ column: "screening_id", id: screeningId }] : []),
+      ...(contentId ? [{ column: "content_id", id: contentId }] : []),
+    ];
+    for (const target of targets) {
+      const { data: rows, error: updateError } = await db.from("event_settlement_holds").update({
+        event_ended_at: eventEndedAt,
+        delivery_confirmed_at: deliveryConfirmedAt,
+        delivery_evidence: evidencePayload,
+        updated_at: new Date().toISOString(),
+      }).eq(target.column, target.id).eq("hold_status", "held").select("id,hold_status,release_at");
+      if (updateError) return json({ error: "Delivery evidence was verified but settlement holds could not be updated." }, 503);
+      if (rows) updated.push(...rows);
+    }
 
     await db.from("audit_logs").insert({
       user_id: user.id, action: "event.delivery.verified", entity_type: "event_settlement",
-      entity_id: eventId, new_data: { source_type: sourceType, evidence, updated_holds: updated?.length || 0 },
+      entity_id: eventId, new_data: { source_type: sourceType, evidence, updated_holds: updated.length },
     });
-    return json({ success: true, verified: true, updatedHolds: updated?.length || 0, holds: updated || [] });
+    return json({ success: true, verified: true, updatedHolds: updated.length, holds: updated });
   } catch (error) {
     console.error("confirm-event-delivery", error);
     return json({ error: "Delivery verification failed safely." }, 500);
