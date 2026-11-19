@@ -374,7 +374,7 @@ export default function UserDashboard() {
                     <Label>Country / region</Label>
                     <select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={preferredCountry} onChange={e => { setPreferredCountry(e.target.value); const rule = runtimeConfig?.countries.find(c => c.country_code === e.target.value); if (rule) { if (!preferredCurrency) setPreferredCurrency(rule.currency_code); setPreferredLocale(rule.locale_code); } }}>
                       <option value="">Use detected location</option>
-                      {(runtimeConfig?.countries ?? []).map(country => <option key={country.country_code} value={country.country_code}>{country.country_code} · {country.currency_code}</option>)}
+                      {(runtimeConfig?.countries ?? []).map(country => <option key={country.country_code} value={country.country_code}>{String(country.metadata?.country_name || country.country_code)} · {country.currency_code}</option>)}
                     </select>
                   </div>
                   <div className="space-y-2">
