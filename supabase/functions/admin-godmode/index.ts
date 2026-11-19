@@ -11,6 +11,7 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("withdrawal_set"), id: z.string().uuid(), status: z.enum(["pending", "approved", "paid", "rejected"]), note: z.string().max(500).optional() }),
   z.object({ action: z.literal("impersonate"), userId: z.string().uuid(), redirectTo: z.string().url().optional() }),
   z.object({ action: z.literal("runtime_controls") }),
+  z.object({ action: z.literal("public_site_url_set"), url: z.string().url().refine(value => new URL(value).protocol === "https:"), published: z.boolean(), reason: z.string().min(3).max(500) }),
   z.object({ action: z.literal("country_currency_set"), countryCode: z.string().regex(/^[A-Z]{2}$/), currencyCode: z.string().regex(/^[A-Z]{3}$/), currencySymbol: z.string().max(12).nullable(), localeCode: z.string().min(2).max(24), timezoneName: z.string().max(100).nullable(), enabled: z.boolean(), reason: z.string().min(3).max(500) }),
   z.object({ action: z.literal("feature_control_set"), featureKey: z.string().regex(/^[a-z][a-z0-9_.-]{1,119}$/), enabled: z.boolean(), rolloutPercentage: z.number().int().min(0).max(100), releaseState: z.enum(["draft","canary","released","paused","rolled_back"]), config: z.record(z.string(), jsonValue), reason: z.string().min(3).max(500) }),
 ]);
@@ -95,7 +96,8 @@ Deno.serve(async (req) => {
           admin.from("platform_feature_controls").select("feature_key,enabled,rollout_percentage,release_state,config,change_reason,updated_at,updated_by").order("feature_key"),
         ]);
         if (countries.error || features.error) return json({error:"Runtime controls could not be loaded."},503);
-        result = { countries:countries.data ?? [], features:features.data ?? [], administratorId:user.id };
+        const {data:siteSetting} = await admin.from("platform_settings").select("setting_value,is_public").eq("setting_key","public_site_url").maybeSingle();
+        result = { countries:countries.data ?? [], features:features.data ?? [], administratorId:user.id, webAppUrl:typeof siteSetting?.setting_value === "string" ? siteSetting.setting_value : "", webAppUrlPublished:siteSetting?.is_public === true };
         break;
       }
       case "country_currency_set": {
@@ -107,6 +109,14 @@ Deno.serve(async (req) => {
         if(error)return json({error:error.message},400);
         result=data;entityId=p.countryCode;
         await admin.from("audit_logs").insert({user_id:user.id,action:"country_currency_rule.upsert",entity_type:"country_currency_rule",entity_id:null,old_data:previous??{},new_data:{...data,reason:p.reason}});
+        break;
+      }
+      case "public_site_url_set": {
+        const {data:previous} = await admin.from("platform_settings").select("setting_value,is_public").eq("setting_key","public_site_url").maybeSingle();
+        const {data,error} = await admin.from("platform_settings").upsert({setting_key:"public_site_url",setting_value:p.url,is_public:p.published,description:"Canonical DeGameTV web application URL consumed by native clients.",updated_at:new Date().toISOString()},{onConflict:"setting_key"}).select("setting_key,setting_value,is_public").single();
+        if(error)return json({error:error.message},400);
+        result=data;entityId="public_site_url";
+        await admin.from("audit_logs").insert({user_id:user.id,action:"public_site_url.updated",entity_type:"platform_setting",entity_id:null,old_data:previous??{},new_data:{...data,reason:p.reason}});
         break;
       }
       case "feature_control_set": {
