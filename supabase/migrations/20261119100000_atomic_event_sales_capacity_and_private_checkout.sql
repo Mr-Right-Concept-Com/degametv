@@ -25,10 +25,10 @@ CREATE TABLE IF NOT EXISTS public.event_ticket_reservations (
   user_id uuid,
   email text NOT NULL,
   ticket_type text NOT NULL CHECK (ticket_type IN ('live','replay','combo')),
-  base_amount numeric(18,6) NOT NULL CHECK (base_amount > 0),
+  base_amount numeric(18,6) NOT NULL CHECK (base_amount > 0 OR status='complimentary'),
   base_currency text NOT NULL CHECK (base_currency ~ '^[A-Z]{3}$'),
   is_early_bird boolean NOT NULL DEFAULT false,
-  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','paid','failed','refunded','expired')),
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','paid','failed','refunded','expired','complimentary')),
   expires_at timestamptz NOT NULL DEFAULT (now() + interval '20 minutes'),
   created_at timestamptz NOT NULL DEFAULT now(),
   paid_at timestamptz
@@ -125,8 +125,8 @@ BEGIN
 
   SELECT count(*) INTO v_paid_or_reserved
   FROM public.event_ticket_reservations
-  WHERE screening_id=p_screening_id AND ticket_type IN ('live','combo') AND status IN ('pending','paid')
-    AND (status='paid' OR expires_at>now());
+  WHERE screening_id=p_screening_id AND ticket_type IN ('live','combo') AND status IN ('pending','paid','complimentary')
+    AND (status IN ('paid','complimentary') OR expires_at>now());
   IF v_screening.ticket_capacity IS NOT NULL AND v_paid_or_reserved >= v_screening.ticket_capacity THEN
     RAISE EXCEPTION 'event_ticket_capacity_reached';
   END IF;
