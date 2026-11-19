@@ -24,7 +24,7 @@ const wSchema = z.object({
 
 type Bal = { currency: string; gross: number; fees: number; escrow: number; withdrawable: number };
 type WR = { id: string; amount: number; currency: string; bank_country: string | null; status: string; created_at: string; bank_name: string };
-type HoldRow = { id: string; screening_id: string | null; live_stream_id: string | null; source_type: string; currency: string; gross_amount_minor: number; net_amount_minor: number; hold_status: string; event_ended_at: string | null; delivery_confirmed_at: string | null; release_at: string | null; hold_hours: number; created_at: string };
+type HoldRow = { id: string; source_id: string; screening_id: string | null; live_stream_id: string | null; source_type: string; currency: string; gross_amount_minor: number; net_amount_minor: number; hold_status: string; event_ended_at: string | null; delivery_confirmed_at: string | null; release_at: string | null; hold_hours: number; created_at: string };
 type ContributionRow = { id: string; screening_id: string | null; live_stream_id: string | null; contribution_type: string; gift_catalog_key: string | null; message: string | null; amount_minor: number; currency: string; status: string; is_anonymous: boolean; created_at: string };
 const moneyMinor = (amount: number, currency: string) => {
   const digits = /^[A-Z]{3}$/.test(currency) ? new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits : 2;
@@ -47,6 +47,8 @@ export default function StudioEarnings() {
   const [reqs, setReqs] = useState<WR[]>([]);
   const [eventHolds, setEventHolds] = useState<HoldRow[]>([]);
   const [contributions, setContributions] = useState<ContributionRow[]>([]);
+  const [refundReasons, setRefundReasons] = useState<Record<string, string>>({});
+  const [refundingId, setRefundingId] = useState<string | null>(null);
   const [form, setForm] = useState({ amount: '', currency: '', bank_country: '', bank_name: '', account_number: '', account_name: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -56,7 +58,7 @@ export default function StudioEarnings() {
     const [b, w, holds, fans] = await Promise.all([
       supabase.rpc('wallet_balance_by_currency', { _user_id: user.id }),
       supabase.from('withdrawal_requests').select('id, amount, currency, bank_country, status, created_at, bank_name').eq('user_id', user.id).order('created_at', { ascending: false }),
-      supabase.from('event_settlement_holds').select('id,screening_id,live_stream_id,source_type,currency,gross_amount_minor,net_amount_minor,hold_status,event_ended_at,delivery_confirmed_at,release_at,hold_hours,created_at').eq('creator_id', user.id).order('created_at', { ascending: false }).limit(100),
+      supabase.from('event_settlement_holds').select('id,source_id,screening_id,live_stream_id,source_type,currency,gross_amount_minor,net_amount_minor,hold_status,event_ended_at,delivery_confirmed_at,release_at,hold_hours,created_at').eq('creator_id', user.id).order('created_at', { ascending: false }).limit(100),
       supabase.from('event_contributions').select('id,screening_id,live_stream_id,contribution_type,gift_catalog_key,message,amount_minor,currency,status,is_anonymous,created_at').eq('creator_id', user.id).order('created_at', { ascending: false }).limit(100),
     ]);
     if (b.error) toast.error('Wallet balances could not be loaded.');
@@ -74,6 +76,17 @@ export default function StudioEarnings() {
   useEffect(() => { if (!form.bank_country && runtime.config?.geo.countryCode) setForm(current => ({ ...current, bank_country: runtime.config!.geo.countryCode! })); }, [runtime.config?.geo.countryCode, form.bank_country]);
 
   const selectedBalance = balances.find(row => row.currency === form.currency);
+  const requestRefund = async (hold: HoldRow) => {
+    const reason = (refundReasons[hold.id] || '').trim();
+    if (reason.length < 3) { toast.error('Enter a refund reason of at least three characters.'); return; }
+    setRefundingId(hold.id);
+    const { data, error } = await supabase.functions.invoke('process-refund', { body: { ticketId: hold.source_id, reason } });
+    setRefundingId(null);
+    if (error || data?.error) { toast.error(data?.error || error?.message || 'Refund request failed.'); return; }
+    if (data?.pending) toast.message('The payment provider is processing the refund. Ticket access remains active until confirmation.');
+    else toast.success('Provider-confirmed refund completed. Ticket access and settlement records were updated.');
+    await load();
+  };
   const request = async () => {
     if (!user) return;
     setErrors({});
@@ -138,7 +151,10 @@ export default function StudioEarnings() {
                   <p className="mt-1 text-xs text-muted-foreground">Gross {moneyMinor(hold.gross_amount_minor, hold.currency)} · Creator net {moneyMinor(hold.net_amount_minor, hold.currency)} · {hold.hold_hours}h hold</p>
                   <p className="text-xs text-muted-foreground">{hold.event_ended_at ? 'Event ended ' + new Date(hold.event_ended_at).toLocaleString() : 'Awaiting event completion'} · {hold.delivery_confirmed_at ? 'Delivery verified' : 'Awaiting platform delivery confirmation'}</p>
                 </div>
-                <div className="text-left text-xs text-muted-foreground sm:text-right">{hold.release_at ? 'Settlement target: ' + new Date(hold.release_at).toLocaleString() : 'Funds remain held until delivery is verified'}</div>
+                <div className="flex flex-col gap-2 sm:items-end">
+                  <div className="text-left text-xs text-muted-foreground sm:text-right">{hold.release_at ? 'Settlement target: ' + new Date(hold.release_at).toLocaleString() : 'Funds remain held until delivery is verified'}</div>
+                  {hold.source_type === 'ticket' && hold.hold_status !== 'refunded' && <div className="flex w-full gap-2 sm:max-w-xs"><Input aria-label="Refund reason" value={refundReasons[hold.id] || ''} onChange={e=>setRefundReasons(current=>({...current,[hold.id]:e.target.value}))} placeholder="Refund reason"/><Button size="sm" variant="outline" disabled={refundingId===hold.id} onClick={()=>void requestRefund(hold)}>{refundingId===hold.id?<Loader2 className="h-4 w-4 animate-spin"/>:'Refund'}</Button></div>}
+                </div>
               </CardContent></Card>)}</div>}
           </section>
 
