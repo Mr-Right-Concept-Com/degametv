@@ -20,6 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Screening> items = [];
   bool loading = true;
   String? error;
+  String? webAppUrl;
   int tab = 0;
 
   @override
@@ -42,8 +43,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> load() async {
     try {
-      final result = await repo.publishedScreenings();
-      if (mounted) setState(() { items = result; loading = false; error = null; });
+      final config = await repo.runtimeConfig();
+      final geo = config['geo'] is Map ? Map<String, dynamic>.from(config['geo'] as Map) : <String, dynamic>{};
+      final countryCode = geo['countryCode']?.toString();
+      final configuredWebUrl = config['webAppUrl']?.toString();
+      final result = await repo.publishedScreenings(countryCode: countryCode);
+      if (mounted) setState(() {
+        items = result;
+        webAppUrl = configuredWebUrl != null && configuredWebUrl.startsWith('https://') ? configuredWebUrl : null;
+        loading = false;
+        error = null;
+      });
     } catch (_) {
       if (mounted) setState(() { loading = false; error = 'Catalogue unavailable. Pull down to retry.'; });
     }
@@ -73,9 +83,9 @@ class _HomeScreenState extends State<HomeScreen> {
               } else if (value == 'tickets') {
                 setState(() => tab = 3);
               } else if (value == 'dashboard') {
-                await _openWeb('https://degametv.vercel.app/dashboard');
+                await _openWeb('/dashboard');
               } else if (value == 'studio') {
-                await _openWeb('https://degametv.vercel.app/studio');
+                await _openWeb('/studio');
               }
             },
             itemBuilder: (context) {
@@ -163,9 +173,9 @@ class _HomeScreenState extends State<HomeScreen> {
         const Chip(label: Text('FEATURED ON DEGAMETV'), backgroundColor: red),
         Text(s.title, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900)),
         if ((s.description ?? '').isNotEmpty) Text(s.description!, maxLines: 2, overflow: TextOverflow.ellipsis),
-        if (s.price != null) Text('From NGN ${s.price!.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+        if (s.price != null) Text('From ${s.currency} ${s.price!.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 10),
-        FilledButton(onPressed: () => _openWeb('https://degametv.vercel.app/movie/${Uri.encodeComponent(s.slug)}'), child: const Text('Explore premiere')),
+        FilledButton(onPressed: () => _openWeb('/movie/${Uri.encodeComponent(s.slug)}'), child: const Text('Explore premiere')),
       ],
     ),
   );
@@ -186,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
       itemBuilder: (_, i) {
         final s = list[i];
         return InkWell(
-          onTap: () => _openWeb('https://degametv.vercel.app/movie/${Uri.encodeComponent(s.slug)}'),
+          onTap: () => _openWeb('/movie/${Uri.encodeComponent(s.slug)}'),
           borderRadius: BorderRadius.circular(18),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(child: ClipRRect(
@@ -209,8 +219,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   });
 
-  Future<void> _openWeb(String value) async {
-    final uri = Uri.parse(value);
+  Future<void> _openWeb(String path) async {
+    final base = webAppUrl;
+    if (base == null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('The canonical DeGameTV web URL has not been published by an administrator yet.')),
+      );
+      return;
+    }
+    final uri = Uri.parse(base).resolve(path);
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
@@ -379,7 +396,7 @@ class _TicketWalletState extends State<_TicketWallet> {
           }),
           const SizedBox(height: 14),
           OutlinedButton(
-            onPressed: () => widget.openWeb('https://degametv.vercel.app/dashboard?tab=tickets'),
+            onPressed: () => widget.openWeb('/dashboard?tab=tickets'),
             child: const Text('Open full ticket and viewing dashboard'),
           ),
         ]),
