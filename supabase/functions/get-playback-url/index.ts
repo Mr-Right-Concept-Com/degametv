@@ -24,7 +24,9 @@ if (import.meta.main) {
       const body = await req.json().catch(() => null);
       const watchCode = typeof body?.watchCode === "string" ? body.watchCode.trim() : "";
       const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
-      if (!watchCode || !email) return json(400, { success: false, error: "Watch code and email are required." });
+      const sessionToken = typeof body?.sessionToken === "string" ? body.sessionToken.trim() : "";
+      if (!watchCode || !email || !/^[a-f0-9]{64}$/.test(sessionToken)) return json(400, { success: false, error: "Watch code, email and a playback session token are required." });
+      const sessionTokenHash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(sessionToken))), b => b.toString(16).padStart(2, "0")).join("");
 
       const db = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
       const { data: ticket, error } = await db
@@ -60,7 +62,7 @@ if (import.meta.main) {
         method: "POST",
         headers: { "Content-Type": "application/json", [authorizationHeader]: authorizationPrefix + provider.credential },
         body: JSON.stringify({
-          entitlement: { ticket_id: ticket.id, screening_id: ticket.screening_id, email, expires_at: ticket.expires_at },
+          entitlement: { ticket_id: ticket.id, screening_id: ticket.screening_id, email, expires_at: ticket.expires_at, session_token_hash: sessionTokenHash },
           request: { issued_at: new Date().toISOString(), country: req.headers.get("cf-ipcountry") || null },
         }),
         signal: AbortSignal.timeout(10000),
