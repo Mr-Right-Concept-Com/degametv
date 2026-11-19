@@ -7,6 +7,7 @@ const schema = z.object({
   email: z.string().trim().email().max(254).transform(value => value.toLowerCase()),
   screeningId: z.string().uuid(),
   location: z.enum(["nigeria", "international"]),
+  cohortId: z.string().min(8).max(128).optional(),
 }).strict();
 
 const cors = {
@@ -43,7 +44,7 @@ if (import.meta.main) serve(async (req: Request) => {
 
   const { method, email, screeningId, location } = parsed.data;
   const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
-  if (!await featureEnabled(admin, "cinema.ticketing", email)) return json(403, { success: false, error: "Ticket checkout is paused for this release cohort." });
+  if (!await featureEnabled(admin, "cinema.ticketing", parsed.data.cohortId ?? email)) return json(403, { success: false, error: "Ticket checkout is paused for this release cohort." });
 
   try {
     const { data: siteSetting, error: siteError } = await admin.from("platform_settings")
