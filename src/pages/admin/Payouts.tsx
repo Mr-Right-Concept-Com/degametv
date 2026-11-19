@@ -12,6 +12,15 @@ type WR = { id: string; user_id: string; amount: number; currency: string; bank_
 type SA = { id: string; user_id: string; tier: string; status: string; company_name: string | null; cac_number: string | null; tax_id: string | null; seats: number; created_at: string };
 type EH = { id: string; source_type: string; source_id: string; screening_id: string | null; live_stream_id: string | null; content_id: string | null; creator_id: string; currency: string; gross_amount_minor: number; net_amount_minor: number; hold_status: string; release_at: string | null; delivery_evidence: unknown };
 
+const formatMinor = (minor: number, currency: string) => {
+  try {
+    const digits = new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits;
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(Number(minor || 0) / (10 ** digits));
+  } catch {
+    return `${currency} ${Number(minor || 0).toLocaleString()} minor units`;
+  }
+};
+
 export default function Payouts() {
   usePageTitle('Admin: Payouts & Studio Tiers');
   const [wrs, setWrs] = useState<WR[]>([]);
@@ -96,7 +105,7 @@ export default function Payouts() {
                   return <TableRow key={hold.id}>
                     <TableCell className="font-medium">{eventTitles[target] || 'Creator event'}</TableCell>
                     <TableCell className="capitalize">{hold.source_type}</TableCell>
-                    <TableCell>{hold.currency} {(hold.gross_amount_minor / 100).toLocaleString()} / {(hold.net_amount_minor / 100).toLocaleString()}</TableCell>
+                    <TableCell>{formatMinor(hold.gross_amount_minor, hold.currency)} / {formatMinor(hold.net_amount_minor, hold.currency)}</TableCell>
                     <TableCell><Badge variant="secondary">{hold.hold_status}</Badge></TableCell>
                     <TableCell className="text-xs">{hold.release_at ? new Date(hold.release_at).toLocaleString() : 'Awaiting verified delivery'}</TableCell>
                     <TableCell>{hold.hold_status === 'held' ? <Button size="sm" onClick={() => void verifyDelivery(hold)} disabled={verifyingHold === hold.id}>{verifyingHold === hold.id ? 'Verifying…' : 'Verify delivery'}</Button> : '—'}</TableCell>
