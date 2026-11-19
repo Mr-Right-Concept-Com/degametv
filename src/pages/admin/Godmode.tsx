@@ -28,7 +28,7 @@ async function god(body: Record<string, unknown>) {
 const adjustSchema = z.object({
   userId: z.string().uuid('Pick a user'),
   amount: z.number().refine(n => n !== 0, 'Amount cannot be zero'),
-  currency: z.enum(['NGN', 'USD']),
+  currency: z.string().regex(/^[A-Z]{3}$/, 'Choose a valid ISO currency'),
   reason: z.string().min(3, 'Give a reason'),
 });
 
@@ -47,16 +47,18 @@ export default function Godmode() {
   const [nb, setNb] = useState({ title: '', subtitle: '', image_url: '', link_url: '', placement: 'home' });
   const [busy, setBusy] = useState<string | null>(null);
   const [q, setQ] = useState('');
-  const [adj, setAdj] = useState({ userId: '', amount: '', currency: 'NGN', reason: '' });
+  const [adj, setAdj] = useState({ userId: '', amount: '', currency: 'USD', reason: '' });
+  const [currencyOptions, setCurrencyOptions] = useState<{ currency_code: string; currency_symbol: string | null }[]>([]);
 
   const load = async () => {
-    const [s, p, r, t, sc, a] = await Promise.all([
+    const [s, p, r, t, sc, a, currencies] = await Promise.all([
       supabase.from('platform_settings').select('setting_key, setting_value, description').order('setting_key'),
       supabase.from('profiles').select('user_id, email, full_name').order('created_at', { ascending: false }).limit(500),
       supabase.from('user_roles').select('user_id, role'),
       supabase.from('studio_accounts').select('*').order('created_at', { ascending: false }),
       supabase.from('screenings').select('id, title, lifecycle').order('created_at', { ascending: false }).limit(200),
       supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(100),
+      supabase.from('country_currency_rules').select('currency_code,currency_symbol').eq('enabled', true).order('currency_code'),
     ]);
     const editableSettings = (s.data || []).filter(item => item.setting_key !== 'email_provider');
     setSettings(editableSettings);
@@ -66,6 +68,7 @@ export default function Godmode() {
     setTiers(t.data || []);
     setScreenings(sc.data || []);
     setAudit(a.data || []);
+    setCurrencyOptions(Array.from(new Map((currencies.data || []).map(row => [row.currency_code, row])).values()));
     const { data: bn } = await supabase.from('promo_banners').select('*').order('sort_order').order('created_at', { ascending: false });
     setBanners(bn || []);
   };
@@ -103,7 +106,7 @@ export default function Godmode() {
   const submitAdjust = () => {
     const parsed = adjustSchema.safeParse({ ...adj, amount: Number(adj.amount) });
     if (!parsed.success) { toast.error(parsed.error.errors[0].message); return; }
-    run('adj', { action: 'wallet_adjust', ...parsed.data }, 'Wallet adjusted').then(() => setAdj({ userId: '', amount: '', currency: 'NGN', reason: '' }));
+    run('adj', { action: 'wallet_adjust', ...parsed.data }, 'Wallet adjusted').then(() => setAdj({ userId: '', amount: '', currency: 'USD', reason: '' }));
   };
 
   const lifecycle = async (id: string, action: string) => {
@@ -225,7 +228,7 @@ export default function Godmode() {
                 <div><Label>Currency</Label>
                   <Select value={adj.currency} onValueChange={v => setAdj(a => ({ ...a, currency: v }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="NGN">NGN</SelectItem><SelectItem value="USD">USD</SelectItem></SelectContent>
+                    <SelectContent>{currencyOptions.map(option => <SelectItem key={option.currency_code} value={option.currency_code}>{option.currency_code} {option.currency_symbol || ''}</SelectItem>)}</SelectContent>
                   </Select></div>
               </div>
               <div><Label htmlFor="adj-r">Reason</Label><Input id="adj-r" value={adj.reason} onChange={e => setAdj(a => ({ ...a, reason: e.target.value }))} /></div>
