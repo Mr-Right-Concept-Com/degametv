@@ -4,8 +4,9 @@ import { z } from "npm:zod@3";
 const headers = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, cf-ipcountry",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Cache-Control": "public, max-age=60, stale-while-revalidate=300",
+  "Vary": "cf-ipcountry, accept-language",
   "Content-Type": "application/json",
 };
 const countrySchema = z.string().regex(/^[A-Z]{2}$/);
