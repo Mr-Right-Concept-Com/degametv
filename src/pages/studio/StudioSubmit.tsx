@@ -23,7 +23,6 @@ const GENRES = ['Action', 'Comedy', 'Drama', 'Horror', 'Thriller', 'Romance', 'D
 const GENRES_BY_TYPE: Record<string, string[]> = { movie: GENRES, series: GENRES, episode: GENRES, short: ['Drama','Comedy','Horror','Romance','Animation','Documentary','Experimental','Social impact','Nollywood'], trailer: ['Drama','Action','Comedy','Horror','Romance','Documentary','Animation'], vod: ['Education','Documentary','Lifestyle','Entertainment','Business','Technology','Faith','Sports','Music'] };
 const BUDGET_RANGES = ['Micro-budget', 'Low-budget', 'Mid-budget', 'High-budget', 'Major production', 'Studio-scale'];
 const RIGHTS = ['World rights available', 'Regional distribution only', 'Territory-specific rights', 'Digital/VOD only', 'Festival rights only', 'Revenue share open'];
-const LANGUAGES = ['English', 'Yoruba', 'Igbo', 'Hausa', 'Pidgin', 'French', 'Swahili', 'Arabic', 'Portuguese', 'Other'];
 const CONTENT_RATINGS = ['G', 'PG', 'PG-13', '16', '18', 'Not rated'];
 const ASPECT_RATIOS = ['16:9', '2.39:1', '1.85:1', '4:3', '9:16', '1:1'];
 
@@ -188,7 +187,7 @@ export default function StudioSubmit() {
     if (!countries.length) return;
     setForm(current => {
       const existing = countries.find(country => country.country_code === current.production_country || String(country.metadata?.country_name || '').toLowerCase() === current.production_country.toLowerCase());
-      return { ...current, production_country: existing?.country_code || runtime.config?.geo.countryCode || countries[0].country_code };
+      return { ...current, production_country: existing?.country_code || runtime.config?.geo.countryCode || current.production_country };
     });
   }, [runtime.config?.countries, runtime.config?.geo.countryCode]);
 
@@ -636,8 +635,8 @@ export default function StudioSubmit() {
                   <div className="space-y-2"><Label>Participants / featured people</Label><Input value={form.participants} onChange={e=>setForm(f=>({...f,participants:e.target.value}))} placeholder="Optional"/></div>
                 </div>}
                 {!liveFlow && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="space-y-2"><Label>Original language</Label><Select value={form.original_language} onValueChange={v => setForm(f => ({...f, original_language:v}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{LANGUAGES.map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select></div>
-                  <div className="space-y-2"><Label>Production country</Label><Select value={form.production_country} onValueChange={v => setForm(f => ({...f, production_country:v}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{(runtime.config?.countries ?? []).map(country=><SelectItem key={country.country_code} value={country.country_code}>{String(country.metadata?.country_name || country.country_code)} ({country.country_code})</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Original language</Label><Input value={form.original_language} onChange={e => setForm(f => ({...f, original_language:e.target.value}))} placeholder="Language name or BCP-47 tag (for example, English or fr-CA)"/></div>
+                  <div className="space-y-2"><Label>Production country</Label><Select value={form.production_country} onValueChange={v => setForm(f => ({...f, production_country:v}))}><SelectTrigger><SelectValue placeholder="Choose production country" /></SelectTrigger><SelectContent>{(runtime.config?.countries ?? []).map(country=><SelectItem key={country.country_code} value={country.country_code}>{String(country.metadata?.country_name || country.country_code)} ({country.country_code})</SelectItem>)}</SelectContent></Select></div>
                   <div className="space-y-2"><Label>Audience rating</Label><Select value={form.content_rating} onValueChange={v => setForm(f => ({...f, content_rating:v as typeof f.content_rating}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTENT_RATINGS.map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select></div>
                   <div className="space-y-2"><Label>Master aspect ratio</Label><Select value={form.aspect_ratio} onValueChange={v => setForm(f => ({...f, aspect_ratio:v as typeof f.aspect_ratio}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ASPECT_RATIOS.map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select></div>
                 </div>}
