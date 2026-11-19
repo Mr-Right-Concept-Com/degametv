@@ -1207,6 +1207,19 @@ export type Database = {
           creator_id: string
           currency: string | null
           description: string | null
+          early_bird_capacity: number | null
+          early_bird_currency: string | null
+          early_bird_ends_at: string | null
+          early_bird_price: number | null
+          event_timezone: string
+          event_visibility: string
+          invite_only: boolean
+          presale_enabled: boolean
+          sales_close_at: string | null
+          sales_open_at: string | null
+          settlement_delivery_required: boolean
+          settlement_hold_hours: number
+          ticket_capacity: number | null
           encoder_connected_at: string | null
           id: string
           is_ticketed: boolean | null
@@ -1243,6 +1256,19 @@ export type Database = {
           creator_id: string
           currency?: string | null
           description?: string | null
+          early_bird_capacity?: number | null
+          early_bird_currency?: string | null
+          early_bird_ends_at?: string | null
+          early_bird_price?: number | null
+          event_timezone?: string
+          event_visibility?: string
+          invite_only?: boolean
+          presale_enabled?: boolean
+          sales_close_at?: string | null
+          sales_open_at?: string | null
+          settlement_delivery_required?: boolean
+          settlement_hold_hours?: number
+          ticket_capacity?: number | null
           encoder_connected_at?: string | null
           id?: string
           is_ticketed?: boolean | null
@@ -1279,6 +1305,19 @@ export type Database = {
           creator_id?: string
           currency?: string | null
           description?: string | null
+          early_bird_capacity?: number | null
+          early_bird_currency?: string | null
+          early_bird_ends_at?: string | null
+          early_bird_price?: number | null
+          event_timezone?: string
+          event_visibility?: string
+          invite_only?: boolean
+          presale_enabled?: boolean
+          sales_close_at?: string | null
+          sales_open_at?: string | null
+          settlement_delivery_required?: boolean
+          settlement_hold_hours?: number
+          ticket_capacity?: number | null
           encoder_connected_at?: string | null
           id?: string
           is_ticketed?: boolean | null
