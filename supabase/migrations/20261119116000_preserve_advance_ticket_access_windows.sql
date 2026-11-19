@@ -139,3 +139,29 @@ CREATE TRIGGER screening_ticket_validity_windows
 AFTER UPDATE OF live_ended_at,live_replay_ready_at ON public.screenings
 FOR EACH ROW EXECUTE FUNCTION public.sync_event_ticket_validity_windows();
 REVOKE ALL ON FUNCTION public.sync_event_ticket_validity_windows() FROM PUBLIC,anon,authenticated;
+
+
+CREATE OR REPLACE FUNCTION public.sync_live_stream_ticket_validity()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path=public,pg_temp
+AS $$
+DECLARE v_screening_id uuid;
+BEGIN
+ IF NEW.actual_ended_at IS NULL OR OLD.actual_ended_at IS NOT NULL THEN RETURN NEW; END IF;
+ UPDATE public.tickets SET valid_until=NEW.actual_ended_at+interval '24 hours'
+  WHERE stream_id=NEW.id AND ticket_type='live' AND valid_until='infinity'::timestamptz AND revoked_at IS NULL;
+ IF coalesce(NEW.metadata->>'screening_id','') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+  v_screening_id:=(NEW.metadata->>'screening_id')::uuid;
+  UPDATE public.screening_tickets SET expires_at=NEW.actual_ended_at+interval '24 hours'
+   WHERE screening_id=v_screening_id AND ticket_kind='live' AND refunded_at IS NULL AND revoked_at IS NULL;
+ END IF;
+ RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS live_stream_ticket_validity_windows ON public.live_streams;
+CREATE TRIGGER live_stream_ticket_validity_windows
+AFTER UPDATE OF actual_ended_at ON public.live_streams
+FOR EACH ROW EXECUTE FUNCTION public.sync_live_stream_ticket_validity();
+REVOKE ALL ON FUNCTION public.sync_live_stream_ticket_validity() FROM PUBLIC,anon,authenticated;
