@@ -298,6 +298,10 @@ export default function StudioSubmit() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if ((form.project_type === 'live' || form.release_strategy === 'premiere') && !runtime.config?.baseCurrency) {
+      toast.error('Platform base currency is unavailable. Refresh Creator Studio before publishing a priced event.');
+      return;
+    }
     if (!validateStep3()) return;
     if (form.project_type === 'live' && form.auto_convert_to_vod) {
       const hours = Number(form.replay_access_hours);
