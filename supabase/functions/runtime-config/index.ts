@@ -38,15 +38,16 @@ Deno.serve(async (req) => {
   const profileQuery = userId
     ? db.from("profiles").select("preferred_country,preferred_currency,locale_code").eq("user_id", userId).maybeSingle()
     : Promise.resolve({ data: null, error: null });
-  const [countries, features, profileResult] = await Promise.all([
+  const [countries, features, profileResult, siteSetting] = await Promise.all([
     db.from("country_currency_rules")
       .select("country_code,currency_code,currency_symbol,locale_code,timezone_name")
       .eq("enabled", true).order("country_code"),
     db.from("platform_feature_controls")
       .select("feature_key,enabled,rollout_percentage,release_state"),
     profileQuery,
+    db.from("platform_settings").select("setting_value,is_public").eq("setting_key","public_site_url").maybeSingle(),
   ]);
-  if (countries.error || features.error || profileResult.error) {
+  if (countries.error || features.error || profileResult.error || siteSetting.error) {
     return response({ error: "Runtime configuration could not be loaded." }, 503);
   }
 
@@ -75,6 +76,11 @@ Deno.serve(async (req) => {
     ?? "en";
 
   const cohortId = userId ?? visitorId;
+  const rawWebUrl = typeof siteSetting.data?.setting_value === "string" ? siteSetting.data.setting_value : "";
+  let webAppUrl: string | null = null;
+  if (siteSetting.data?.is_public === true) {
+    try { const parsedUrl = new URL(rawWebUrl); if (parsedUrl.protocol === "https:") webAppUrl = parsedUrl.origin; } catch { /* Invalid or unpublished URL is never exposed. */ }
+  }
   const runtimeFeatures = await Promise.all((features.data ?? []).map(async (feature) => {
     if (!feature.enabled || ["draft", "paused", "rolled_back"].includes(feature.release_state)) {
       return { key: feature.feature_key, enabled: false };
