@@ -16,7 +16,7 @@ const wSchema = z.object({
   amount: z.number().positive('Enter an amount'),
   currency: z.string().regex(/^[A-Z]{3}$/, 'Choose a valid currency'),
   bank_name: z.string().trim().min(2, 'Bank required').max(100),
-  account_number: z.string().trim().regex(/^\\d{10}$/, '10-digit account number'),
+  account_number: z.string().trim().regex(/^\d{10}$/, '10-digit account number'),
   account_name: z.string().trim().min(2, 'Account name required').max(150),
 });
 
