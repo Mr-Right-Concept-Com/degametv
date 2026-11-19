@@ -67,7 +67,8 @@ if (import.meta.main) serve(async (req: Request) => {
     ? await admin.from("country_currency_rules").select("country_code,currency_code").eq("country_code", countryCode).eq("enabled", true).maybeSingle()
     : { data: null, error: null };
   if (countryError || (countryCode && !countryRule)) return json(422, { success: false, error: "This country is not enabled for ticket checkout." });
-  const sourceCurrency = location === "nigeria" ? "NGN" : "USD";
+  const effectiveLocation = countryCode === "NG" ? "nigeria" : "international";
+  const sourceCurrency = effectiveLocation === "nigeria" ? "NGN" : "USD";
   const currency = (parsed.data.currency ?? countryRule?.currency_code ?? sourceCurrency).toUpperCase();
   const { count: currencySupported } = await admin.from("country_currency_rules").select("country_code", { count: "exact", head: true }).eq("currency_code", currency).eq("enabled", true);
   if (!currencySupported) return json(422, { success: false, error: "The requested transaction currency is not enabled on the platform." });
@@ -116,7 +117,7 @@ if (import.meta.main) serve(async (req: Request) => {
     const pricing = typeof screening.location_pricing === "string" ? JSON.parse(screening.location_pricing) : screening.location_pricing;
     const replayPrice = location === "nigeria" ? screening.replay_price_ngn : screening.replay_price_usd;
     const major = Number(screening.lifecycle === "replay" && replayPrice !== null && replayPrice !== undefined
-      ? replayPrice : (location === "nigeria" ? pricing?.nigeria : pricing?.international));
+      ? replayPrice : (effectiveLocation === "nigeria" ? pricing?.nigeria : pricing?.international));
     if (!Number.isFinite(major) || major <= 0) return json(409, { success: false, error: "Ticket pricing is not configured for this location." });
 
     const supportedCurrencies = Array.isArray(config.settings?.supported_currencies) ? config.settings.supported_currencies : [];
@@ -130,7 +131,7 @@ if (import.meta.main) serve(async (req: Request) => {
 
     const { data: ticketId, error: orderError } = await admin.rpc("create_guest_payment_order", {
       p_provider: method, p_reference: reference, p_screening_id: screening.id, p_tenant_id: screening.tenant_id,
-      p_email: email, p_amount_minor: amountMinor, p_currency: currency, p_location: location,
+      p_email: email, p_amount_minor: amountMinor, p_currency: currency, p_location: effectiveLocation,
       p_ticket_code: ticketCode, p_watch_code: watchCode,
     });
     if (orderError || !ticketId) return json(503, { success: false, error: "A secure ticket order could not be created. No charge was made." });
