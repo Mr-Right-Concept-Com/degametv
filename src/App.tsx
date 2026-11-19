@@ -9,6 +9,7 @@ import { BrandingProvider } from "@/components/branding/BrandingProvider";
 import { ReleaseDomainRouter } from "@/components/domains/ReleaseDomainRouter";
 import { TenantProvider } from "@/hooks/useTenant";
 import { RuntimeConfigProvider } from "@/contexts/RuntimeConfigContext";
+import { FeatureGate } from "@/components/auth/FeatureGate";
 import { ProtectedAdminRoute } from "@/components/auth/ProtectedAdminRoute";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ProtectedCreatorRoute } from "@/components/auth/ProtectedCreatorRoute";
@@ -100,9 +101,9 @@ const App = () => (
               
               
               {/* ============ VIRTUAL CINEMA TICKET FUNNEL ============ */}
-              <Route path="/buy/:slug" element={<BuyTicket />} />
+              <Route path="/buy/:slug" element={<FeatureGate featureKey="cinema.ticketing"><BuyTicket /></FeatureGate>} />
               <Route path="/watch/:watchCode" element={<WatchMovie />} />
-              <Route path="/live/watch/:streamId" element={<LiveWatch />} />
+              <Route path="/live/watch/:streamId" element={<FeatureGate featureKey="cinema.live_playback"><LiveWatch /></FeatureGate>} />
               <Route path="/live/claim" element={<LiveGuestClaim />} />
               <Route path="/payment/return" element={<PaymentReturn />} />
               <Route path="/tickets" element={<ProtectedRoute><Navigate to="/dashboard?tab=tickets" replace /></ProtectedRoute>} />
@@ -114,16 +115,16 @@ const App = () => (
               <Route path="/studio/create" element={<ProtectedCreatorRoute><StudioCreate /></ProtectedCreatorRoute>} />
               <Route path="/studio/movies" element={<ProtectedCreatorRoute><StudioMovies /></ProtectedCreatorRoute>} />
               <Route path="/studio/submit" element={<ProtectedCreatorRoute><Navigate to="/studio/create" replace /></ProtectedCreatorRoute>} />
-              <Route path="/studio/screenings" element={<ProtectedCreatorRoute><StudioScreenings /></ProtectedCreatorRoute>} />
+              <Route path="/studio/screenings" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.screenings"><StudioScreenings /></FeatureGate></ProtectedCreatorRoute>} />
               <Route path="/studio/earnings" element={<ProtectedCreatorRoute><StudioEarnings /></ProtectedCreatorRoute>} />
-              <Route path="/studio/analytics" element={<ProtectedCreatorRoute><StudioAnalytics /></ProtectedCreatorRoute>} />
-              <Route path="/studio/analytics/:screeningId" element={<ProtectedCreatorRoute><StudioAnalytics /></ProtectedCreatorRoute>} />
+              <Route path="/studio/analytics" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.analytics"><StudioAnalytics /></FeatureGate></ProtectedCreatorRoute>} />
+              <Route path="/studio/analytics/:screeningId" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.analytics"><StudioAnalytics /></FeatureGate></ProtectedCreatorRoute>} />
               
               <Route path="/studio/live" element={<ProtectedCreatorRoute><Navigate to="/studio/create?flow=live&type=live" replace /></ProtectedCreatorRoute>} />
-              <Route path="/studio/live/manage" element={<ProtectedCreatorRoute><StudioLive /></ProtectedCreatorRoute>} />
-              <Route path="/studio/team" element={<ProtectedCreatorRoute><StudioTeam /></ProtectedCreatorRoute>} />
+              <Route path="/studio/live/manage" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.live"><StudioLive /></FeatureGate></ProtectedCreatorRoute>} />
+              <Route path="/studio/team" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.team"><StudioTeam /></FeatureGate></ProtectedCreatorRoute>} />
               <Route path="/studio/profile" element={<ProtectedCreatorRoute><StudioProfile /></ProtectedCreatorRoute>} />
-              <Route path="/studio/fan-blast" element={<ProtectedCreatorRoute><StudioFanBlast /></ProtectedCreatorRoute>} />
+              <Route path="/studio/fan-blast" element={<ProtectedCreatorRoute><FeatureGate featureKey="creator.fan_blast"><StudioFanBlast /></FeatureGate></ProtectedCreatorRoute>} />
               {/* ============ ADMIN (Protected) ============ */}
               <Route path="/admin" element={<ProtectedAdminRoute><Dashboard /></ProtectedAdminRoute>} />
               <Route path="/admin/users" element={<ProtectedAdminRoute><Users /></ProtectedAdminRoute>} />
