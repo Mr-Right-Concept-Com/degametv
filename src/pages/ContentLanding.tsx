@@ -98,7 +98,8 @@ export default function ContentLanding() {
       const { data, error } = await supabase.functions.invoke('process-event-contribution', {
         body: {
           ...target, contributionType: supportType, ...(supportType === 'gift' ? { giftCatalogKey: giftKey } : {}),
-          amount, currency, countryCode: runtime.config?.geo.countryCode || undefined,
+          amount, currency: runtime.config?.currency || currency,
+          countryCode: runtime.config?.geo.countryCode || runtime.config?.countryCurrency?.country_code || undefined,
           ...(!user ? { email: supportEmail.trim() } : {}),
           message: supportMessage.trim() || undefined, anonymous: supportAnonymous,
         },
@@ -152,7 +153,7 @@ export default function ContentLanding() {
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1"><label className="text-sm font-medium">Support type</label><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={supportType} onChange={e=>setSupportType(e.target.value as 'tip'|'gift')}><option value="tip">Tip</option><option value="gift">Virtual gift</option></select></div>
           {supportType === 'gift' && <div className="space-y-1"><label className="text-sm font-medium">Gift</label><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={giftKey} onChange={e=>setGiftKey(e.target.value)}><option value="heart">Heart</option><option value="star">Star</option><option value="clap">Applause</option><option value="crown">Crown</option></select></div>}
-          <div className="space-y-1"><label className="text-sm font-medium">Amount ({currency})</label><Input type="number" min="1" step="any" value={supportAmount} onChange={e=>setSupportAmount(e.target.value)}/></div>
+          <div className="space-y-1"><label className="text-sm font-medium">Amount ({runtime.config?.currency || currency})</label><Input type="number" min="1" step="any" value={supportAmount} onChange={e=>setSupportAmount(e.target.value)}/></div>
           <div className="space-y-1"><label className="text-sm font-medium">Message (optional)</label><Input maxLength={280} value={supportMessage} onChange={e=>setSupportMessage(e.target.value)} placeholder="Send a message with your support"/></div>
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><label className="flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={supportAnonymous} onChange={e=>setSupportAnonymous(e.target.checked)}/>Send anonymously</label><Button onClick={()=>void supportCreator()} disabled={supportBusy} className="rounded-full">{supportBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Gift className="mr-2 h-4 w-4"/>}{supportType === 'gift' ? 'Send gift' : 'Send tip'}</Button></div>
