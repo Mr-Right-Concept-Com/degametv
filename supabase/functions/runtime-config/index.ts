@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
       .select("country_code,currency_code,currency_symbol,locale_code,timezone_name")
       .eq("enabled", true).order("country_code"),
     db.from("platform_feature_controls")
-      .select("feature_key,enabled,rollout_percentage,release_state,config")
+      .select("feature_key")
       .eq("enabled", true).eq("release_state", "released").eq("rollout_percentage", 100),
   ]);
   if (countries.error || features.error) return response({ error: "Runtime configuration could not be loaded." }, 503);
@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     currencySymbol: validOverride ? null : country?.currency_symbol ?? "$",
     countryCurrency: country ?? null,
     countries: countries.data ?? [],
-    features: (features.data ?? []).map(({ feature_key, config }) => ({ key: feature_key, config })),
+    features: (features.data ?? []).map(({ feature_key }) => ({ key: feature_key })),
     generatedAt: new Date().toISOString(),
   });
 });
