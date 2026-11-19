@@ -8,6 +8,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { BrandingProvider } from "@/components/branding/BrandingProvider";
 import { ReleaseDomainRouter } from "@/components/domains/ReleaseDomainRouter";
 import { TenantProvider } from "@/hooks/useTenant";
+import { RuntimeConfigProvider } from "@/contexts/RuntimeConfigContext";
 import { ProtectedAdminRoute } from "@/components/auth/ProtectedAdminRoute";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ProtectedCreatorRoute } from "@/components/auth/ProtectedCreatorRoute";
@@ -69,6 +70,7 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
+      <RuntimeConfigProvider>
       <BrandingProvider>
       <TenantProvider>
         <TooltipProvider>
@@ -145,6 +147,7 @@ const App = () => (
         </TooltipProvider>
       </TenantProvider>
       </BrandingProvider>
+      </RuntimeConfigProvider>
     </AuthProvider>
   </QueryClientProvider>
 );
