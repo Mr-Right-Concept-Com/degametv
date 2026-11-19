@@ -16,6 +16,15 @@ const cors = {
 };
 const json = (status: number, body: Record<string, unknown>) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
+async function featureEnabled(db: ReturnType<typeof createClient>, key: string, subject: string): Promise<boolean> {
+  const { data: flag, error } = await db.from("platform_feature_controls").select("enabled,rollout_percentage,release_state").eq("feature_key",key).maybeSingle();
+  if (error) return false;
+  if (!flag) return true;
+  if (!flag.enabled || ["draft","paused","rolled_back"].includes(flag.release_state)) return false;
+  if (flag.release_state === "released") return flag.rollout_percentage === 100;
+  const digest = await crypto.subtle.digest("SHA-256",new TextEncoder().encode(subject+":"+key));
+  return new DataView(digest).getUint32(0,false)%100 < flag.rollout_percentage;
+}
 const randomCode = (bytes: number) => {
   const data = crypto.getRandomValues(new Uint8Array(bytes));
   return Array.from(data, b => b.toString(16).padStart(2, "0")).join("");
@@ -34,6 +43,7 @@ if (import.meta.main) serve(async (req: Request) => {
 
   const { method, email, screeningId, location } = parsed.data;
   const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
+  if (!await featureEnabled(admin, "cinema.ticketing", email)) return json(403, { success: false, error: "Ticket checkout is paused for this release cohort." });
 
   try {
     const { data: siteSetting, error: siteError } = await admin.from("platform_settings")
