@@ -43,6 +43,7 @@ jobs:
             test -n "$SUPABASE_DB_PASSWORD" || { echo "::error::SUPABASE_DB_PASSWORD is required to apply migrations"; exit 1; }
           fi
       - name: Link Supabase project
+        if: ${{ inputs.apply_migrations }}
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
