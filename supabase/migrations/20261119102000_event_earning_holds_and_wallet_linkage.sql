@@ -85,8 +85,8 @@ BEGIN
         ) ON CONFLICT(source_type,source_id) DO NOTHING;
       END IF;
     ELSIF TG_TABLE_NAME='guest_payment_orders' THEN
-      SELECT st.id,st.screening_id,st.tenant_id,st.currency,st.price,s.id,c.creator_id
-        INTO v_ticket_id,v_screening_id,v_tenant_id,v_currency,v_gross_major,v_screening_id,v_creator_id
+      SELECT st.id,st.screening_id,st.tenant_id,st.currency,st.price,c.creator_id
+        INTO v_ticket_id,v_screening_id,v_tenant_id,v_currency,v_gross_major,v_creator_id
         FROM public.screening_tickets st
         JOIN public.screenings s ON s.id=st.screening_id
         JOIN public.content c ON c.id=s.content_id
