@@ -17,6 +17,13 @@ interface ScreeningRow {
   screening_date: string | null;
   slug: string;
   lifecycle: string;
+  event_visibility: 'public' | 'unlisted' | 'private' | 'invite_only';
+  invite_only: boolean;
+  sales_open_at: string | null;
+  sales_close_at: string | null;
+  early_bird_ends_at: string | null;
+  early_bird_capacity: number | null;
+  presale_enabled: boolean;
 }
 
 export default function StudioScreenings() {
@@ -34,7 +41,7 @@ export default function StudioScreenings() {
       if (contentIds.length === 0) { setLoading(false); return; }
       const { data } = await supabase
         .from('screenings')
-        .select('id, title, status, screening_date, slug, lifecycle')
+        .select('id, title, status, screening_date, slug, lifecycle, event_visibility, invite_only, sales_open_at, sales_close_at, early_bird_ends_at, early_bird_capacity, presale_enabled')
         .in('content_id', contentIds)
         .order('screening_date', { ascending: false });
 
@@ -74,13 +81,24 @@ export default function StudioScreenings() {
                   <div className="min-w-0">
                     <p className="font-medium text-sm truncate">{s.title}</p>
                     <p className="text-xs text-muted-foreground">
-                      {s.screening_date ? new Date(s.screening_date).toLocaleDateString() : 'No date set'}
+                      {s.screening_date ? new Date(s.screening_date).toLocaleString() : 'No date set'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Sales: {s.presale_enabled ? (s.sales_open_at ? new Date(s.sales_open_at).toLocaleString() : 'Open now') : 'Closed'}
+                      {s.sales_close_at ? ` · closes ${new Date(s.sales_close_at).toLocaleString()}` : ''}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
                   <Badge className={statusColor[s.status] || statusColor.draft}>{s.status}</Badge>
                   <Badge variant="outline" className="capitalize">{s.lifecycle}</Badge>
+                  <Badge variant={s.event_visibility === 'private' || s.invite_only ? 'destructive' : 'secondary'} className="capitalize">
+                    {s.invite_only ? 'Invite only' : s.event_visibility}
+                  </Badge>
+                  {s.early_bird_ends_at && new Date(s.early_bird_ends_at) > new Date() && (
+                    <Badge variant="outline">Early bird until {new Date(s.early_bird_ends_at).toLocaleDateString()}</Badge>
+                  )}
+                  {s.early_bird_capacity !== null && <Badge variant="outline">{s.early_bird_capacity} early-bird seats</Badge>}
                   <EventLifecycleControls screeningId={s.id} lifecycle={s.lifecycle} onDone={() => setReload(r => r + 1)} />
                   <Button variant="outline" size="sm" className="rounded-full h-8 text-xs" asChild>
                     <Link to={`/studio/analytics/${s.id}`}><BarChart3 className="w-3 h-3 mr-1" /> Analytics</Link>
