@@ -10,7 +10,7 @@ export type ProductionHostResolution = {
   domain_branding: Record<string, unknown> | null;
 };
 
-const normalizeHost = (host: string) => host.trim().toLowerCase().replace(/:\\d+$/, "").replace(/\\.$/, "");
+const normalizeHost = (host: string) => host.trim().toLowerCase().replace(/:\d+$/, "").replace(/\.$/, "");
 
 const isJsonObject = (value: Json): value is { [key: string]: Json | undefined } =>
   typeof value === "object" && value !== null && !Array.isArray(value);
