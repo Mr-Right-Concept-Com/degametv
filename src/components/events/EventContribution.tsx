@@ -10,6 +10,22 @@ import { toast } from "sonner";
 import { Gift, Heart, Loader2, Sparkles } from "lucide-react";
 
 type GiftItem={id:string;gift_key:string;name:string;description:string|null;emoji:string|null;asset_url:string|null;animation_url:string|null;currency:string;amount_minor:number;animation_duration_ms:number};
+const isGiftItem = (value: unknown): value is GiftItem => {
+ const row = typeof value === "object" && value !== null && !Array.isArray(value)
+  ? value as Record<string, unknown>
+  : null;
+ return row !== null
+  && typeof row.id === "string"
+  && typeof row.gift_key === "string"
+  && typeof row.name === "string"
+  && (typeof row.description === "string" || row.description === null)
+  && (typeof row.emoji === "string" || row.emoji === null)
+  && (typeof row.asset_url === "string" || row.asset_url === null)
+  && (typeof row.animation_url === "string" || row.animation_url === null)
+  && typeof row.currency === "string"
+  && typeof row.amount_minor === "number"
+  && typeof row.animation_duration_ms === "number";
+};
 export function EventContribution({screeningId,liveStreamId,contentId,currency="NGN",overlay=false}:{screeningId?:string;liveStreamId?:string;contentId?:string;currency?:string;overlay?:boolean}){
  const {user}=useAuth();
  const [type,setType]=useState<"tip"|"gift">("tip");
@@ -26,9 +42,9 @@ export function EventContribution({screeningId,liveStreamId,contentId,currency="
  useEffect(()=>{
   if(type!=="gift")return;
   let active=true;setLoadingGifts(true);
-  (supabase as any).from("creator_gift_catalog").select("id,gift_key,name,description,emoji,asset_url,animation_url,currency,amount_minor,animation_duration_ms")
+  supabase.from("creator_gift_catalog" as never).select("id,gift_key,name,description,emoji,asset_url,animation_url,currency,amount_minor,animation_duration_ms")
    .eq("is_enabled",true).eq("currency",currency.toUpperCase()).order("sort_order",{ascending:true})
-   .then(({data,error}:any)=>{if(!active)return;if(error)toast.error("Gift catalogue could not be loaded.");const rows=(data||[]) as GiftItem[];setGiftItems(rows);setSelectedGift(rows[0]?.gift_key||"");})
+   .then(({data,error})=>{if(!active)return;if(error)toast.error("Gift catalogue could not be loaded.");const rows: unknown = data;const gifts = Array.isArray(rows) ? rows.filter(isGiftItem) : [];setGiftItems(gifts);setSelectedGift(gifts[0]?.gift_key||"");})
    .finally(()=>{if(active)setLoadingGifts(false);});
   return()=>{active=false;};
  },[type,currency]);
