@@ -8,6 +8,15 @@ declare
 begin
   select relrowsecurity,relforcerowsecurity into v_rls,v_force from pg_class where oid='public.studio_accounts'::regclass;
   if not v_rls then raise exception 'studio_accounts must enforce RLS'; end if;
+  if exists(select 1 from pg_class where oid in ('public.content'::regclass,'public.screenings'::regclass,'public.release_domains'::regclass,'public.studio_memberships'::regclass,'public.creator_verification_cases'::regclass) and not relrowsecurity) then
+    raise exception 'Phase 2 creator, content, screening, domain and team tables must enforce RLS';
+  end if;
+  if not exists(select 1 from pg_trigger where tgrelid='public.content'::regclass and tgname='content_creator_lifecycle_guard' and not tgisinternal) then
+    raise exception 'content lifecycle transition trigger is missing';
+  end if;
+  if not exists(select 1 from pg_trigger where tgrelid='public.screenings'::regclass and tgname='screenings_immutable_creator_price_currency' and not tgisinternal) then
+    raise exception 'screening creator currency immutability trigger is missing';
+  end if;
   select relrowsecurity,relforcerowsecurity into v_rls,v_force from pg_class where oid='public.media_upload_sessions'::regclass;
   if not v_rls or not v_force then raise exception 'media_upload_sessions must enforce RLS'; end if;
   select relrowsecurity,relforcerowsecurity into v_rls,v_force from pg_class where oid='public.media_processing_jobs'::regclass;
