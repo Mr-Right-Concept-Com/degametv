@@ -62,7 +62,7 @@ Deno.serve(async req=>{
  if(domain.domain_kind!=="custom_domain"||!domain.verification_token_hash)return json(409,{error:"This domain does not require custom DNS verification."});
  try{
   const [txt,cnames,ips]=await Promise.all([dns("_degametv-verification."+domain.hostname,"TXT"),dns(domain.hostname,"CNAME"),dns(domain.hostname,"A")]);
-  const tokenVerified=txt.some(v=>hash(v).then(h=>h===domain.verification_token_hash));
+  const txtHashes=await Promise.all(txt.map(v=>hash(v)));\n  const tokenVerified=txtHashes.includes(domain.verification_token_hash);
   const target=(domain.dns_target??"").toLowerCase().replace(/\.$/,"");
   const routeVerified=cnames.includes(target)||(Deno.env.get("DEGAMETV_CUSTOM_DOMAIN_IPV4")?ips.includes(Deno.env.get("DEGAMETV_CUSTOM_DOMAIN_IPV4")!):false);
   if(!tokenVerified||!routeVerified){
