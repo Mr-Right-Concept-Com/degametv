@@ -57,6 +57,11 @@ Deno.serve(async (req) => {
     const pendingRefunds: string[] = [];
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const { data: eventStreams, error: streamLookupError } = await admin.from("live_streams")
+      .select("id,status")
+      .eq("tenant_id", s.tenant_id || "")
+      .contains("metadata", { screening_id: s.id });
+    if (streamLookupError) return json({ error: "Event stream state could not be reconciled; cancellation is pending.", refunded, pendingRefunds }, 503);
     if ((tickets || []).length > 0 && (!serviceKey || !supabaseUrl)) {
       return json({ error: "Refund service is unavailable; cancellation was not applied." }, 503);
     }
@@ -95,12 +100,31 @@ Deno.serve(async (req) => {
       else pendingRefunds.push(ticket.id);
     }
 
-    const now = new Date().toISOString();
-    const { data: eventStreams, error: streamLookupError } = await admin.from("live_streams")
+    const streamIds = (eventStreams || []).map((stream: any) => stream.id);
+    const { data: screeningContributions, error: contributionError } = await admin.from("event_contributions")
       .select("id,status")
-      .eq("tenant_id", s.tenant_id || "")
-      .contains("metadata", { screening_id: s.id });
-    if (streamLookupError) return json({ error: "Event stream state could not be reconciled; cancellation is pending.", refunded, pendingRefunds }, 503);
+      .eq("screening_id", s.id)
+      .eq("status", "paid");
+    if (contributionError) return json({ error: "Paid tips and gifts could not be loaded; cancellation is pending.", refunded, pendingRefunds }, 503);
+    const { data: streamContributions, error: streamContributionError } = streamIds.length
+      ? await admin.from("event_contributions").select("id,status").in("live_stream_id", streamIds).eq("status", "paid")
+      : { data: [], error: null };
+    if (streamContributionError) return json({ error: "Live tips and gifts could not be loaded; cancellation is pending.", refunded, pendingRefunds }, 503);
+    const contributions = [...new Map([...(screeningContributions || []), ...(streamContributions || [])].map((item: any) => [item.id, item])).values()];
+    if (contributions.length > 0 && (!serviceKey || !supabaseUrl)) return json({ error: "Refund service is unavailable; cancellation is pending.", refunded, pendingRefunds }, 503);
+    for (const contribution of contributions) {
+      const response = await fetch(supabaseUrl + "/functions/v1/process-refund", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + serviceKey, apikey: serviceKey, "Content-Type": "application/json" },
+        body: JSON.stringify({ contributionId: contribution.id, reason: p.reason || "Event cancelled", requestedBy: user.id }),
+        signal: AbortSignal.timeout(25000),
+      }).catch(() => null);
+      const result = response ? await response.json().catch(() => null) : null;
+      if (response?.ok && result?.success === true) refunded++;
+      else pendingRefunds.push(contribution.id);
+    }
+
+    const now = new Date().toISOString();
     if ((eventStreams || []).length > 0) {
       const { error: streamEndError } = await admin.from("live_streams")
         .update({ status: "cancelled", actual_ended_at: now, actual_end: now, updated_at: now })
