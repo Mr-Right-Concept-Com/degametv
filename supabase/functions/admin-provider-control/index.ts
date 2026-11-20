@@ -4,10 +4,10 @@ import { z } from "npm:zod@3";
 
 const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("list") }),
-  z.object({ action: z.literal("test"), capability: z.enum(["payments","identity","bank_verification","video_delivery","email","live_streaming","fx_rates"]), providerKey: z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/) }),
+  z.object({ action: z.literal("test"), capability: z.enum(["payments","identity","bank_verification","video_delivery","email","live_streaming","fx_rates","storage","cdn","drm","sms","push","geolocation","analytics"]), providerKey: z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/) }),
   z.object({
     action: z.literal("configure"),
-    capability: z.enum(["payments","identity","bank_verification","video_delivery","email","live_streaming","fx_rates"]),
+    capability: z.enum(["payments","identity","bank_verification","video_delivery","email","live_streaming","fx_rates","storage","cdn","drm","sms","push","geolocation","analytics"]),
     providerKey: z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/),
     enabled: z.boolean(),
     live: z.boolean(),
@@ -22,7 +22,7 @@ const schema = z.discriminatedUnion("action", [
   }),
   z.object({
     action: z.literal("remove"),
-    capability: z.enum(["payments","identity","bank_verification","video_delivery","email","live_streaming","fx_rates"]),
+    capability: z.enum(["payments","identity","bank_verification","video_delivery","email","live_streaming","fx_rates","storage","cdn","drm","sms","push","geolocation","analytics"]),
     providerKey: z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/),
   }),
 ]);
@@ -71,11 +71,18 @@ Deno.serve(async req => {
     if(p.capability==="live_streaming"&&(!endpoint("create_live")||!endpoint("stop_live")))return json({error:"Live streaming adapters require create_live and stop_live endpoints."},400);
     if(p.capability==="identity"&&!endpoint("verify"))return json({error:"Identity adapters require a verify endpoint."},400);
     if(p.capability==="bank_verification"&&!endpoint("verify"))return json({error:"Bank verification adapters require a verify endpoint."},400);
-    if(p.capability==="video_delivery"&&!endpoint("playback"))return json({error:"Video delivery adapters require a playback endpoint."},400);
+    if(p.capability==="video_delivery"&&!endpoint("playback_authorize"))return json({error:"Video delivery adapters require a playback_authorize endpoint."},400);
+    if(p.capability==="storage"&&(!endpoint("upload_init")||!endpoint("upload_complete")||!endpoint("signed_url")||!endpoint("delete")))return json({error:"Storage adapters require upload_init, upload_complete, signed_url and delete endpoints."},400);
+    if(p.capability==="cdn"&&(!endpoint("sign_url")||!endpoint("purge")))return json({error:"CDN adapters require sign_url and purge endpoints."},400);
+    if(p.capability==="drm"&&!endpoint("license"))return json({error:"DRM adapters require a license endpoint."},400);
+    if(p.capability==="sms"&&!endpoint("send_sms"))return json({error:"SMS adapters require a send_sms endpoint."},400);
+    if(p.capability==="push"&&!endpoint("send_push"))return json({error:"Push adapters require a send_push endpoint."},400);
+    if(p.capability==="geolocation"&&!endpoint("lookup"))return json({error:"Geolocation adapters require a lookup endpoint."},400);
+    if(p.capability==="analytics"&&!endpoint("ingest"))return json({error:"Analytics adapters require an ingest endpoint."},400);
   }
   if(p.action==="list"){
     const {data,error}=await admin.from("service_provider_bindings")
-      .select("id,capability,provider_key,enabled,is_live,base_url,endpoints,settings,updated_at,removed_at,priority,test_credential_secret_ref,live_credential_secret_ref,test_webhook_secret_ref,live_webhook_secret_ref,credential_secret_ref,webhook_secret_ref")
+      .select("id,capability,provider_key,enabled,is_live,base_url,endpoints,settings,updated_at,removed_at,priority,health_status,health_checked_at,health_error,test_credential_secret_ref,live_credential_secret_ref,test_webhook_secret_ref,live_webhook_secret_ref,credential_secret_ref,webhook_secret_ref")
       .order("capability").order("priority").order("provider_key");
     if(error)return json({error:"Provider registry could not be loaded."},503);
     return json({providers:(data||[]).map(({test_credential_secret_ref,live_credential_secret_ref,test_webhook_secret_ref,live_webhook_secret_ref,credential_secret_ref,webhook_secret_ref,...row})=>({...row,hasTestCredential:Boolean(test_credential_secret_ref)||Boolean(credential_secret_ref&&!row.is_live),hasLiveCredential:Boolean(live_credential_secret_ref)||Boolean(credential_secret_ref&&row.is_live),hasTestWebhookSecret:Boolean(test_webhook_secret_ref)||Boolean(webhook_secret_ref&&!row.is_live),hasLiveWebhookSecret:Boolean(live_webhook_secret_ref)||Boolean(webhook_secret_ref&&row.is_live)}))});
@@ -96,9 +103,19 @@ Deno.serve(async req => {
     try{
       const response=await fetch(target,{method:"GET",headers:{Authorization:"Bearer "+credential,Accept:"application/json"},signal:AbortSignal.timeout(10000)});
       const body=await response.json().catch(()=>null);
-      if(!response.ok||(body?.ok!==true&&body?.status!==true))return json({success:false,error:"Provider health check failed. Binding has not been changed."},502);
-      return json({success:true,provider:p.providerKey,capability:p.capability,mode,checkedAt:new Date().toISOString()});
-    }catch{return json({success:false,error:"Provider health endpoint did not respond. Binding has not been changed."},502);}
+      if(!response.ok||(body?.ok!==true&&body?.status!==true)){
+        const message="Provider health check failed.";
+        await admin.from("service_provider_bindings").update({health_status:"unhealthy",health_checked_at:new Date().toISOString(),health_error:message}).eq("capability",p.capability).eq("provider_key",p.providerKey).is("removed_at",null);
+        return json({success:false,error:message},502);
+      }
+      const checkedAt=new Date().toISOString();
+      await admin.from("service_provider_bindings").update({health_status:"healthy",health_checked_at:checkedAt,health_error:null}).eq("capability",p.capability).eq("provider_key",p.providerKey).is("removed_at",null);
+      return json({success:true,provider:p.providerKey,capability:p.capability,mode,checkedAt});
+    }catch{
+      const message="Provider health endpoint did not respond.";
+      await admin.from("service_provider_bindings").update({health_status:"unhealthy",health_checked_at:new Date().toISOString(),health_error:message}).eq("capability",p.capability).eq("provider_key",p.providerKey).is("removed_at",null);
+      return json({success:false,error:message},502);
+    }
   }
   if(p.action==="configure"&&p.live&&!p.enabled)return json({error:"Live mode requires the provider binding to be enabled."},400);
   if(p.action==="configure"&&p.enabled){
@@ -134,5 +151,12 @@ Deno.serve(async req => {
     ? await caller.rpc("admin_configure_service_provider_modes",args)
     : await caller.rpc("admin_configure_service_provider_modes_with_priority",args);
   if(error)return json({error:"Provider change was rejected.",code:error.message},400);
+  if(p.action==="configure"){
+    await admin.from("service_provider_bindings").update({
+      health_status:p.enabled?"healthy":"unknown",
+      health_checked_at:p.enabled?new Date().toISOString():null,
+      health_error:null
+    }).eq("capability",p.capability).eq("provider_key",p.providerKey).is("removed_at",null);
+  }
   return json({success:true,result:data});
 });
