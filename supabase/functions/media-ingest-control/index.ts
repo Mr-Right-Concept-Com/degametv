@@ -189,7 +189,7 @@ Deno.serve(async req=>{
   }catch(e){return json(503,{error:e instanceof Error?e.message:"Multipart completion failed."});}
  }
  if(p.action==="abort_multipart"||p.action==="cancel"){
-  if(["READY","CANCELLED"].includes(session.status))return json(409,{error:"This upload can no longer be cancelled."});
+  if(!["INITIALIZED","UPLOADING"].includes(session.status))return json(409,{error:"Multipart uploads can only be aborted before quarantine processing begins."});
   try{if(session.storage_upload_id){const storage=await getStorage(db);const aborted=await signedRequest(storage,session.object_path,"DELETE",{"uploadId":session.storage_upload_id});if(!aborted.ok&&aborted.status!==404)return json(502,{error:"Storage provider could not abort multipart upload.",providerStatus:aborted.status});}
    const {error}=await db.from("media_upload_sessions").update({status:"CANCELLED",cancelled_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",session.id);
    return error?json(503,{error:"Upload cancellation failed."}):json(200,{success:true,status:"CANCELLED"});
