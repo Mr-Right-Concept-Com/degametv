@@ -1,0 +1,45 @@
+name: Phase 2 Certification
+'on':
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  phase2-quality:
+    name: Lint, typecheck, build and Playwright E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      DEGAMETV_E2E_CREATOR_EMAIL: ${{ secrets.DEGAMETV_E2E_CREATOR_EMAIL }}
+      DEGAMETV_E2E_CREATOR_PASSWORD: ${{ secrets.DEGAMETV_E2E_CREATOR_PASSWORD }}
+      DEGAMETV_E2E_ADMIN_EMAIL: ${{ secrets.DEGAMETV_E2E_ADMIN_EMAIL }}
+      DEGAMETV_E2E_ADMIN_PASSWORD: ${{ secrets.DEGAMETV_E2E_ADMIN_PASSWORD }}
+      DEGAMETV_E2E_IDENTITY_VERIFICATION_ID: ${{ secrets.DEGAMETV_E2E_IDENTITY_VERIFICATION_ID }}
+      DEGAMETV_E2E_STOREFRONT_HOST: ${{ secrets.DEGAMETV_E2E_STOREFRONT_HOST }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Production build
+        run: npm run build
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Playwright end-to-end suite
+        run: npm run test:e2e
