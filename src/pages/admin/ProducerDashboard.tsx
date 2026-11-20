@@ -1,66 +1,85 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
+import type { Tables } from '@/integrations/supabase/types';
 import {
-  DollarSign, Users, Ticket, TrendingUp, MapPin, CreditCard,
+  DollarSign, Ticket, TrendingUp, MapPin,
   Film, BarChart3, RefreshCw, Trash2, Database, Loader2
 } from 'lucide-react';
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, BarChart, Bar, Legend
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, BarChart, Bar
 } from 'recharts';
 import { toast } from 'sonner';
 
+type TicketWithScreening = Tables<'screening_tickets'> & {
+  screening: Pick<Tables<'screenings'>, 'title' | 'slug'> | null;
+};
+
 export default function ProducerDashboard() {
-  const [tickets, setTickets] = useState<any[]>([]);
-  const [screenings, setScreenings] = useState<any[]>([]);
+  const [tickets, setTickets] = useState<TicketWithScreening[]>([]);
+  const [screenings, setScreenings] = useState<Tables<'screenings'>[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
-    const [ticketsRes, screeningsRes] = await Promise.all([
-      supabase.from('screening_tickets').select('*, screening:screenings(title, slug)').order('created_at', { ascending: false }),
-      supabase.from('screenings').select('*').order('screening_date', { ascending: true }),
-    ]);
-    setTickets(ticketsRes.data || []);
-    setScreenings(screeningsRes.data || []);
-    setLoading(false);
-  };
+    try {
+      const [ticketsRes, screeningsRes] = await Promise.all([
+        supabase.from('screening_tickets').select('*, screening:screenings(title, slug)').order('created_at', { ascending: false }),
+        supabase.from('screenings').select('*').order('screening_date', { ascending: true }),
+      ]);
+      if (ticketsRes.error) throw ticketsRes.error;
+      if (screeningsRes.error) throw screeningsRes.error;
+      setTickets(ticketsRes.data ?? []);
+      setScreenings(screeningsRes.data ?? []);
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Failed to load sales data');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { void fetchData(); }, [fetchData]);
 
   const seedData = async () => {
     setSeeding(true);
     try {
-      const { data, error } = await supabase.functions.invoke('seed-data', { body: { action: 'seed' } });
+      const { data, error } = await supabase.functions.invoke<unknown>('seed-data', { body: { action: 'seed' } });
       if (error) throw error;
-      toast.success(data?.message || 'Sample data seeded!');
-      fetchData();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to seed data');
+      const message = typeof data === 'object' && data !== null && 'message' in data && typeof data.message === 'string'
+        ? data.message
+        : 'Sample data seeded!';
+      toast.success(message);
+      await fetchData();
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Failed to seed data');
+    } finally {
+      setSeeding(false);
     }
-    setSeeding(false);
   };
 
   const deleteAllData = async () => {
     if (!confirm('Are you sure? This will delete ALL screenings, tickets, and content. This is for pre-launch cleanup.')) return;
     setDeleting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('seed-data', { body: { action: 'delete-all' } });
+      const { data, error } = await supabase.functions.invoke<unknown>('seed-data', { body: { action: 'delete-all' } });
       if (error) throw error;
-      toast.success(data?.message || 'All data deleted!');
-      fetchData();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to delete data');
+      const message = typeof data === 'object' && data !== null && 'message' in data && typeof data.message === 'string'
+        ? data.message
+        : 'All data deleted!';
+      toast.success(message);
+      await fetchData();
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete data');
+    } finally {
+      setDeleting(false);
     }
-    setDeleting(false);
   };
 
   // Analytics
@@ -76,17 +95,12 @@ export default function ProducerDashboard() {
     { name: 'International', value: intlTickets.length, revenue: intlRevenue },
   ];
 
-  const paymentMethodData = ['stripe', 'paystack', 'flutterwave', 'bank_transfer'].map(m => ({
-    name: m.charAt(0).toUpperCase() + m.slice(1).replace('_', ' '),
-    count: tickets.filter(t => t.payment_method === m && t.payment_status === 'completed').length,
-  })).filter(d => d.count > 0);
-
   const screeningStats = screenings.map(s => {
     const sTickets = tickets.filter(t => t.screening_id === s.id && t.payment_status === 'completed');
     return {
       name: s.title?.substring(0, 20) || 'Unknown',
       tickets: sTickets.length,
-      revenue: sTickets.reduce((sum: number, t: any) => sum + Number(t.price), 0),
+      revenue: sTickets.reduce((sum, ticket) => sum + Number(ticket.price), 0),
     };
   });
 
@@ -104,7 +118,7 @@ export default function ProducerDashboard() {
           {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
           Delete All Data (Pre-Launch)
         </Button>
-        <Button onClick={fetchData} variant="ghost" size="sm" className="gap-2">
+        <Button onClick={() => void fetchData()} disabled={loading} variant="ghost" size="sm" className="gap-2">
           <RefreshCw className="w-4 h-4" /> Refresh
         </Button>
       </div>
