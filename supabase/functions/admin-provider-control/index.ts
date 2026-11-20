@@ -12,7 +12,7 @@ const schema = z.discriminatedUnion("action", [
     enabled: z.boolean(),
     live: z.boolean(),
     priority: z.number().int().min(0).max(10000).default(100),
-    baseUrl: z.string().url().refine(v => new URL(v).protocol === "https:"),
+    baseUrl: z.string().url().refine(v => { try { safeBaseUrl(v); return true; } catch { return false; } }),
     endpoints: z.record(z.string(), z.unknown()).default({}),
     settings: z.record(z.string(), z.unknown()).default({}),
     testCredential: z.string().max(10000).optional(),
@@ -30,6 +30,23 @@ const schema = z.discriminatedUnion("action", [
 const json = (body: unknown, status=200) => new Response(JSON.stringify(body), {
   status, headers: { ...corsHeaders, "Content-Type": "application/json" },
 });
+const safeBaseUrl = (value:string):URL => {
+  const url=new URL(value),host=url.hostname.toLowerCase();
+  if(url.protocol!=="https:"||url.username||url.password||!host.includes(".")||
+    host==="localhost"||host.endsWith(".localhost")||host.endsWith(".local")||host.endsWith(".internal")||
+    host.startsWith("[")||/^(127|10|0|224|240)\\./.test(host)||/^192\\.168\\./.test(host)||
+    /^169\\.254\\./.test(host)||/^172\\.(1[6-9]|2[0-9]|3[01])\\./.test(host)||/^100\\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\\./.test(host)) {
+    throw new Error("Provider base URL must be a public HTTPS origin.");
+  }
+  return url;
+};
+const sanitizeSettings=(value:unknown):unknown=>{
+  if(Array.isArray(value))return value.map(sanitizeSettings);
+  if(!value||typeof value!=="object")return value;
+  return Object.fromEntries(Object.entries(value as Record<string,unknown>)
+    .filter(([key])=>!/(secret|token|password|credential|api.?key|private.?key|authorization)/i.test(key))
+    .map(([key,item])=>[key,sanitizeSettings(item)]));
+};
 
 Deno.serve(async req => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -90,7 +107,7 @@ Deno.serve(async req => {
       .select("id,capability,provider_key,enabled,is_live,base_url,endpoints,settings,updated_at,removed_at,priority,health_status,health_checked_at,health_error,test_credential_secret_ref,live_credential_secret_ref,test_webhook_secret_ref,live_webhook_secret_ref,credential_secret_ref,webhook_secret_ref")
       .order("capability").order("priority").order("provider_key");
     if(error)return json({error:"Provider registry could not be loaded."},503);
-    return json({providers:(data||[]).map(({test_credential_secret_ref,live_credential_secret_ref,test_webhook_secret_ref,live_webhook_secret_ref,credential_secret_ref,webhook_secret_ref,...row})=>({...row,hasTestCredential:Boolean(test_credential_secret_ref)||Boolean(credential_secret_ref&&!row.is_live),hasLiveCredential:Boolean(live_credential_secret_ref)||Boolean(credential_secret_ref&&row.is_live),hasTestWebhookSecret:Boolean(test_webhook_secret_ref)||Boolean(webhook_secret_ref&&!row.is_live),hasLiveWebhookSecret:Boolean(live_webhook_secret_ref)||Boolean(webhook_secret_ref&&row.is_live)}))});
+    return json({providers:(data||[]).map(({test_credential_secret_ref,live_credential_secret_ref,test_webhook_secret_ref,live_webhook_secret_ref,credential_secret_ref,webhook_secret_ref,...row})=>({...row,settings:sanitizeSettings(row.settings),hasTestCredential:Boolean(test_credential_secret_ref)||Boolean(credential_secret_ref&&!row.is_live),hasLiveCredential:Boolean(live_credential_secret_ref)||Boolean(credential_secret_ref&&row.is_live),hasTestWebhookSecret:Boolean(test_webhook_secret_ref)||Boolean(webhook_secret_ref&&!row.is_live),hasLiveWebhookSecret:Boolean(live_webhook_secret_ref)||Boolean(webhook_secret_ref&&row.is_live)}))});
   }
   if(p.action==="test"){
     const [{data:binding,error:bindingError},{data:secrets,error:secretError}]=await Promise.all([
@@ -103,10 +120,10 @@ Deno.serve(async req => {
     if(bindingError||secretError||!binding?.base_url||!credential)return json({error:"Save the selected test/live credential and HTTPS base URL before testing."},409);
     const healthPath=binding.endpoints?.health_check;
     if(typeof healthPath!=="string"||!healthPath.startsWith("/")||healthPath.startsWith("//"))return json({error:"Configure a relative health_check endpoint in the provider contract."},409);
-    const target=new URL(healthPath,binding.base_url);
+    const base=safeBaseUrl(binding.base_url);const target=new URL(healthPath,base);
     if(target.origin!==new URL(binding.base_url).origin)return json({error:"Provider health endpoint must remain on the configured host."},400);
     try{
-      const response=await fetch(target,{method:"GET",headers:{Authorization:"Bearer "+credential,Accept:"application/json"},signal:AbortSignal.timeout(10000)});
+      const authHeader=typeof binding.settings?.credential_header==="string"?binding.settings.credential_header:typeof binding.settings?.auth_header==="string"?binding.settings.auth_header:"Authorization";\n      const authPrefix=typeof binding.settings?.credential_prefix==="string"?binding.settings.credential_prefix:typeof binding.settings?.auth_prefix==="string"?binding.settings.auth_prefix:"Bearer ";\n      const response=await fetch(target,{method:"GET",headers:{[authHeader]:authPrefix+credential,Accept:"application/json"},redirect:"manual",signal:AbortSignal.timeout(10000)});
       const body=await response.json().catch(()=>null);
       if(!response.ok||(body?.ok!==true&&body?.status!==true)){
         const message="Provider health check failed.";
@@ -133,9 +150,9 @@ Deno.serve(async req => {
     if(typeof healthPath!=="string"||!healthPath.startsWith("/")||healthPath.startsWith("//"))return json({error:"Configure a relative health_check endpoint before enabling this provider."},409);
     if(!credential)return json({error:"A Vault credential for the selected test/live mode is required."},409);
     try{
-      const target=new URL(healthPath,p.baseUrl);
+      const base=safeBaseUrl(p.baseUrl);const target=new URL(healthPath,base);
       if(target.origin!==new URL(p.baseUrl).origin)return json({error:"Provider health endpoint must remain on the configured host."},400);
-      const response=await fetch(target,{method:"GET",headers:{Authorization:"Bearer "+credential,Accept:"application/json"},signal:AbortSignal.timeout(10000)});
+      const authHeader=typeof p.settings.credential_header==="string"?p.settings.credential_header:typeof p.settings.auth_header==="string"?p.settings.auth_header:"Authorization";\n      const authPrefix=typeof p.settings.credential_prefix==="string"?p.settings.credential_prefix:typeof p.settings.auth_prefix==="string"?p.settings.auth_prefix:"Bearer ";\n      const response=await fetch(target,{method:"GET",headers:{[authHeader]:authPrefix+credential,Accept:"application/json"},redirect:"manual",signal:AbortSignal.timeout(10000)});
       const body=await response.json().catch(()=>null);
       if(!response.ok||(body?.ok!==true&&body?.status!==true)){
         await admin.from("service_provider_bindings").update({health_status:"unhealthy",health_checked_at:new Date().toISOString(),health_error:"Provider health check failed."}).eq("capability",p.capability).eq("provider_key",p.providerKey).is("removed_at",null);
