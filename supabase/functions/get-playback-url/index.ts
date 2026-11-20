@@ -8,6 +8,23 @@ const corsHeaders={
  "Content-Type":"application/json",
 };
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:corsHeaders});
+type PlaybackProvider = {
+ id: string;
+ provider_key: string;
+ base_url: string;
+ credential: string;
+ endpoints: Record<string, unknown>;
+ settings: Record<string, unknown>;
+};
+const isRecord=(value:unknown):value is Record<string,unknown> =>
+ value!==null&&typeof value==="object"&&!Array.isArray(value);
+const isStringArray=(value:unknown):value is string[] =>
+ Array.isArray(value)&&value.every((item:unknown)=>typeof item==="string");
+const isPlaybackProvider=(value:unknown):value is PlaybackProvider =>
+ isRecord(value)&&typeof value.id==="string"&&typeof value.provider_key==="string"&&
+ typeof value.base_url==="string"&&typeof value.credential==="string"&&
+ isRecord(value.endpoints)&&isRecord(value.settings);
+
 const sha256=async(value:string)=>Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value))),b=>b.toString(16).padStart(2,"0")).join("");
 
 if(import.meta.main)serve(async(req:Request)=>{
@@ -33,12 +50,15 @@ if(import.meta.main)serve(async(req:Request)=>{
   if(String(ticket.email||"").trim().toLowerCase()!==email)return json(403,{success:false,error:"Email does not match this ticket."});
   if(ticket.refunded_at)return json(403,{success:false,error:"This ticket has been refunded."});
   if(!ticket.expires_at||new Date(ticket.expires_at).getTime()<=Date.now())return json(403,{success:false,error:"This ticket has expired."});
-  const screening:any=ticket.screening;
-  if(!screening||screening.status!=="published"||["cancelled","archived"].includes(screening.lifecycle))
+  const screeningValue=Array.isArray(ticket.screening)?ticket.screening[0]:ticket.screening;
+  if(!isRecord(screeningValue)||typeof screeningValue.status!=="string"||
+     screeningValue.status!=="published"||
+     (typeof screeningValue.lifecycle==="string"&&["cancelled","archived"].includes(screeningValue.lifecycle)))
    return json(410,{success:false,error:"This screening is no longer available."});
+  const screening=screeningValue;
   if(country){
-   if(Array.isArray(screening.blocked_countries)&&screening.blocked_countries.includes(country))return json(451,{success:false,error:"This screening is not available in your territory."});
-   if(Array.isArray(screening.allowed_countries)&&screening.allowed_countries.length>0&&!screening.allowed_countries.includes(country))return json(451,{success:false,error:"This screening is not available in your territory."});
+   if(isStringArray(screening.blocked_countries)&&screening.blocked_countries.includes(country))return json(451,{success:false,error:"This screening is not available in your territory."});
+   if(isStringArray(screening.allowed_countries)&&screening.allowed_countries.length>0&&!screening.allowed_countries.includes(country))return json(451,{success:false,error:"This screening is not available in your territory."});
   }
   if(ticket.first_played_at&&ticket.access_hours){
    const end=new Date(ticket.first_played_at).getTime()+Number(ticket.access_hours)*3600000;
@@ -49,11 +69,14 @@ if(import.meta.main)serve(async(req:Request)=>{
   if(providerError||!Array.isArray(delivery)||!delivery.length)
    return json(503,{success:false,code:"PLAYBACK_PROVIDER_NOT_CONFIGURED",error:"Secure playback is not configured. Your ticket remains valid."});
   const sessionTokenHash=await sha256(sessionId);
-  let provider:any=null;
+  let provider:PlaybackProvider|null=null;
   let playbackUrl:URL|null=null;
   let expiresAt:Date|null=null;
-  for(const candidate of delivery){
-   const endpoint=candidate.endpoints?.playback_authorize;
+  const candidates:unknown[]=delivery;
+  for(const candidateValue of candidates){
+   if(!isPlaybackProvider(candidateValue))continue;
+   const candidate=candidateValue;
+   const endpoint=candidate.endpoints.playback_authorize;
    if(!candidate.credential||typeof endpoint!=="string"||!endpoint.startsWith("/")||endpoint.startsWith("//"))continue;
    try{
     const providerUrl=new URL(endpoint,candidate.base_url);
@@ -70,14 +93,16 @@ if(import.meta.main)serve(async(req:Request)=>{
      }),
      signal:AbortSignal.timeout(10000)
     });
-    const result=await providerResponse.json().catch(()=>null);
-    if(!providerResponse.ok||result?.authorized!==true||typeof result?.playback_url!=="string"||typeof result?.expires_at!=="string"){
+    const resultValue:unknown=await providerResponse.json().catch(()=>null);
+    const result=isRecord(resultValue)?resultValue:null;
+    if(!providerResponse.ok||!result||result.authorized!==true||typeof result.playback_url!=="string"||typeof result.expires_at!=="string"){
      await db.from("service_provider_bindings").update({health_status:"unhealthy",health_checked_at:new Date().toISOString(),health_error:"Playback authorization endpoint failed."}).eq("id",candidate.id);
      continue;
     }
     const candidateUrl=new URL(result.playback_url);
     const candidateExpiry=new Date(result.expires_at);
-    const allowedOrigins=Array.isArray(candidate.settings?.allowed_playback_origins)?candidate.settings.allowed_playback_origins:[];
+    const configuredOrigins=candidate.settings.allowed_playback_origins;
+    const allowedOrigins=isStringArray(configuredOrigins)?configuredOrigins:[];
     if(candidateUrl.protocol!=="https:"||Number.isNaN(candidateExpiry.getTime())||candidateExpiry.getTime()<=Date.now()||
        candidateExpiry.getTime()>Date.now()+4*60*60*1000||candidateExpiry.getTime()>new Date(ticket.expires_at).getTime()||
        !allowedOrigins.includes(candidateUrl.origin)){
