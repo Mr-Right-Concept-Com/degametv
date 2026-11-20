@@ -43,6 +43,29 @@ interface Screening {
   replay_access_model?: 'INCLUDED_WITH_TICKET' | 'SEPARATE_PRICE' | 'FREE_REPLAY';
   refund_policy?: string | null;
 }
+const locationPricingSchema=z.object({
+  nigeria:z.number().optional(),international:z.number().optional(),base:z.number().optional(),currency:z.string().optional(),
+}).passthrough();
+const publicScreeningSchema=z.object({
+  id:z.string().uuid(),title:z.string(),slug:z.string(),
+  description:z.string().nullable().optional(),poster_url:z.string().nullable().optional(),
+  banner_url:z.string().nullable().optional(),screening_date:z.string().nullable().optional(),
+  duration:z.number().nullable().optional(),location_pricing:z.unknown(),status:z.string(),
+  base_price:z.number().nullable().optional(),base_currency:z.string().nullable().optional(),
+  replay_base_price:z.number().nullable().optional(),event_type:z.string().nullable().optional(),
+  access_model:z.enum(['FREE','TICKETED']).nullable().optional(),lifecycle:z.string().nullable().optional(),
+  live_price_ngn:z.number().nullable().optional(),live_price_usd:z.number().nullable().optional(),
+  replay_price_ngn:z.number().nullable().optional(),replay_price_usd:z.number().nullable().optional(),
+  replay_access_model:z.enum(['INCLUDED_WITH_TICKET','SEPARATE_PRICE','FREE_REPLAY']).nullable().optional(),
+  refund_policy:z.string().nullable().optional(),
+}).passthrough();
+type ScreeningQueryResult={data:unknown;error:{message:string}|null};
+interface ScreeningQuery extends PromiseLike<ScreeningQueryResult>{
+  select(columns:string):ScreeningQuery;eq(column:string,value:string):ScreeningQuery;
+  maybeSingle():Promise<ScreeningQueryResult>;
+}
+interface PublicScreeningCatalogClient{from(table:'public_screenings_catalog'):ScreeningQuery;}
+const screeningCatalog=supabase as unknown as PublicScreeningCatalogClient;
 
 export default function BuyTicket() {
   const { slug } = useParams<{ slug: string }>();
@@ -74,7 +97,7 @@ export default function BuyTicket() {
           if (active) setLoadingScreening(false);
           return;
         }
-        const { data, error } = await (supabase as any)
+        const { data, error } = await screeningCatalog
           .from('public_screenings_catalog')
           .select('id,content_id,title,slug,description,poster_url,banner_url,trailer_url,release_date,screening_date,duration,location_pricing,base_price,base_currency,replay_base_price,status,access_model,event_type,lifecycle,live_price_ngn,live_price_usd,live_recording_status,live_started_at,live_ended_at,live_replay_ready_at,replay_price_ngn,replay_price_usd,replay_access_hours,replay_access_model,refund_policy,cast_crew,gallery_images,age_rating,star_rating,review_count,allowed_countries,blocked_countries,cancelled_at,created_at,updated_at')
           .eq('slug', slug)
@@ -86,20 +109,27 @@ export default function BuyTicket() {
           return;
         }
         if (data) {
-          let pricing: unknown = data.location_pricing;
-          if (typeof pricing === 'string') {
-            try {
-              pricing = JSON.parse(pricing) as unknown;
-            } catch {
-              toast.error('Ticket pricing information is invalid. Please contact support.');
-              return;
-            }
+          const parsedScreening=publicScreeningSchema.safeParse(data);
+          if(!parsedScreening.success){toast.error('Screening details are invalid. Please contact support.');return;}
+          let pricing:unknown=parsedScreening.data.location_pricing;
+          if(typeof pricing==='string'){
+            try{pricing=JSON.parse(pricing) as unknown;}
+            catch{toast.error('Ticket pricing information is invalid. Please contact support.');return;}
           }
-          if (pricing && typeof pricing === 'object' && !Array.isArray(pricing)) {
-            setScreening({ ...data, location_pricing: pricing } as Screening);
-          } else {
-            toast.error('Ticket pricing information is unavailable. Please contact support.');
-          }
+          const parsedPricing=locationPricingSchema.safeParse(pricing);
+          if(parsedPricing.success){
+            const row=parsedScreening.data;
+            setScreening({
+              id:row.id,title:row.title,slug:row.slug,description:row.description??'',
+              poster_url:row.poster_url??'',banner_url:row.banner_url??'',screening_date:row.screening_date??'',
+              duration:row.duration??0,location_pricing:parsedPricing.data,status:row.status,
+              base_price:row.base_price,base_currency:row.base_currency,replay_base_price:row.replay_base_price,
+              event_type:row.event_type??undefined,access_model:row.access_model??undefined,lifecycle:row.lifecycle??undefined,
+              live_price_ngn:row.live_price_ngn,live_price_usd:row.live_price_usd,
+              replay_price_ngn:row.replay_price_ngn,replay_price_usd:row.replay_price_usd,
+              replay_access_model:row.replay_access_model??undefined,refund_policy:row.refund_policy,
+            });
+          }else{toast.error('Ticket pricing information is unavailable. Please contact support.');}
         }
       } catch {
         if (active) toast.error('This screening could not be loaded. Please try again.');
