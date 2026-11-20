@@ -41,8 +41,7 @@ CREATE POLICY wallet_topup_orders_owner_read ON public.wallet_topup_orders FOR S
 REVOKE ALL ON public.personal_wallet_accounts,public.personal_wallet_ledger,public.wallet_topup_orders FROM PUBLIC,anon,authenticated;
 GRANT SELECT ON public.personal_wallet_accounts,public.personal_wallet_ledger,public.wallet_topup_orders TO authenticated;
 GRANT ALL ON public.personal_wallet_accounts,public.personal_wallet_ledger,public.wallet_topup_orders TO service_role;
-DROP TRIGGER IF EXISTS personal_wallet_ledger_immutable ON public.personal_wallet_ledger;
-CREATE TRIGGER personal_wallet_ledger_immutable BEFORE UPDATE OR DELETE ON public.personal_wallet_ledger FOR EACH ROW EXECUTE FUNCTION public.reject_personal_wallet_ledger_mutation();
+
 CREATE OR REPLACE FUNCTION public.reject_personal_wallet_ledger_mutation()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -233,6 +232,8 @@ $function$
 ;
 
 REVOKE ALL ON FUNCTION public.reject_personal_wallet_ledger_mutation() FROM PUBLIC,anon,authenticated;
+DROP TRIGGER IF EXISTS personal_wallet_ledger_immutable ON public.personal_wallet_ledger;
+CREATE TRIGGER personal_wallet_ledger_immutable BEFORE UPDATE OR DELETE ON public.personal_wallet_ledger FOR EACH ROW EXECUTE FUNCTION public.reject_personal_wallet_ledger_mutation();
 REVOKE ALL ON FUNCTION public.get_my_personal_wallet_balances() FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.get_my_personal_wallet_balances() TO authenticated;
 REVOKE ALL ON FUNCTION public.credit_personal_wallet_topup(text,text,bigint,text) FROM PUBLIC,anon,authenticated;
