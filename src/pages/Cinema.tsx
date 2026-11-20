@@ -168,7 +168,7 @@ export default function Cinema() {
                     )}
                     {s.age_rating && (
                       <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-accent text-accent">
-                        {(s as any).age_rating}
+                        {s.age_rating}
                       </Badge>
                     )}
                   </div>
