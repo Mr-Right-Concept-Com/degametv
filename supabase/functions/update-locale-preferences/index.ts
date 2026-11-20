@@ -42,7 +42,7 @@ Deno.serve(async req => {
     const { data, error } = await db.from("country_currency_rules").select("currency_code").eq("enabled", true).eq("currency_code", p.currency).limit(1);
     if (error || !data?.length) return respond({ error: "Selected currency is not enabled for platform transactions." }, 422);
   }
-  const patch: Record<string, string> = {};
+  const patch: Record<string, string | null> = {};
   if (p.country !== undefined) patch.preferred_country = p.country;
   if (p.currency !== undefined) patch.preferred_currency = p.currency;
   if (p.language !== undefined) patch.language = p.language;
