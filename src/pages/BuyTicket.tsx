@@ -67,24 +67,48 @@ export default function BuyTicket() {
   const [confirmation, setConfirmation] = useState<{ticketCode:string;watchCode:string;expiresAt?:string;emailSent?:boolean;location?:'nigeria'|'international';price?:number;currency?:string}|null>(null);
 
   useEffect(() => {
+    let active = true;
     const fetchScreening = async () => {
-      if (!slug) return;
-      const { data, error } = await (supabase as any)
-        .from('public_screenings_catalog')
-        .select('id,content_id,title,slug,description,poster_url,banner_url,trailer_url,release_date,screening_date,duration,location_pricing,base_price,base_currency,replay_base_price,status,access_model,event_type,lifecycle,live_price_ngn,live_price_usd,live_recording_status,live_started_at,live_ended_at,live_replay_ready_at,replay_price_ngn,replay_price_usd,replay_access_hours,replay_access_model,refund_policy,cast_crew,gallery_images,age_rating,star_rating,review_count,allowed_countries,blocked_countries,cancelled_at,created_at,updated_at')
-        .eq('slug', slug)
-        .eq('status', 'published')
-        .maybeSingle();
-      
-      if (data) {
-        const pricing = typeof data.location_pricing === 'string' 
-          ? JSON.parse(data.location_pricing) 
-          : data.location_pricing;
-        setScreening({ ...data, location_pricing: pricing } as Screening);
+      try {
+        if (!slug) {
+          if (active) setLoadingScreening(false);
+          return;
+        }
+        const { data, error } = await (supabase as any)
+          .from('public_screenings_catalog')
+          .select('id,content_id,title,slug,description,poster_url,banner_url,trailer_url,release_date,screening_date,duration,location_pricing,base_price,base_currency,replay_base_price,status,access_model,event_type,lifecycle,live_price_ngn,live_price_usd,live_recording_status,live_started_at,live_ended_at,live_replay_ready_at,replay_price_ngn,replay_price_usd,replay_access_hours,replay_access_model,refund_policy,cast_crew,gallery_images,age_rating,star_rating,review_count,allowed_countries,blocked_countries,cancelled_at,created_at,updated_at')
+          .eq('slug', slug)
+          .eq('status', 'published')
+          .maybeSingle();
+        if (!active) return;
+        if (error) {
+          toast.error('This screening could not be loaded. Please try again.');
+          return;
+        }
+        if (data) {
+          let pricing: unknown = data.location_pricing;
+          if (typeof pricing === 'string') {
+            try {
+              pricing = JSON.parse(pricing) as unknown;
+            } catch {
+              toast.error('Ticket pricing information is invalid. Please contact support.');
+              return;
+            }
+          }
+          if (pricing && typeof pricing === 'object' && !Array.isArray(pricing)) {
+            setScreening({ ...data, location_pricing: pricing } as Screening);
+          } else {
+            toast.error('Ticket pricing information is unavailable. Please contact support.');
+          }
+        }
+      } catch {
+        if (active) toast.error('This screening could not be loaded. Please try again.');
+      } finally {
+        if (active) setLoadingScreening(false);
       }
-      setLoadingScreening(false);
     };
-    fetchScreening();
+    void fetchScreening();
+    return () => { active = false; };
   }, [slug]);
 
   useEffect(() => {
