@@ -2,6 +2,8 @@ import { useState, useEffect, createContext, useContext, ReactNode } from 'react
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { TenantConfig, TenantModule, ModuleId, MODULE_DEFINITIONS } from '@/types/modules';
+import { z } from 'zod';
+import type { Database } from '@/integrations/supabase/types';
 
 interface TenantContextType {
   tenant: TenantConfig | null;
@@ -17,6 +19,26 @@ interface TenantContextType {
 }
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
+const tenantConfigRowSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  slug: z.string(),
+  custom_domain: z.string().nullable(),
+  logo_url: z.string().nullable(),
+  favicon_url: z.string().nullable(),
+  primary_color: z.string().nullable(),
+  secondary_color: z.string().nullable(),
+  is_active: z.boolean(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+interface TenantRpcClient {
+  rpc(name: "get_my_tenant_config"): Promise<{ data: unknown; error: unknown }>;
+}
+
+const tenantRpc = supabase as unknown as TenantRpcClient;
+
 
 // Non-persisted platform context for public DeGameTV surfaces
 const DEFAULT_TENANT: TenantConfig = {
@@ -47,35 +69,48 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<TenantContextType['userRole']>(null);
 
+  const userId = user?.id;
+
   useEffect(() => {
+    let active = true;
+
     const fetchTenantAndRole = async () => {
       setLoading(true);
       setTenant(DEFAULT_TENANT);
       setUserRole(null);
-      if (!user) {
-        setTenant(DEFAULT_TENANT);
-        setUserRole(null);
+
+      if (!userId) {
         setLoading(false);
         return;
       }
 
       try {
-        // Fetch user role
         const { data: roleRows, error: roleError } = await supabase
           .from('user_roles')
           .select('role, tenant_id')
-          .eq('user_id', user.id);
+          .eq('user_id', userId);
 
-        if (roleError) throw roleError;
-        const rolePriority = ['super_admin','platform_admin','licensee_admin','creator','moderator','viewer'];
-        const rows = roleRows || [];
-        const selectedRole = [...rows].sort((a,b) => rolePriority.indexOf(a.role) - rolePriority.indexOf(b.role))[0];
-        setUserRole((selectedRole?.role || 'viewer') as TenantContextType['userRole']);
+        if (roleError) throw new Error('Unable to load the current user role.');
+        if (!active) return;
 
-        if (rows.some(row => row.tenant_id)) {
-          const { data: tenantRows, error: tenantError } = await (supabase as any).rpc('get_my_tenant_config');
-          if (tenantError) throw tenantError;
-          const tenantData = Array.isArray(tenantRows) ? tenantRows[0] : tenantRows;
+        const rolePriority: Database['public']['Enums']['app_role'][] = [
+          'super_admin', 'platform_admin', 'licensee_admin', 'creator', 'moderator', 'viewer',
+        ];
+        const rows = roleRows ?? [];
+        const selectedRole = [...rows].sort(
+          (a, b) => rolePriority.indexOf(a.role) - rolePriority.indexOf(b.role),
+        )[0];
+        setUserRole(selectedRole?.role ?? 'viewer');
+
+        if (rows.some((row) => row.tenant_id)) {
+          const { data: tenantRows, error: tenantError } = await tenantRpc.rpc('get_my_tenant_config');
+          if (tenantError) throw new Error('Unable to load the current tenant configuration.');
+          if (!active) return;
+
+          const parsedRows = z.array(tenantConfigRowSchema).safeParse(tenantRows ?? []);
+          if (!parsedRows.success) throw new Error('Tenant configuration response failed validation.');
+          const tenantData = parsedRows.data[0];
+
           if (tenantData) {
             setTenant({
               id: tenantData.id,
@@ -97,21 +132,20 @@ export function TenantProvider({ children }: { children: ReactNode }) {
               selfService: true,
               autopilot: true,
             });
-          } else {
-            setTenant(DEFAULT_TENANT);
           }
-        } else {
-          setTenant(DEFAULT_TENANT);
         }
       } catch (error) {
-        console.error('Error fetching tenant/role:', error);
+        if (active) console.error('Error fetching tenant/role:', error);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
-    fetchTenantAndRole();
-  }, [user]);
+    void fetchTenantAndRole();
+    return () => {
+      active = false;
+    };
+  }, [userId]);
 
   const isModuleEnabled = (moduleId: ModuleId): boolean => {
     if (!tenant) return false;
