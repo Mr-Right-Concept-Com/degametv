@@ -48,3 +48,6 @@ verify_jwt = true
 
 [functions.platform-ai]
 verify_jwt = true
+
+[functions.admin-platform-control]
+verify_jwt = true
