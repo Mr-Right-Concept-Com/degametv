@@ -30,6 +30,7 @@ const bannerSchema = z.object({
 export default function StudioTeam() {
   usePageTitle('Team & Promotion — Studio');
   const { user } = useAuth();
+  const userId = user?.id;
   const [acct, setAcct] = useState<StudioAccount | null>(null);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [pendingInvitations, setPendingInvitations] = useState<TeamInvitation[]>([]);
@@ -40,11 +41,11 @@ export default function StudioTeam() {
   const [req, setReq] = useState({ screeningId: '', imageUrl: '', placement: 'home' });
 
   const load = useCallback(async () => {
-    if (!user) return;
+    if (!userId) return;
     const [{ data: a }, { data: c }, { data: b }] = await Promise.all([
-      supabase.from('studio_accounts').select('id,user_id,tier,company_name,rights_declared,seats,status,base_currency').eq('user_id', user.id).maybeSingle(),
+      supabase.from('studio_accounts').select('id,user_id,tier,company_name,rights_declared,seats,status,base_currency').eq('user_id', userId).maybeSingle(),
       supabase.from('content').select('id').eq('creator_id', user.id),
-      supabase.from('promo_banners').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }),
+      supabase.from('promo_banners').select('*').eq('owner_id', userId).order('created_at', { ascending: false }),
     ]);
     setAcct(a); setBanners(b || []);
     const invitations = await invokeFn<{invitations:TeamInvitation[]}>('creator-onboarding',{action:'list_invitations'});
@@ -59,8 +60,8 @@ export default function StudioTeam() {
       const { data: s } = await supabase.from('screenings').select('id, title, slug, banner_url').in('content_id', ids);
       setEvents(s || []);
     }
-  }, [user?.id]);
-  useEffect(() => { void void load(); }, [load]);
+  }, [userId]);
+  useEffect(() => { void load(); }, [load]);
 
   const isBusiness = acct?.tier === 'business' && acct?.status === 'approved';
   const active = members;
@@ -89,7 +90,7 @@ export default function StudioTeam() {
     if (!p.success) { toast.error(p.error.errors[0].message); return; }
     const ev = events.find(e => e.id === p.data.screeningId)!;
     const { error } = await supabase.from('promo_banners').insert({
-      owner_id: user!.id, screening_id: ev.id, title: ev.title, image_url: p.data.imageUrl,
+      owner_id: userId!, screening_id: ev.id, title: ev.title, image_url: p.data.imageUrl,
       link_url: `/movie/${ev.slug}`, placement: p.data.placement, is_active: false,
     } );
     if (error) toast.error(error.message); else { toast.success('Banner request sent for admin approval'); setReq({ screeningId: '', imageUrl: '', placement: 'home' }); load(); }
@@ -125,7 +126,7 @@ export default function StudioTeam() {
                 {m.role !== 'OWNER' && <Button size="icon" variant="ghost" aria-label={`Remove ${m.user_id}`} onClick={() => remove(m.id)}><Trash2 className="w-4 h-4" /></Button>}
               </div>
             ))}
-            {myInvitations.length > 0 && <div className="space-y-2 rounded-lg border p-3"><h3 className="text-sm font-semibold">Invitations addressed to you</h3>{myInvitations.map((inv:any)=><div key={inv.id} className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs">{inv.email} · {inv.role}</span><div className="flex gap-2"><Button size="sm" onClick={async()=>{const r=await invokeFn('creator-onboarding',{action:'accept_invitation',invitationId:inv.id});if(!r.ok)toast.error(r.error??'Acceptance failed.');else{toast.success('Invitation accepted');load();}}}>Accept</Button><Button size="sm" variant="outline" onClick={async()=>{const r=await invokeFn('creator-onboarding',{action:'reject_invitation',invitationId:inv.id});if(!r.ok)toast.error(r.error??'Decline failed.');else{toast.success('Invitation declined');load();}}}>Decline</Button></div></div>)}</div>}
+            {myInvitations.length > 0 && <div className="space-y-2 rounded-lg border p-3"><h3 className="text-sm font-semibold">Invitations addressed to you</h3>{myInvitations.map((inv)=><div key={inv.id} className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs">{inv.email} · {inv.role}</span><div className="flex gap-2"><Button size="sm" onClick={async()=>{const r=await invokeFn('creator-onboarding',{action:'accept_invitation',invitationId:inv.id});if(!r.ok)toast.error(r.error??'Acceptance failed.');else{toast.success('Invitation accepted');load();}}}>Accept</Button><Button size="sm" variant="outline" onClick={async()=>{const r=await invokeFn('creator-onboarding',{action:'reject_invitation',invitationId:inv.id});if(!r.ok)toast.error(r.error??'Decline failed.');else{toast.success('Invitation declined');load();}}}>Decline</Button></div></div>)}</div>}
           </CardContent>
         </Card>
 
