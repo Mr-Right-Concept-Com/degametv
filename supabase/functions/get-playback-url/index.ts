@@ -85,11 +85,11 @@ if(import.meta.main)serve(async(req:Request)=>{
   if(sessionError||!session){
    const message=String(sessionError?.message||"playback_session_denied");
    const code=message.includes("ticket_already_streaming")?"TICKET_ALREADY_STREAMING":
-    message.includes("ticket_stream_limit_reached")?"TICKET_STREAM_LIMIT_REACHED":
+    message.includes("ticket_stream_limit_reached")?"TICKET_STREAM_LIMIT_REACHED":\n    message.includes("screening_concurrency_limit_reached")?"SCREENING_CONCURRENCY_LIMIT_REACHED":
     message.includes("territory_not_permitted")?"TERRITORY_NOT_PERMITTED":
     message.includes("viewing_window_expired")?"VIEWING_WINDOW_EXPIRED":
     message.includes("screening_unavailable")?"SCREENING_UNAVAILABLE":"PLAYBACK_SESSION_DENIED";
-   return json(code==="SCREENING_UNAVAILABLE"?410:403,{success:false,code,error:code==="TICKET_ALREADY_STREAMING"?"This ticket is already playing in another active session.":code==="TICKET_STREAM_LIMIT_REACHED"?"This ticket has reached its allowed number of playback sessions.":"Ticket playback authorization was denied."});
+   return json(code==="SCREENING_UNAVAILABLE"?410:403,{success:false,code,error:code==="TICKET_ALREADY_STREAMING"?"This ticket is already playing in another active session.":code==="TICKET_STREAM_LIMIT_REACHED"?"This ticket has reached its allowed number of playback sessions.":code==="SCREENING_CONCURRENCY_LIMIT_REACHED"?"This screening has reached its concurrent viewer limit. Please retry shortly.":"Ticket playback authorization was denied."});
   }
   return json(200,{success:true,playbackUrl:playbackUrl.toString(),expiresAt:expiresAt.toISOString(),sessionId,contentId:screening.content_id,screeningId:screening.id,provider:provider.provider_key});
  }catch(error){console.error("get-playback-url",error);return json(500,{success:false,error:"Playback authorization failed. Please retry or contact support."});}
