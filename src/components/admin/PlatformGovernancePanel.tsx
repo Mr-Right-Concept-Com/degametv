@@ -12,7 +12,7 @@ import { Loader2,RefreshCw,ShieldCheck,Activity,BrainCircuit } from "lucide-reac
 
 type Rollout={id:string;release_key:string;release_version:string;state:string;traffic_percentage:number;config:Record<string,unknown>;health_window_seconds:number;minimum_samples:number;error_rate_threshold:number;latency_p95_threshold_ms:number};
 type Policy={workflow_key:string;enabled:boolean;capability:string;provider_allowlist:string[];model_key:string|null;max_input_chars:number;max_output_tokens:number;allowed_data_classes:string[];requires_human_review:boolean;system_policy:string};
-type Provider={provider_key:string;capability:string;enabled:boolean;health_status:string;removed_at:string|null};
+type Provider={provider_key:string;capability:string;enabled:boolean;health_status:string;removed_at:string|null;priority:number};
 async function control<T>(body:Record<string,unknown>):Promise<T>{const r=await invokeFn<T>("admin-platform-control",body);if(!r.ok)throw new Error(r.error);return r.data as T;}
 
 export function PlatformGovernancePanel(){
@@ -83,7 +83,7 @@ export function PlatformGovernancePanel(){
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.enabled} onChange={e=>updatePolicy(policy.workflow_key,{enabled:e.target.checked})}/>Enable workflow after provider validation</label>
       <div className="grid gap-3 sm:grid-cols-2">
        <div><Label>Model identifier</Label><Input value={draft.model_key??""} onChange={e=>updatePolicy(policy.workflow_key,{model_key:e.target.value||null})} placeholder="Provider model key"/></div>
-       <div><Label>Approved provider</Label><Select value={draft.provider_allowlist[0]??""} onValueChange={value=>updatePolicy(policy.workflow_key,{provider_allowlist:[value]})}><SelectTrigger><SelectValue placeholder="Choose healthy provider"/></SelectTrigger><SelectContent>{eligible.map(provider=><SelectItem key={provider.provider_key} value={provider.provider_key}>{provider.provider_key} · {provider.health_status}</SelectItem>)}</SelectContent></Select></div>
+       <div className="space-y-2"><Label>Approved providers (failover follows registry priority)</Label>{eligible.length===0?<p className="text-xs text-muted-foreground">No enabled, healthy provider is available for {policy.capability}.</p>:eligible.map(provider=><label key={provider.provider_key} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"><span>{provider.provider_key} · priority {provider.priority}</span><input type="checkbox" checked={draft.provider_allowlist.includes(provider.provider_key)} onChange={e=>updatePolicy(policy.workflow_key,{provider_allowlist:e.target.checked?[...draft.provider_allowlist,provider.provider_key]:draft.provider_allowlist.filter(key=>key!==provider.provider_key)})}/></label>)}</div>
        <div><Label>Maximum input characters</Label><Input type="number" min="1" max="200000" value={draft.max_input_chars} onChange={e=>updatePolicy(policy.workflow_key,{max_input_chars:Number(e.target.value)})}/></div>
        <div><Label>Maximum output tokens</Label><Input type="number" min="1" max="16000" value={draft.max_output_tokens} onChange={e=>updatePolicy(policy.workflow_key,{max_output_tokens:Number(e.target.value)})}/></div>
       </div>
