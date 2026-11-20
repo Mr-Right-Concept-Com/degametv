@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { invokeFn } from "@/lib/invokeFn";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -37,12 +37,33 @@ export function RuntimeConfigProvider({children}:{children:ReactNode}){
  const {user}=useAuth();
  const [config,setConfig]=useState<RuntimeConfig|null>(null);
  const [loading,setLoading]=useState(true);
+ const mountedRef = useRef(false);
+ const requestIdRef = useRef(0);
  const refresh=useCallback(async()=>{
-  setLoading(true);
-  try{const r=await invokeFn<RuntimeConfig>("runtime-config",{visitorId:user?.id??visitorId()});if(r.ok&&r.data)setConfig(r.data);}
-  finally{setLoading(false);}
+  const requestId = ++requestIdRef.current;
+  if (mountedRef.current) setLoading(true);
+  try {
+   const r = await invokeFn<RuntimeConfig>("runtime-config",{visitorId:user?.id??visitorId()});
+   if (mountedRef.current && requestId === requestIdRef.current && r.ok && r.data) setConfig(r.data);
+  } catch {
+   // Preserve the last known configuration when local storage or browser APIs fail.
+  } finally {
+   if (mountedRef.current && requestId === requestIdRef.current) setLoading(false);
+  }
  },[user?.id]);
- useEffect(()=>{void refresh();const timer=window.setInterval(()=>void refresh(),30000);const onFocus=()=>void refresh();window.addEventListener("focus",onFocus);return()=>{window.clearInterval(timer);window.removeEventListener("focus",onFocus);};},[refresh]);
+ useEffect(()=>{
+  mountedRef.current = true;
+  void refresh();
+  const timer=window.setInterval(()=>void refresh(),30000);
+  const onFocus=()=>void refresh();
+  window.addEventListener("focus",onFocus);
+  return()=>{
+   mountedRef.current = false;
+   requestIdRef.current += 1;
+   window.clearInterval(timer);
+   window.removeEventListener("focus",onFocus);
+  };
+ },[refresh]);
  const value=useMemo(()=>({config,loading,refresh}),[config,loading,refresh]);
  return <RuntimeContext.Provider value={value}>{children}</RuntimeContext.Provider>;
 }
