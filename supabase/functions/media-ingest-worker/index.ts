@@ -30,7 +30,7 @@ async function requestS3(c:Storage,key:string,method:string,headers:Record<strin
  const canonical=method+"\n"+u.pathname+"\n"+query(u)+"\n"+canonicalHeaders.map(([k,v])=>k+":"+v+"\n").join("")+"\n"+signed+"\n"+payload;
  const scope=day+"/"+c.region+"/s3/aws4_request",toSign="AWS4-HMAC-SHA256\n"+now+"\n"+scope+"\n"+await hash(canonical),sig=hex(await keyFor(c,day).then(k=>crypto.subtle.sign("HMAC",cryptoKey(k),enc.encode(toSign))));
  const auth="AWS4-HMAC-SHA256 Credential="+c.accessKeyId+"/"+scope+", SignedHeaders="+signed+", Signature="+sig;
- return fetch(u,{method,headers:{...all,...headers,Authorization:auth},body:body??undefined,signal:AbortSignal.timeout(30000)});
+ const {host:_host,...wireHeaders}=all;return fetch(u,{method,headers:{...wireHeaders,...headers,Authorization:auth},body:body??undefined,signal:AbortSignal.timeout(30000)});
 }
 function cryptoKey(k:Uint8Array){return crypto.subtle.importKey("raw",k,{name:"HMAC",hash:"SHA-256"},false,["sign"]);}
 async function presign(c:Storage,key:string,method:"GET"|"PUT",contentType?:string){
@@ -43,7 +43,7 @@ async function presign(c:Storage,key:string,method:"GET"|"PUT",contentType?:stri
  u.searchParams.set("X-Amz-Signature",sig);return u.toString();
 }
 const Scan=z.object({clean:z.boolean(),engine:z.string().min(1),signatureVersion:z.string().optional(),findings:z.array(z.string()).default([])});
-const Transcode=z.object({jobId:z.string().uuid(),status:z.enum(["accepted","complete"]),providerJobId:z.string().min(1),renditions:z.array(z.object({path:z.string().min(1),kind:z.enum(["hls","dash","thumbnail","preview","caption"]),mimeType:z.string().optional(),width:z.number().int().positive().optional(),height:z.number().int().positive().optional(),language:z.string().optional()})).default([]),subtitles:z.array(z.record(z.unknown())).default([])});
+const Transcode=z.object({jobId:z.string().uuid(),status:z.literal("accepted"),providerJobId:z.string().min(1),renditions:z.array(z.object({path:z.string().min(1),kind:z.enum(["hls","dash","thumbnail","preview","caption"]),mimeType:z.string().optional(),width:z.number().int().positive().optional(),height:z.number().int().positive().optional(),language:z.string().optional()})).default([]),subtitles:z.array(z.record(z.unknown())).default([])});
 const Callback=z.object({action:z.literal("transcode_callback"),jobId:z.string().uuid(),status:z.enum(["complete","failed"]),renditions:z.array(z.object({path:z.string().min(1).max(1000),kind:z.enum(["hls","dash","thumbnail","preview","caption"]),mimeType:z.string().optional(),width:z.number().int().positive().optional(),height:z.number().int().positive().optional(),language:z.string().optional()})).default([]),subtitles:z.array(z.record(z.unknown())).default([]),error:z.string().max(1000).optional()}).strict();
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});if(req.method!=="POST")return json(405,{error:"Method not allowed."});
@@ -100,10 +100,10 @@ Deno.serve(async req=>{
    const transcodeResponse=await fetch(transcodeUrl,{method:"POST",headers:{"Authorization":"Bearer "+transcoder.credential,"Content-Type":"application/json","Idempotency-Key":"transcode:"+job.id},body:JSON.stringify({jobId:job.id,sourceUrl:await presign(storage,masterPath,"GET"),sourceSha256:job.sha256,outputFormat:"fmp4-single-file",outputs:uploadTargets,packaging:{hls:"byte-range",dash:"SegmentBase"},callbackUrl,callbackSecret:Deno.env.get("MEDIA_WORKER_SECRET")}),signal:AbortSignal.timeout(30000)});
    if(!transcodeResponse.ok)throw new Error("transcoder_http_"+transcodeResponse.status);
    const parsed=Transcode.safeParse(await transcodeResponse.json());if(!parsed.success||parsed.data.jobId!==job.id)throw new Error("transcoder_response_invalid");
-   if(parsed.data.status==="complete"&&parsed.data.renditions.length===0)throw new Error("transcoder_returned_no_renditions");
-   const {error:updateError}=await db.from("media_processing_jobs").update({status:parsed.data.status==="complete"?"READY":"TRANSCODING",stage:parsed.data.status==="complete"?"complete":"transcode",clean_master_path:masterPath,renditions:parsed.data.renditions,subtitles:parsed.data.subtitles,provenance:{...(job.provenance??{}),malware_scan:{engine:scan.data.engine,signatureVersion:scan.data.signatureVersion,clean:true,scannedAt:new Date().toISOString()},transcoder:{provider:transcoder.provider_key,providerJobId:parsed.data.providerJobId,acceptedAt:new Date().toISOString()}},locked_at:null,locked_by:null,last_error:null,updated_at:new Date().toISOString()}).eq("id",job.id);
+
+   const {error:updateError}=await db.from("media_processing_jobs").update({status:"TRANSCODING",stage:"transcode",clean_master_path:masterPath,renditions:parsed.data.renditions,subtitles:parsed.data.subtitles,provenance:{...(job.provenance??{}),malware_scan:{engine:scan.data.engine,signatureVersion:scan.data.signatureVersion,clean:true,scannedAt:new Date().toISOString()},transcoder:{provider:transcoder.provider_key,providerJobId:parsed.data.providerJobId,acceptedAt:new Date().toISOString()}},locked_at:null,locked_by:null,last_error:null,updated_at:new Date().toISOString()}).eq("id",job.id);
    if(updateError)throw new Error("job_state_update_failed");
-   results.push({jobId:job.id,status:parsed.data.status==="complete"?"READY":"TRANSCODING",providerJobId:parsed.data.providerJobId});
+   results.push({jobId:job.id,status:"TRANSCODING",providerJobId:parsed.data.providerJobId});
   }catch(e){const attempts=Number(job.attempts??1),dead=attempts>=Number(job.max_attempts??8),delay=Math.min(3600,Math.pow(2,attempts)*15);await db.from("media_processing_jobs").update({status:dead?"DEAD_LETTER":"RETRY_WAIT",available_at:new Date(Date.now()+delay*1000).toISOString(),dead_lettered_at:dead?new Date().toISOString():null,last_error:String(e).slice(0,1000),locked_at:null,locked_by:null,updated_at:new Date().toISOString()}).eq("id",job.id);results.push({jobId:job.id,status:dead?"DEAD_LETTER":"RETRY_WAIT",retryAfterSeconds:dead?null:delay});}
  }
  return json(200,{claimed:jobs?.length??0,results});
