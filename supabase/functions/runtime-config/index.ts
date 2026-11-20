@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
     return { key: feature.feature_key, enabled: bucket < feature.rollout_percentage };
   }));
 
-  const hostHeader = (req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? "").split(",")[0].trim().toLowerCase().replace(/:\\d+$/, "").replace(/\\.$/, "");
+  const hostHeader = (req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? "").split(",")[0].trim().toLowerCase().replace(/:\d+$/, "").replace(/\.$/, "");
   let storefront: Record<string, unknown> | null = null;
   if (hostHeader && /^[a-z0-9.-]{1,253}$/.test(hostHeader) && hostHeader.includes(".")) {
     const { data: resolved, error: hostError } = await db.rpc("resolve_release_domain", { p_hostname: hostHeader });
