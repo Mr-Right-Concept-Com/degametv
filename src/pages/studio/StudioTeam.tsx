@@ -113,11 +113,11 @@ export default function StudioTeam() {
               <div key={m.id} className="flex items-center gap-2 border border-border rounded-xl p-2">
                 <div className="flex-1 min-w-0"><p className="text-sm truncate">{m.user_id}</p>
                   <Badge variant={m.revoked_at ? 'destructive' : 'default'} className="text-[10px]" >{m.role}</Badge></div>
-                <Select value={m.role} onValueChange={v => updateRole(m.id, v)}>
+                {m.role === 'OWNER' ? <Badge>Owner</Badge> : <Select value={m.role} onValueChange={v => updateRole(m.id, v)}>
                   <SelectTrigger className="w-36 h-8" aria-label={`Role for ${m.user_id}`}><SelectValue /></SelectTrigger>
                   <SelectContent>{Object.entries(ROLES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
-                </Select>
-                <Button size="icon" variant="ghost" aria-label={`Remove ${m.member_email}`} onClick={() => remove(m.id)}><Trash2 className="w-4 h-4" /></Button>
+                </Select>}
+                {m.role !== 'OWNER' && <Button size="icon" variant="ghost" aria-label={`Remove ${m.user_id}`} onClick={() => remove(m.id)}><Trash2 className="w-4 h-4" /></Button>}
               </div>
             ))}
             {myInvitations.length > 0 && <div className="space-y-2 rounded-lg border p-3"><h3 className="text-sm font-semibold">Invitations addressed to you</h3>{myInvitations.map((inv:any)=><div key={inv.id} className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs">{inv.email} · {inv.role}</span><div className="flex gap-2"><Button size="sm" onClick={async()=>{const r=await invokeFn('creator-onboarding',{action:'accept_invitation',invitationId:inv.id});if(!r.ok)toast.error(r.error??'Acceptance failed.');else{toast.success('Invitation accepted');load();}}}>Accept</Button><Button size="sm" variant="outline" onClick={async()=>{const r=await invokeFn('creator-onboarding',{action:'reject_invitation',invitationId:inv.id});if(!r.ok)toast.error(r.error??'Decline failed.');else{toast.success('Invitation declined');load();}}}>Decline</Button></div></div>)}</div>}
