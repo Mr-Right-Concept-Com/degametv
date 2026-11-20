@@ -56,6 +56,30 @@ Deno.serve(async req => {
   if (policyError || !policy) return respond({error:"This AI workflow is not enabled by platform policy."},403);
   if (!policy.allowed_data_classes?.includes(request.dataClass)) return respond({error:"The supplied data classification is not allowed for this workflow."},403);
   if (request.input.length > policy.max_input_chars) return respond({error:"Input exceeds the workflow policy limit."},413);
+  let effectiveInput = request.input;
+  let knowledgeSources: Array<{slug:string;title:string}> = [];
+  if (request.workflowKey === "support.first_response") {
+    if (request.dataClass !== "user_generated_content") return respond({error:"Support AI accepts a user question and retrieves approved knowledgebase material server-side."},400);
+    const {data:articles,error:knowledgeError} = await db.from("knowledgebase_articles")
+      .select("slug,title,summary,body_markdown").eq("is_published",true)
+      .textSearch("search_vector",request.input,{type:"websearch",config:"simple"}).limit(8);
+    if (knowledgeError) return respond({error:"Approved support knowledge could not be retrieved."},503);
+    if (!articles?.length) return respond({
+      workflowKey:request.workflowKey,
+      output:"I could not find an approved help article that answers this question. I’m escalating it to the support team for a verified response.",
+      requiresHumanReview:true,
+      decisionAuthority:"none",
+      sources:[],
+    });
+    knowledgeSources = articles.map(article=>({slug:article.slug,title:article.title}));
+    const sourceText = articles.map((article,index)=>[
+      "SOURCE "+(index+1)+": "+article.title,
+      article.summary ?? "",
+      article.body_markdown.slice(0,5000),
+    ].filter(Boolean).join("\n")).join("\n\n");
+    effectiveInput = "Customer question:\n"+request.input+"\n\nApproved knowledgebase sources (the only factual support material you may use):\n"+sourceText+
+      "\n\nAnswer only what these sources support. If they do not answer the question, say so and recommend human support. Do not claim payment, refund, payout, identity, KYC, or account status.";
+  }
   if (policy.allow_financial_decisions !== false || policy.allow_identity_decisions !== false) {
     return respond({error:"AI policy cannot authorize financial or identity decisions."},403);
   }
@@ -95,10 +119,10 @@ Deno.serve(async req => {
         payload = {model,input:request.input};
       } else if (protocol === "anthropic_messages") {
         payload = {model,max_tokens:policy.max_output_tokens,system:policy.system_policy,
-          messages:[{role:"user",content:request.input}]};
+          messages:[{role:"user",content:effectiveInput}]};
       } else if (protocol === "openai_compatible") {
         payload = {model,max_tokens:policy.max_output_tokens,
-          messages:[{role:"system",content:policy.system_policy},{role:"user",content:request.input}]};
+          messages:[{role:"system",content:policy.system_policy},{role:"user",content:effectiveInput}]};
       } else {
         throw new Error("Provider protocol is not supported by the configured adapter.");
       }
@@ -127,7 +151,7 @@ Deno.serve(async req => {
       await db.from("service_provider_bindings").update({health_status:"healthy",health_checked_at:new Date().toISOString(),health_error:null})
         .eq("capability",policy.capability).eq("provider_key",binding.provider_key);
       return respond({workflowKey:request.workflowKey,provider:binding.provider_key,model,output:output.trim(),
-        requiresHumanReview:policy.requires_human_review,decisionAuthority:"none"});
+        requiresHumanReview:policy.requires_human_review,decisionAuthority:"none",sources:knowledgeSources});
     } catch (error) {
       const message = error instanceof Error ? error.message : "Provider failure";
       failures.push(binding.provider_key+": "+message);
