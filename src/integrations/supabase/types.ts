@@ -285,33 +285,44 @@ export type Database = {
           availability_end: string | null
           availability_start: string | null
           banner_url: string | null
+          captions: Json
           cast_crew: Json | null
+          content_format: string | null
           created_at: string
+          creator_base_currency: string | null
           creator_id: string | null
           currency: string | null
+          dash_manifest_url: string | null
           description: string | null
           duration: number | null
           dynamic_metadata: Json
           episode_number: number | null
           genres: string[] | null
+          hls_manifest_url: string | null
           id: string
           is_drm_protected: boolean | null
           is_featured: boolean | null
+          lifecycle_state: Database["public"]["Enums"]["creator_content_lifecycle"]
+          lifecycle_updated_at: string
           like_count: number | null
           metadata: Json | null
           monetization: Database["public"]["Enums"]["monetization_type"]
           parent_id: string | null
           poster_url: string | null
           preset_type: Database["public"]["Enums"]["content_preset_type"] | null
+          preview_url: string | null
           price: number | null
           rating: number | null
           release_date: string | null
+          rights_reviewed_at: string | null
+          rights_status: string
           season_number: number | null
           slug: string
           sort_order: number | null
           status: Database["public"]["Enums"]["content_status"]
           tags: string[] | null
           tenant_id: string
+          territory_rights: Json
           thumbnail_url: string | null
           title: string
           trailer_url: string | null
@@ -324,18 +335,25 @@ export type Database = {
           availability_end?: string | null
           availability_start?: string | null
           banner_url?: string | null
+          captions?: Json
           cast_crew?: Json | null
+          content_format?: string | null
           created_at?: string
+          creator_base_currency?: string | null
           creator_id?: string | null
           currency?: string | null
+          dash_manifest_url?: string | null
           description?: string | null
           duration?: number | null
           dynamic_metadata?: Json
           episode_number?: number | null
           genres?: string[] | null
+          hls_manifest_url?: string | null
           id?: string
           is_drm_protected?: boolean | null
           is_featured?: boolean | null
+          lifecycle_state?: Database["public"]["Enums"]["creator_content_lifecycle"]
+          lifecycle_updated_at?: string
           like_count?: number | null
           metadata?: Json | null
           monetization?: Database["public"]["Enums"]["monetization_type"]
@@ -344,15 +362,19 @@ export type Database = {
           preset_type?:
             | Database["public"]["Enums"]["content_preset_type"]
             | null
+          preview_url?: string | null
           price?: number | null
           rating?: number | null
           release_date?: string | null
+          rights_reviewed_at?: string | null
+          rights_status?: string
           season_number?: number | null
           slug: string
           sort_order?: number | null
           status?: Database["public"]["Enums"]["content_status"]
           tags?: string[] | null
           tenant_id: string
+          territory_rights?: Json
           thumbnail_url?: string | null
           title: string
           trailer_url?: string | null
@@ -365,18 +387,25 @@ export type Database = {
           availability_end?: string | null
           availability_start?: string | null
           banner_url?: string | null
+          captions?: Json
           cast_crew?: Json | null
+          content_format?: string | null
           created_at?: string
+          creator_base_currency?: string | null
           creator_id?: string | null
           currency?: string | null
+          dash_manifest_url?: string | null
           description?: string | null
           duration?: number | null
           dynamic_metadata?: Json
           episode_number?: number | null
           genres?: string[] | null
+          hls_manifest_url?: string | null
           id?: string
           is_drm_protected?: boolean | null
           is_featured?: boolean | null
+          lifecycle_state?: Database["public"]["Enums"]["creator_content_lifecycle"]
+          lifecycle_updated_at?: string
           like_count?: number | null
           metadata?: Json | null
           monetization?: Database["public"]["Enums"]["monetization_type"]
@@ -385,15 +414,19 @@ export type Database = {
           preset_type?:
             | Database["public"]["Enums"]["content_preset_type"]
             | null
+          preview_url?: string | null
           price?: number | null
           rating?: number | null
           release_date?: string | null
+          rights_reviewed_at?: string | null
+          rights_status?: string
           season_number?: number | null
           slug?: string
           sort_order?: number | null
           status?: Database["public"]["Enums"]["content_status"]
           tags?: string[] | null
           tenant_id?: string
+          territory_rights?: Json
           thumbnail_url?: string | null
           title?: string
           trailer_url?: string | null
@@ -411,10 +444,69 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "content_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "public_content_catalog"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "content_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_rights_declarations: {
+        Row: {
+          content_id: string
+          creator_id: string
+          declaration: Json
+          declaration_hash: string
+          declared_at: string
+          id: string
+          supersedes_id: string | null
+        }
+        Insert: {
+          content_id: string
+          creator_id: string
+          declaration: Json
+          declaration_hash: string
+          declared_at?: string
+          id?: string
+          supersedes_id?: string | null
+        }
+        Update: {
+          content_id?: string
+          creator_id?: string
+          declaration?: Json
+          declaration_hash?: string
+          declared_at?: string
+          id?: string
+          supersedes_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_rights_declarations_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "content"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_rights_declarations_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "public_content_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_rights_declarations_supersedes_id_fkey"
+            columns: ["supersedes_id"]
+            isOneToOne: false
+            referencedRelation: "content_rights_declarations"
             referencedColumns: ["id"]
           },
         ]
@@ -458,6 +550,251 @@ export type Database = {
         }
         Relationships: []
       }
+      creator_content_lifecycle_audit: {
+        Row: {
+          actor_id: string | null
+          content_id: string
+          created_at: string
+          from_state:
+            | Database["public"]["Enums"]["creator_content_lifecycle"]
+            | null
+          id: number
+          reason: string | null
+          to_state: Database["public"]["Enums"]["creator_content_lifecycle"]
+        }
+        Insert: {
+          actor_id?: string | null
+          content_id: string
+          created_at?: string
+          from_state?:
+            | Database["public"]["Enums"]["creator_content_lifecycle"]
+            | null
+          id?: never
+          reason?: string | null
+          to_state: Database["public"]["Enums"]["creator_content_lifecycle"]
+        }
+        Update: {
+          actor_id?: string | null
+          content_id?: string
+          created_at?: string
+          from_state?:
+            | Database["public"]["Enums"]["creator_content_lifecycle"]
+            | null
+          id?: never
+          reason?: string | null
+          to_state?: Database["public"]["Enums"]["creator_content_lifecycle"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creator_content_lifecycle_audit_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "content"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creator_content_lifecycle_audit_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "public_content_catalog"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      creator_gift_catalog: {
+        Row: {
+          amount_minor: number
+          animation_duration_ms: number
+          animation_url: string | null
+          asset_url: string | null
+          category: string
+          created_at: string
+          created_by: string | null
+          currency: string
+          description: string | null
+          emoji: string | null
+          gift_key: string
+          id: string
+          is_enabled: boolean
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          amount_minor: number
+          animation_duration_ms?: number
+          animation_url?: string | null
+          asset_url?: string | null
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          currency: string
+          description?: string | null
+          emoji?: string | null
+          gift_key: string
+          id?: string
+          is_enabled?: boolean
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          amount_minor?: number
+          animation_duration_ms?: number
+          animation_url?: string | null
+          asset_url?: string | null
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          description?: string | null
+          emoji?: string | null
+          gift_key?: string
+          id?: string
+          is_enabled?: boolean
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      creator_verification_audit: {
+        Row: {
+          action: string
+          actor_id: string | null
+          case_id: string
+          created_at: string
+          details: Json
+          from_status:
+            | Database["public"]["Enums"]["creator_verification_status"]
+            | null
+          id: number
+          to_status:
+            | Database["public"]["Enums"]["creator_verification_status"]
+            | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          case_id: string
+          created_at?: string
+          details?: Json
+          from_status?:
+            | Database["public"]["Enums"]["creator_verification_status"]
+            | null
+          id?: never
+          to_status?:
+            | Database["public"]["Enums"]["creator_verification_status"]
+            | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          case_id?: string
+          created_at?: string
+          details?: Json
+          from_status?:
+            | Database["public"]["Enums"]["creator_verification_status"]
+            | null
+          id?: never
+          to_status?:
+            | Database["public"]["Enums"]["creator_verification_status"]
+            | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creator_verification_audit_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "creator_verification_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      creator_verification_cases: {
+        Row: {
+          additional_information: Json
+          appeal_reason: string | null
+          business_verification_id: string | null
+          country_code: string
+          created_at: string
+          entity_type: Database["public"]["Enums"]["creator_entity_type"]
+          id: string
+          identity_verification_id: string | null
+          provider_key: string | null
+          provider_reference: string | null
+          provider_status: string | null
+          requirements_snapshot: Json
+          reviewed_at: string | null
+          reviewed_by: string | null
+          rights_declaration: Json
+          status: Database["public"]["Enums"]["creator_verification_status"]
+          studio_account_id: string | null
+          submitted_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          additional_information?: Json
+          appeal_reason?: string | null
+          business_verification_id?: string | null
+          country_code: string
+          created_at?: string
+          entity_type: Database["public"]["Enums"]["creator_entity_type"]
+          id?: string
+          identity_verification_id?: string | null
+          provider_key?: string | null
+          provider_reference?: string | null
+          provider_status?: string | null
+          requirements_snapshot?: Json
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          rights_declaration?: Json
+          status?: Database["public"]["Enums"]["creator_verification_status"]
+          studio_account_id?: string | null
+          submitted_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          additional_information?: Json
+          appeal_reason?: string | null
+          business_verification_id?: string | null
+          country_code?: string
+          created_at?: string
+          entity_type?: Database["public"]["Enums"]["creator_entity_type"]
+          id?: string
+          identity_verification_id?: string | null
+          provider_key?: string | null
+          provider_reference?: string | null
+          provider_status?: string | null
+          requirements_snapshot?: Json
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          rights_declaration?: Json
+          status?: Database["public"]["Enums"]["creator_verification_status"]
+          studio_account_id?: string | null
+          submitted_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creator_verification_cases_business_verification_id_fkey"
+            columns: ["business_verification_id"]
+            isOneToOne: false
+            referencedRelation: "business_verifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creator_verification_cases_identity_verification_id_fkey"
+            columns: ["identity_verification_id"]
+            isOneToOne: false
+            referencedRelation: "identity_verifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_provider_configs: {
         Row: {
           from_email: string
@@ -497,6 +834,475 @@ export type Database = {
         }
         Relationships: []
       }
+      event_access_invites: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          invite_role: string
+          invited_by: string
+          invited_email: string
+          invited_user_id: string | null
+          live_stream_id: string | null
+          screening_id: string | null
+          status: string
+          tenant_id: string
+          token_hash: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          invite_role?: string
+          invited_by: string
+          invited_email: string
+          invited_user_id?: string | null
+          live_stream_id?: string | null
+          screening_id?: string | null
+          status?: string
+          tenant_id: string
+          token_hash: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          invite_role?: string
+          invited_by?: string
+          invited_email?: string
+          invited_user_id?: string | null
+          live_stream_id?: string | null
+          screening_id?: string | null
+          status?: string
+          tenant_id?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_access_invites_live_stream_id_fkey"
+            columns: ["live_stream_id"]
+            isOneToOne: false
+            referencedRelation: "live_streams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_access_invites_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
+            referencedRelation: "public_screenings_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_access_invites_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
+            referencedRelation: "screenings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_contributions: {
+        Row: {
+          amount_major: number | null
+          amount_minor: number
+          checkout_url: string | null
+          content_id: string | null
+          contribution_type: string
+          contributor_email: string | null
+          contributor_name: string | null
+          contributor_user_id: string | null
+          created_at: string
+          creator_base_currency: string | null
+          creator_id: string
+          currency: string
+          fx_provider: string | null
+          fx_rate: number | null
+          fx_timestamp: string | null
+          gift_catalog_key: string | null
+          id: string
+          idempotency_key: string | null
+          is_anonymous: boolean
+          live_stream_id: string | null
+          message: string | null
+          original_currency: string | null
+          paid_at: string | null
+          payout_currency: string | null
+          platform_base_currency: string | null
+          platform_fee_major: number
+          provider_checkout_id: string | null
+          provider_key: string | null
+          provider_mode: string
+          provider_reference: string | null
+          provider_transaction_id: string | null
+          screening_id: string | null
+          settlement_currency: string | null
+          status: string
+          target_kind: string
+          tenant_id: string
+        }
+        Insert: {
+          amount_major?: number | null
+          amount_minor: number
+          checkout_url?: string | null
+          content_id?: string | null
+          contribution_type: string
+          contributor_email?: string | null
+          contributor_name?: string | null
+          contributor_user_id?: string | null
+          created_at?: string
+          creator_base_currency?: string | null
+          creator_id: string
+          currency: string
+          fx_provider?: string | null
+          fx_rate?: number | null
+          fx_timestamp?: string | null
+          gift_catalog_key?: string | null
+          id?: string
+          idempotency_key?: string | null
+          is_anonymous?: boolean
+          live_stream_id?: string | null
+          message?: string | null
+          original_currency?: string | null
+          paid_at?: string | null
+          payout_currency?: string | null
+          platform_base_currency?: string | null
+          platform_fee_major?: number
+          provider_checkout_id?: string | null
+          provider_key?: string | null
+          provider_mode?: string
+          provider_reference?: string | null
+          provider_transaction_id?: string | null
+          screening_id?: string | null
+          settlement_currency?: string | null
+          status?: string
+          target_kind?: string
+          tenant_id: string
+        }
+        Update: {
+          amount_major?: number | null
+          amount_minor?: number
+          checkout_url?: string | null
+          content_id?: string | null
+          contribution_type?: string
+          contributor_email?: string | null
+          contributor_name?: string | null
+          contributor_user_id?: string | null
+          created_at?: string
+          creator_base_currency?: string | null
+          creator_id?: string
+          currency?: string
+          fx_provider?: string | null
+          fx_rate?: number | null
+          fx_timestamp?: string | null
+          gift_catalog_key?: string | null
+          id?: string
+          idempotency_key?: string | null
+          is_anonymous?: boolean
+          live_stream_id?: string | null
+          message?: string | null
+          original_currency?: string | null
+          paid_at?: string | null
+          payout_currency?: string | null
+          platform_base_currency?: string | null
+          platform_fee_major?: number
+          provider_checkout_id?: string | null
+          provider_key?: string | null
+          provider_mode?: string
+          provider_reference?: string | null
+          provider_transaction_id?: string | null
+          screening_id?: string | null
+          settlement_currency?: string | null
+          status?: string
+          target_kind?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_contributions_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "content"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_contributions_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "public_content_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_contributions_live_stream_id_fkey"
+            columns: ["live_stream_id"]
+            isOneToOne: false
+            referencedRelation: "live_streams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_contributions_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
+            referencedRelation: "public_screenings_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_contributions_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
+            referencedRelation: "screenings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_early_bird_reservations: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          paid_at: string | null
+          provider_reference: string
+          released_at: string | null
+          reservation_status: string
+          screening_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          paid_at?: string | null
+          provider_reference: string
+          released_at?: string | null
+          reservation_status?: string
+          screening_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          paid_at?: string | null
+          provider_reference?: string
+          released_at?: string | null
+          reservation_status?: string
+          screening_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_early_bird_reservations_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
+            referencedRelation: "public_screenings_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_early_bird_reservations_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
+            referencedRelation: "screenings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_notification_outbox: {
+        Row: {
+          attempts: number
+          content_id: string | null
+          created_at: string
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          live_stream_id: string | null
+          notification_type: string
+          payload: Json
+          recipient_email: string
+          recipient_user_id: string | null
+          scheduled_for: string
+          screening_id: string | null
+          sent_at: string | null
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          attempts?: number
+          content_id?: string | null
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          last_error?: string | null
+          live_stream_id?: string | null
+          notification_type: string
+          payload?: Json
+          recipient_email: string
+          recipient_user_id?: string | null
+          scheduled_for?: string
+          screening_id?: string | null
+          sent_at?: string | null
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          attempts?: number
+          content_id?: string | null
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          last_error?: string | null
+          live_stream_id?: string | null
+          notification_type?: string
+          payload?: Json
+          recipient_email?: string
+          recipient_user_id?: string | null
+          scheduled_for?: string
+          screening_id?: string | null
+          sent_at?: string | null
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_notification_outbox_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "content"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_notification_outbox_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "public_content_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_notification_outbox_live_stream_id_fkey"
+            columns: ["live_stream_id"]
+            isOneToOne: false
+            referencedRelation: "live_streams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_notification_outbox_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
+            referencedRelation: "public_screenings_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_notification_outbox_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
+            referencedRelation: "screenings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_settlement_holds: {
+        Row: {
+          content_id: string | null
+          created_at: string
+          creator_id: string
+          currency: string
+          delivery_confirmed_at: string | null
+          delivery_evidence: Json
+          event_ended_at: string | null
+          gross_amount_minor: number
+          hold_hours: number
+          hold_status: string
+          id: string
+          live_stream_id: string | null
+          net_amount_minor: number
+          release_at: string | null
+          released_at: string | null
+          screening_id: string | null
+          source_id: string
+          source_type: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          content_id?: string | null
+          created_at?: string
+          creator_id: string
+          currency: string
+          delivery_confirmed_at?: string | null
+          delivery_evidence?: Json
+          event_ended_at?: string | null
+          gross_amount_minor: number
+          hold_hours?: number
+          hold_status?: string
+          id?: string
+          live_stream_id?: string | null
+          net_amount_minor: number
+          release_at?: string | null
+          released_at?: string | null
+          screening_id?: string | null
+          source_id: string
+          source_type: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          content_id?: string | null
+          created_at?: string
+          creator_id?: string
+          currency?: string
+          delivery_confirmed_at?: string | null
+          delivery_evidence?: Json
+          event_ended_at?: string | null
+          gross_amount_minor?: number
+          hold_hours?: number
+          hold_status?: string
+          id?: string
+          live_stream_id?: string | null
+          net_amount_minor?: number
+          release_at?: string | null
+          released_at?: string | null
+          screening_id?: string | null
+          source_id?: string
+          source_type?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_settlement_holds_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "content"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_settlement_holds_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "public_content_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_settlement_holds_live_stream_id_fkey"
+            columns: ["live_stream_id"]
+            isOneToOne: false
+            referencedRelation: "live_streams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_settlement_holds_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
+            referencedRelation: "public_screenings_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_settlement_holds_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
+            referencedRelation: "screenings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_waitlist: {
         Row: {
           created_at: string
@@ -517,6 +1323,13 @@ export type Database = {
           screening_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "event_waitlist_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
+            referencedRelation: "public_screenings_catalog"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "event_waitlist_screening_id_fkey"
             columns: ["screening_id"]
@@ -703,6 +1516,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "filmmaker_submissions_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "public_content_catalog"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "filmmaker_submissions_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -717,17 +1537,25 @@ export type Database = {
           app_origin: string | null
           checkout_url: string | null
           created_at: string
+          creator_base_currency: string | null
           currency: string
           email: string
           email_sent_at: string | null
+          fx_provider: string | null
+          fx_rate: number | null
+          fx_timestamp: string | null
           id: string
+          original_currency: string | null
           paid_at: string | null
+          payout_currency: string | null
+          platform_base_currency: string | null
           platform_fee_major: number
           provider: string
           provider_checkout_id: string | null
           provider_mode: string
           provider_reference: string
           provider_transaction_id: string | null
+          settlement_currency: string | null
           status: string
           ticket_id: string
           updated_at: string
@@ -737,17 +1565,25 @@ export type Database = {
           app_origin?: string | null
           checkout_url?: string | null
           created_at?: string
+          creator_base_currency?: string | null
           currency: string
           email: string
           email_sent_at?: string | null
+          fx_provider?: string | null
+          fx_rate?: number | null
+          fx_timestamp?: string | null
           id?: string
+          original_currency?: string | null
           paid_at?: string | null
+          payout_currency?: string | null
+          platform_base_currency?: string | null
           platform_fee_major?: number
           provider: string
           provider_checkout_id?: string | null
           provider_mode?: string
           provider_reference: string
           provider_transaction_id?: string | null
+          settlement_currency?: string | null
           status?: string
           ticket_id: string
           updated_at?: string
@@ -757,17 +1593,25 @@ export type Database = {
           app_origin?: string | null
           checkout_url?: string | null
           created_at?: string
+          creator_base_currency?: string | null
           currency?: string
           email?: string
           email_sent_at?: string | null
+          fx_provider?: string | null
+          fx_rate?: number | null
+          fx_timestamp?: string | null
           id?: string
+          original_currency?: string | null
           paid_at?: string | null
+          payout_currency?: string | null
+          platform_base_currency?: string | null
           platform_fee_major?: number
           provider?: string
           provider_checkout_id?: string | null
           provider_mode?: string
           provider_reference?: string
           provider_transaction_id?: string | null
+          settlement_currency?: string | null
           status?: string
           ticket_id?: string
           updated_at?: string
@@ -866,20 +1710,119 @@ export type Database = {
         }
         Relationships: []
       }
+      knowledgebase_articles: {
+        Row: {
+          audience: string
+          body_markdown: string
+          category_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_published: boolean
+          published_at: string | null
+          search_vector: unknown
+          slug: string
+          summary: string | null
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          audience?: string
+          body_markdown: string
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_published?: boolean
+          published_at?: string | null
+          search_vector?: unknown
+          slug: string
+          summary?: string | null
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          audience?: string
+          body_markdown?: string
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_published?: boolean
+          published_at?: string | null
+          search_vector?: unknown
+          slug?: string
+          summary?: string | null
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledgebase_articles_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "knowledgebase_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledgebase_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_published: boolean
+          slug: string
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_published?: boolean
+          slug: string
+          sort_order?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_published?: boolean
+          slug?: string
+          sort_order?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       live_payment_orders: {
         Row: {
           amount_major: number | null
           amount_minor: number
           checkout_url: string | null
           created_at: string
+          creator_base_currency: string | null
           currency: string
           email: string
           email_delivery_claimed_at: string | null
           email_sent_at: string | null
+          fx_provider: string | null
+          fx_rate: number | null
+          fx_timestamp: string | null
           guest_checkout: boolean
           id: string
           metadata: Json
+          original_currency: string | null
           paid_at: string | null
+          payout_currency: string | null
+          platform_base_currency: string | null
           platform_fee_major: number
           provider: string
           provider_checkout_id: string | null
@@ -887,6 +1830,7 @@ export type Database = {
           provider_reference: string
           provider_transaction_id: string | null
           screening_id: string
+          settlement_currency: string | null
           status: string
           stream_id: string
           tenant_id: string
@@ -899,14 +1843,21 @@ export type Database = {
           amount_minor: number
           checkout_url?: string | null
           created_at?: string
+          creator_base_currency?: string | null
           currency: string
           email: string
           email_delivery_claimed_at?: string | null
           email_sent_at?: string | null
+          fx_provider?: string | null
+          fx_rate?: number | null
+          fx_timestamp?: string | null
           guest_checkout?: boolean
           id?: string
           metadata?: Json
+          original_currency?: string | null
           paid_at?: string | null
+          payout_currency?: string | null
+          platform_base_currency?: string | null
           platform_fee_major?: number
           provider: string
           provider_checkout_id?: string | null
@@ -914,6 +1865,7 @@ export type Database = {
           provider_reference: string
           provider_transaction_id?: string | null
           screening_id: string
+          settlement_currency?: string | null
           status?: string
           stream_id: string
           tenant_id: string
@@ -926,14 +1878,21 @@ export type Database = {
           amount_minor?: number
           checkout_url?: string | null
           created_at?: string
+          creator_base_currency?: string | null
           currency?: string
           email?: string
           email_delivery_claimed_at?: string | null
           email_sent_at?: string | null
+          fx_provider?: string | null
+          fx_rate?: number | null
+          fx_timestamp?: string | null
           guest_checkout?: boolean
           id?: string
           metadata?: Json
+          original_currency?: string | null
           paid_at?: string | null
+          payout_currency?: string | null
+          platform_base_currency?: string | null
           platform_fee_major?: number
           provider?: string
           provider_checkout_id?: string | null
@@ -941,6 +1900,7 @@ export type Database = {
           provider_reference?: string
           provider_transaction_id?: string | null
           screening_id?: string
+          settlement_currency?: string | null
           status?: string
           stream_id?: string
           tenant_id?: string
@@ -949,6 +1909,13 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "live_payment_orders_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
+            referencedRelation: "public_screenings_catalog"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "live_payment_orders_screening_id_fkey"
             columns: ["screening_id"]
@@ -995,6 +1962,13 @@ export type Database = {
             foreignKeyName: "live_reactions_screening_id_fkey"
             columns: ["screening_id"]
             isOneToOne: false
+            referencedRelation: "public_screenings_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_reactions_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
             referencedRelation: "screenings"
             referencedColumns: ["id"]
           },
@@ -1012,21 +1986,33 @@ export type Database = {
           creator_id: string
           currency: string | null
           description: string | null
+          early_bird_capacity: number | null
+          early_bird_currency: string | null
+          early_bird_ends_at: string | null
+          early_bird_price: number | null
           encoder_connected_at: string | null
+          event_timezone: string
+          event_visibility: string
           id: string
+          invite_only: boolean
           is_ticketed: boolean | null
           lifecycle_status: Database["public"]["Enums"]["broadcast_lifecycle_status"]
           metadata: Json | null
           monetization: Database["public"]["Enums"]["monetization_type"]
           peak_viewers: number | null
           playback_url: string | null
+          presale_enabled: boolean
           provider_stream_id: string | null
           reconnect_grace_expires_at: string | null
           recording_enabled: boolean | null
           recording_url: string | null
           rtmp_url: string | null
+          sales_close_at: string | null
+          sales_open_at: string | null
           scheduled_end: string | null
           scheduled_start: string | null
+          settlement_delivery_required: boolean
+          settlement_hold_hours: number
           status: Database["public"]["Enums"]["stream_status"]
           stream_key: string | null
           tenant_id: string
@@ -1036,18 +2022,6 @@ export type Database = {
           updated_at: string
           viewer_count: number | null
           vod_replay_asset_url: string | null
-          sales_open_at: string | null
-          sales_close_at: string | null
-          early_bird_price: number | null
-          early_bird_currency: string | null
-          early_bird_ends_at: string | null
-          early_bird_capacity: number | null
-          event_visibility: string
-          invite_only: boolean
-          settlement_hold_hours: number
-          settlement_delivery_required: boolean
-          event_timezone: string
-          presale_enabled: boolean
         }
         Insert: {
           actual_end?: string | null
@@ -1060,21 +2034,33 @@ export type Database = {
           creator_id: string
           currency?: string | null
           description?: string | null
+          early_bird_capacity?: number | null
+          early_bird_currency?: string | null
+          early_bird_ends_at?: string | null
+          early_bird_price?: number | null
           encoder_connected_at?: string | null
+          event_timezone?: string
+          event_visibility?: string
           id?: string
+          invite_only?: boolean
           is_ticketed?: boolean | null
           lifecycle_status?: Database["public"]["Enums"]["broadcast_lifecycle_status"]
           metadata?: Json | null
           monetization?: Database["public"]["Enums"]["monetization_type"]
           peak_viewers?: number | null
           playback_url?: string | null
+          presale_enabled?: boolean
           provider_stream_id?: string | null
           reconnect_grace_expires_at?: string | null
           recording_enabled?: boolean | null
           recording_url?: string | null
           rtmp_url?: string | null
+          sales_close_at?: string | null
+          sales_open_at?: string | null
           scheduled_end?: string | null
           scheduled_start?: string | null
+          settlement_delivery_required?: boolean
+          settlement_hold_hours?: number
           status?: Database["public"]["Enums"]["stream_status"]
           stream_key?: string | null
           tenant_id: string
@@ -1084,18 +2070,6 @@ export type Database = {
           updated_at?: string
           viewer_count?: number | null
           vod_replay_asset_url?: string | null
-          sales_open_at?: string | null
-          sales_close_at?: string | null
-          early_bird_price?: number | null
-          early_bird_currency?: string | null
-          early_bird_ends_at?: string | null
-          early_bird_capacity?: number | null
-          event_visibility?: string
-          invite_only?: boolean
-          settlement_hold_hours?: number
-          settlement_delivery_required?: boolean
-          event_timezone?: string
-          presale_enabled?: boolean
         }
         Update: {
           actual_end?: string | null
@@ -1108,21 +2082,33 @@ export type Database = {
           creator_id?: string
           currency?: string | null
           description?: string | null
+          early_bird_capacity?: number | null
+          early_bird_currency?: string | null
+          early_bird_ends_at?: string | null
+          early_bird_price?: number | null
           encoder_connected_at?: string | null
+          event_timezone?: string
+          event_visibility?: string
           id?: string
+          invite_only?: boolean
           is_ticketed?: boolean | null
           lifecycle_status?: Database["public"]["Enums"]["broadcast_lifecycle_status"]
           metadata?: Json | null
           monetization?: Database["public"]["Enums"]["monetization_type"]
           peak_viewers?: number | null
           playback_url?: string | null
+          presale_enabled?: boolean
           provider_stream_id?: string | null
           reconnect_grace_expires_at?: string | null
           recording_enabled?: boolean | null
           recording_url?: string | null
           rtmp_url?: string | null
+          sales_close_at?: string | null
+          sales_open_at?: string | null
           scheduled_end?: string | null
           scheduled_start?: string | null
+          settlement_delivery_required?: boolean
+          settlement_hold_hours?: number
           status?: Database["public"]["Enums"]["stream_status"]
           stream_key?: string | null
           tenant_id?: string
@@ -1132,18 +2118,6 @@ export type Database = {
           updated_at?: string
           viewer_count?: number | null
           vod_replay_asset_url?: string | null
-          sales_open_at?: string | null
-          sales_close_at?: string | null
-          early_bird_price?: number | null
-          early_bird_currency?: string | null
-          early_bird_ends_at?: string | null
-          early_bird_capacity?: number | null
-          event_visibility?: string
-          invite_only?: boolean
-          settlement_hold_hours?: number
-          settlement_delivery_required?: boolean
-          event_timezone?: string
-          presale_enabled?: boolean
         }
         Relationships: [
           {
@@ -1186,6 +2160,188 @@ export type Database = {
             columns: ["ticket_id"]
             isOneToOne: false
             referencedRelation: "screening_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_processing_jobs: {
+        Row: {
+          attempts: number
+          available_at: string
+          clean_master_path: string | null
+          content_id: string | null
+          created_at: string
+          dead_lettered_at: string | null
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          provenance: Json
+          quarantine_path: string
+          renditions: Json
+          sha256: string | null
+          stage: string
+          status: Database["public"]["Enums"]["media_processing_status"]
+          subtitles: Json
+          updated_at: string
+          upload_session_id: string
+        }
+        Insert: {
+          attempts?: number
+          available_at?: string
+          clean_master_path?: string | null
+          content_id?: string | null
+          created_at?: string
+          dead_lettered_at?: string | null
+          id?: string
+          idempotency_key: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          provenance?: Json
+          quarantine_path: string
+          renditions?: Json
+          sha256?: string | null
+          stage?: string
+          status?: Database["public"]["Enums"]["media_processing_status"]
+          subtitles?: Json
+          updated_at?: string
+          upload_session_id: string
+        }
+        Update: {
+          attempts?: number
+          available_at?: string
+          clean_master_path?: string | null
+          content_id?: string | null
+          created_at?: string
+          dead_lettered_at?: string | null
+          id?: string
+          idempotency_key?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          provenance?: Json
+          quarantine_path?: string
+          renditions?: Json
+          sha256?: string | null
+          stage?: string
+          status?: Database["public"]["Enums"]["media_processing_status"]
+          subtitles?: Json
+          updated_at?: string
+          upload_session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_processing_jobs_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "content"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_processing_jobs_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "public_content_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_processing_jobs_upload_session_id_fkey"
+            columns: ["upload_session_id"]
+            isOneToOne: false
+            referencedRelation: "media_upload_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_upload_sessions: {
+        Row: {
+          cancelled_at: string | null
+          chunk_manifest: Json
+          chunk_size_bytes: number
+          completed_at: string | null
+          content_id: string | null
+          created_at: string
+          expected_sha256: string | null
+          expected_size_bytes: number
+          expires_at: string
+          id: string
+          mime_type: string
+          object_path: string
+          original_filename: string
+          owner_id: string
+          received_size_bytes: number
+          status: Database["public"]["Enums"]["media_processing_status"]
+          storage_upload_id: string | null
+          studio_account_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          chunk_manifest?: Json
+          chunk_size_bytes?: number
+          completed_at?: string | null
+          content_id?: string | null
+          created_at?: string
+          expected_sha256?: string | null
+          expected_size_bytes: number
+          expires_at: string
+          id?: string
+          mime_type: string
+          object_path: string
+          original_filename: string
+          owner_id: string
+          received_size_bytes?: number
+          status?: Database["public"]["Enums"]["media_processing_status"]
+          storage_upload_id?: string | null
+          studio_account_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          chunk_manifest?: Json
+          chunk_size_bytes?: number
+          completed_at?: string | null
+          content_id?: string | null
+          created_at?: string
+          expected_sha256?: string | null
+          expected_size_bytes?: number
+          expires_at?: string
+          id?: string
+          mime_type?: string
+          object_path?: string
+          original_filename?: string
+          owner_id?: string
+          received_size_bytes?: number
+          status?: Database["public"]["Enums"]["media_processing_status"]
+          storage_upload_id?: string | null
+          studio_account_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_upload_sessions_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "content"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_upload_sessions_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "public_content_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_upload_sessions_studio_account_id_fkey"
+            columns: ["studio_account_id"]
+            isOneToOne: false
+            referencedRelation: "studio_accounts"
             referencedColumns: ["id"]
           },
         ]
@@ -1280,56 +2436,90 @@ export type Database = {
       payment_refunds: {
         Row: {
           amount_minor: number
+          contribution_id: string | null
           created_at: string
+          creator_base_currency: string | null
           currency: string
           error_code: string | null
+          fx_provider: string | null
+          fx_rate: number | null
+          fx_timestamp: string | null
           id: string
           live_ticket_id: string | null
+          original_currency: string | null
           payment_reference: string
+          payout_currency: string | null
+          platform_base_currency: string | null
           provider: string
           provider_mode: string
           provider_refund_id: string | null
           reason: string
           requested_by: string
+          settlement_currency: string | null
           status: string
           ticket_id: string | null
           updated_at: string
         }
         Insert: {
           amount_minor: number
+          contribution_id?: string | null
           created_at?: string
+          creator_base_currency?: string | null
           currency: string
           error_code?: string | null
+          fx_provider?: string | null
+          fx_rate?: number | null
+          fx_timestamp?: string | null
           id?: string
           live_ticket_id?: string | null
+          original_currency?: string | null
           payment_reference: string
+          payout_currency?: string | null
+          platform_base_currency?: string | null
           provider: string
           provider_mode: string
           provider_refund_id?: string | null
           reason: string
           requested_by: string
+          settlement_currency?: string | null
           status?: string
           ticket_id?: string | null
           updated_at?: string
         }
         Update: {
           amount_minor?: number
+          contribution_id?: string | null
           created_at?: string
+          creator_base_currency?: string | null
           currency?: string
           error_code?: string | null
+          fx_provider?: string | null
+          fx_rate?: number | null
+          fx_timestamp?: string | null
           id?: string
           live_ticket_id?: string | null
+          original_currency?: string | null
           payment_reference?: string
+          payout_currency?: string | null
+          platform_base_currency?: string | null
           provider?: string
           provider_mode?: string
           provider_refund_id?: string | null
           reason?: string
           requested_by?: string
+          settlement_currency?: string | null
           status?: string
           ticket_id?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "payment_refunds_contribution_id_fkey"
+            columns: ["contribution_id"]
+            isOneToOne: false
+            referencedRelation: "event_contributions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "payment_refunds_live_ticket_id_fkey"
             columns: ["live_ticket_id"]
@@ -1350,12 +2540,20 @@ export type Database = {
         Row: {
           amount: number
           created_at: string
+          creator_base_currency: string | null
           currency: string | null
+          fx_provider: string | null
+          fx_rate: number | null
+          fx_timestamp: string | null
           id: string
           metadata: Json | null
+          original_currency: string | null
           payment_type: string
+          payout_currency: string | null
+          platform_base_currency: string | null
           provider: string | null
           reference_id: string | null
+          settlement_currency: string | null
           status: Database["public"]["Enums"]["payment_status"]
           stripe_payment_id: string | null
           tenant_id: string | null
@@ -1365,12 +2563,20 @@ export type Database = {
         Insert: {
           amount: number
           created_at?: string
+          creator_base_currency?: string | null
           currency?: string | null
+          fx_provider?: string | null
+          fx_rate?: number | null
+          fx_timestamp?: string | null
           id?: string
           metadata?: Json | null
+          original_currency?: string | null
           payment_type: string
+          payout_currency?: string | null
+          platform_base_currency?: string | null
           provider?: string | null
           reference_id?: string | null
+          settlement_currency?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           stripe_payment_id?: string | null
           tenant_id?: string | null
@@ -1380,12 +2586,20 @@ export type Database = {
         Update: {
           amount?: number
           created_at?: string
+          creator_base_currency?: string | null
           currency?: string | null
+          fx_provider?: string | null
+          fx_rate?: number | null
+          fx_timestamp?: string | null
           id?: string
           metadata?: Json | null
+          original_currency?: string | null
           payment_type?: string
+          payout_currency?: string | null
+          platform_base_currency?: string | null
           provider?: string | null
           reference_id?: string | null
+          settlement_currency?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           stripe_payment_id?: string | null
           tenant_id?: string | null
@@ -1401,6 +2615,84 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      platform_ai_policies: {
+        Row: {
+          allow_financial_decisions: boolean
+          allow_identity_decisions: boolean
+          allowed_data_classes: string[]
+          capability: string
+          enabled: boolean
+          max_input_chars: number
+          max_output_tokens: number
+          model_key: string | null
+          provider_allowlist: string[]
+          requires_human_review: boolean
+          system_policy: string
+          updated_at: string
+          updated_by: string | null
+          workflow_key: string
+        }
+        Insert: {
+          allow_financial_decisions?: boolean
+          allow_identity_decisions?: boolean
+          allowed_data_classes?: string[]
+          capability?: string
+          enabled?: boolean
+          max_input_chars?: number
+          max_output_tokens?: number
+          model_key?: string | null
+          provider_allowlist?: string[]
+          requires_human_review?: boolean
+          system_policy: string
+          updated_at?: string
+          updated_by?: string | null
+          workflow_key: string
+        }
+        Update: {
+          allow_financial_decisions?: boolean
+          allow_identity_decisions?: boolean
+          allowed_data_classes?: string[]
+          capability?: string
+          enabled?: boolean
+          max_input_chars?: number
+          max_output_tokens?: number
+          model_key?: string | null
+          provider_allowlist?: string[]
+          requires_human_review?: boolean
+          system_policy?: string
+          updated_at?: string
+          updated_by?: string | null
+          workflow_key?: string
+        }
+        Relationships: []
+      }
+      platform_branding_registry: {
+        Row: {
+          brand_config: Json
+          brand_key: string
+          is_public: boolean
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }
+        Insert: {
+          brand_config: Json
+          brand_key: string
+          is_public?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Update: {
+          brand_config?: Json
+          brand_key?: string
+          is_public?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Relationships: []
       }
       platform_feature_controls: {
         Row: {
@@ -1434,6 +2726,234 @@ export type Database = {
           updated_by?: string
         }
         Relationships: []
+      }
+      platform_fx_rate_cache: {
+        Row: {
+          base_currency: string
+          created_at: string
+          expires_at: string
+          provider_key: string
+          provider_payload_hash: string | null
+          quote_currency: string
+          rate: number
+          retrieved_at: string
+        }
+        Insert: {
+          base_currency: string
+          created_at?: string
+          expires_at: string
+          provider_key: string
+          provider_payload_hash?: string | null
+          quote_currency: string
+          rate: number
+          retrieved_at: string
+        }
+        Update: {
+          base_currency?: string
+          created_at?: string
+          expires_at?: string
+          provider_key?: string
+          provider_payload_hash?: string | null
+          quote_currency?: string
+          rate?: number
+          retrieved_at?: string
+        }
+        Relationships: []
+      }
+      platform_release_audit: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          details: Json
+          id: string
+          rollout_id: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          id?: string
+          rollout_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          id?: string
+          rollout_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_release_audit_rollout_id_fkey"
+            columns: ["rollout_id"]
+            isOneToOne: false
+            referencedRelation: "platform_release_rollouts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_release_observations: {
+        Row: {
+          error_code: string | null
+          id: string
+          latency_ms: number | null
+          observed_at: string
+          release_key: string
+          rollout_id: string | null
+          subject_bucket: number | null
+          success: boolean
+        }
+        Insert: {
+          error_code?: string | null
+          id?: string
+          latency_ms?: number | null
+          observed_at?: string
+          release_key: string
+          rollout_id?: string | null
+          subject_bucket?: number | null
+          success: boolean
+        }
+        Update: {
+          error_code?: string | null
+          id?: string
+          latency_ms?: number | null
+          observed_at?: string
+          release_key?: string
+          rollout_id?: string | null
+          subject_bucket?: number | null
+          success?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_release_observations_rollout_id_fkey"
+            columns: ["rollout_id"]
+            isOneToOne: false
+            referencedRelation: "platform_release_rollouts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_release_rollouts: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          config: Json
+          created_at: string
+          created_by: string | null
+          error_rate_threshold: number
+          health_window_seconds: number
+          id: string
+          latency_p95_threshold_ms: number
+          minimum_samples: number
+          release_key: string
+          release_version: string
+          rolled_back_at: string | null
+          rolled_back_by: string | null
+          state: string
+          traffic_percentage: number
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          config?: Json
+          created_at?: string
+          created_by?: string | null
+          error_rate_threshold?: number
+          health_window_seconds?: number
+          id?: string
+          latency_p95_threshold_ms?: number
+          minimum_samples?: number
+          release_key: string
+          release_version: string
+          rolled_back_at?: string | null
+          rolled_back_by?: string | null
+          state?: string
+          traffic_percentage?: number
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          config?: Json
+          created_at?: string
+          created_by?: string | null
+          error_rate_threshold?: number
+          health_window_seconds?: number
+          id?: string
+          latency_p95_threshold_ms?: number
+          minimum_samples?: number
+          release_key?: string
+          release_version?: string
+          rolled_back_at?: string | null
+          rolled_back_by?: string | null
+          state?: string
+          traffic_percentage?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      platform_security_alerts: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          dedupe_key: string | null
+          details: Json
+          entity_id: string | null
+          entity_type: string | null
+          event_key: string
+          id: string
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          source_audit_id: string | null
+          summary: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          details?: Json
+          entity_id?: string | null
+          entity_type?: string | null
+          event_key: string
+          id?: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity: string
+          source_audit_id?: string | null
+          summary: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          details?: Json
+          entity_id?: string | null
+          entity_type?: string | null
+          event_key?: string
+          id?: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          source_audit_id?: string | null
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_security_alerts_source_audit_id_fkey"
+            columns: ["source_audit_id"]
+            isOneToOne: true
+            referencedRelation: "audit_logs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       platform_settings: {
         Row: {
@@ -1487,6 +3007,7 @@ export type Database = {
           locale_code: string | null
           preferred_country: string | null
           preferred_currency: string | null
+          preferred_locale: string | null
           timezone: string | null
           updated_at: string
           user_id: string
@@ -1512,6 +3033,7 @@ export type Database = {
           locale_code?: string | null
           preferred_country?: string | null
           preferred_currency?: string | null
+          preferred_locale?: string | null
           timezone?: string | null
           updated_at?: string
           user_id: string
@@ -1537,6 +3059,7 @@ export type Database = {
           locale_code?: string | null
           preferred_country?: string | null
           preferred_currency?: string | null
+          preferred_locale?: string | null
           timezone?: string | null
           updated_at?: string
           user_id?: string
@@ -1642,6 +3165,13 @@ export type Database = {
             foreignKeyName: "promo_codes_screening_id_fkey"
             columns: ["screening_id"]
             isOneToOne: false
+            referencedRelation: "public_screenings_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promo_codes_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
             referencedRelation: "screenings"
             referencedColumns: ["id"]
           },
@@ -1657,49 +3187,95 @@ export type Database = {
       release_domains: {
         Row: {
           branding: Json
+          branding_version: number | null
           content_id: string
           created_at: string
+          dns_target: string | null
           dns_verified_at: string | null
           domain_kind: string
           hostname: string
           id: string
+          last_verification_at: string | null
+          seo_metadata: Json
+          ssl_certificate_expires_at: string | null
+          ssl_provider_key: string | null
+          ssl_status: string
           status: string
           subdomain: string
           tenant_id: string | null
           updated_at: string
+          verification_error: string | null
+          verification_status:
+            | Database["public"]["Enums"]["production_domain_status"]
+            | null
+          verification_token_hash: string | null
+          verified_at: string | null
         }
         Insert: {
           branding?: Json
+          branding_version?: number | null
           content_id: string
           created_at?: string
+          dns_target?: string | null
           dns_verified_at?: string | null
           domain_kind?: string
           hostname: string
           id?: string
+          last_verification_at?: string | null
+          seo_metadata?: Json
+          ssl_certificate_expires_at?: string | null
+          ssl_provider_key?: string | null
+          ssl_status?: string
           status?: string
           subdomain: string
           tenant_id?: string | null
           updated_at?: string
+          verification_error?: string | null
+          verification_status?:
+            | Database["public"]["Enums"]["production_domain_status"]
+            | null
+          verification_token_hash?: string | null
+          verified_at?: string | null
         }
         Update: {
           branding?: Json
+          branding_version?: number | null
           content_id?: string
           created_at?: string
+          dns_target?: string | null
           dns_verified_at?: string | null
           domain_kind?: string
           hostname?: string
           id?: string
+          last_verification_at?: string | null
+          seo_metadata?: Json
+          ssl_certificate_expires_at?: string | null
+          ssl_provider_key?: string | null
+          ssl_status?: string
           status?: string
           subdomain?: string
           tenant_id?: string | null
           updated_at?: string
+          verification_error?: string | null
+          verification_status?:
+            | Database["public"]["Enums"]["production_domain_status"]
+            | null
+          verification_token_hash?: string | null
+          verified_at?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "release_domains_content_id_fkey"
             columns: ["content_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "content"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "release_domains_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "public_content_catalog"
             referencedColumns: ["id"]
           },
         ]
@@ -1747,6 +3323,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "revenue_splits_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "public_content_catalog"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "revenue_splits_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -1785,6 +3368,13 @@ export type Database = {
             foreignKeyName: "screening_comments_screening_id_fkey"
             columns: ["screening_id"]
             isOneToOne: false
+            referencedRelation: "public_screenings_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "screening_comments_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
             referencedRelation: "screenings"
             referencedColumns: ["id"]
           },
@@ -1810,6 +3400,13 @@ export type Database = {
           screening_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "screening_notifications_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
+            referencedRelation: "public_screenings_catalog"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "screening_notifications_screening_id_fkey"
             columns: ["screening_id"]
@@ -1864,6 +3461,13 @@ export type Database = {
             foreignKeyName: "screening_playback_sessions_screening_id_fkey"
             columns: ["screening_id"]
             isOneToOne: false
+            referencedRelation: "public_screenings_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "screening_playback_sessions_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
             referencedRelation: "screenings"
             referencedColumns: ["id"]
           },
@@ -1884,12 +3488,16 @@ export type Database = {
           active_session_token: string | null
           addons: Json | null
           created_at: string
+          creator_base_currency: string | null
           currency: string | null
           display_amount: number | null
           display_currency: string | null
           email: string
           expires_at: string
           first_played_at: string | null
+          fx_provider: string | null
+          fx_rate: number | null
+          fx_timestamp: string | null
           gift_from: string | null
           gift_message: string | null
           id: string
@@ -1897,15 +3505,19 @@ export type Database = {
           last_country: string | null
           last_ip: string | null
           location: string
+          original_currency: string | null
           payment_method: string | null
           payment_reference: string | null
           payment_status: string
+          payout_currency: string | null
+          platform_base_currency: string | null
           price: number
           refund_reason: string | null
           refunded_at: string | null
           reminder_1h_sent_at: string | null
           reminder_24h_sent_at: string | null
           screening_id: string
+          settlement_currency: string | null
           stream_count: number
           tenant_id: string
           ticket_code: string
@@ -1922,12 +3534,16 @@ export type Database = {
           active_session_token?: string | null
           addons?: Json | null
           created_at?: string
+          creator_base_currency?: string | null
           currency?: string | null
           display_amount?: number | null
           display_currency?: string | null
           email: string
           expires_at?: string
           first_played_at?: string | null
+          fx_provider?: string | null
+          fx_rate?: number | null
+          fx_timestamp?: string | null
           gift_from?: string | null
           gift_message?: string | null
           id?: string
@@ -1935,15 +3551,19 @@ export type Database = {
           last_country?: string | null
           last_ip?: string | null
           location: string
+          original_currency?: string | null
           payment_method?: string | null
           payment_reference?: string | null
           payment_status?: string
+          payout_currency?: string | null
+          platform_base_currency?: string | null
           price: number
           refund_reason?: string | null
           refunded_at?: string | null
           reminder_1h_sent_at?: string | null
           reminder_24h_sent_at?: string | null
           screening_id: string
+          settlement_currency?: string | null
           stream_count?: number
           tenant_id: string
           ticket_code: string
@@ -1960,12 +3580,16 @@ export type Database = {
           active_session_token?: string | null
           addons?: Json | null
           created_at?: string
+          creator_base_currency?: string | null
           currency?: string | null
           display_amount?: number | null
           display_currency?: string | null
           email?: string
           expires_at?: string
           first_played_at?: string | null
+          fx_provider?: string | null
+          fx_rate?: number | null
+          fx_timestamp?: string | null
           gift_from?: string | null
           gift_message?: string | null
           id?: string
@@ -1973,15 +3597,19 @@ export type Database = {
           last_country?: string | null
           last_ip?: string | null
           location?: string
+          original_currency?: string | null
           payment_method?: string | null
           payment_reference?: string | null
           payment_status?: string
+          payout_currency?: string | null
+          platform_base_currency?: string | null
           price?: number
           refund_reason?: string | null
           refunded_at?: string | null
           reminder_1h_sent_at?: string | null
           reminder_24h_sent_at?: string | null
           screening_id?: string
+          settlement_currency?: string | null
           stream_count?: number
           tenant_id?: string
           ticket_code?: string
@@ -1992,6 +3620,13 @@ export type Database = {
           watch_url?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "screening_tickets_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
+            referencedRelation: "public_screenings_catalog"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "screening_tickets_screening_id_fkey"
             columns: ["screening_id"]
@@ -2017,9 +3652,16 @@ export type Database = {
           created_at: string
           description: string | null
           duration: number | null
+          early_bird_capacity: number | null
+          early_bird_currency: string | null
+          early_bird_ends_at: string | null
+          early_bird_price: number | null
+          event_timezone: string
           event_type: string
+          event_visibility: string
           gallery_images: string[] | null
           id: string
+          invite_only: boolean
           lifecycle: string
           live_ended_at: string | null
           live_price_ngn: number | null
@@ -2033,35 +3675,34 @@ export type Database = {
           max_streams_per_ticket: number
           metadata: Json | null
           poster_url: string | null
+          presale_enabled: boolean
+          price_amount: number | null
+          price_currency: string | null
           refund_policy: string | null
+          release_access_at: string | null
           release_date: string | null
           replay_access_hours: number
           replay_access_model: string
           replay_base_price: number | null
+          replay_price_amount: number | null
+          replay_price_currency: string | null
           replay_price_ngn: number | null
           replay_price_usd: number | null
           review_count: number | null
+          sales_close_at: string | null
+          sales_open_at: string | null
           screening_date: string | null
+          settlement_delivery_required: boolean
+          settlement_hold_hours: number
           slug: string
           star_rating: number | null
           status: string
           tenant_id: string
+          territory_allowlist: string[]
+          territory_blocklist: string[]
           title: string
           trailer_url: string | null
           updated_at: string
-          sales_open_at: string | null
-          sales_close_at: string | null
-          early_bird_price: number | null
-          early_bird_currency: string | null
-          early_bird_ends_at: string | null
-          early_bird_capacity: number | null
-          event_visibility: string
-          invite_only: boolean
-          settlement_hold_hours: number
-          settlement_delivery_required: boolean
-          event_timezone: string
-          presale_enabled: boolean
-          release_access_at: string | null
         }
         Insert: {
           access_model?: string
@@ -2078,9 +3719,16 @@ export type Database = {
           created_at?: string
           description?: string | null
           duration?: number | null
+          early_bird_capacity?: number | null
+          early_bird_currency?: string | null
+          early_bird_ends_at?: string | null
+          early_bird_price?: number | null
+          event_timezone?: string
           event_type?: string
+          event_visibility?: string
           gallery_images?: string[] | null
           id?: string
+          invite_only?: boolean
           lifecycle?: string
           live_ended_at?: string | null
           live_price_ngn?: number | null
@@ -2094,35 +3742,34 @@ export type Database = {
           max_streams_per_ticket?: number
           metadata?: Json | null
           poster_url?: string | null
+          presale_enabled?: boolean
+          price_amount?: number | null
+          price_currency?: string | null
           refund_policy?: string | null
+          release_access_at?: string | null
           release_date?: string | null
           replay_access_hours?: number
           replay_access_model?: string
           replay_base_price?: number | null
+          replay_price_amount?: number | null
+          replay_price_currency?: string | null
           replay_price_ngn?: number | null
           replay_price_usd?: number | null
           review_count?: number | null
+          sales_close_at?: string | null
+          sales_open_at?: string | null
           screening_date?: string | null
+          settlement_delivery_required?: boolean
+          settlement_hold_hours?: number
           slug: string
           star_rating?: number | null
           status?: string
           tenant_id: string
+          territory_allowlist?: string[]
+          territory_blocklist?: string[]
           title: string
           trailer_url?: string | null
           updated_at?: string
-          sales_open_at?: string | null
-          sales_close_at?: string | null
-          early_bird_price?: number | null
-          early_bird_currency?: string | null
-          early_bird_ends_at?: string | null
-          early_bird_capacity?: number | null
-          event_visibility?: string
-          invite_only?: boolean
-          settlement_hold_hours?: number
-          settlement_delivery_required?: boolean
-          event_timezone?: string
-          presale_enabled?: boolean
-          release_access_at?: string | null
         }
         Update: {
           access_model?: string
@@ -2139,9 +3786,16 @@ export type Database = {
           created_at?: string
           description?: string | null
           duration?: number | null
+          early_bird_capacity?: number | null
+          early_bird_currency?: string | null
+          early_bird_ends_at?: string | null
+          early_bird_price?: number | null
+          event_timezone?: string
           event_type?: string
+          event_visibility?: string
           gallery_images?: string[] | null
           id?: string
+          invite_only?: boolean
           lifecycle?: string
           live_ended_at?: string | null
           live_price_ngn?: number | null
@@ -2155,35 +3809,34 @@ export type Database = {
           max_streams_per_ticket?: number
           metadata?: Json | null
           poster_url?: string | null
+          presale_enabled?: boolean
+          price_amount?: number | null
+          price_currency?: string | null
           refund_policy?: string | null
+          release_access_at?: string | null
           release_date?: string | null
           replay_access_hours?: number
           replay_access_model?: string
           replay_base_price?: number | null
+          replay_price_amount?: number | null
+          replay_price_currency?: string | null
           replay_price_ngn?: number | null
           replay_price_usd?: number | null
           review_count?: number | null
+          sales_close_at?: string | null
+          sales_open_at?: string | null
           screening_date?: string | null
+          settlement_delivery_required?: boolean
+          settlement_hold_hours?: number
           slug?: string
           star_rating?: number | null
           status?: string
           tenant_id?: string
+          territory_allowlist?: string[]
+          territory_blocklist?: string[]
           title?: string
           trailer_url?: string | null
           updated_at?: string
-          sales_open_at?: string | null
-          sales_close_at?: string | null
-          early_bird_price?: number | null
-          early_bird_currency?: string | null
-          early_bird_ends_at?: string | null
-          early_bird_capacity?: number | null
-          event_visibility?: string
-          invite_only?: boolean
-          settlement_hold_hours?: number
-          settlement_delivery_required?: boolean
-          event_timezone?: string
-          presale_enabled?: boolean
-          release_access_at?: string | null
         }
         Relationships: []
       }
@@ -2195,6 +3848,9 @@ export type Database = {
           credential_secret_ref: string | null
           enabled: boolean
           endpoints: Json
+          health_checked_at: string | null
+          health_error: string | null
+          health_status: string
           id: string
           is_live: boolean
           live_credential_secret_ref: string | null
@@ -2216,6 +3872,9 @@ export type Database = {
           credential_secret_ref?: string | null
           enabled?: boolean
           endpoints?: Json
+          health_checked_at?: string | null
+          health_error?: string | null
+          health_status?: string
           id?: string
           is_live?: boolean
           live_credential_secret_ref?: string | null
@@ -2237,6 +3896,9 @@ export type Database = {
           credential_secret_ref?: string | null
           enabled?: boolean
           endpoints?: Json
+          health_checked_at?: string | null
+          health_error?: string | null
+          health_status?: string
           id?: string
           is_live?: boolean
           live_credential_secret_ref?: string | null
@@ -2250,6 +3912,42 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           webhook_secret_ref?: string | null
+        }
+        Relationships: []
+      }
+      service_provider_secret_versions: {
+        Row: {
+          capability: string
+          created_at: string
+          created_by: string | null
+          id: string
+          provider_key: string
+          retired_at: string | null
+          secret_kind: string
+          secret_ref: string
+          version: number
+        }
+        Insert: {
+          capability: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          provider_key: string
+          retired_at?: string | null
+          secret_kind: string
+          secret_ref: string
+          version: number
+        }
+        Update: {
+          capability?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          provider_key?: string
+          retired_at?: string | null
+          secret_kind?: string
+          secret_ref?: string
+          version?: number
         }
         Relationships: []
       }
@@ -2341,63 +4039,164 @@ export type Database = {
           bank_account_name: string | null
           bank_account_number: string | null
           bank_name: string | null
+          base_currency: string | null
           cac_doc_path: string | null
           cac_number: string | null
           company_name: string | null
+          country_code: string | null
           created_at: string
+          entity_type: Database["public"]["Enums"]["creator_entity_type"]
           id: string
+          payout_account_name: string | null
+          payout_bank_country: string | null
+          payout_bank_name: string | null
+          payout_bank_secret_ref: string | null
+          payout_bank_suffix: string | null
           review_notes: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          rights_declaration: Json
           rights_declared: boolean
           seats: number
           status: string
+          tax_country: string | null
           tax_id: string | null
+          tax_identifier_suffix: string | null
+          tax_secret_ref: string | null
           tier: string
           updated_at: string
           user_id: string
+          verification_reason: string | null
+          verification_reviewed_at: string | null
+          verification_reviewed_by: string | null
+          verification_status: Database["public"]["Enums"]["creator_verification_status"]
+          verification_submitted_at: string | null
         }
         Insert: {
           bank_account_name?: string | null
           bank_account_number?: string | null
           bank_name?: string | null
+          base_currency?: string | null
           cac_doc_path?: string | null
           cac_number?: string | null
           company_name?: string | null
+          country_code?: string | null
           created_at?: string
+          entity_type?: Database["public"]["Enums"]["creator_entity_type"]
           id?: string
+          payout_account_name?: string | null
+          payout_bank_country?: string | null
+          payout_bank_name?: string | null
+          payout_bank_secret_ref?: string | null
+          payout_bank_suffix?: string | null
           review_notes?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          rights_declaration?: Json
           rights_declared?: boolean
           seats?: number
           status?: string
+          tax_country?: string | null
           tax_id?: string | null
+          tax_identifier_suffix?: string | null
+          tax_secret_ref?: string | null
           tier?: string
           updated_at?: string
           user_id: string
+          verification_reason?: string | null
+          verification_reviewed_at?: string | null
+          verification_reviewed_by?: string | null
+          verification_status?: Database["public"]["Enums"]["creator_verification_status"]
+          verification_submitted_at?: string | null
         }
         Update: {
           bank_account_name?: string | null
           bank_account_number?: string | null
           bank_name?: string | null
+          base_currency?: string | null
           cac_doc_path?: string | null
           cac_number?: string | null
           company_name?: string | null
+          country_code?: string | null
           created_at?: string
+          entity_type?: Database["public"]["Enums"]["creator_entity_type"]
           id?: string
+          payout_account_name?: string | null
+          payout_bank_country?: string | null
+          payout_bank_name?: string | null
+          payout_bank_secret_ref?: string | null
+          payout_bank_suffix?: string | null
           review_notes?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          rights_declaration?: Json
           rights_declared?: boolean
           seats?: number
           status?: string
+          tax_country?: string | null
           tax_id?: string | null
+          tax_identifier_suffix?: string | null
+          tax_secret_ref?: string | null
           tier?: string
           updated_at?: string
           user_id?: string
+          verification_reason?: string | null
+          verification_reviewed_at?: string | null
+          verification_reviewed_by?: string | null
+          verification_status?: Database["public"]["Enums"]["creator_verification_status"]
+          verification_submitted_at?: string | null
         }
         Relationships: []
+      }
+      studio_invitations: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string
+          invited_user_id: string | null
+          revoked_at: string | null
+          role: string
+          studio_account_id: string
+          token_hash: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          email: string
+          expires_at: string
+          id?: string
+          invited_by: string
+          invited_user_id?: string | null
+          revoked_at?: string | null
+          role: string
+          studio_account_id: string
+          token_hash: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string
+          invited_user_id?: string | null
+          revoked_at?: string | null
+          role?: string
+          studio_account_id?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "studio_invitations_studio_account_id_fkey"
+            columns: ["studio_account_id"]
+            isOneToOne: false
+            referencedRelation: "studio_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       studio_members: {
         Row: {
@@ -2428,6 +4227,47 @@ export type Database = {
           status?: string
         }
         Relationships: []
+      }
+      studio_memberships: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          id: string
+          invited_by: string | null
+          revoked_at: string | null
+          role: string
+          studio_account_id: string
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          id?: string
+          invited_by?: string | null
+          revoked_at?: string | null
+          role: string
+          studio_account_id: string
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          id?: string
+          invited_by?: string | null
+          revoked_at?: string | null
+          role?: string
+          studio_account_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "studio_memberships_studio_account_id_fkey"
+            columns: ["studio_account_id"]
+            isOneToOne: false
+            referencedRelation: "studio_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       subscription_plans: {
         Row: {
@@ -2548,6 +4388,190 @@ export type Database = {
           },
         ]
       }
+      support_agents: {
+        Row: {
+          created_at: string
+          department: string
+          display_name: string | null
+          is_active: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          department?: string
+          display_name?: string | null
+          is_active?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          department?: string
+          display_name?: string | null
+          is_active?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      support_messages: {
+        Row: {
+          attachment_paths: string[]
+          body: string
+          created_at: string
+          id: string
+          is_internal: boolean
+          read_at: string | null
+          sender_id: string
+          ticket_id: string
+        }
+        Insert: {
+          attachment_paths?: string[]
+          body: string
+          created_at?: string
+          id?: string
+          is_internal?: boolean
+          read_at?: string | null
+          sender_id: string
+          ticket_id: string
+        }
+        Update: {
+          attachment_paths?: string[]
+          body?: string
+          created_at?: string
+          id?: string
+          is_internal?: boolean
+          read_at?: string | null
+          sender_id?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_messages_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_sla_policies: {
+        Row: {
+          first_response_minutes: number
+          is_active: boolean
+          priority: string
+          resolution_minutes: number
+          updated_at: string
+        }
+        Insert: {
+          first_response_minutes: number
+          is_active?: boolean
+          priority: string
+          resolution_minutes: number
+          updated_at?: string
+        }
+        Update: {
+          first_response_minutes?: number
+          is_active?: boolean
+          priority?: string
+          resolution_minutes?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      support_tickets: {
+        Row: {
+          assigned_agent_id: string | null
+          category: string
+          channel: string
+          closed_at: string | null
+          created_at: string
+          department: string
+          description: string
+          escalated_at: string | null
+          first_responded_at: string | null
+          first_response_due_at: string | null
+          id: string
+          last_message_at: string
+          priority: string
+          related_content_id: string | null
+          related_event_id: string | null
+          related_transaction_reference: string | null
+          resolution: string | null
+          resolution_due_at: string | null
+          resolved_at: string | null
+          satisfaction_rating: number | null
+          status: string
+          subject: string
+          ticket_number: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assigned_agent_id?: string | null
+          category: string
+          channel?: string
+          closed_at?: string | null
+          created_at?: string
+          department?: string
+          description: string
+          escalated_at?: string | null
+          first_responded_at?: string | null
+          first_response_due_at?: string | null
+          id?: string
+          last_message_at?: string
+          priority?: string
+          related_content_id?: string | null
+          related_event_id?: string | null
+          related_transaction_reference?: string | null
+          resolution?: string | null
+          resolution_due_at?: string | null
+          resolved_at?: string | null
+          satisfaction_rating?: number | null
+          status?: string
+          subject: string
+          ticket_number?: never
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assigned_agent_id?: string | null
+          category?: string
+          channel?: string
+          closed_at?: string | null
+          created_at?: string
+          department?: string
+          description?: string
+          escalated_at?: string | null
+          first_responded_at?: string | null
+          first_response_due_at?: string | null
+          id?: string
+          last_message_at?: string
+          priority?: string
+          related_content_id?: string | null
+          related_event_id?: string | null
+          related_transaction_reference?: string | null
+          resolution?: string | null
+          resolution_due_at?: string | null
+          resolved_at?: string | null
+          satisfaction_rating?: number | null
+          status?: string
+          subject?: string
+          ticket_number?: never
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_assigned_agent_id_fkey"
+            columns: ["assigned_agent_id"]
+            isOneToOne: false
+            referencedRelation: "support_agents"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       tenants: {
         Row: {
           cdn_config: Json | null
@@ -2617,14 +4641,22 @@ export type Database = {
           claimed_at: string | null
           content_id: string | null
           created_at: string
+          creator_base_currency: string | null
           currency: string | null
+          fx_provider: string | null
+          fx_rate: number | null
+          fx_timestamp: string | null
           guest_email: string | null
           id: string
           is_used: boolean | null
           metadata: Json | null
+          original_currency: string | null
+          payout_currency: string | null
+          platform_base_currency: string | null
           price: number
           revocation_reason: string | null
           revoked_at: string | null
+          settlement_currency: string | null
           stream_count: number
           stream_id: string | null
           tenant_id: string
@@ -2643,14 +4675,22 @@ export type Database = {
           claimed_at?: string | null
           content_id?: string | null
           created_at?: string
+          creator_base_currency?: string | null
           currency?: string | null
+          fx_provider?: string | null
+          fx_rate?: number | null
+          fx_timestamp?: string | null
           guest_email?: string | null
           id?: string
           is_used?: boolean | null
           metadata?: Json | null
+          original_currency?: string | null
+          payout_currency?: string | null
+          platform_base_currency?: string | null
           price: number
           revocation_reason?: string | null
           revoked_at?: string | null
+          settlement_currency?: string | null
           stream_count?: number
           stream_id?: string | null
           tenant_id: string
@@ -2669,14 +4709,22 @@ export type Database = {
           claimed_at?: string | null
           content_id?: string | null
           created_at?: string
+          creator_base_currency?: string | null
           currency?: string | null
+          fx_provider?: string | null
+          fx_rate?: number | null
+          fx_timestamp?: string | null
           guest_email?: string | null
           id?: string
           is_used?: boolean | null
           metadata?: Json | null
+          original_currency?: string | null
+          payout_currency?: string | null
+          platform_base_currency?: string | null
           price?: number
           revocation_reason?: string | null
           revoked_at?: string | null
+          settlement_currency?: string | null
           stream_count?: number
           stream_id?: string | null
           tenant_id?: string
@@ -2693,6 +4741,13 @@ export type Database = {
             columns: ["content_id"]
             isOneToOne: false
             referencedRelation: "content"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "public_content_catalog"
             referencedColumns: ["id"]
           },
           {
@@ -2741,44 +4796,79 @@ export type Database = {
       wallet_ledger: {
         Row: {
           created_at: string
+          creator_base_currency: string | null
           currency: string
+          event_contribution_id: string | null
           fee: number
+          fx_provider: string | null
+          fx_rate: number | null
+          fx_timestamp: string | null
           gross: number
           id: string
           kind: string
           net: number
+          original_currency: string | null
+          payout_currency: string | null
+          platform_base_currency: string | null
           screening_id: string | null
+          settlement_currency: string | null
           settles_at: string
           ticket_id: string | null
           user_id: string
         }
         Insert: {
           created_at?: string
+          creator_base_currency?: string | null
           currency?: string
+          event_contribution_id?: string | null
           fee?: number
+          fx_provider?: string | null
+          fx_rate?: number | null
+          fx_timestamp?: string | null
           gross?: number
           id?: string
           kind?: string
           net?: number
+          original_currency?: string | null
+          payout_currency?: string | null
+          platform_base_currency?: string | null
           screening_id?: string | null
+          settlement_currency?: string | null
           settles_at?: string
           ticket_id?: string | null
           user_id: string
         }
         Update: {
           created_at?: string
+          creator_base_currency?: string | null
           currency?: string
+          event_contribution_id?: string | null
           fee?: number
+          fx_provider?: string | null
+          fx_rate?: number | null
+          fx_timestamp?: string | null
           gross?: number
           id?: string
           kind?: string
           net?: number
+          original_currency?: string | null
+          payout_currency?: string | null
+          platform_base_currency?: string | null
           screening_id?: string | null
+          settlement_currency?: string | null
           settles_at?: string
           ticket_id?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "wallet_ledger_event_contribution_id_fkey"
+            columns: ["event_contribution_id"]
+            isOneToOne: false
+            referencedRelation: "event_contributions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       watch_history: {
         Row: {
@@ -2835,6 +4925,13 @@ export type Database = {
             columns: ["content_id"]
             isOneToOne: false
             referencedRelation: "content"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "watch_history_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "public_content_catalog"
             referencedColumns: ["id"]
           },
           {
@@ -2920,6 +5017,13 @@ export type Database = {
             foreignKeyName: "watch_party_rooms_screening_id_fkey"
             columns: ["screening_id"]
             isOneToOne: false
+            referencedRelation: "public_screenings_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "watch_party_rooms_screening_id_fkey"
+            columns: ["screening_id"]
+            isOneToOne: false
             referencedRelation: "screenings"
             referencedColumns: ["id"]
           },
@@ -2956,6 +5060,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "watchlists_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "public_content_catalog"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "watchlists_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -2968,13 +5079,32 @@ export type Database = {
         Row: {
           account_name: string
           account_number: string
+          account_secret_ref: string
           admin_note: string | null
           amount: number
+          approved_at: string | null
+          approved_by: string | null
           bank_country: string | null
           bank_name: string
           created_at: string
+          creator_base_currency: string | null
           currency: string
+          failure_reason: string | null
+          fx_provider: string | null
+          fx_rate: number | null
+          fx_timestamp: string | null
           id: string
+          original_currency: string | null
+          paid_at: string | null
+          payout_currency: string | null
+          payout_provider_key: string | null
+          payout_reference: string | null
+          platform_base_currency: string | null
+          processing_at: string | null
+          processing_by: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          settlement_currency: string | null
           status: string
           updated_at: string
           user_id: string
@@ -2982,13 +5112,32 @@ export type Database = {
         Insert: {
           account_name: string
           account_number: string
+          account_secret_ref: string
           admin_note?: string | null
           amount: number
+          approved_at?: string | null
+          approved_by?: string | null
           bank_country?: string | null
           bank_name: string
           created_at?: string
+          creator_base_currency?: string | null
           currency?: string
+          failure_reason?: string | null
+          fx_provider?: string | null
+          fx_rate?: number | null
+          fx_timestamp?: string | null
           id?: string
+          original_currency?: string | null
+          paid_at?: string | null
+          payout_currency?: string | null
+          payout_provider_key?: string | null
+          payout_reference?: string | null
+          platform_base_currency?: string | null
+          processing_at?: string | null
+          processing_by?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          settlement_currency?: string | null
           status?: string
           updated_at?: string
           user_id: string
@@ -2996,13 +5145,32 @@ export type Database = {
         Update: {
           account_name?: string
           account_number?: string
+          account_secret_ref?: string
           admin_note?: string | null
           amount?: number
+          approved_at?: string | null
+          approved_by?: string | null
           bank_country?: string | null
           bank_name?: string
           created_at?: string
+          creator_base_currency?: string | null
           currency?: string
+          failure_reason?: string | null
+          fx_provider?: string | null
+          fx_rate?: number | null
+          fx_timestamp?: string | null
           id?: string
+          original_currency?: string | null
+          paid_at?: string | null
+          payout_currency?: string | null
+          payout_provider_key?: string | null
+          payout_reference?: string | null
+          platform_base_currency?: string | null
+          processing_at?: string | null
+          processing_by?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          settlement_currency?: string | null
           status?: string
           updated_at?: string
           user_id?: string
@@ -3011,9 +5179,213 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      public_content_catalog: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          duration: number | null
+          genres: string[] | null
+          id: string | null
+          poster_url: string | null
+          release_date: string | null
+          title: string | null
+          trailer_url: string | null
+          type: Database["public"]["Enums"]["content_type"] | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          duration?: number | null
+          genres?: string[] | null
+          id?: string | null
+          poster_url?: string | null
+          release_date?: string | null
+          title?: string | null
+          trailer_url?: string | null
+          type?: Database["public"]["Enums"]["content_type"] | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          duration?: number | null
+          genres?: string[] | null
+          id?: string | null
+          poster_url?: string | null
+          release_date?: string | null
+          title?: string | null
+          trailer_url?: string | null
+          type?: Database["public"]["Enums"]["content_type"] | null
+        }
+        Relationships: []
+      }
+      public_screenings_catalog: {
+        Row: {
+          access_model: string | null
+          age_rating: string | null
+          allowed_countries: string[] | null
+          banner_url: string | null
+          base_currency: string | null
+          base_price: number | null
+          blocked_countries: string[] | null
+          cancelled_at: string | null
+          cast_crew: Json | null
+          content_id: string | null
+          created_at: string | null
+          description: string | null
+          duration: number | null
+          early_bird_capacity: number | null
+          early_bird_currency: string | null
+          early_bird_ends_at: string | null
+          early_bird_price: number | null
+          event_timezone: string | null
+          event_type: string | null
+          event_visibility: string | null
+          gallery_images: string[] | null
+          id: string | null
+          invite_only: boolean | null
+          lifecycle: string | null
+          live_ended_at: string | null
+          live_price_ngn: number | null
+          live_price_usd: number | null
+          live_recording_status: string | null
+          live_replay_ready_at: string | null
+          live_started_at: string | null
+          location_pricing: Json | null
+          poster_url: string | null
+          presale_enabled: boolean | null
+          refund_policy: string | null
+          release_access_at: string | null
+          release_date: string | null
+          replay_access_hours: number | null
+          replay_access_model: string | null
+          replay_base_price: number | null
+          replay_price_ngn: number | null
+          replay_price_usd: number | null
+          review_count: number | null
+          sales_close_at: string | null
+          sales_open_at: string | null
+          screening_date: string | null
+          slug: string | null
+          star_rating: number | null
+          status: string | null
+          title: string | null
+          trailer_url: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          access_model?: string | null
+          age_rating?: string | null
+          allowed_countries?: string[] | null
+          banner_url?: string | null
+          base_currency?: string | null
+          base_price?: number | null
+          blocked_countries?: string[] | null
+          cancelled_at?: string | null
+          cast_crew?: Json | null
+          content_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          duration?: number | null
+          early_bird_capacity?: number | null
+          early_bird_currency?: string | null
+          early_bird_ends_at?: string | null
+          early_bird_price?: number | null
+          event_timezone?: string | null
+          event_type?: string | null
+          event_visibility?: string | null
+          gallery_images?: string[] | null
+          id?: string | null
+          invite_only?: boolean | null
+          lifecycle?: string | null
+          live_ended_at?: string | null
+          live_price_ngn?: number | null
+          live_price_usd?: number | null
+          live_recording_status?: string | null
+          live_replay_ready_at?: string | null
+          live_started_at?: string | null
+          location_pricing?: Json | null
+          poster_url?: string | null
+          presale_enabled?: boolean | null
+          refund_policy?: string | null
+          release_access_at?: string | null
+          release_date?: string | null
+          replay_access_hours?: number | null
+          replay_access_model?: string | null
+          replay_base_price?: number | null
+          replay_price_ngn?: number | null
+          replay_price_usd?: number | null
+          review_count?: number | null
+          sales_close_at?: string | null
+          sales_open_at?: string | null
+          screening_date?: string | null
+          slug?: string | null
+          star_rating?: number | null
+          status?: string | null
+          title?: string | null
+          trailer_url?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          access_model?: string | null
+          age_rating?: string | null
+          allowed_countries?: string[] | null
+          banner_url?: string | null
+          base_currency?: string | null
+          base_price?: number | null
+          blocked_countries?: string[] | null
+          cancelled_at?: string | null
+          cast_crew?: Json | null
+          content_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          duration?: number | null
+          early_bird_capacity?: number | null
+          early_bird_currency?: string | null
+          early_bird_ends_at?: string | null
+          early_bird_price?: number | null
+          event_timezone?: string | null
+          event_type?: string | null
+          event_visibility?: string | null
+          gallery_images?: string[] | null
+          id?: string | null
+          invite_only?: boolean | null
+          lifecycle?: string | null
+          live_ended_at?: string | null
+          live_price_ngn?: number | null
+          live_price_usd?: number | null
+          live_recording_status?: string | null
+          live_replay_ready_at?: string | null
+          live_started_at?: string | null
+          location_pricing?: Json | null
+          poster_url?: string | null
+          presale_enabled?: boolean | null
+          refund_policy?: string | null
+          release_access_at?: string | null
+          release_date?: string | null
+          replay_access_hours?: number | null
+          replay_access_model?: string | null
+          replay_base_price?: number | null
+          replay_price_ngn?: number | null
+          replay_price_usd?: number | null
+          review_count?: number | null
+          sales_close_at?: string | null
+          sales_open_at?: string | null
+          screening_date?: string | null
+          slug?: string | null
+          star_rating?: number | null
+          status?: string | null
+          title?: string | null
+          trailer_url?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      accept_studio_invitation: {
+        Args: { p_email: string; p_invitation_id: string; p_user_id: string }
+        Returns: Json
+      }
       accept_studio_invites: { Args: never; Returns: number }
       admin_configure_email_provider: {
         Args: {
@@ -3089,6 +5461,25 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_list_tenants: {
+        Args: never
+        Returns: {
+          content_count: number
+          created_at: string
+          custom_domain: string
+          id: string
+          is_active: boolean
+          name: string
+          published_content_count: number
+          slug: string
+          tenant_type: string
+          user_count: number
+        }[]
+      }
+      admin_set_tenant_status: {
+        Args: { p_is_active: boolean; p_tenant_id: string }
+        Returns: boolean
+      }
       admin_upsert_country_currency_rule: {
         Args: {
           p_country_code: string
@@ -3122,6 +5513,16 @@ export type Database = {
         }
         Returns: Json
       }
+      authorize_legacy_screening_ticket_playback: {
+        Args: {
+          p_country_code: string
+          p_email: string
+          p_provider_expires_at: string
+          p_session_token_hash: string
+          p_watch_code: string
+        }
+        Returns: Json
+      }
       authorize_screening_ticket_playback: {
         Args: {
           p_country_code?: string
@@ -3134,6 +5535,33 @@ export type Database = {
           session_id: string
           ticket_id: string
         }[]
+      }
+      claim_event_notification_outbox: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempts: number
+          content_id: string | null
+          created_at: string
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          live_stream_id: string | null
+          notification_type: string
+          payload: Json
+          recipient_email: string
+          recipient_user_id: string | null
+          scheduled_for: string
+          screening_id: string | null
+          sent_at: string | null
+          status: string
+          tenant_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "event_notification_outbox"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       claim_free_live_ticket: {
         Args: { p_screening_id: string }
@@ -3148,6 +5576,47 @@ export type Database = {
       claim_live_payment_email: {
         Args: { p_reference: string }
         Returns: boolean
+      }
+      claim_media_processing_jobs: {
+        Args: { p_limit?: number; p_worker: string }
+        Returns: {
+          attempts: number
+          available_at: string
+          clean_master_path: string | null
+          content_id: string | null
+          created_at: string
+          dead_lettered_at: string | null
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          provenance: Json
+          quarantine_path: string
+          renditions: Json
+          sha256: string | null
+          stage: string
+          status: Database["public"]["Enums"]["media_processing_status"]
+          subtitles: Json
+          updated_at: string
+          upload_session_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "media_processing_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      complete_event_contribution: {
+        Args: {
+          p_amount_minor: number
+          p_currency: string
+          p_reference: string
+          p_transaction_id: string
+        }
+        Returns: Json
       }
       complete_guest_payment_order: {
         Args: {
@@ -3181,6 +5650,14 @@ export type Database = {
       complete_payment_refund: {
         Args: { p_provider_refund_id: string; p_refund_id: string }
         Returns: Json
+      }
+      confirm_event_delivery: {
+        Args: {
+          p_evidence?: Json
+          p_live_stream_id?: string
+          p_screening_id?: string
+        }
+        Returns: number
       }
       create_creator_screening: {
         Args: {
@@ -3243,6 +5720,11 @@ export type Database = {
         }
         Returns: string
       }
+      create_support_chat: { Args: never; Returns: Json }
+      enqueue_event_cancellation_notifications: {
+        Args: { p_screening_id: string }
+        Returns: number
+      }
       get_business_verification_material: {
         Args: { p_verification_id: string }
         Returns: {
@@ -3264,6 +5746,24 @@ export type Database = {
           verification_mode: string
         }[]
       }
+      get_content_support_feed: {
+        Args: { p_content_id: string }
+        Returns: {
+          amount_major: number
+          animation_duration_ms: number
+          contribution_type: string
+          contributor_name: string
+          created_at: string
+          currency: string
+          gift_animation_url: string
+          gift_asset_url: string
+          gift_catalog_key: string
+          gift_emoji: string
+          gift_name: string
+          id: string
+          message: string
+        }[]
+      }
       get_email_provider_runtime_config: {
         Args: never
         Returns: {
@@ -3275,11 +5775,103 @@ export type Database = {
           reply_to: string
         }[]
       }
+      get_event_contribution_feed: {
+        Args: { p_live_stream_id?: string; p_screening_id?: string }
+        Returns: {
+          amount_major: number
+          animation_duration_ms: number
+          contribution_type: string
+          contributor_name: string
+          created_at: string
+          currency: string
+          gift_animation_url: string
+          gift_asset_url: string
+          gift_catalog_key: string
+          gift_emoji: string
+          gift_name: string
+          id: string
+          message: string
+        }[]
+      }
+      get_event_notification_worker_secret: { Args: never; Returns: string }
+      get_media_transcoder_callback_secret: { Args: never; Returns: string }
+      get_media_worker_secret: { Args: never; Returns: string }
+      get_my_event_contributions: {
+        Args: never
+        Returns: {
+          amount_major: number
+          amount_minor: number
+          contribution_type: string
+          contributor_name: string
+          currency: string
+          event_title: string
+          id: string
+          is_anonymous: boolean
+          message: string
+          paid_at: string
+          status: string
+        }[]
+      }
+      get_my_live_stream_lifecycle: {
+        Args: { p_screening_id: string }
+        Returns: {
+          actual_ended_at: string
+          actual_started_at: string
+          lifecycle_status: string
+          reconnect_grace_expires_at: string
+        }[]
+      }
       get_my_studio_account: {
         Args: never
         Returns: {
           status: string
           tier: string
+        }[]
+      }
+      get_my_support_transactions: {
+        Args: never
+        Returns: {
+          amount_major: number
+          contribution_type: string
+          created_at: string
+          currency: string
+          direction: string
+          display_name: string
+          id: string
+          message: string
+          status: string
+          target_title: string
+        }[]
+      }
+      get_my_tenant_config: {
+        Args: never
+        Returns: {
+          created_at: string
+          custom_domain: string
+          favicon_url: string
+          id: string
+          is_active: boolean
+          logo_url: string
+          name: string
+          primary_color: string
+          secondary_color: string
+          slug: string
+          updated_at: string
+        }[]
+      }
+      get_my_wallet_activity: {
+        Args: { p_before?: string; p_limit?: number }
+        Returns: {
+          activity_type: string
+          amount_major: number
+          counterparty: string
+          created_at: string
+          currency: string
+          description: string
+          direction: string
+          id: string
+          reference: string
+          status: string
         }[]
       }
       get_payment_provider_runtime_config: {
@@ -3291,6 +5883,15 @@ export type Database = {
           public_key: string
           secret_key: string
           webhook_secret: string
+        }[]
+      }
+      get_platform_release_assignment: {
+        Args: { p_release_key: string; p_subject_id: string }
+        Returns: {
+          assigned: boolean
+          cohort_basis: string
+          release_version: string
+          rollout_id: string
         }[]
       }
       get_service_provider_admin_secret: {
@@ -3317,6 +5918,17 @@ export type Database = {
         }[]
       }
       get_user_tenant_id: { Args: { _user_id: string }; Returns: string }
+      get_withdrawal_bank_details: {
+        Args: { p_request_id: string }
+        Returns: {
+          account_name: string
+          account_number: string
+          bank_country: string
+          bank_name: string
+          request_id: string
+          user_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -3324,12 +5936,25 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_active_studio_member: {
+        Args: { p_roles?: string[]; p_studio_account_id: string }
+        Returns: boolean
+      }
+      is_active_support_agent: { Args: { p_user_id: string }; Returns: boolean }
       is_approved_creator: { Args: { p_user_id: string }; Returns: boolean }
       is_filmmaker: { Args: { _user_id: string }; Returns: boolean }
       is_kyc_verified: { Args: { _user_id: string }; Returns: boolean }
       is_studio_member: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       publish_creator_content: { Args: { p_content_id: string }; Returns: Json }
+      rate_support_ticket: {
+        Args: { p_rating: number; p_ticket_id: string }
+        Returns: Json
+      }
+      refresh_event_settlement_holds: {
+        Args: { p_limit?: number }
+        Returns: number
+      }
       register_release_domain: {
         Args: {
           p_branding?: Json
@@ -3339,16 +5964,29 @@ export type Database = {
         }
         Returns: {
           branding: Json
+          branding_version: number | null
           content_id: string
           created_at: string
+          dns_target: string | null
           dns_verified_at: string | null
           domain_kind: string
           hostname: string
           id: string
+          last_verification_at: string | null
+          seo_metadata: Json
+          ssl_certificate_expires_at: string | null
+          ssl_provider_key: string | null
+          ssl_status: string
           status: string
           subdomain: string
           tenant_id: string | null
           updated_at: string
+          verification_error: string | null
+          verification_status:
+            | Database["public"]["Enums"]["production_domain_status"]
+            | null
+          verification_token_hash: string | null
+          verified_at: string | null
         }
         SetofOptions: {
           from: "*"
@@ -3357,6 +5995,11 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      release_event_early_bird_slot: {
+        Args: { p_provider_reference: string }
+        Returns: undefined
+      }
+      reopen_support_ticket: { Args: { p_ticket_id: string }; Returns: Json }
       request_wallet_withdrawal: {
         Args: {
           p_account_name: string
@@ -3365,6 +6008,22 @@ export type Database = {
           p_bank_country: string
           p_bank_name: string
           p_currency: string
+        }
+        Returns: Json
+      }
+      reserve_event_early_bird_slot: {
+        Args: {
+          p_expires_at?: string
+          p_provider_reference: string
+          p_screening_id: string
+        }
+        Returns: boolean
+      }
+      resolve_platform_security_alert: {
+        Args: {
+          p_actor_id: string
+          p_alert_id: string
+          p_resolution_note: string
         }
         Returns: Json
       }
@@ -3399,6 +6058,24 @@ export type Database = {
       }
       review_studio_account: {
         Args: { p_account_id: string; p_decision: string; p_reason: string }
+        Returns: Json
+      }
+      rotate_service_provider_secret: {
+        Args: {
+          p_capability: string
+          p_provider_key: string
+          p_secret: string
+          p_secret_kind: string
+        }
+        Returns: string
+      }
+      run_event_settlement_maintenance: { Args: never; Returns: number }
+      store_creator_vault_material: {
+        Args: {
+          p_bank_account_number?: string
+          p_tax_identifier?: string
+          p_user_id: string
+        }
         Returns: Json
       }
       submit_business_verification: {
@@ -3449,6 +6126,37 @@ export type Database = {
           status: string
           tier: string
         }[]
+      }
+      transition_platform_release: {
+        Args: {
+          p_actor_id: string
+          p_expected_state: string
+          p_reason: string
+          p_release_key: string
+          p_traffic_percentage?: number
+          p_transition: string
+        }
+        Returns: Json
+      }
+      transition_withdrawal_request: {
+        Args: {
+          p_actor_id: string
+          p_admin_note?: string
+          p_request_id: string
+          p_transition: string
+        }
+        Returns: Json
+      }
+      update_platform_branding: {
+        Args: {
+          p_actor_id: string
+          p_brand_config: Json
+          p_brand_key: string
+          p_expected_version: number
+          p_is_public: boolean
+          p_reason: string
+        }
+        Returns: Json
       }
       wallet_balance: {
         Args: { _user_id: string }
@@ -3522,8 +6230,51 @@ export type Database = {
         | "live"
         | "vod"
         | "channel"
+      creator_content_lifecycle:
+        | "DRAFT"
+        | "REVIEW"
+        | "APPROVED"
+        | "SCHEDULED"
+        | "PUBLISHED"
+        | "UPDATED"
+        | "WITHDRAWN"
+        | "ARCHIVED"
+      creator_entity_type:
+        | "INDIVIDUAL_CREATOR"
+        | "STUDIO"
+        | "PRODUCTION_COMPANY"
+        | "BUSINESS"
+      creator_verification_status:
+        | "DRAFT"
+        | "SUBMITTED"
+        | "UNDER_REVIEW"
+        | "ADDITIONAL_INFO_REQUIRED"
+        | "APPROVED"
+        | "REJECTED"
+        | "SUSPENDED"
+        | "APPEAL_PENDING"
+      media_processing_status:
+        | "INITIALIZED"
+        | "UPLOADING"
+        | "UPLOADED"
+        | "QUARANTINED"
+        | "SCANNING"
+        | "PROMOTING"
+        | "TRANSCODING"
+        | "READY"
+        | "RETRY_WAIT"
+        | "DEAD_LETTER"
+        | "CANCELLED"
+        | "FAILED"
       monetization_type: "free" | "svod" | "tvod" | "avod" | "ppv" | "ticket"
       payment_status: "pending" | "completed" | "failed" | "refunded"
+      production_domain_status:
+        | "PENDING_DNS"
+        | "VERIFYING"
+        | "PROVISIONING_SSL"
+        | "ACTIVE"
+        | "FAILED"
+        | "SUSPENDED"
       stream_status: "scheduled" | "live" | "ended" | "cancelled"
       subscription_status:
         | "active"
@@ -3716,8 +6467,56 @@ export const Constants = {
         "vod",
         "channel",
       ],
+      creator_content_lifecycle: [
+        "DRAFT",
+        "REVIEW",
+        "APPROVED",
+        "SCHEDULED",
+        "PUBLISHED",
+        "UPDATED",
+        "WITHDRAWN",
+        "ARCHIVED",
+      ],
+      creator_entity_type: [
+        "INDIVIDUAL_CREATOR",
+        "STUDIO",
+        "PRODUCTION_COMPANY",
+        "BUSINESS",
+      ],
+      creator_verification_status: [
+        "DRAFT",
+        "SUBMITTED",
+        "UNDER_REVIEW",
+        "ADDITIONAL_INFO_REQUIRED",
+        "APPROVED",
+        "REJECTED",
+        "SUSPENDED",
+        "APPEAL_PENDING",
+      ],
+      media_processing_status: [
+        "INITIALIZED",
+        "UPLOADING",
+        "UPLOADED",
+        "QUARANTINED",
+        "SCANNING",
+        "PROMOTING",
+        "TRANSCODING",
+        "READY",
+        "RETRY_WAIT",
+        "DEAD_LETTER",
+        "CANCELLED",
+        "FAILED",
+      ],
       monetization_type: ["free", "svod", "tvod", "avod", "ppv", "ticket"],
       payment_status: ["pending", "completed", "failed", "refunded"],
+      production_domain_status: [
+        "PENDING_DNS",
+        "VERIFYING",
+        "PROVISIONING_SSL",
+        "ACTIVE",
+        "FAILED",
+        "SUSPENDED",
+      ],
       stream_status: ["scheduled", "live", "ended", "cancelled"],
       subscription_status: [
         "active",
