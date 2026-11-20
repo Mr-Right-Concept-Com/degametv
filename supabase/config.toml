@@ -42,3 +42,9 @@ verify_jwt = true
 
 [functions.live-stream-webhook]
 verify_jwt = false
+
+[functions.update-locale-preferences]
+verify_jwt = true
+
+[functions.platform-ai]
+verify_jwt = true
