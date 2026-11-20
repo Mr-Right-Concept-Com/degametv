@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,10 +20,12 @@ export default function EventInviteAccept() {
   const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
+  const requestInFlight = useRef(false);
 
   useEffect(() => {
-    if (!user || !token || accepted || busy) return;
+    if (!user || !token || accepted || requestInFlight.current) return;
     let active = true;
+    requestInFlight.current = true;
     setBusy(true);
     supabase.functions.invoke("manage-event-invites", { body: { action: "accept", token } })
       .then(({ data, error: invokeError }) => {
@@ -31,7 +33,7 @@ export default function EventInviteAccept() {
         if (invokeError || !data?.success) setError(data?.error || invokeError?.message || "This invitation could not be accepted.");
         else setAccepted(true);
       })
-      .finally(() => { if (active) setBusy(false); });
+      .finally(() => { requestInFlight.current = false; if (active) setBusy(false); });
     return () => { active = false; };
   }, [user?.id, token, accepted, attempt]);
 
