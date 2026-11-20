@@ -9,6 +9,12 @@ type Invitation={id:string;studio_account_id:string;email:string;role:string;exp
 type Member={id:string;user_id:string;role:string;accepted_at:string|null};
 const field = "w-full rounded-lg border bg-background px-3 py-2 text-sm";
 export default function CreatorOnboarding() {
+ const {user}=useAuth();
+ const [studioAccountId,setStudioAccountId]=useState("");
+ const [pendingInvitations,setPendingInvitations]=useState<Invitation[]>([]);
+ const [teamMembers,setTeamMembers]=useState<Member[]>([]);
+ const [teamInvitations,setTeamInvitations]=useState<Invitation[]>([]);
+ const [kyb,setKyb]=useState({legalBusinessName:"",registrationCountry:"NG",registrationNumber:"",registrationDocument:null as File|null,businessAddress:"",businessCity:"",businessRegion:"",businessPostalCode:"",bankName:"",bankAccountNumber:"",bankAccountName:"",bankCountry:"NG",taxIdentifier:""});
  const [busy,setBusy]=useState(false),[message,setMessage]=useState(""),[caseId,setCaseId]=useState("");
  const [form,setForm]=useState({entityType:"INDIVIDUAL_CREATOR",displayName:"",legalName:"",countryCode:"NG",baseCurrency:"NGN",bio:"",identityVerificationId:"",businessVerificationId:"",taxIdentifier:"",bankAccountNumber:"",bankName:"",bankCountry:"NG",bankAccountName:""});
  const [team,setTeam]=useState({studioAccountId:"",email:"",role:"PRODUCER"});
