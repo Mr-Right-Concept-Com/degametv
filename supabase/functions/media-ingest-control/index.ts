@@ -67,6 +67,22 @@ async function presignPart(c:S3Config,key:string,uploadId:string,partNumber:numb
  return u.toString();
 }
 function xmlValue(xml:string,tag:string){return new RegExp("<"+tag+">([\\s\\S]*?)</"+tag+">").exec(xml)?.[1]??null;}
+type StoredPart={partNumber:number;etag:string;checksumSha256:string;size:number};
+async function listMultipartParts(storage:S3Config,key:string,uploadId:string):Promise<StoredPart[]>{
+ const collected:StoredPart[]=[];let marker=0;
+ for(let page=0;page<10;page++){
+  const query:Record<string,string>={uploadId,"max-parts":"1000"};if(marker)query["part-number-marker"]=String(marker);
+  const response=await signedRequest(storage,key,"GET",query);if(!response.ok)throw new Error("storage_list_parts_failed_"+response.status);
+  const xml=await response.text();
+  const pageParts=[...xml.matchAll(/<Part>([\s\S]*?)<\/Part>/g)].map(match=>({partNumber:Number(xmlValue(match[1],"PartNumber")),etag:(xmlValue(match[1],"ETag")??"").replaceAll("&quot;","").replaceAll('"',""),checksumSha256:xmlValue(match[1],"ChecksumSHA256")??"",size:Number(xmlValue(match[1],"Size")??0)}));
+  collected.push(...pageParts);
+  if(xmlValue(xml,"IsTruncated")!=="true")return collected;
+  const next=Number(xmlValue(xml,"NextPartNumberMarker")??pageParts.at(-1)?.partNumber??0);
+  if(!Number.isInteger(next)||next<=marker)throw new Error("storage_part_pagination_invalid");
+  marker=next;
+ }
+ throw new Error("storage_part_count_exceeds_provider_page_limit");
+}
 const Common={sessionId:z.string().uuid()};
 const Body=z.discriminatedUnion("action",[
  z.object({action:z.literal("init_multipart"),contentId:z.string().uuid().optional(),filename:z.string().trim().min(1).max(240),mimeType:z.string().regex(new RegExp("^[A-Za-z0-9.+-]+/[A-Za-z0-9.+-]+$")),sizeBytes:z.number().int().positive().max(20*1024*1024*1024),sha256:z.string().regex(/^[a-f0-9]{64}$/i).optional(),chunkSizeBytes:z.number().int().min(5*1024*1024).max(512*1024*1024).default(64*1024*1024)}).strict(),
@@ -120,7 +136,7 @@ Deno.serve(async req=>{
    return json(200,{sessionId:session.id,status:session.status,receivedSizeBytes:session.received_size_bytes,expectedSizeBytes:session.expected_size_bytes,partSizeBytes:session.chunk_size_bytes,parts:session.chunk_manifest??[],expiresAt:session.expires_at});
   }
   if(!session.storage_upload_id)return json(409,{error:"No active multipart storage session exists."});
-  try{const storage=await getStorage(db),res=await signedRequest(storage,session.object_path,"GET",{"uploadId":session.storage_upload_id});if(!res.ok)return json(502,{error:"Storage provider could not recover multipart parts.",providerStatus:res.status});const xml=await res.text(),parts=[...xml.matchAll(/<Part>([\s\S]*?)<\/Part>/g)].map(m=>({partNumber:Number(xmlValue(m[1],"PartNumber")),etag:xmlValue(m[1],"ETag")?.replaceAll("&quot;","").replaceAll('"',""),checksumSha256:xmlValue(m[1],"ChecksumSHA256"),size:Number(xmlValue(m[1],"Size")??0)})).filter(x=>Number.isInteger(x.partNumber)&&x.etag&&x.checksumSha256);return json(200,{sessionId:session.id,status:session.status,receivedSizeBytes:session.received_size_bytes,expectedSizeBytes:session.expected_size_bytes,partSizeBytes:session.chunk_size_bytes,parts,expiresAt:session.expires_at});}catch(e){return json(503,{error:e instanceof Error?e.message:"Multipart recovery failed."});}
+  try{const storage=await getStorage(db),parts=await listMultipartParts(storage,session.object_path,session.storage_upload_id);return json(200,{sessionId:session.id,status:session.status,receivedSizeBytes:session.received_size_bytes,expectedSizeBytes:session.expected_size_bytes,partSizeBytes:session.chunk_size_bytes,parts,expiresAt:session.expires_at});}catch(e){return json(503,{error:e instanceof Error?e.message:"Multipart recovery failed."});}
  }
  if(p.action==="attach_content"){
   const {data:content,error:contentError}=await db.from("content").select("id,metadata").eq("id",p.contentId).eq("creator_id",user.id).maybeSingle();
@@ -157,8 +173,7 @@ Deno.serve(async req=>{
   if(sorted.length!==expected||sorted.some((x,i)=>x.partNumber!==i+1)||new Set(sorted.map(x=>x.partNumber)).size!==sorted.length)return json(409,{error:"Multipart part sequence is incomplete or duplicated.",expectedParts:expected,receivedParts:sorted.length});
   if(sorted.some((x,i)=>x.etag.replaceAll('"',"").length<8||!/^[a-fA-F0-9-]+$/.test(x.etag.replaceAll('"',""))))return json(422,{error:"A storage part returned an invalid ETag."});
   try{
-   const storage=await getStorage(db),list=await signedRequest(storage,session.object_path,"GET",{"uploadId":session.storage_upload_id});if(!list.ok)return json(502,{error:"Storage provider could not validate uploaded parts.",providerStatus:list.status});
-   const listXml=await list.text(),actual=[...listXml.matchAll(/<Part>([\s\S]*?)<\/Part>/g)].map(m=>({partNumber:Number(xmlValue(m[1],"PartNumber")),etag:xmlValue(m[1],"ETag")?.replaceAll("&quot;","").replaceAll('"',""),checksumSha256:xmlValue(m[1],"ChecksumSHA256")}));
+   const storage=await getStorage(db),actual=await listMultipartParts(storage,session.object_path,session.storage_upload_id);
    for(const part of sorted){const got=actual.find(x=>x.partNumber===part.partNumber);if(!got||got.etag!==part.etag.replaceAll('"',"")||got.checksumSha256!==part.checksumSha256)return json(422,{error:"Storage ETag or SHA-256 checksum does not match the submitted part manifest.",partNumber:part.partNumber});}
    const manifest=sorted.map(x=>({partNumber:x.partNumber,etag:x.etag.replaceAll('"',""),checksumSha256:x.checksumSha256,size:x.partNumber<expected?Number(session.chunk_size_bytes):Number(session.expected_size_bytes)-(expected-1)*Number(session.chunk_size_bytes)}));
    const xml="<CompleteMultipartUpload>"+manifest.map(x=>"<Part><PartNumber>"+x.partNumber+"</PartNumber><ETag>&quot;"+x.etag+"&quot;</ETag><ChecksumSHA256>"+x.checksumSha256+"</ChecksumSHA256></Part>").join("")+"</CompleteMultipartUpload>";
