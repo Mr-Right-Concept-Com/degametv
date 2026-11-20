@@ -18,7 +18,7 @@ export function ReleaseDomainRouter(){
    const release=(values.releaseDomain||'').toLowerCase();
    if(host==='localhost'||host.endsWith('.localhost')||[control,release].filter(Boolean).some(root=>host===root||host==='www.'+root))return;
    const client=supabase as unknown as ResolverClient;
-   const {data}=await client.rpc('resolve_release_domain',{p_hostname:window.location.host});
+   const {data}=await client.rpc('resolve_release_domain',{p_hostname:window.location.hostname});
    if(active&&data?.[0]?.content_id)navigate('/production',{replace:true,state:{releaseDomain:true,hostname:host}});
   };
   void resolve();
