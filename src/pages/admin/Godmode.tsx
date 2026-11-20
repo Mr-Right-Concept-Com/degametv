@@ -138,8 +138,7 @@ export default function Godmode() {
   const exportAudit = () => {
     const fields = ['created_at','action','entity_type','entity_id','user_id'];
     const escape = (value: unknown) => '"' + String(value ?? '').replace(/"/g,'""') + '"';
-    const csv = [fields.join(','),...filteredAudit.map(row => [row.created_at,row.action,row.entity_type,row.entity_id,row.user_id].map(escape).join(','))].join('
-');
+    const csv = [fields.join(','),...filteredAudit.map(row => [row.created_at,row.action,row.entity_type,row.entity_id,row.user_id].map(escape).join(','))].join('\\n');
     const blob = new Blob([csv],{type:'text/csv;charset=utf-8'});
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
