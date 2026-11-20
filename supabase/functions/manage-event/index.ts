@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
       .eq("screening_id", s.id)
       .eq("payment_status", "completed")
       .is("refunded_at", null);
-    if (ticketError) return json(503, { error: "Paid tickets could not be loaded; cancellation was not applied." });
+    if (ticketError) return json({ error: "Paid tickets could not be loaded; cancellation was not applied." }, 503);
 
     const { data: paymentConfigs, error: configError } = await admin.rpc(
       "get_service_provider_runtime_config",
