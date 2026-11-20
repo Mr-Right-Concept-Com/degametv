@@ -10,6 +10,8 @@ const Body = z.discriminatedUnion("action",[
   z.object({action:z.literal("release_save"),releaseKey:z.string().regex(/^[a-z][a-z0-9_.-]{1,100}$/),releaseVersion:z.string().min(1).max(80),config:object}),
   z.object({action:z.literal("release_transition"),releaseKey:z.string(),transition:z.enum(["validate","start_canary","set_traffic","approve","pause","rollback"]),trafficPercentage:z.number().int().min(1).max(99).optional(),reason:z.string().min(3).max(500)}),
   z.object({action:z.literal("ai_policy_list")}),
+  z.object({action:z.literal("security_alert_list"),unresolvedOnly:z.boolean().optional()}),
+  z.object({action:z.literal("security_alert_resolve"),alertId:z.string().uuid(),resolutionNote:z.string().trim().min(5).max(1000)}),
   z.object({action:z.literal("ai_policy_update"),workflowKey:z.string(),enabled:z.boolean(),providerAllowlist:z.array(z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/)).max(10),modelKey:z.string().trim().max(120).nullable(),maxInputChars:z.number().int().min(1).max(200000),maxOutputTokens:z.number().int().min(1).max(16000),allowedDataClasses:z.array(z.enum(["public","user_content","user_generated_content","support_knowledge","aggregate_metrics","operational_telemetry"])).min(1),requiresHumanReview:z.boolean(),systemPolicy:z.string().min(20).max(12000)}),
 ]);
 const respond=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers});
@@ -40,6 +42,26 @@ Deno.serve(async req=>{
   if(!parsed.success)return respond({error:"Invalid platform control request.",issues:parsed.error.flatten()},400);
   const p=parsed.data;
   try{
+    if(p.action==="security_alert_list"){
+      let query=admin.from("platform_security_alerts").select("id,severity,event_key,actor_id,entity_type,entity_id,summary,details,created_at,resolved_at,resolved_by,resolution_note").order("created_at",{ascending:false}).limit(200);
+      if(p.unresolvedOnly)query=query.is("resolved_at",null);
+      const {data,error}=await query;
+      if(error)return respond({error:"Security alerts could not be loaded."},503);
+      return respond({alerts:data??[]});
+    }
+    if(p.action==="security_alert_resolve"){
+      const {data,error}=await admin.rpc("resolve_platform_security_alert",{
+        p_alert_id:p.alertId,p_actor_id:user.id,p_resolution_note:p.resolutionNote,
+      });
+      if(error){
+        const message=error.message??"";
+        if(message.includes("security_alert_already_resolved"))return respond({error:"This alert was already resolved."},409);
+        if(message.includes("security_alert_not_found"))return respond({error:"Security alert was not found."},404);
+        if(message.includes("security_alert_resolution_note_required"))return respond({error:"A resolution note of at least five characters is required."},422);
+        return respond({error:"Alert resolution could not be committed."},503);
+      }
+      return respond({alert:data});
+    }
     if(p.action==="release_probe"||p.action==="release_probe_batch"){
       const {data:rollout,error}=await admin.from("platform_release_rollouts").select("id,release_key,state,config").eq("release_key",p.releaseKey).single();
       if(error||!rollout)return respond({error:"Release was not found."},404);
