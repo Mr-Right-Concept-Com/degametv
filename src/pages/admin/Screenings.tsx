@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
+import type { Tables } from '@/integrations/supabase/types';
 import { Film, Search, Loader2, Ticket, Plus, Trash2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -32,20 +33,11 @@ const screeningSchema = z.object({
   price_usd: z.coerce.number().positive().max(100000),
 });
 
-interface ContentOption { id: string; title: string; slug: string; description: string | null; poster_url: string | null; type: string; tenant_id: string; }
-
-interface ScreeningRow {
-  id: string;
-  title: string;
-  slug: string;
-  status: string;
-  screening_date: string | null;
-  created_at: string;
-  poster_url: string | null;
-  content_id: string;
+type ContentOption = Pick<Tables<'content'>, 'id' | 'title' | 'slug' | 'description' | 'poster_url' | 'type' | 'tenant_id'>;
+type ScreeningRow = Pick<Tables<'screenings'>, 'id' | 'title' | 'slug' | 'status' | 'screening_date' | 'created_at' | 'poster_url' | 'content_id'> & {
   ticket_count: number;
   revenue: number;
-}
+};
 
 export default function ScreeningsPage() {
   const [screenings, setScreenings] = useState<ScreeningRow[]>([]);
@@ -62,10 +54,10 @@ export default function ScreeningsPage() {
     max_streams_per_ticket: 5, max_concurrent_streams: 1, price_ngn: 0, price_usd: 0,
   });
 
-  const fetchScreenings = async () => {
+  const fetchScreenings = useCallback(async () => {
     setLoading(true);
     const { data: contentData } = await supabase.from('content').select('id,title,slug,description,poster_url,type,tenant_id').eq('status','published').order('title');
-    setContentOptions((contentData ?? []) as ContentOption[]);
+    setContentOptions(contentData ?? []);
     const { data: sData } = await supabase.from('screenings').select('id,title,slug,status,screening_date,created_at,poster_url,content_id').order('created_at', { ascending: false });
     const { data: tData } = await supabase.from('screening_tickets').select('screening_id, price, payment_status');
 
@@ -89,9 +81,9 @@ export default function ScreeningsPage() {
 
     setScreenings(rows);
     setLoading(false);
-  };
+  }, []);
 
-  useEffect(() => { fetchScreenings(); }, []);
+  useEffect(() => { void fetchScreenings(); }, [fetchScreenings]);
 
   const handleCreate = async () => {
     const parsed = screeningSchema.safeParse(form);
