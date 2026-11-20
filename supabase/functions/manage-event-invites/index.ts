@@ -7,6 +7,7 @@ const Body=z.discriminatedUnion("action",[
  z.object({action:z.literal("revoke"),screeningId:z.string().uuid(),inviteId:z.string().uuid()}).strict(),
  z.object({action:z.literal("list"),screeningId:z.string().uuid()}).strict(),
  z.object({action:z.literal("my_invitations")}).strict(),
+ z.object({action:z.literal("get_invited_event"),screeningId:z.string().uuid()}).strict(),
 ]);
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, x-client-info, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
@@ -38,6 +39,14 @@ Deno.serve(async(req)=>{
   const {data:accepted,error:acceptError}=await admin.from("event_access_invites").update({status:"accepted",invited_user_id:user.id,accepted_at:new Date().toISOString()}).eq("id",invite.id).in("status",["pending","sent"]).select("id").maybeSingle();
   if(acceptError||!accepted)return json(409,{error:"Invitation could not be accepted. It may have already changed."});
   return json(200,{success:true,screeningId:invite.screening_id,liveStreamId:invite.live_stream_id});
+ }
+
+ if(p.action==="get_invited_event"){
+  const {data:invite,error:inviteError}=await admin.from("event_access_invites").select("id,invite_role,status,expires_at").eq("screening_id",p.screeningId).eq("invited_user_id",user.id).eq("status","accepted").or("expires_at.is.null,expires_at.gt."+new Date().toISOString()).maybeSingle();
+  if(inviteError||!invite)return json(403,{error:"An accepted invitation is required to view this private event."});
+  const {data:event,error:eventError}=await admin.from("screenings").select("id,title,description,slug,poster_url,banner_url,trailer_url,screening_date,event_timezone,live_price_ngn,live_price_usd,base_price,base_currency,access_model,status,lifecycle,event_visibility,invite_only").eq("id",p.screeningId).eq("status","published").maybeSingle();
+  if(eventError||!event)return json(404,{error:"This private event is no longer available."});
+  return json(200,{event,inviteRole:invite.invite_role});
  }
 
  if(p.action==="my_invitations"){
