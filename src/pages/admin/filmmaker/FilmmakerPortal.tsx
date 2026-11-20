@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
 import {
-  Film, CheckCircle, Clock, XCircle, Eye, Search, RefreshCw, Loader2, ChevronRight, Check, X
+  Film, CheckCircle, Clock, Eye, Search, RefreshCw, Loader2, ChevronRight, Check, X
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
