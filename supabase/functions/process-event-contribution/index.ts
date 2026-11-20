@@ -54,8 +54,20 @@ Deno.serve(async(req)=>{
    }
    tenantId=event.tenant_id;creatorId=content.creator_id;eventTitle=event.title;
   }else{
-   const {data:stream,error}=await db.from("live_streams").select("id,tenant_id,creator_id,status,title").eq("id",p.liveStreamId).maybeSingle();
+   const {data:stream,error}=await db.from("live_streams").select("id,tenant_id,creator_id,status,title,metadata").eq("id",p.liveStreamId).maybeSingle();
    if(error||!stream||!["scheduled","starting","live"].includes(stream.status))return json(404,{error:"Live event is not accepting contributions."});
+   const streamScreeningId=typeof stream.metadata?.screening_id==="string"?stream.metadata.screening_id:null;
+   const privateStream=stream.metadata?.invite_only===true||stream.metadata?.event_visibility==="private";
+   if(streamScreeningId){
+    const {data:event}=await db.from("screenings").select("event_visibility,invite_only").eq("id",streamScreeningId).maybeSingle();
+    if(event&&(event.event_visibility==="private"||event.invite_only)) {
+     const {data:invite}=await db.from("event_access_invites").select("id").eq("screening_id",streamScreeningId).eq("invited_user_id",user.id).eq("status","accepted").or("expires_at.is.null,expires_at.gt."+new Date().toISOString()).maybeSingle();
+     if(!invite)return json(403,{error:"An accepted event invitation is required."});
+    }
+   }else if(privateStream){
+    const {data:invite}=await db.from("event_access_invites").select("id").eq("live_stream_id",stream.id).eq("invited_user_id",user.id).eq("status","accepted").or("expires_at.is.null,expires_at.gt."+new Date().toISOString()).maybeSingle();
+    if(!invite)return json(403,{error:"An accepted event invitation is required."});
+   }
    tenantId=stream.tenant_id;creatorId=stream.creator_id;eventTitle=stream.title||"Live event";
   }
   const amount=await convert(url,service,p.amount,currency,currency,country);
