@@ -68,9 +68,9 @@ Deno.serve(async req => {
     const endpoint=(key:string)=>typeof p.endpoints[key]==="string"&&(p.endpoints[key] as string).startsWith("/")&&!(p.endpoints[key] as string).startsWith("//");
     const adapter=String(p.settings.adapter??p.providerKey).toLowerCase();
     if(p.capability==="payments"){
-      const currencies=p.settings.supported_currencies;
-      const origins=p.settings.allowed_checkout_origins;
-      if(!endpoint("checkout_initialize")||!endpoint("payment_verify")||!endpoint("refund")||!Array.isArray(currencies)||currencies.length===0||currencies.some((v:any)=>typeof v!=="string"||!/^[A-Z]{3}$/.test(v))||!Array.isArray(origins)||origins.length===0||origins.some((v:any)=>{try{const u=new URL(v);return u.protocol!=="https:"||u.origin!==v;}catch{return true;}}))
+      const currencies: unknown[] = Array.isArray(p.settings.supported_currencies) ? p.settings.supported_currencies : [];
+      const origins: unknown[] = Array.isArray(p.settings.allowed_checkout_origins) ? p.settings.allowed_checkout_origins : [];
+      if(!endpoint("checkout_initialize")||!endpoint("payment_verify")||!endpoint("refund")||!Array.isArray(currencies)||currencies.length===0||currencies.some((value: unknown)=>typeof value!=="string"||!/^[A-Z]{3}$/.test(value))||!Array.isArray(origins)||origins.length===0||origins.some((value: unknown)=>{if(typeof value!=="string")return true;try{const u=new URL(value);return u.protocol!=="https:"||u.origin!==value;}catch{return true;}}))
         return json({error:"Payment adapters require checkout_initialize, payment_verify and refund endpoints, ISO supported_currencies, and HTTPS allowed_checkout_origins."},400);
       const adapters=["paystack","stripe","flutterwave","generic"];
       const configuredAdapters=["checkout_adapter","verification_adapter","refund_adapter","webhook_adapter"];
