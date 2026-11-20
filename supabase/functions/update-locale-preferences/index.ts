@@ -9,11 +9,11 @@ const headers = {
   "Cache-Control": "no-store",
 };
 const Body = z.object({
-  country: z.string().trim().regex(/^[A-Z]{2}$/).optional(),
-  currency: z.string().trim().regex(/^[A-Z]{3}$/).optional(),
-  language: z.string().trim().regex(/^[A-Za-z]{2,3}$/).optional(),
-  locale: z.string().trim().regex(/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/).optional(),
-  timezone: z.string().trim().min(1).max(100).optional(),
+  country: z.string().trim().regex(/^[A-Z]{2}$/).nullable().optional(),
+  currency: z.string().trim().regex(/^[A-Z]{3}$/).nullable().optional(),
+  language: z.string().trim().regex(/^[A-Za-z]{2,3}$/).nullable().optional(),
+  locale: z.string().trim().regex(/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/).nullable().optional(),
+  timezone: z.string().trim().min(1).max(100).nullable().optional(),
 }).strict().refine(value => Object.keys(value).length > 0);
 const respond = (body: unknown, status=200) => new Response(JSON.stringify(body), { status, headers });
 
@@ -43,11 +43,11 @@ Deno.serve(async req => {
     if (error || !data?.length) return respond({ error: "Selected currency is not enabled for platform transactions." }, 422);
   }
   const patch: Record<string, string> = {};
-  if (p.country) patch.preferred_country = p.country;
-  if (p.currency) patch.preferred_currency = p.currency;
-  if (p.language) patch.language = p.language;
-  if (p.locale) { patch.locale_code = p.locale; patch.preferred_locale = p.locale; }
-  if (p.timezone) patch.timezone = p.timezone;
+  if (p.country !== undefined) patch.preferred_country = p.country;
+  if (p.currency !== undefined) patch.preferred_currency = p.currency;
+  if (p.language !== undefined) patch.language = p.language;
+  if (p.locale !== undefined) { patch.locale_code = p.locale; patch.preferred_locale = p.locale; }
+  if (p.timezone !== undefined) patch.timezone = p.timezone;
   patch.updated_at = new Date().toISOString();
   const { data, error } = await db.from("profiles").update(patch).eq("user_id", user.id)
     .select("preferred_country,preferred_currency,language,locale_code,preferred_locale,timezone").single();
