@@ -56,6 +56,7 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 comment on column public.studio_accounts.tax_secret_ref is 'Vault secret reference only. Raw tax identifiers are never stored in public columns.';
 comment on column public.studio_accounts.payout_bank_secret_ref is 'Vault secret reference only. Browser roles cannot decrypt or retrieve payout account numbers.';
+revoke select (tax_secret_ref,payout_bank_secret_ref) on table public.studio_accounts from anon,authenticated;
 comment on table public.studio_accounts is E'@graphql({"description":"Canonical creator/studio identity and verification state. Sensitive tax and payout values are Vault references only; private fields are not exposed to browser roles."})';
 
 create or replace function public.prevent_creator_base_currency_change()
