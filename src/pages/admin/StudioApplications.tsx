@@ -128,7 +128,6 @@ export default function StudioApplications() {
                   {row.tax_identifier_suffix && <div><span className="text-muted-foreground">Tax ID:</span> ending ••••{row.tax_identifier_suffix}</div>}
                   {row.bank_name && <div><span className="text-muted-foreground">Bank:</span> {row.bank_name}</div>}
                   {row.payout_account_name && <div><span className="text-muted-foreground">Account name:</span> {row.payout_account_name}</div>}{row.payout_bank_suffix && <div><span className="text-muted-foreground">Payout account:</span> ending ••••{row.payout_bank_suffix}</div>}{row.base_currency && <div><span className="text-muted-foreground">Creator base currency:</span> {row.base_currency}</div>}
-                  {row.bank_account_number && <div><span className="text-muted-foreground">Account:</span> ••••••{row.bank_account_number.slice(-4)}</div>}
                   <div><span className="text-muted-foreground">Team seats:</span> {row.seats}</div>
                   <div><span className="text-muted-foreground">Rights declared:</span> {row.rights_declared ? 'Yes' : 'No'}</div>
                 </div>
