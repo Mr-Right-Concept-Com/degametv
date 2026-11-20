@@ -65,7 +65,8 @@ Deno.serve(async(req)=>{
  const {data:screening,error:screeningError}=await admin.from("screenings").select("id,tenant_id,title,slug,content_id,status").eq("id",p.screeningId).maybeSingle();
  if(screeningError||!screening)return json(404,{error:"Event not found."});
  const {data:content}=await admin.from("content").select("creator_id").eq("id",screening.content_id).maybeSingle();
- const {data:isAdmin}=await admin.rpc("is_super_admin",{_user_id:user.id});
+ const {data:adminRole,error:roleError}=await admin.from("user_roles").select("user_id").eq("user_id",user.id).eq("role","super_admin").maybeSingle();
+ const isAdmin=!roleError&&Boolean(adminRole);
  if(!isAdmin&&content?.creator_id!==user.id)return json(403,{error:"Only the event owner or an authorized administrator can manage invitations."});
 
  if(p.action==="list"){
