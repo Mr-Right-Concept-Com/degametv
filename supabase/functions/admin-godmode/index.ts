@@ -8,7 +8,7 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("setting_update"), key: z.string().min(1).max(100), value: jsonValue }),
   z.object({ action: z.literal("wallet_adjust"), userId: z.string().uuid(), amount: z.number().refine((n) => n !== 0 && Math.abs(n) <= 100_000_000), currency: z.string().regex(/^[A-Z]{3}$/), reason: z.string().min(3).max(500) }),
   z.object({ action: z.literal("role_set"), userId: z.string().uuid(), role: z.enum(["super_admin", "platform_admin", "moderator", "viewer"]), grant: z.boolean() }),
-  z.object({ action: z.literal("withdrawal_set"), id: z.string().uuid(), status: z.enum(["pending", "approved", "paid", "rejected"]), note: z.string().max(500).optional() }),
+  z.object({ action: z.literal("withdrawal_set"), id: z.string().uuid(), status: z.enum(["approved", "rejected"]), note: z.string().max(500).optional() }),
   z.object({ action: z.literal("impersonate"), userId: z.string().uuid(), redirectTo: z.string().url().optional() }),
   z.object({ action: z.literal("runtime_controls") }),
   z.object({ action: z.literal("public_site_url_set"), url: z.string().url().refine(value => new URL(value).protocol === "https:"), published: z.boolean(), reason: z.string().min(3).max(500) }),
@@ -85,9 +85,12 @@ Deno.serve(async (req) => {
         break;
       }
       case "withdrawal_set": {
-        const { error } = await admin.from("withdrawal_requests").update({ status: p.status, admin_note: p.note ?? null }).eq("id", p.id);
-        if (error) return json({ error: error.message }, 500);
-        entityId = p.id;
+        if(p.status==="rejected"&&(!p.note||p.note.trim().length<5))return json({error:"A rejection reason of at least five characters is required."},422);
+        const {data,error}=await admin.rpc("transition_withdrawal_request",{
+          p_request_id:p.id,p_transition:p.status==="approved"?"approve":"reject",p_actor_id:user.id,p_admin_note:p.note??null,
+        });
+        if(error)return json({error:error.message},error.message.includes("withdrawal_request_state_conflict")?409:400);
+        result=data;entityId=p.id;
         break;
       }
       case "runtime_controls": {
