@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,10 +8,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { invokeFn } from '@/lib/invokeFn';
 import { toast } from 'sonner';
+import { z } from 'zod';
 import { Loader2, RefreshCw, Trash2 } from 'lucide-react';
 
 type Capability = 'payments'|'identity'|'bank_verification'|'video_delivery'|'email'|'live_streaming'|'fx_rates'|'storage'|'cdn'|'drm'|'sms'|'push'|'geolocation'|'analytics'|'ai_text'|'ai_moderation'|'ai_embeddings';
 type Provider = { id:string; capability:Capability; provider_key:string; enabled:boolean; is_live:boolean; base_url:string|null; endpoints:Record<string,unknown>; settings:Record<string,unknown>; updated_at:string; removed_at:string|null; priority:number; hasTestCredential:boolean; hasLiveCredential:boolean; hasTestWebhookSecret:boolean; hasLiveWebhookSecret:boolean; health_status:'unknown'|'healthy'|'unhealthy'; health_checked_at:string|null; health_error:string|null; secretVersions:Array<{secret_kind:string;version:number;created_at:string;retired_at:string|null}> };
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
 const capabilities: {value:Capability;label:string}[] = [
   {value:'payments',label:'Payments'},{value:'identity',label:'Identity & liveness'},
   {value:'bank_verification',label:'Bank verification'},{value:'video_delivery',label:'Video delivery'},
@@ -20,8 +25,19 @@ const capabilities: {value:Capability;label:string}[] = [
   {value:'sms',label:'SMS delivery'},{value:'push',label:'Push notifications'},{value:'geolocation',label:'Geolocation'},{value:'analytics',label:'Analytics'},
   {value:'ai_text',label:'AI text generation'},{value:'ai_moderation',label:'AI moderation'},{value:'ai_embeddings',label:'AI embeddings'},
 ];
+const ProviderSchema = z.object({
+  id: z.string(), capability: z.enum(['payments','identity','bank_verification','video_delivery','email','live_streaming','fx_rates','storage','cdn','drm','sms','push','geolocation','analytics','ai_text','ai_moderation','ai_embeddings']),
+  provider_key: z.string(), enabled: z.boolean(), is_live: z.boolean(), base_url: z.string().nullable(),
+  endpoints: z.record(z.string(), z.unknown()), settings: z.record(z.string(), z.unknown()), updated_at: z.string(),
+  removed_at: z.string().nullable(), priority: z.number(), hasTestCredential: z.boolean(), hasLiveCredential: z.boolean(),
+  hasTestWebhookSecret: z.boolean(), hasLiveWebhookSecret: z.boolean(),
+  health_status: z.enum(['unknown','healthy','unhealthy']), health_checked_at: z.string().nullable(), health_error: z.string().nullable(),
+  secretVersions: z.array(z.object({ secret_kind: z.string(), version: z.number(), created_at: z.string(), retired_at: z.string().nullable() })).optional(),
+});
+
 export function ProviderRegistryPanel({initialCapability='payments'}:{initialCapability?:Capability}){
   const [rows,setRows]=useState<Provider[]>([]);
+  const requestId = useRef(0);
   const [busy,setBusy]=useState(false);
   const [saving,setSaving]=useState(false);
   const [capability,setCapability]=useState<Capability>(initialCapability);
@@ -39,11 +55,23 @@ export function ProviderRegistryPanel({initialCapability='payments'}:{initialCap
   const [endpoints,setEndpoints]=useState('{}');
   const [settings,setSettings]=useState('{}');
   const load=useCallback(async()=>{
+    const currentRequest = ++requestId.current;
     setBusy(true);
-    try{const r=await invokeFn<{providers:Provider[]}>('admin-provider-control',{action:'list'});if(!r.ok)throw new Error(r.error);setRows(r.data?.providers||[]);}
-    catch(e){toast.error((e as Error).message);}finally{setBusy(false);}
+    try {
+      const result = await invokeFn<unknown>('admin-provider-control', { action: 'list' });
+      if (!result.ok) throw new Error(result.error ?? 'Provider registry unavailable');
+      const payload = z.object({ providers: z.array(ProviderSchema) }).parse(result.data);
+      if (currentRequest === requestId.current) setRows(payload.providers);
+    } catch (error: unknown) {
+      if (currentRequest === requestId.current) toast.error(errorMessage(error, 'Provider registry unavailable'));
+    } finally {
+      if (currentRequest === requestId.current) setBusy(false);
+    }
   },[]);
-  useEffect(()=>{void load();},[load]);
+  useEffect(()=>{
+    void load();
+    return () => { requestId.current += 1; };
+  },[load]);
   const save=async()=>{
     let endpointValue:Record<string,unknown>,settingValue:Record<string,unknown>;
     try{endpointValue=JSON.parse(endpoints);settingValue=JSON.parse(settings);if(!endpointValue||Array.isArray(endpointValue)||typeof endpointValue!=='object'||!settingValue||Array.isArray(settingValue)||typeof settingValue!=='object')throw new Error();}
@@ -54,11 +82,11 @@ export function ProviderRegistryPanel({initialCapability='payments'}:{initialCap
       if(!r.ok)throw new Error(r.error);
       toast.success('Provider configuration saved to the Vault-backed registry.');
       setTestCredential('');setLiveCredential('');setTestWebhookSecret('');setLiveWebhookSecret('');await load();
-    }catch(e){toast.error((e as Error).message);}finally{setSaving(false);}
+    }catch(e: unknown){toast.error(errorMessage(e, 'Provider operation failed'));}finally{setSaving(false);}
   };
   const test=async(row:Provider)=>{
     setSaving(true);
-    try{const r=await invokeFn<{success:boolean;mode:string}>('admin-provider-control',{action:'test',capability:row.capability,providerKey:row.provider_key});if(!r.ok)throw new Error(r.error);toast.success('Provider health check passed ('+(r.data?.mode||'configured')+' mode).');await load();}
+    try{const r=await invokeFn<unknown>('admin-provider-control',{action:'test',capability:row.capability,providerKey:row.provider_key});if(!r.ok)throw new Error(r.error);const outcome=z.object({success:z.boolean(),mode:z.string().optional()}).parse(r.data);if(!outcome.success)throw new Error('Provider health check did not pass.');toast.success('Provider health check passed ('+(outcome.mode||'configured')+' mode).');await load();}
     catch(e){toast.error((e as Error).message);await load();}finally{setSaving(false);}
   };
   const edit=(row:Provider)=>{
@@ -72,7 +100,7 @@ export function ProviderRegistryPanel({initialCapability='payments'}:{initialCap
       const result=await invokeFn<{success:boolean;provider:string;mode:string}>('test-email-provider',{email:testEmailRecipient.trim()});
       if(!result.ok||!result.data?.success)throw new Error(result.error||'Email provider test was not accepted.');
       toast.success('Test email delivered through '+result.data.provider+' ('+result.data.mode+').');
-    }catch(error){toast.error((error as Error).message);}
+    }catch(error: unknown){toast.error(errorMessage(error, 'Email provider test failed'));}
     finally{setTestingEmail(false);}
   };
   const remove=async(row:Provider)=>{
