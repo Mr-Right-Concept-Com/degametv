@@ -17,15 +17,15 @@ if(import.meta.main)serve(async(req:Request)=>{
   const body=await req.json().catch(()=>null);
   const watchCode=typeof body?.watchCode==="string"?body.watchCode.trim():"";
   const email=typeof body?.email==="string"?body.email.trim().toLowerCase():"";
-  if(!watchCode)return json(400,{success:false,error:"Watch code is required."});
+  if(!watchCode||!email)return json(400,{success:false,error:"Watch code and ticket email are required."});
   const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
   const country=(req.headers.get("cf-ipcountry")||"").toUpperCase().slice(0,2)||null;
   const {data:ticket,error}=await db.from("screening_tickets")
    .select("id,watch_code,email,payment_status,refunded_at,expires_at,screening_id,location,currency,price,stream_count,first_played_at,access_hours,screening:screenings(id,content_id,title,poster_url,status,lifecycle,allowed_countries,blocked_countries,max_streams_per_ticket,max_concurrent_streams)")
-   .eq("watch_code",watchCode).maybeSingle();
+   .eq("watch_code",watchCode).eq("email",email).maybeSingle();
   if(error)return json(503,{success:false,error:"Ticket validation could not be completed. Please retry."});
   if(!ticket||ticket.payment_status!=="completed")return json(404,{success:false,error:"Invalid or unpaid watch link."});
-  if(email&&String(ticket.email||"").toLowerCase()!==email)return json(403,{success:false,error:"Email does not match this ticket."});
+
   if(ticket.refunded_at)return json(403,{success:false,error:"This ticket has been refunded."});
   if(!ticket.expires_at||new Date(ticket.expires_at).getTime()<=Date.now())return json(403,{success:false,error:"This ticket has expired."});
   const s:any=ticket.screening;
