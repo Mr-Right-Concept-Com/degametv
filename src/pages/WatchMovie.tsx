@@ -147,7 +147,7 @@ export default function WatchMovie() {
           {[
             {icon:Mail,label:'Email',value:ticket.email,color:'text-primary'},
             {icon:Clock,label:'Access ends',value:new Date(ticket.expiresAt).toLocaleDateString(),color:'text-muted-foreground'},
-            {icon:Tv2,label:'Streams left',value:String(ticket.streamsRemaining??'—')+' of '+String(ticket.maxStreams??'—'),color:'text-accent'},
+            {icon:Tv2,label:'Streams left',value:String(ticket.streamsRemaining??'∞')+' of '+String(ticket.maxStreams??'∞'),color:'text-accent'},
             {icon:Shield,label:'Delivery',value:playbackUrl?'Secure playback':'Provider unavailable',color:'text-muted-foreground'},
           ].map(item=><div key={item.label} className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50"><div className={'w-9 h-9 rounded-full bg-card flex items-center justify-center '+item.color}><item.icon className="w-4 h-4"/></div><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground">{item.label}</p><p className="text-xs sm:text-sm font-medium truncate">{item.value}</p></div></div>)}
         </div>
