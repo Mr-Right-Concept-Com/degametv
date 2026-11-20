@@ -43,13 +43,13 @@ export default function ContentLanding() {
     let active = true;
     const load = async () => {
       if (!id) { setLoading(false); return; }
-      const { data, error } = await supabase.from('content')
+      const { data, error } = await (supabase as any).from('public_content_catalog')
         .select('id,title,description,type,poster_url,trailer_url,duration,release_date,genres')
         .eq('id', id).eq('status', 'published').maybeSingle();
       if (!active) return;
       if (error || !data) { setContent(null); setLoading(false); return; }
       setContent(data as PublicContent);
-      const { data: events, error: eventError } = await supabase.from('screenings')
+      const { data: events, error: eventError } = await (supabase as any).from('public_screenings_catalog')
         .select('id,title,slug,screening_date,live_price_ngn,live_price_usd,replay_price_ngn,replay_price_usd,live_replay_ready_at,live_recording_status')
         .eq('content_id', id).eq('status', 'published').order('screening_date', { ascending: true });
       if (!active) return;
