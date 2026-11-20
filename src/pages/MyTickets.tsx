@@ -10,59 +10,90 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import type { Tables } from '@/integrations/supabase/types';
+
+type LiveTicketRow = Tables<'tickets'>;
+type TicketView = {
+  id: string; created_at: string; expires_at: string; payment_status: string;
+  price: number; currency: string | null; email: string; watch_code: string;
+  location: string; _kind: 'screening' | 'live';
+  screening: { title: string; poster_url: string | null; slug: string } | null;
+  stream_id?: string | null; ticket_type?: LiveTicketRow['ticket_type'];
+  stream_lifecycle_status?: string | null;
+};
 
 export default function MyTickets() {
   usePageTitle('My Tickets');
   const { user } = useAuth();
-  const [tickets, setTickets] = useState<any[]>([]);
+  const [tickets, setTickets] = useState<TicketView[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
     const fetchTickets = async () => {
       if (!user) {
+        setTickets([]);
         setLoading(false);
         return;
       }
-
-      const { error: claimError } = await supabase.rpc('claim_guest_tickets');
-      if (claimError) toast.message('Your tickets could not be claimed automatically. Contact support if a purchase is missing.');
-      const [{ data: legacy, error: legacyError }, { data: live, error: liveError }] = await Promise.all([
-        supabase.from('screening_tickets').select('*, screening:screenings(*)').eq('user_id', user.id).order('created_at', { ascending: false }),
-        supabase.from('tickets').select('*').eq('user_id', user.id).is('revoked_at', null).order('created_at', { ascending: false }),
-      ]);
-
-      if (legacyError) toast.error('Some screening tickets could not be loaded.');
-      if (liveError) toast.error('Live and replay entitlements could not be loaded.');
-      const contentIds = [...new Set((live ?? []).map((t: any) => t.content_id).filter(Boolean))];
-      const streamIds = [...new Set((live ?? []).map((t: any) => t.stream_id).filter(Boolean))];
-      const [{ data: contentRows }, { data: streamRows }] = await Promise.all([
-        contentIds.length ? supabase.from('content').select('id,title,slug,poster_url').in('id', contentIds) : Promise.resolve({ data: [] as any[] }),
-        streamIds.length ? supabase.from('live_streams').select('id,title,thumbnail_url,lifecycle_status,status').in('id', streamIds) : Promise.resolve({ data: [] as any[] }),
-      ]);
-      const contentMap = new Map((contentRows ?? []).map((row: any) => [row.id, row]));
-      const streamMap = new Map((streamRows ?? []).map((row: any) => [row.id, row]));
-      const legacyRows = (legacy ?? []).map((ticket: any) => ({ ...ticket, _kind: 'screening' }));
-      const liveRows = (live ?? []).map((ticket: any) => {
-        const content = contentMap.get(ticket.content_id);
-        const stream = streamMap.get(ticket.stream_id);
-        return {
-          ...ticket,
-          _kind: 'live',
-          expires_at: ticket.valid_until,
-          email: user.email ?? '',
-          stream_lifecycle_status: stream?.lifecycle_status || null,
-          screening: {
-            title: content?.title || stream?.title || 'Live event',
-            poster_url: content?.poster_url || stream?.thumbnail_url || null,
-            slug: content?.slug || '',
-          },
-        };
-      });
-      setTickets([...legacyRows, ...liveRows].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
-      setLoading(false);
+      setLoading(true);
+      try {
+        const { error: claimError } = await supabase.rpc('claim_guest_tickets');
+        if (claimError) toast.message('Your tickets could not be claimed automatically. Contact support if a purchase is missing.');
+        const [legacyResult, liveResult] = await Promise.all([
+          supabase.from('screening_tickets').select('*, screening:screenings(title,slug,poster_url)').eq('user_id', user.id).order('created_at', { ascending: false }),
+          supabase.from('tickets').select('*').eq('user_id', user.id).is('revoked_at', null).order('created_at', { ascending: false }),
+        ]);
+        if (!active) return;
+        if (legacyResult.error) toast.error('Some screening tickets could not be loaded.');
+        if (liveResult.error) toast.error('Live and replay entitlements could not be loaded.');
+        const liveRows: LiveTicketRow[] = liveResult.data ?? [];
+        const contentIds = [...new Set(liveRows.map(ticket => ticket.content_id).filter((id): id is string => Boolean(id)))];
+        const streamIds = [...new Set(liveRows.map(ticket => ticket.stream_id).filter((id): id is string => Boolean(id)))];
+        type ContentSummary = Pick<Tables<'content'>, 'id' | 'title' | 'slug' | 'poster_url'>;
+        type StreamSummary = Pick<Tables<'live_streams'>, 'id' | 'title' | 'thumbnail_url' | 'lifecycle_status'>;
+        let contentRows: ContentSummary[] = [];
+        let streamRows: StreamSummary[] = [];
+        if (contentIds.length) {
+          const result = await supabase.from('content').select('id,title,slug,poster_url').in('id', contentIds);
+          if (result.error) toast.error('Some ticket titles could not be loaded.');
+          else contentRows = result.data ?? [];
+        }
+        if (streamIds.length) {
+          const result = await supabase.from('live_streams').select('id,title,thumbnail_url,lifecycle_status').in('id', streamIds);
+          if (result.error) toast.error('Some event details could not be loaded.');
+          else streamRows = result.data ?? [];
+        }
+        if (!active) return;
+        const contentMap = new Map(contentRows.map(row => [row.id, row]));
+        const streamMap = new Map(streamRows.map(row => [row.id, row]));
+        const legacyRows: TicketView[] = (legacyResult.data ?? []).map(ticket => ({
+          id: ticket.id, created_at: ticket.created_at, expires_at: ticket.expires_at,
+          payment_status: ticket.payment_status, price: ticket.price, currency: ticket.currency,
+          email: ticket.email, watch_code: ticket.watch_code, location: ticket.location,
+          _kind: 'screening', screening: ticket.screening,
+        }));
+        const normalizedLiveRows: TicketView[] = liveRows.map(ticket => {
+          const content = ticket.content_id ? contentMap.get(ticket.content_id) : undefined;
+          const stream = ticket.stream_id ? streamMap.get(ticket.stream_id) : undefined;
+          return {
+            id: ticket.id, created_at: ticket.created_at, expires_at: ticket.valid_until,
+            payment_status: 'completed', price: ticket.price, currency: ticket.currency,
+            email: ticket.guest_email ?? user.email ?? '', watch_code: '', location: 'Live event',
+            _kind: 'live', stream_id: ticket.stream_id, ticket_type: ticket.ticket_type,
+            stream_lifecycle_status: stream?.lifecycle_status ?? null,
+            screening: { title: content?.title ?? stream?.title ?? 'Live event', poster_url: content?.poster_url ?? stream?.thumbnail_url ?? null, slug: content?.slug ?? '' },
+          };
+        });
+        setTickets([...legacyRows, ...normalizedLiveRows].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)));
+      } catch {
+        if (active) toast.error('Your tickets could not be loaded. Please try again.');
+      } finally {
+        if (active) setLoading(false);
+      }
     };
-
-    fetchTickets();
+    void fetchTickets();
+    return () => { active = false; };
   }, [user]);
 
   const now = new Date();
@@ -70,9 +101,13 @@ export default function MyTickets() {
   const expiredTickets = tickets.filter(t => (t._kind === 'live' || t.payment_status === 'completed') && new Date(t.expires_at) <= now);
   const pendingTickets = tickets.filter(t => t.payment_status === 'pending');
 
-  const copyLink = (watchCode: string, email: string) => {
-    navigator.clipboard.writeText(`${window.location.origin}/watch/${watchCode}?email=${encodeURIComponent(email)}`);
-    toast.success('Watch link copied!');
+  const copyLink = async (watchCode: string, email: string) => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/watch/${watchCode}?email=${encodeURIComponent(email)}`);
+      toast.success('Watch link copied!');
+    } catch {
+      toast.error('Could not copy the watch link on this device.');
+    }
   };
 
   if (loading) {
@@ -153,7 +188,7 @@ export default function MyTickets() {
   );
 }
 
-function TicketCard({ ticket, onCopy, type }: { ticket: any; onCopy: (wc: string, email: string) => void; type: string }) {
+function TicketCard({ ticket, onCopy, type }: { ticket: TicketView; onCopy: (wc: string, email: string) => void; type: 'active' | 'pending' | 'expired' }) {
   const movieTitle = ticket.screening?.title || 'Movie';
   const symbol = ticket.currency === 'NGN' ? '₦' : '$';
 
