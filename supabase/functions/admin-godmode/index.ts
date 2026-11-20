@@ -40,8 +40,8 @@ Deno.serve(async (req) => {
     const token = (req.headers.get("Authorization") || "").replace("Bearer ", "");
     const { data: { user } } = await admin.auth.getUser(token);
     if (!user) return json({ error: "Unauthorized" }, 401);
-    const { data: isAdmin } = await admin.rpc("is_super_admin", { _user_id: user.id });
-    if (!isAdmin) return json({ error: "Super admin required" }, 403);
+    const { data: adminRole, error: roleError } = await admin.from("user_roles").select("user_id").eq("user_id", user.id).eq("role", "super_admin").maybeSingle();
+    if (roleError || !adminRole) return json({ error: "Super admin required" }, 403);
 
     const parsed = Body.safeParse(await req.json());
     if (!parsed.success) return json({ error: parsed.error.flatten() }, 400);
