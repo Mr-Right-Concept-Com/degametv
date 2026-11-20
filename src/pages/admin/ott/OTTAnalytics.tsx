@@ -3,12 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { 
-  TrendingUp, TrendingDown, Users, Eye, Clock, DollarSign,
-  Film, Tv, Play, Calendar
+  TrendingUp, Users, Eye, Clock, DollarSign,
+  Film, Tv
 } from 'lucide-react';
 import {
-  LineChart,
-  Line,
   AreaChart,
   Area,
   BarChart,
