@@ -77,5 +77,9 @@ begin
   if not exists(select 1 from pg_policies where schemaname='public' and tablename='studio_invitations' and policyname='studio_invitations_backend_only') then
     raise exception 'studio invitation browser deny policy missing';
   end if;
+  if has_function_privilege('authenticated','public.accept_studio_invitation(uuid,uuid,text)','execute')
+     or not has_function_privilege('service_role','public.accept_studio_invitation(uuid,uuid,text)','execute') then
+    raise exception 'atomic invitation acceptance must be service-role-only';
+  end if;
 end $$;
 rollback;
