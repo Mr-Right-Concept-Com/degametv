@@ -1,16 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import { 
-  Palette, Globe, Mail, Upload, Eye, Save,
-  Smartphone, Monitor, Image, Loader2
+  Palette, Globe, Save, Monitor, Loader2
 } from 'lucide-react';
 
 export default function WhiteLabel() {
@@ -31,38 +30,66 @@ export default function WhiteLabel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    const fetch = async () => {
-      const { data } = await supabase
-        .from('platform_settings')
-        .select('setting_key, setting_value')
-        .eq('setting_key', 'branding')
-        .maybeSingle();
-      
-      if (data?.setting_value && typeof data.setting_value === 'object') {
-        const val = data.setting_value as Record<string, unknown>;
-        const textValue = (key: string, fallback: string) => typeof val[key] === 'string' ? val[key] as string : fallback;
-        setBranding(prev => ({
-          ...prev,
-          platformName: textValue('platformName', prev.platformName),
-          tagline: textValue('tagline', prev.tagline),
-          primaryColor: textValue('primaryColor', prev.primaryColor),
-          secondaryColor: textValue('secondaryColor', prev.secondaryColor),
-          accentColor: textValue('accentColor', prev.accentColor),
-          backgroundColor: textValue('backgroundColor', prev.backgroundColor),
-          fontFamily: textValue('fontFamily', prev.fontFamily),
-          customDomain: textValue('customDomain', prev.customDomain),
-          supportEmail: textValue('supportEmail', prev.supportEmail),
-          logoUrl: textValue('logoUrl', prev.logoUrl),
-          faviconUrl: textValue('faviconUrl', prev.faviconUrl),
+  const isJsonRecord = (value: Json): value is { [key: string]: Json | undefined } =>
+    typeof value === 'object' && value !== null && !Array.isArray(value);
+
+  const loadSettings = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [brandingResult, domainResult] = await Promise.all([
+        supabase
+          .from('platform_settings')
+          .select('setting_value')
+          .eq('setting_key', 'branding')
+          .maybeSingle(),
+        supabase
+          .from('platform_settings')
+          .select('setting_value')
+          .eq('setting_key', 'domain_settings')
+          .maybeSingle(),
+      ]);
+
+      if (brandingResult.error) {
+        toast.error('Branding settings could not be loaded: ' + brandingResult.error.message);
+      } else if (brandingResult.data && isJsonRecord(brandingResult.data.setting_value)) {
+        const value = brandingResult.data.setting_value;
+        const textValue = (key: string, fallback: string) =>
+          typeof value[key] === 'string' ? value[key] : fallback;
+        setBranding(previous => ({
+          ...previous,
+          platformName: textValue('platformName', previous.platformName),
+          tagline: textValue('tagline', previous.tagline),
+          primaryColor: textValue('primaryColor', previous.primaryColor),
+          secondaryColor: textValue('secondaryColor', previous.secondaryColor),
+          accentColor: textValue('accentColor', previous.accentColor),
+          backgroundColor: textValue('backgroundColor', previous.backgroundColor),
+          fontFamily: textValue('fontFamily', previous.fontFamily),
+          customDomain: textValue('customDomain', previous.customDomain),
+          supportEmail: textValue('supportEmail', previous.supportEmail),
+          logoUrl: textValue('logoUrl', previous.logoUrl),
+          faviconUrl: textValue('faviconUrl', previous.faviconUrl),
         }));
       }
-      const { data: domainData } = await supabase.from('platform_settings').select('setting_value').eq('setting_key','domain_settings').maybeSingle();
-      if (domainData?.setting_value && typeof domainData.setting_value === 'object') setDomains(prev => { const value = domainData.setting_value as Record<string, unknown>; return { controlDomain: typeof value.controlDomain === 'string' ? value.controlDomain : prev.controlDomain, releaseDomain: typeof value.releaseDomain === 'string' ? value.releaseDomain : prev.releaseDomain }; });
+
+      if (domainResult.error) {
+        toast.error('Domain settings could not be loaded: ' + domainResult.error.message);
+      } else if (domainResult.data && isJsonRecord(domainResult.data.setting_value)) {
+        const value = domainResult.data.setting_value;
+        setDomains(previous => ({
+          controlDomain: typeof value.controlDomain === 'string' ? value.controlDomain : previous.controlDomain,
+          releaseDomain: typeof value.releaseDomain === 'string' ? value.releaseDomain : previous.releaseDomain,
+        }));
+      }
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Failed to load white-label settings');
+    } finally {
       setLoading(false);
-    };
-    fetch();
+    }
   }, []);
+
+  useEffect(() => {
+    void loadSettings();
+  }, [loadSettings]);
 
   const handleSave = async () => {
     const validDomain = (value: string) => /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i.test(value.trim());
@@ -71,18 +98,33 @@ export default function WhiteLabel() {
       return;
     }
     setSaving(true);
-    const { error: brandingError } = await supabase.from('platform_settings').upsert({
-      setting_key: 'branding',
-      setting_value: branding as unknown as import('@/integrations/supabase/types').Json,
-      is_public: true,
-      description: 'Runtime platform identity, logo and design tokens'
-    }, { onConflict: 'setting_key' });
-    if (brandingError) toast.error('Branding save failed: ' + brandingError.message);
-    else toast.success('Branding saved and published.');
-    const { error: domainError } = await supabase.from('platform_settings').upsert({ setting_key: 'domain_settings', setting_value: domains as unknown as import('@/integrations/supabase/types').Json, is_public: true, description: 'Canonical control domain and dedicated release subdomain root' }, { onConflict: 'setting_key' });
-    if (domainError) toast.error('Domain settings could not be saved: ' + domainError.message);
-    else toast.success('Domain settings saved.');
-    setSaving(false);
+    setSaving(true);
+    try {
+      const { error: brandingError } = await supabase.from('platform_settings').upsert({
+        setting_key: 'branding',
+        setting_value: branding,
+        is_public: true,
+        description: 'Runtime platform identity, logo and design tokens'
+      }, { onConflict: 'setting_key' });
+      if (brandingError) {
+        toast.error('Branding save failed: ' + brandingError.message);
+        return;
+      }
+      toast.success('Branding saved.');
+
+      const { error: domainError } = await supabase.from('platform_settings').upsert({
+        setting_key: 'domain_settings',
+        setting_value: domains,
+        is_public: true,
+        description: 'Canonical control domain and dedicated release subdomain root'
+      }, { onConflict: 'setting_key' });
+      if (domainError) toast.error('Domain settings could not be saved: ' + domainError.message);
+      else toast.success('Domain settings saved.');
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save white-label settings');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const colorPresets = [
@@ -269,12 +311,11 @@ export default function WhiteLabel() {
                   <Input value={domains.releaseDomain} onChange={e => setDomains({ ...domains, releaseDomain: e.target.value.toLowerCase().trim() })} placeholder="degametv.com" />
                   <p className="text-sm text-muted-foreground">Each title receives its own hostname, for example title.degametv.com. Configure wildcard DNS and TLS at your hosting provider.</p>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>SSL Certificate</Label>
-                    <p className="text-sm text-muted-foreground">Auto-provision SSL</p>
-                  </div>
-                  <Switch defaultChecked />
+                <div className="rounded-lg border border-border p-3">
+                  <Label>SSL Certificate Provisioning</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Certificate provisioning is managed by the configured domain and SSL provider. This screen does not toggle certificate issuance.
+                  </p>
                 </div>
               </CardContent>
             </Card>
