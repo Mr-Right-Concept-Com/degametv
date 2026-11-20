@@ -7,15 +7,20 @@ import { Loader2, Globe, Clock, Eye, DollarSign, ArrowLeft, Users } from 'lucide
 import { Button } from '@/components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import type { LucideIcon } from 'lucide-react';
+import type { Tables } from '@/integrations/supabase/types';
 
-interface Stat { label: string; value: string; icon: any; sub?: string }
+type Stat = { label: string; value: string; icon: LucideIcon; sub?: string };
+type Screening = Pick<Tables<'screenings'>, 'title'>;
+type Ticket = Tables<'screening_tickets'>;
+type WatchHistory = Tables<'watch_history'>;
 
 export default function StudioAnalytics() {
   const { screeningId } = useParams<{ screeningId: string }>();
   const [loading, setLoading] = useState(true);
-  const [screening, setScreening] = useState<any>(null);
-  const [tickets, setTickets] = useState<any[]>([]);
-  const [history, setHistory] = useState<any[]>([]);
+  const [screening, setScreening] = useState<Screening | null>(null);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [history, setHistory] = useState<WatchHistory[]>([]);
   usePageTitle(screening?.title ? `Analytics — ${screening.title}` : 'Screening Analytics');
 
   useEffect(() => {
