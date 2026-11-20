@@ -24,6 +24,7 @@ const wSchema = z.object({
 
 type Bal = { currency: string; gross: number; fees: number; escrow: number; withdrawable: number };
 type WR = { id: string; amount: number; currency: string; bank_country: string | null; status: string; created_at: string; bank_name: string };
+type Contribution = { id: string; contribution_type: 'tip' | 'gift'; amount_minor: number; amount_major: number | null; currency: string; contributor_name: string; message: string | null; is_anonymous: boolean; status: string; paid_at: string | null; event_title: string };
 const money = (n: number, currency: string) => {
   try {
     return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(n || 0));
@@ -39,13 +40,14 @@ export default function StudioEarnings() {
   const [loading, setLoading] = useState(true);
   const [balances, setBalances] = useState<Bal[]>([]);
   const [reqs, setReqs] = useState<WR[]>([]);
+  const [contributions, setContributions] = useState<Contribution[]>([]);
   const [form, setForm] = useState({ amount: '', currency: '', bank_country: '', bank_name: '', account_number: '', account_name: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
     if (!user) return;
-    const [b, w] = await Promise.all([
+    const [b, w, c] = await Promise.all([
       supabase.rpc('wallet_balance_by_currency', { _user_id: user.id }),
       supabase.from('withdrawal_requests').select('id, amount, currency, bank_country, status, created_at, bank_name').eq('user_id', user.id).order('created_at', { ascending: false }),
     ]);
@@ -54,6 +56,7 @@ export default function StudioEarnings() {
     setBalances(rows.map(row => ({ ...row, gross: Number(row.gross), fees: Number(row.fees), escrow: Number(row.escrow), withdrawable: Number(row.withdrawable) })));
     setForm(current => ({ ...current, currency: current.currency || rows[0]?.currency || '', bank_country: current.bank_country || runtime.config?.geo.countryCode || '' }));
     setReqs((w.data as WR[]) || []);
+    setContributions((c.data as unknown as Contribution[]) || []);
     setLoading(false);
   };
   useEffect(() => { void load(); }, [user?.id]);
@@ -101,7 +104,7 @@ export default function StudioEarnings() {
               <div className="flex items-center justify-between"><h2 className="font-semibold">{balance.currency} wallet</h2><Badge variant="outline">Original transaction currency</Badge></div>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                  { label: 'Gross ticket revenue', value: money(balance.gross, balance.currency), icon: DollarSign },
+                  { label: 'Gross earnings · tickets, tips & gifts', value: money(balance.gross, balance.currency), icon: DollarSign },
                   { label: 'Platform fees', value: money(balance.fees, balance.currency), icon: Percent },
                   { label: 'In escrow', value: money(balance.escrow, balance.currency), icon: Lock },
                   { label: 'Withdrawable', value: money(balance.withdrawable, balance.currency), icon: Wallet },
@@ -115,6 +118,18 @@ export default function StudioEarnings() {
               </div>
             </section>
           ))}
+
+          <Card>
+            <CardHeader><CardTitle className="text-lg">Tips and digital gifts</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              {contributions.length === 0 ? <p className="text-sm text-muted-foreground">No tips or gifts received yet.</p> : contributions.map(item => (
+                <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-border py-3 last:border-0">
+                  <div className="min-w-0"><p className="font-medium text-sm">{item.contribution_type === 'tip' ? 'Tip' : 'Digital gift'} · {item.event_title}</p><p className="text-xs text-muted-foreground">{item.contributor_name}{item.message ? ' · "' + item.message + '"' : ''}</p><p className="text-[10px] text-muted-foreground">{item.paid_at ? new Date(item.paid_at).toLocaleString() : 'Awaiting payment'}</p></div>
+                  <div className="text-right"><p className="font-semibold">{money(Number(item.amount_major ?? 0), item.currency)}</p><Badge variant={item.status === 'paid' ? 'default' : item.status === 'failed' ? 'destructive' : 'secondary'}>{item.status}</Badge></div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
 
           <div className="grid lg:grid-cols-2 gap-6">
             <Card>
