@@ -19,15 +19,16 @@ async function getStorage(db:ReturnType<typeof createClient>):Promise<S3Config>{
  let secret:Record<string,unknown>;
  try{secret=JSON.parse(p.credential) as Record<string,unknown>;}catch{throw new Error("The media_storage Vault credential must be a JSON object containing accessKeyId and secretAccessKey.");}
  const endpoint=String(p.base_url??p.settings.endpoint??"");
- const bucket=String(p.settings.quarantineBucket??p.settings.bucket??"");\n const deliveryBucket=String(p.settings.deliveryBucket??"");
+ const bucket=String(p.settings.quarantineBucket??p.settings.bucket??"");
+ const deliveryBucket=String(p.settings.deliveryBucket??"");
  const region=String(p.settings.region??"auto");
  if(!endpoint||!bucket||!deliveryBucket||bucket===deliveryBucket||typeof secret.accessKeyId!=="string"||typeof secret.secretAccessKey!=="string")throw new Error("The selected media_storage binding is missing endpoint, bucket, or S3 credentials.");
  return {endpoint:new URL(endpoint),bucket,deliveryBucket,region,accessKeyId:secret.accessKeyId,secretAccessKey:secret.secretAccessKey,sessionToken:typeof secret.sessionToken==="string"?secret.sessionToken:undefined,pathStyle:p.settings.pathStyle!==false};
 }
 function objectUrl(c:S3Config,key:string,bucket=c.bucket){
  const u=new URL(c.endpoint.toString());
- if(c.pathStyle)u.pathname=u.pathname.replace(/\/$/,"")+"/"+awsEncode(c.bucket)+"/"+key.split("/").map(awsEncode).join("/");
- else{u.hostname=c.bucket+"."+u.hostname;u.pathname=u.pathname.replace(/\/$/,"")+"/"+key.split("/").map(awsEncode).join("/");}
+ if(c.pathStyle)u.pathname=u.pathname.replace(/\/$/,"")+"/"+awsEncode(bucket)+"/"+key.split("/").map(awsEncode).join("/");
+ else{u.hostname=bucket+"."+u.hostname;u.pathname=u.pathname.replace(/\/$/,"")+"/"+key.split("/").map(awsEncode).join("/");}
  return u;
 }
 async function signingKey(secret:string,date:string,region:string){const d=await hmac("AWS4"+secret,date);const r=await hmac(d,region);const s=await hmac(r,"s3");return hmac(s,"aws4_request");}
