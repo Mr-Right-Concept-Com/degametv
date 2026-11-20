@@ -10,7 +10,7 @@ const hmac=async(key:Uint8Array|string,data:string)=>new Uint8Array(await crypto
 const awsEncode=(v:string)=>encodeURIComponent(v).replace(/[!'()*]/g,c=>"%"+c.charCodeAt(0).toString(16).toUpperCase());
 const canonicalQuery=(u:URL)=>[...u.searchParams.entries()].sort(([a,av],[b,bv])=>a.localeCompare(b)||av.localeCompare(bv)).map(([k,v])=>awsEncode(k)+"="+awsEncode(v)).join("&");
 const timestamp=()=>new Date().toISOString().replace(/[:-]|\.\d{3}/g,"");
-type S3Config={endpoint:URL;bucket:string;deliveryBucket:string;region:string;accessKeyId:string;secretAccessKey:string;sessionToken?:string;pathStyle:boolean;};
+type S3Config={endpoint:URL;bucket:string;deliveryBucket:string;region:string;accessKeyId:string;secretAccessKey:string;sessionToken?:string;pathStyle:boolean;allowedOrigins:string[];};
 type Provider={id:string;provider_key:string;base_url:string|null;endpoints:Record<string,string>;settings:Record<string,unknown>;credential:string;};
 async function getStorage(db:ReturnType<typeof createClient>):Promise<S3Config>{
  const {data,error}=await db.rpc("get_service_provider_runtime_config",{p_capability:"media_storage"});
@@ -22,8 +22,9 @@ async function getStorage(db:ReturnType<typeof createClient>):Promise<S3Config>{
  const bucket=String(p.settings.quarantineBucket??p.settings.bucket??"");
  const deliveryBucket=String(p.settings.deliveryBucket??"");
  const region=String(p.settings.region??"auto");
- if(!endpoint||!bucket||!deliveryBucket||bucket===deliveryBucket||typeof secret.accessKeyId!=="string"||typeof secret.secretAccessKey!=="string")throw new Error("The selected media_storage binding is missing endpoint, bucket, or S3 credentials.");
- return {endpoint:new URL(endpoint),bucket,deliveryBucket,region,accessKeyId:secret.accessKeyId,secretAccessKey:secret.secretAccessKey,sessionToken:typeof secret.sessionToken==="string"?secret.sessionToken:undefined,pathStyle:p.settings.pathStyle!==false};
+ const allowedOrigins=Array.isArray(p.settings.allowedOrigins)?p.settings.allowedOrigins.filter((v:unknown)=>typeof v==="string") as string[]:[];
+ if(!endpoint||!bucket||!deliveryBucket||bucket===deliveryBucket||!allowedOrigins.length||typeof secret.accessKeyId!=="string"||typeof secret.secretAccessKey!=="string")throw new Error("The selected media_storage binding is missing endpoint, bucket, or S3 credentials.");
+ return {endpoint:new URL(endpoint),bucket,deliveryBucket,region,accessKeyId:secret.accessKeyId,secretAccessKey:secret.secretAccessKey,sessionToken:typeof secret.sessionToken==="string"?secret.sessionToken:undefined,pathStyle:p.settings.pathStyle!==false,allowedOrigins};
 }
 function objectUrl(c:S3Config,key:string,bucket=c.bucket){
  const u=new URL(c.endpoint.toString());
@@ -32,8 +33,8 @@ function objectUrl(c:S3Config,key:string,bucket=c.bucket){
  return u;
 }
 async function signingKey(secret:string,date:string,region:string){const d=await hmac("AWS4"+secret,date);const r=await hmac(d,region);const s=await hmac(r,"s3");return hmac(s,"aws4_request");}
-async function signedRequest(c:S3Config,key:string,method:string,query:Record<string,string>={},body?:string,headers:Record<string,string>={}){
- const u=objectUrl(c,key);for(const [k,v] of Object.entries(query))u.searchParams.set(k,v);
+async function signedRequest(c:S3Config,key:string,method:string,query:Record<string,string>={},body?:string,headers:Record<string,string>={},bucket=c.bucket){
+ const u=objectUrl(c,key,bucket);for(const [k,v] of Object.entries(query))u.searchParams.set(k,v);
  const now=timestamp(),day=now.slice(0,8),payloadHash=await sha256(body??"");
  const all={host:u.host,"x-amz-content-sha256":payloadHash,"x-amz-date":now,...(c.sessionToken?{"x-amz-security-token":c.sessionToken}:{}),...headers};
  const canonicalHeaders=Object.entries(all).map(([k,v])=>[k.toLowerCase(),v.trim()] as const).sort(([a],[b])=>a.localeCompare(b));
@@ -46,8 +47,14 @@ async function signedRequest(c:S3Config,key:string,method:string,query:Record<st
  const response=await fetch(u,{method,headers:{...all,Authorization:auth,...headers},body:body??undefined,signal:AbortSignal.timeout(30000)});
  return response;
 }
-async function presignGet(c:S3Config,key:string){
- const u=objectUrl(c,key),now=timestamp(),day=now.slice(0,8),scope=day+"/"+c.region+"/s3/aws4_request";
+async function ensureBucketCors(c:S3Config,bucket:string){
+ const origins=c.allowedOrigins.map(origin=>"<AllowedOrigin>"+origin.replaceAll("&","&amp;").replaceAll("<","&lt;")+"</AllowedOrigin>").join("");
+ const xml="<CORSConfiguration><CORSRule>"+origins+"<AllowedMethod>GET</AllowedMethod><AllowedMethod>HEAD</AllowedMethod><AllowedMethod>PUT</AllowedMethod><AllowedHeader>*</AllowedHeader><ExposeHeader>ETag</ExposeHeader><ExposeHeader>x-amz-checksum-sha256</ExposeHeader><MaxAgeSeconds>86400</MaxAgeSeconds></CORSRule></CORSConfiguration>";
+ const result=await signedRequest(c,"","PUT",{cors:""},xml,{"content-type":"application/xml"},bucket);
+ if(!result.ok)throw new Error("storage_bucket_cors_configuration_failed_"+result.status);
+}
+async function presignGet(c:S3Config,key:string,bucket=c.deliveryBucket){
+ const u=objectUrl(c,key,bucket),now=timestamp(),day=now.slice(0,8),scope=day+"/"+c.region+"/s3/aws4_request";
  const params:Record<string,string>={"X-Amz-Algorithm":"AWS4-HMAC-SHA256","X-Amz-Credential":c.accessKeyId+"/"+scope,"X-Amz-Date":now,"X-Amz-Expires":"900","X-Amz-SignedHeaders":"host"};
  if(c.sessionToken)params["X-Amz-Security-Token"]=c.sessionToken;
  for(const [k,v] of Object.entries(params))u.searchParams.set(k,v);
@@ -110,6 +117,9 @@ Deno.serve(async req=>{
   if(p.contentId){const {data:content,error}=await db.from("content").select("id").eq("id",p.contentId).eq("creator_id",user.id).maybeSingle();if(error||!content)return json(404,{error:"Content not found or not owned by this creator."});}
   const totalParts=Math.ceil(p.sizeBytes/p.chunkSizeBytes);if(totalParts>10000)return json(413,{error:"The selected part size would exceed S3's 10,000-part limit."});
   let storage:S3Config;try{storage=await getStorage(db);}catch(e){return json(503,{error:e instanceof Error?e.message:"Media storage provider is unavailable."});}
+  const origin=req.headers.get("origin")??"";
+  if(!storage.allowedOrigins.includes(origin))return json(403,{error:"This application origin is not permitted for direct multipart uploads."});
+  try{await ensureBucketCors(storage,storage.bucket);await ensureBucketCors(storage,storage.deliveryBucket);}catch(e){return json(503,{error:e instanceof Error?e.message:"Private media bucket CORS could not be configured."});}
   const id=crypto.randomUUID(),safeName=p.filename.normalize("NFKC").replace(/[^a-zA-Z0-9._-]+/g,"_").slice(-120),objectPath="quarantine/"+user.id+"/"+id+"/"+safeName;
   const {data:session,error:insertError}=await db.from("media_upload_sessions").insert({id,owner_id:user.id,content_id:p.contentId??null,studio_account_id:studio.id,object_path:objectPath,original_filename:p.filename,mime_type:p.mimeType,expected_size_bytes:p.sizeBytes,chunk_size_bytes:p.chunkSizeBytes,expected_sha256:p.sha256?.toLowerCase()??null,received_size_bytes:0,chunk_manifest:[],status:"INITIALIZED",expires_at:new Date(Date.now()+24*3600000).toISOString()}).select("id").single();
   if(insertError||!session)return json(503,{error:"Upload session could not be initialized."});
