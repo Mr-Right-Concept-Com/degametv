@@ -31,7 +31,7 @@ export default function UserDashboard() {
   const [watchHistory, setWatchHistory] = useState<any[]>([]);
   const [loyalty, setLoyalty] = useState<any[]>([]);
   const [walletBalances, setWalletBalances] = useState<any[]>([]);
-  const [supportTransactions, setSupportTransactions] = useState<any[]>([]);
+  const [walletActivity, setWalletActivity] = useState<any[]>([]);
   const [invitations, setInvitations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
@@ -98,8 +98,8 @@ export default function UserDashboard() {
     if (loyaltyRes.data) setLoyalty(loyaltyRes.data);
     const { data: walletData, error: walletError } = await (supabase as any).rpc('wallet_balance_by_currency', { _user_id: user!.id });
     if (!walletError && Array.isArray(walletData)) setWalletBalances(walletData);
-    const { data: supportData, error: supportError } = await (supabase as any).rpc('get_my_support_transactions');
-    if (!supportError && Array.isArray(supportData)) setSupportTransactions(supportData);
+    const { data: activityData, error: activityError } = await (supabase as any).rpc('get_my_wallet_activity', { p_limit: 100, p_before: null });
+    if (!activityError && Array.isArray(activityData)) setWalletActivity(activityData);
     const { data: inviteData } = await supabase.functions.invoke("manage-event-invites", { body: { action: "my_invitations" } });
     if (inviteData?.invitations) setInvitations(inviteData.invitations);
     if (profileRes.data) {
@@ -255,8 +255,18 @@ export default function UserDashboard() {
                 <p className="text-sm text-muted-foreground">Your earnings are shown by their original transaction currency. Pending settlement is not withdrawable; only verified settled funds appear as available.</p>
                 {walletBalances.length === 0 ? <div className="rounded-xl border border-dashed p-8 text-center"><Wallet className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40"/><p className="font-medium">No creator earnings yet</p><p className="mt-1 text-xs text-muted-foreground">When you earn from ticket sales, tips or gifts as an approved creator, your balances will appear here.</p></div> : walletBalances.map((balance:any) => <div key={balance.currency} className="grid gap-3 rounded-xl border p-4 sm:grid-cols-3"><div><p className="text-xs text-muted-foreground">Currency</p><p className="text-lg font-bold">{balance.currency}</p></div><div><p className="text-xs text-muted-foreground">Pending settlement</p><p className="text-lg font-semibold">{Number(balance.escrow || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</p></div><div><p className="text-xs text-muted-foreground">Available to withdraw</p><p className="text-lg font-semibold text-primary">{Number(balance.withdrawable || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</p></div></div>)}
                 <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">Creator earnings are tracked separately from personal stored-value funds. This history includes your sent and received tips and gifts; it does not imply that a personal cash wallet or top-up balance is enabled.</div>
-                <div className="space-y-3"><h3 className="font-semibold">Ticket purchases</h3>{tickets.length===0?<p className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">No ticket transactions yet.</p>:<div className="space-y-2">{tickets.slice(0,10).map((ticket:any)=><div key={ticket.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"><div className="min-w-0"><p className="text-sm font-medium">{ticket.screening?.title||'Event ticket'}</p><p className="text-xs text-muted-foreground">{new Date(ticket.created_at).toLocaleString()} · {ticket.ticket_type||'Admission'}</p></div><div className="text-right"><p className="font-semibold">{Number(ticket.price||0).toLocaleString(undefined,{maximumFractionDigits:2})} {ticket.currency||'NGN'}</p><Badge variant={ticket.payment_status==='completed'?'default':ticket.payment_status==='refunded'?'destructive':'secondary'}>{ticket.payment_status||'unknown'}</Badge></div></div>)}</div>}</div>
-                <div className="space-y-3"><h3 className="font-semibold">Tips &amp; gifts activity</h3>{supportTransactions.length===0?<p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">No tips or gifts yet.</p>:<div className="space-y-2">{supportTransactions.map((tx:any)=><div key={tx.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"><div className="min-w-0"><p className="text-sm font-medium">{tx.direction==='received'?'Received':'Sent'} {tx.contribution_type} · {tx.target_title}</p><p className="text-xs text-muted-foreground">{tx.display_name} · {new Date(tx.created_at).toLocaleString()}</p>{tx.message&&<p className="mt-1 text-xs text-muted-foreground">{tx.message}</p>}</div><div className="text-right"><p className="font-semibold">{Number(tx.amount_major||0).toLocaleString(undefined,{maximumFractionDigits:2})} {tx.currency}</p><Badge variant={tx.status==='paid'?'default':'secondary'}>{tx.status}</Badge></div></div>)}</div>}</div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3"><h3 className="font-semibold">All wallet activity</h3><Badge variant="outline">{walletActivity.length} recent</Badge></div>
+                  {walletActivity.length===0 ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">Your ticket purchases, tips, gifts and payout activity will appear here.</p> :
+                    <div className="space-y-2">{walletActivity.map((tx:any)=>{
+                      const label=tx.activity_type==='ticket_purchase'?'Ticket purchase':tx.activity_type==='tip'?(tx.direction==='incoming'?'Tip received':'Tip sent'):tx.activity_type==='gift'?(tx.direction==='incoming'?'Gift received':'Gift sent'):'Withdrawal';
+                      let amount='';try{amount=new Intl.NumberFormat(undefined,{style:'currency',currency:tx.currency,maximumFractionDigits:2}).format(Number(tx.amount_major||0));}catch{amount=Number(tx.amount_major||0).toLocaleString()+' '+tx.currency;}
+                      return <div key={tx.activity_type+":"+tx.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3">
+                        <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-medium">{label} · {tx.description}</p><Badge variant="secondary">{tx.status}</Badge></div><p className="mt-1 text-xs text-muted-foreground">{tx.direction==="incoming"?"From ":"To "}{tx.counterparty||"DeGameTV"} · {new Date(tx.created_at).toLocaleString()}</p>{tx.reference&&<p className="mt-1 text-[10px] text-muted-foreground">Reference: {tx.reference}</p>}</div>
+                        <p className={"font-semibold whitespace-nowrap "+(tx.direction==="incoming"?"text-primary":"")}>{tx.direction==="incoming"?"+":"−"}{amount}</p>
+                      </div>;
+                    })}</div>}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
