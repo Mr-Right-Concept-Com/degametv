@@ -99,8 +99,11 @@ Deno.serve(async req=>{
    const {data:studio}=await db.from("studio_accounts").select("base_currency,status").eq("user_id",user.id).eq("status","approved").maybeSingle();
    if(!studio?.base_currency)return json(403,{error:"An approved creator account with an immutable base currency is required."});
    const declarationHash=await hash(JSON.stringify({...p.declaration,territories:[...p.declaration.territories].sort()}));
-   const {error:insertError}=await db.from("content_rights_declarations").insert({content_id:content.id,creator_id:user.id,declaration:p.declaration,declaration_hash:declarationHash});
-   if(insertError)return json(409,{error:"Immutable rights declaration could not be recorded."});
+   const {data:existingDeclaration}=await db.from("content_rights_declarations").select("id").eq("content_id",content.id).eq("declaration_hash",declarationHash).maybeSingle();
+   if(!existingDeclaration){
+    const {error:insertError}=await db.from("content_rights_declarations").insert({content_id:content.id,creator_id:user.id,declaration:p.declaration,declaration_hash:declarationHash});
+    if(insertError)return json(409,{error:"Immutable rights declaration could not be recorded."});
+   }
    const metadata={...(content.metadata??{}),creator_rights:p.declaration};
    const {error:updateError}=await db.from("content").update({creator_base_currency:studio.base_currency,content_format:p.declaration.contentFormat,territory_rights:{territories:p.declaration.territories,rightsType:p.declaration.rightsType},rights_status:"DECLARED",metadata}).eq("id",content.id).eq("creator_id",user.id);
    if(updateError)return json(503,{error:"Rights declaration was recorded but content metadata requires reconciliation."});
