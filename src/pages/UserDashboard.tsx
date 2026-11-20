@@ -30,6 +30,7 @@ export default function UserDashboard() {
   const [tickets, setTickets] = useState<any[]>([]);
   const [watchHistory, setWatchHistory] = useState<any[]>([]);
   const [loyalty, setLoyalty] = useState<any[]>([]);
+  const [invitations, setInvitations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
   const [displayName, setDisplayName] = useState('');
@@ -93,6 +94,8 @@ export default function UserDashboard() {
     if (ticketsRes.data) setTickets(ticketsRes.data);
     if (historyRes.data) setWatchHistory(historyRes.data);
     if (loyaltyRes.data) setLoyalty(loyaltyRes.data);
+    const { data: inviteData } = await supabase.functions.invoke("manage-event-invites", { body: { action: "my_invitations" } });
+    if (inviteData?.invitations) setInvitations(inviteData.invitations);
     if (profileRes.data) {
       setProfile(profileRes.data);
       setDisplayName(profileRes.data.display_name || profileRes.data.full_name || '');
@@ -214,12 +217,13 @@ export default function UserDashboard() {
           ))}
         </div>
 
-        <Tabs defaultValue="tickets" className="space-y-4">
+        <Tabs defaultValue={new URLSearchParams(window.location.search).get("tab") === "invitations" ? "invitations" : "tickets"} className="space-y-4">
           <TabsList className="bg-secondary/50 w-full sm:w-auto">
             <TabsTrigger value="tickets">
               <Ticket className="w-4 h-4 mr-1.5" />
               My Tickets
             </TabsTrigger>
+            <TabsTrigger value="invitations"><Calendar className="w-4 h-4 mr-1.5" /> Invitations{invitations.length > 0 ? ` (${invitations.length})` : ""}</TabsTrigger>
             <TabsTrigger value="history">
               <Film className="w-4 h-4 mr-1.5" />
               History
@@ -276,6 +280,17 @@ export default function UserDashboard() {
                 )}
               </>
             )}
+          </TabsContent>
+
+          <TabsContent value="invitations" className="space-y-3">
+            {invitations.length === 0 ? (
+              <Card><CardContent className="p-10 text-center"><Calendar className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" /><h3 className="font-semibold">No event invitations</h3><p className="mt-1 text-sm text-muted-foreground">Private premieres and screenings you are invited to will appear here.</p></CardContent></Card>
+            ) : invitations.map(invite => (
+              <Card key={invite.id}><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div className="min-w-0"><p className="font-semibold">{invite.event?.title || "Private event"}</p><p className="text-xs text-muted-foreground">{invite.invite_role} · {invite.event?.screening_date ? new Date(invite.event.screening_date).toLocaleString() : "Date to be announced"}</p><p className="text-xs text-muted-foreground">{invite.expires_at ? "Invitation expires " + new Date(invite.expires_at).toLocaleDateString() : "No expiry"}</p></div>
+                <Badge variant={invite.status === "accepted" ? "default" : invite.status === "revoked" || invite.status === "expired" ? "destructive" : "secondary"}>{invite.status}</Badge>
+              </CardContent></Card>
+            ))}
           </TabsContent>
 
           {/* ─── WATCH HISTORY ─── */}
