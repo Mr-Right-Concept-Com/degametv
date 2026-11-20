@@ -45,6 +45,7 @@ const WhiteLabel = lazy(() => import("./pages/admin/settings/WhiteLabel"));
 const TicketManagement = lazy(() => import("./pages/admin/ticketing/TicketManagement"));
 const Payouts = lazy(() => import("./pages/admin/Payouts"));
 const Godmode = lazy(() => import("./pages/admin/Godmode"));
+const GiftCatalog = lazy(() => import("./pages/admin/GiftCatalog"));
 
 // Virtual Cinema Funnel
 const BuyTicket = lazy(() => import("./pages/BuyTicket"));
@@ -139,6 +140,7 @@ const App = () => (
               <Route path="/admin/promo-codes" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.marketing"><PromoCodes /></FeatureGate></ProtectedAdminRoute>} />
               <Route path="/admin/sales" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.finance"><ProducerDashboard /></FeatureGate></ProtectedAdminRoute>} />
               <Route path="/admin/payouts" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.finance"><Payouts /></FeatureGate></ProtectedAdminRoute>} />
+              <Route path="/admin/gifts" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.finance"><GiftCatalog /></FeatureGate></ProtectedAdminRoute>} />
               <Route path="/admin/godmode" element={<ProtectedAdminRoute><Godmode /></ProtectedAdminRoute>} />
               <Route path="/admin/filmmaker" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.verification"><FilmmakerPortal /></FeatureGate></ProtectedAdminRoute>} />
               <Route path="/admin/filmmaker-applications" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.verification"><FilmmakerApplications /></FeatureGate></ProtectedAdminRoute>} />
