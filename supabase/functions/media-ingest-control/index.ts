@@ -45,6 +45,16 @@ async function signedRequest(c:S3Config,key:string,method:string,query:Record<st
  const response=await fetch(u,{method,headers:{...all,Authorization:auth,...headers},body:body??undefined,signal:AbortSignal.timeout(30000)});
  return response;
 }
+async function presignGet(c:S3Config,key:string){
+ const u=objectUrl(c,key),now=timestamp(),day=now.slice(0,8),scope=day+"/"+c.region+"/s3/aws4_request";
+ const params:Record<string,string>={"X-Amz-Algorithm":"AWS4-HMAC-SHA256","X-Amz-Credential":c.accessKeyId+"/"+scope,"X-Amz-Date":now,"X-Amz-Expires":"900","X-Amz-SignedHeaders":"host"};
+ if(c.sessionToken)params["X-Amz-Security-Token"]=c.sessionToken;
+ for(const [k,v] of Object.entries(params))u.searchParams.set(k,v);
+ const canonical="GET\n"+u.pathname+"\n"+canonicalQuery(u)+"\nhost:"+u.host+"\n\nhost\nUNSIGNED-PAYLOAD";
+ const toSign="AWS4-HMAC-SHA256\n"+now+"\n"+scope+"\n"+await sha256(canonical);
+ u.searchParams.set("X-Amz-Signature",hex(await hmac(await signingKey(c.secretAccessKey,day,c.region),toSign)));
+ return u.toString();
+}
 async function presignPart(c:S3Config,key:string,uploadId:string,partNumber:number,checksum:string){
  const u=objectUrl(c,key);u.searchParams.set("partNumber",String(partNumber));u.searchParams.set("uploadId",uploadId);
  const now=timestamp(),day=now.slice(0,8),scope=day+"/"+c.region+"/s3/aws4_request";
@@ -100,7 +110,7 @@ Deno.serve(async req=>{
   const {data:admin}=await db.from("user_roles").select("role").eq("user_id",user.id).in("role",["super_admin","platform_admin"]).limit(1);
   if(session?.owner_id!==user.id&&!admin?.length)return json(403,{error:"Not authorized."});
   const renditions=job.renditions as Array<{path:string;kind:string}>,rendition=renditions.find(r=>r.path===p.path);if(!rendition)return json(404,{error:"Rendition not found."});
-  try{const storage=await getStorage(db);const signed=await presignPart(storage,p.path,"",1,"");const u=new URL(signed);u.searchParams.delete("partNumber");u.searchParams.delete("uploadId");u.searchParams.set("X-Amz-SignedHeaders","host");u.searchParams.delete("X-Amz-Signature");const now=u.searchParams.get("X-Amz-Date")!,day=now.slice(0,8),scope=day+"/"+storage.region+"/s3/aws4_request";const canonical="GET\n"+u.pathname+"\n"+canonicalQuery(u)+"\nhost:"+u.host+"\n\nhost\nUNSIGNED-PAYLOAD";const signature=hex(await hmac(await signingKey(storage.secretAccessKey,day,storage.region),"AWS4-HMAC-SHA256\n"+now+"\n"+scope+"\n"+await sha256(canonical)));u.searchParams.set("X-Amz-Signature",signature);return json(200,{url:u.toString(),expiresIn:900});}catch(e){return json(503,{error:e instanceof Error?e.message:"Playback signing failed."});}
+  try{const storage=await getStorage(db);return json(200,{url:await presignGet(storage,p.path),expiresIn:900});}catch(e){return json(503,{error:e instanceof Error?e.message:"Playback signing failed."});}
  }
  const {data:session,error:sessionError}=await db.from("media_upload_sessions").select("*").eq("id",p.sessionId).eq("owner_id",user.id).maybeSingle();
  if(sessionError||!session)return json(404,{error:"Upload session not found."});
