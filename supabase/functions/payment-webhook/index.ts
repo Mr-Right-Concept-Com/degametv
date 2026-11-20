@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json","Cache-Control":"no-store"}});
+const isRecord=(value:unknown):value is Record<string,unknown> =>
+ value!==null&&typeof value==="object"&&!Array.isArray(value);
+
 const hex=(bytes:ArrayBuffer)=>Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,"0")).join("");
 async function hmac(secret:string,body:string,algorithm:"SHA-256"|"SHA-512"){const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:algorithm},false,["sign"]);return hex(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(body)));}
 function equal(a:string,b:string){if(a.length!==b.length)return false;let mismatch=0;for(let i=0;i<a.length;i++)mismatch|=a.charCodeAt(i)^b.charCodeAt(i);return mismatch===0;}
@@ -30,9 +33,15 @@ serve(async(req:Request)=>{
  const raw=await req.text();
  try{
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
-  const event=JSON.parse(raw);
-  const eventData=event?.data?.object??event?.data??event;
-  const reference=eventData?.reference??eventData?.tx_ref??eventData?.metadata?.reference??eventData?.client_reference_id??event?.reference??event?.data?.reference;
+  const parsedEvent:unknown=JSON.parse(raw);
+  const event=isRecord(parsedEvent)?parsedEvent:{};
+  const eventDataValue=isRecord(event.data)
+   ? (isRecord(event.data.object)?event.data.object:event.data)
+   : event;
+  const eventData=isRecord(eventDataValue)?eventDataValue:{};
+  const eventMetadata=isRecord(eventData.metadata)?eventData.metadata:{};
+  const reference=eventData.reference??eventData.tx_ref??eventMetadata.reference??
+   eventData.client_reference_id??event.reference??(isRecord(event.data)?event.data.reference:undefined);
   if(typeof reference!=="string"||(!/^DTV_[A-Za-z0-9]+$/.test(reference)&&!/^DTVL_[A-Za-z0-9]+$/.test(reference)&&!/^DTVG_[A-Za-z0-9]+$/.test(reference)))return json(400,{error:"Invalid payment reference."});
   const liveOrder=reference.startsWith("DTVL_");
   const contributionOrder=reference.startsWith("DTVG_");
@@ -90,16 +99,20 @@ serve(async(req:Request)=>{
   const verification=await fetch(verifyUrl,{method:verifyMethod,headers:{[authHeader]:authPrefix+config.credential,Accept:"application/json",...(verifyMethod==="POST"?{"Content-Type":"application/json"}:{})},...(verifyMethod==="POST"?{body:JSON.stringify({[verifyField]:reference})}:{}),signal:AbortSignal.timeout(15000)}).catch(()=>null);
   if(!verification)return json(503,{error:"Payment verification provider is unavailable."});
   const providerResult=await verification.json().catch(()=>null);
-  let result:any=providerResult;
+  const providerPayload=isRecord(providerResult)?providerResult:{};
+  const providerData=isRecord(providerPayload.data)?providerPayload.data:{};
+  let result:Record<string,unknown>=providerPayload;
   if(verificationAdapter==="paystack"){
-   result={verified:providerResult?.status===true&&providerResult?.data?.status==="success",status:providerResult?.data?.status==="success"?"paid":"unpaid",transaction_id:providerResult?.data?.id,amount_minor:providerResult?.data?.amount,currency:providerResult?.data?.currency};
+   const successful=providerPayload.status===true&&providerData.status==="success";
+   result={verified:successful,status:successful?"paid":"unpaid",transaction_id:providerData.id,amount_minor:providerData.amount,currency:providerData.currency};
   }else if(verificationAdapter==="stripe"){
-   result={verified:providerResult?.payment_status==="paid",status:providerResult?.payment_status==="paid"?"paid":"unpaid",transaction_id:providerResult?.payment_intent||providerResult?.id,amount_minor:providerResult?.amount_total,currency:providerResult?.currency};
+   const paid=providerPayload.payment_status==="paid";
+   result={verified:paid,status:paid?"paid":"unpaid",transaction_id:providerPayload.payment_intent||providerPayload.id,amount_minor:providerPayload.amount_total,currency:providerPayload.currency};
   }else if(verificationAdapter==="flutterwave"){
-   const currency=String(providerResult?.data?.currency??"").toUpperCase();
-   const major=Number(providerResult?.data?.amount);
+   const currency=String(providerData.currency??"").toUpperCase();
+   const major=Number(providerData.amount);
    const digits=currency&&/^[A-Z]{3}$/.test(currency)?new Intl.NumberFormat("en",{style:"currency",currency}).resolvedOptions().maximumFractionDigits:2;
-   result={verified:providerResult?.status==="success"&&providerResult?.data?.status==="successful",status:providerResult?.data?.status==="successful"?"paid":"unpaid",transaction_id:providerResult?.data?.id,amount_minor:Math.round(major*Math.pow(10,digits)),currency};
+   result={verified:providerPayload.status==="success"&&providerData.status==="successful",status:providerData.status==="successful"?"paid":"unpaid",transaction_id:providerData.id,amount_minor:Math.round(major*Math.pow(10,digits)),currency};
   }
   if(!verification.ok||result?.verified!==true||result?.status!=="paid"||!Number.isFinite(Number(result?.amount_minor))||typeof result?.currency!=="string")return json(409,{error:"Payment has not been verified as successful."});
   if(contributionOrder){
