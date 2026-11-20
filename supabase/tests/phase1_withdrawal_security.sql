@@ -12,7 +12,7 @@ begin
  values(v_actor,1,'NGN','Phase1 test bank',repeat('1',10),'Phase1 Test','NG','pending')
  returning id into v_request;
  v_result:=public.transition_withdrawal_request(v_request,'approve',v_actor,'Phase 1 approval test');
- if v_result ? 'account_number' then raise exception 'withdrawal_transition_returned_bank_account';end if;
+ if v_result ? 'account_number' or v_result ? 'account_secret_ref' then raise exception 'withdrawal_transition_returned_sensitive_bank_data';end if;
  if v_result->>'status'<>'approved' then raise exception 'withdrawal_transition_not_approved';end if;
  if not exists(select 1 from public.audit_logs where entity_type='withdrawal_request' and entity_id=v_request and action='withdrawal.approved') then
   raise exception 'withdrawal_transition_audit_missing';
