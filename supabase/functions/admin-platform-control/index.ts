@@ -33,8 +33,9 @@ Deno.serve(async req=>{
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
   const {data:{user},error:authError}=await admin.auth.getUser(authorization.slice(7));
   if(authError||!user)return respond({error:"Authentication required."},401);
-  const {data:isAdmin,error:roleError}=await admin.rpc("is_super_admin",{_user_id:user.id});
-  if(roleError||!isAdmin)return respond({error:"Super administrator access required."},403);
+  const {data:adminRole,error:roleError}=await admin.from("user_roles").select("user_id")
+    .eq("user_id",user.id).eq("role","super_admin").maybeSingle();
+  if(roleError||!adminRole)return respond({error:"Super administrator access required."},403);
   const parsed=Body.safeParse(await req.json().catch(()=>null));
   if(!parsed.success)return respond({error:"Invalid platform control request.",issues:parsed.error.flatten()},400);
   const p=parsed.data;
