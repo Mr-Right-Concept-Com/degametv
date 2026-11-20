@@ -1,6 +1,6 @@
 import { useState, FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Menu, X, Search, User, Ticket, LayoutDashboard } from 'lucide-react';
+import { Menu, X, Search, User, Ticket, LayoutDashboard, Wallet, LifeBuoy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
@@ -90,6 +90,9 @@ export function Navbar() {
                   </Link>
                 </Button>
 
+                <Button variant="ghost" size="icon" aria-label="Open my wallet" className="rounded-full h-9 w-9" onClick={() => navigate('/dashboard?tab=wallet')}>
+                  <Wallet className="h-4 w-4" />
+                </Button>
                 <Button variant="ghost" size="icon" aria-label="Open my dashboard" className="rounded-full h-9 w-9" onClick={() => navigate('/dashboard')}>
                   <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-primary/10 flex items-center justify-center">
                     <span aria-hidden="true" className="text-xs font-bold text-primary">{user.email?.charAt(0).toUpperCase()}</span>
@@ -155,6 +158,12 @@ export function Navbar() {
               <>
                 <Link to="/dashboard" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground" onClick={() => setIsMenuOpen(false)}>
                   <User className="h-4 w-4" /> My Dashboard
+                </Link>
+                <Link to="/dashboard?tab=wallet" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground" onClick={() => setIsMenuOpen(false)}>
+                  <Wallet className="h-4 w-4" /> Wallet
+                </Link>
+                <Link to="/support" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground" onClick={() => setIsMenuOpen(false)}>
+                  <LifeBuoy className="h-4 w-4" /> Help &amp; Support
                 </Link>
                 {isAdmin && (
                   <Link
