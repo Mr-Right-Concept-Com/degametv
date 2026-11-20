@@ -125,7 +125,7 @@ export default function StudioSubmit() {
   const draftKey = `degametv:studio:create:${user?.id || 'guest'}`;
   const [uploadingPoster, setUploadingPoster] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
-  const videoProgress = mediaUpload.progress;
+  const mediaUpload.progress = mediaUpload.progress;
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [form, setForm] = useState({
@@ -767,7 +767,7 @@ export default function StudioSubmit() {
                     </label>
                   </div>
                   <p className="text-xs text-muted-foreground">Uploaded directly from this browser to the configured S3/R2-compatible quarantine bucket. Edge Functions never assemble or buffer the master file.</p>
-                  {(videoProgress > 0 || mediaUpload.status !== 'IDLE') && <div className="space-y-2"><div className="flex items-center justify-between text-xs"><span>{mediaUpload.fileName ?? 'Recovered upload'} · {mediaUpload.status}</span><span>{videoProgress}%</span></div><div className="h-2 rounded-full bg-secondary overflow-hidden"><div className="h-full bg-primary transition-all" style={{ width: `${videoProgress}%` }} /></div>{mediaUpload.error && <p className="text-xs text-destructive">{mediaUpload.error}</p>}<div className="flex flex-wrap gap-2">{mediaUpload.status === 'UPLOADING' && <Button type="button" size="sm" variant="outline" onClick={mediaUpload.pause}>Pause upload</Button>}{['PAUSED','ERROR'].includes(mediaUpload.status) && <span className="text-xs text-muted-foreground self-center">Select the same file again to resume missing parts.</span>}{['UPLOADING','PAUSED','ERROR','PREPARING'].includes(mediaUpload.status) && <Button type="button" size="sm" variant="destructive" onClick={()=>void mediaUpload.cancel().catch(e=>toast.error(e instanceof Error?e.message:'Cancel failed.'))}>Cancel upload</Button>}</div></div>}
+                  {(mediaUpload.progress > 0 || mediaUpload.status !== 'IDLE') && <div className="space-y-2"><div className="flex items-center justify-between text-xs"><span>{mediaUpload.fileName ?? 'Recovered upload'} · {mediaUpload.status}</span><span>{mediaUpload.progress}%</span></div><div className="h-2 rounded-full bg-secondary overflow-hidden"><div className="h-full bg-primary transition-all" style={{ width: `${mediaUpload.progress}%` }} /></div>{mediaUpload.error && <p className="text-xs text-destructive">{mediaUpload.error}</p>}<div className="flex flex-wrap gap-2">{mediaUpload.status === 'UPLOADING' && <Button type="button" size="sm" variant="outline" onClick={mediaUpload.pause}>Pause upload</Button>}{['PAUSED','ERROR'].includes(mediaUpload.status) && <span className="text-xs text-muted-foreground self-center">Select the same file again to resume missing parts.</span>}{['UPLOADING','PAUSED','ERROR','PREPARING'].includes(mediaUpload.status) && <Button type="button" size="sm" variant="destructive" onClick={()=>void mediaUpload.cancel().catch(e=>toast.error(e instanceof Error?e.message:'Cancel failed.'))}>Cancel upload</Button>}</div></div>}
                 </div>
                 <div className="space-y-2">
                   <Label>Trailer URL</Label>
