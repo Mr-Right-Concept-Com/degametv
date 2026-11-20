@@ -32,7 +32,7 @@ Deno.serve(async req=>{
   if(p.contentId){const {data:owned}=await db.from("content").select("id").eq("id",p.contentId).eq("creator_id",user.id).maybeSingle();if(!owned)return json(404,{error:"Content not found."});}
   const chunks=Math.ceil(p.sizeBytes/p.chunkSizeBytes); if(chunks>4096)return json(413,{error:"Upload exceeds the supported chunk count."});
   const id=crypto.randomUUID(),path="quarantine/"+user.id+"/"+id+"/assembled";
-  const {data:session,error}=await db.from("media_upload_sessions").insert({id,owner_id:user.id,content_id:p.contentId??null,studio_account_id:studioQuery.data.id,object_path:path,original_filename:p.filename,mime_type:p.mimeType,expected_size_bytes:p.sizeBytes,expected_sha256:p.sha256?.toLowerCase()??null,received_size_bytes:0,chunk_manifest:[],status:"INITIALIZED",expires_at:new Date(Date.now()+24*3600000).toISOString()}).select("id,status,expires_at").single();
+  const {data:session,error}=await db.from("media_upload_sessions").insert({id,owner_id:user.id,content_id:p.contentId??null,studio_account_id:studioQuery.data.id,object_path:path,original_filename:p.filename,mime_type:p.mimeType,expected_size_bytes:p.sizeBytes,chunk_size_bytes:p.chunkSizeBytes,expected_sha256:p.sha256?.toLowerCase()??null,received_size_bytes:0,chunk_manifest:[],status:"INITIALIZED",expires_at:new Date(Date.now()+24*3600000).toISOString()}).select("id,status,expires_at").single();
   if(error||!session)return json(503,{error:"Upload session could not be initialized."});
   return json(201,{session,chunkSizeBytes:p.chunkSizeBytes,totalChunks:chunks,transport:"authenticated_chunk_api"});
  }
@@ -59,7 +59,7 @@ Deno.serve(async req=>{
  }
  const {data:session,error:sessionError}=await db.from("media_upload_sessions").select("*").eq("id",p.sessionId).eq("owner_id",user.id).maybeSingle();
  if(sessionError||!session)return json(404,{error:"Upload session not found."});
- if(session.expires_at<Date.now()&&session.status!=="READY")return json(410,{error:"Upload session expired."});
+ if(Date.parse(session.expires_at)<Date.now()&&session.status!=="READY")return json(410,{error:"Upload session expired."});
  if(p.action==="recover")return json(200,{sessionId:session.id,status:session.status,receivedSizeBytes:session.received_size_bytes,expectedSizeBytes:session.expected_size_bytes,chunks:session.chunk_manifest,expiresAt:session.expires_at});
  if(p.action==="cancel"){
   if(["READY","CANCELLED"].includes(session.status))return json(409,{error:"This upload can no longer be cancelled."});
@@ -72,7 +72,7 @@ Deno.serve(async req=>{
   const bytes=b64(p.dataBase64); if(bytes.byteLength>8*1024*1024)return json(413,{error:"Chunk exceeds 8 MiB."});
   const digest=await sha256(bytes); if(digest!==p.sha256.toLowerCase())return json(422,{error:"Chunk SHA-256 mismatch."});
   const manifest=session.chunk_manifest as Array<{index:number;path:string;size:number;sha256:string}>;
-  const expectedChunks=Math.ceil(Number(session.expected_size_bytes)/(5*1024*1024));
+  const expectedChunks=Math.ceil(Number(session.expected_size_bytes)/Number(session.chunk_size_bytes));
   if(p.index>expectedChunks+1)return json(400,{error:"Chunk index is outside the accepted range."});
   const old=manifest.find(c=>c.index===p.index); if(old){if(old.sha256!==digest)return json(409,{error:"Chunk index already exists with different content."});return json(200,{success:true,duplicate:true,receivedSizeBytes:session.received_size_bytes});}
   const path="quarantine/"+user.id+"/"+session.id+"/chunks/"+String(p.index).padStart(6,"0");
@@ -88,7 +88,7 @@ Deno.serve(async req=>{
  if(p.action==="complete"){
   if(session.status==="QUARANTINED"||session.status==="READY")return json(200,{success:true,status:session.status});
   const manifest=(session.chunk_manifest as Array<{index:number;path:string;size:number;sha256:string}>).sort((a,b)=>a.index-b.index);
-  if(session.received_size_bytes!==session.expected_size_bytes||manifest.reduce((n,c)=>n+c.size,0)!==Number(session.expected_size_bytes))return json(409,{error:"Upload is incomplete.",receivedSizeBytes:session.received_size_bytes,expectedSizeBytes:session.expected_size_bytes});
+  if(Number(session.received_size_bytes)!==Number(session.expected_size_bytes)||manifest.reduce((n,c)=>n+c.size,0)!==Number(session.expected_size_bytes))return json(409,{error:"Upload is incomplete.",receivedSizeBytes:session.received_size_bytes,expectedSizeBytes:session.expected_size_bytes});
   const assembled=new Uint8Array(Number(session.expected_size_bytes));let offset=0;
   for(let i=0;i<manifest.length;i++){if(manifest[i].index!==i)return json(409,{error:"Chunk sequence has a gap.",missingIndex:i});const {data,error}=await db.storage.from(bucket).download(manifest[i].path);if(error||!data)return json(503,{error:"A quarantined chunk could not be read."});const bytes=new Uint8Array(await data.arrayBuffer());if(await sha256(bytes)!==manifest[i].sha256)return json(422,{error:"Stored chunk integrity check failed."});assembled.set(bytes,offset);offset+=bytes.length;}
   const digest=await sha256(assembled);if(session.expected_sha256&&digest!==session.expected_sha256)return json(422,{error:"Whole-file SHA-256 mismatch."});
