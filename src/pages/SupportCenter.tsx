@@ -14,7 +14,7 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 
 type SupportTicket = {
   id: string; ticket_number: number; subject: string; category: string;
-  priority: string; status: string; description: string; created_at: string; channel?: string;
+  priority: string; status: string; description: string; created_at: string; satisfaction_rating?: number | null; channel?: string;
 };
 type SupportMessage = { id: string; sender_id: string; body: string; created_at: string; attachment_paths?: string[]; attachmentUrls?: string[] };
 type Article = { id: string; slug: string; title: string; summary: string | null; body_markdown: string };
@@ -162,6 +162,25 @@ export default function SupportCenter() {
     }
   };
 
+  const reopenTicket = async () => {
+    if (!user || !selected) return;
+    const { error } = await (supabase as any).rpc('reopen_support_ticket', { p_ticket_id: selected.id });
+    if (error) { toast.error('This request cannot be reopened.'); return; }
+    const reopened = { ...selected, status: 'open' };
+    setSelected(reopened);
+    await loadTickets();
+    toast.success('Support request reopened.');
+  };
+
+  const rateTicket = async (rating: number) => {
+    if (!user || !selected) return;
+    const { error } = await (supabase as any).rpc('rate_support_ticket', { p_ticket_id: selected.id, p_rating: rating });
+    if (error) { toast.error('Your rating could not be saved.'); return; }
+    setSelected({ ...selected, satisfaction_rating: rating });
+    await loadTickets();
+    toast.success('Thank you for rating your support experience.');
+  };
+
   const filteredArticles = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return articles;
@@ -189,6 +208,11 @@ export default function SupportCenter() {
             <Card><CardHeader><CardTitle className="text-base">{selected ? `Request #${selected.ticket_number}` : 'Conversation'}</CardTitle></CardHeader><CardContent className="space-y-3">
               {!selected ? <p className="text-sm text-muted-foreground py-8">Select a request to view its conversation.</p> : <>
                 <div className="rounded-xl bg-muted/50 p-3 text-sm">{selected.description}</div>
+                {(selected.status === 'resolved' || selected.status === 'closed') && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3">
+                  <div><p className="text-sm font-medium">How did we do?</p><p className="text-xs text-muted-foreground">{selected.satisfaction_rating ? 'Thank you for your feedback.' : 'Rate your support experience.'}</p></div>
+                  {selected.satisfaction_rating ? <Badge variant="secondary">{selected.satisfaction_rating}/5 <Star className="ml-1 h-3 w-3 fill-current"/></Badge> : <div className="flex items-center gap-1">{[1,2,3,4,5].map(value=><Button key={value} size="icon" variant="ghost" aria-label={`Rate ${value} out of 5`} onClick={()=>void rateTicket(value)}><Star className="h-4 w-4"/></Button>)}</div>}
+                  <Button size="sm" variant="outline" onClick={()=>void reopenTicket()}><RotateCcw className="mr-2 h-4 w-4"/>Reopen request</Button>
+                </div>}
                 <div className="max-h-80 space-y-3 overflow-y-auto">
                   {messages.map(m => <div key={m.id} className={`max-w-[85%] rounded-xl p-3 text-sm ${m.sender_id === user?.id ? 'ml-auto bg-primary text-primary-foreground' : 'bg-muted'}`}><p>{m.body}</p>{m.attachmentUrls?.map((url,i)=><a key={url} href={url} target="_blank" rel="noopener noreferrer" className="mt-2 block underline text-xs">Attachment {i+1}</a>)}<p className="mt-1 text-[10px] opacity-70">{new Date(m.created_at).toLocaleString()}</p></div>)}
                 </div>
