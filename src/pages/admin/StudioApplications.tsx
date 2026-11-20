@@ -15,10 +15,12 @@ interface StudioApplication {
   tier: string;
   company_name: string | null;
   cac_number: string | null;
-  tax_id: string | null;
+  tax_identifier_suffix: string | null;
+  payout_bank_suffix: string | null;
+  payout_account_name: string | null;
+  base_currency: string | null;
   bank_name: string | null;
-  bank_account_number: string | null;
-  bank_account_name: string | null;
+
   cac_doc_path: string | null;
   rights_declared: boolean;
   seats: number;
@@ -40,7 +42,7 @@ export default function StudioApplications() {
   const load = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase.from('studio_accounts')
-      .select('id,user_id,tier,company_name,cac_number,tax_id,bank_name,bank_account_number,bank_account_name,cac_doc_path,rights_declared,seats,status,created_at,review_notes')
+      .select('id,user_id,tier,company_name,cac_number,tax_identifier_suffix,payout_bank_suffix,payout_account_name,base_currency,bank_name,cac_doc_path,rights_declared,seats,status,created_at,review_notes')
       .order('created_at', { ascending: false });
     if (error) {
       toast.error('Studio applications could not be loaded.');
@@ -123,9 +125,9 @@ export default function StudioApplications() {
                   <div><span className="text-muted-foreground">Tier:</span> <span className="font-medium capitalize">{row.tier}</span></div>
                   {row.company_name && <div><span className="text-muted-foreground">Company:</span> {row.company_name}</div>}
                   {row.cac_number && <div><span className="text-muted-foreground">CAC:</span> {row.cac_number}</div>}
-                  {row.tax_id && <div><span className="text-muted-foreground">Tax ID:</span> {row.tax_id}</div>}
+                  {row.tax_identifier_suffix && <div><span className="text-muted-foreground">Tax ID:</span> ending ••••{row.tax_identifier_suffix}</div>}
                   {row.bank_name && <div><span className="text-muted-foreground">Bank:</span> {row.bank_name}</div>}
-                  {row.bank_account_name && <div><span className="text-muted-foreground">Account name:</span> {row.bank_account_name}</div>}
+                  {row.payout_account_name && <div><span className="text-muted-foreground">Account name:</span> {row.payout_account_name}</div>}{row.payout_bank_suffix && <div><span className="text-muted-foreground">Payout account:</span> ending ••••{row.payout_bank_suffix}</div>}{row.base_currency && <div><span className="text-muted-foreground">Creator base currency:</span> {row.base_currency}</div>}
                   {row.bank_account_number && <div><span className="text-muted-foreground">Account:</span> ••••••{row.bank_account_number.slice(-4)}</div>}
                   <div><span className="text-muted-foreground">Team seats:</span> {row.seats}</div>
                   <div><span className="text-muted-foreground">Rights declared:</span> {row.rights_declared ? 'Yes' : 'No'}</div>
