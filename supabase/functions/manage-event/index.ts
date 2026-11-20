@@ -129,6 +129,31 @@ Deno.serve(async (req) => {
       refunded++;
     }
 
+    // Refund canonical live tickets through their original provider adapters.
+    const { data: liveTickets, error: liveTicketError } = await admin.from("tickets")
+      .select("id,metadata,revoked_at")
+      .eq("content_id", s.content_id)
+      .not("stream_id", "is", null)
+      .filter("metadata->>screening_id", "eq", s.id)
+      .is("revoked_at", null);
+    if (liveTicketError) return json({ error: "Live tickets could not be loaded; cancellation was not applied.", refunded, pendingRefunds }, 503);
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    if ((liveTickets || []).length > 0 && (!serviceKey || !supabaseUrl)) {
+      return json({ error: "Refund service is unavailable; cancellation was not applied.", refunded, pendingRefunds }, 503);
+    }
+    for (const ticket of liveTickets || []) {
+      const response = await fetch(supabaseUrl + "/functions/v1/process-refund", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + serviceKey, apikey: serviceKey, "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId: ticket.id, reason: p.reason || "Event cancelled", requestedBy: user.id }),
+        signal: AbortSignal.timeout(25000),
+      }).catch(() => null);
+      const result = response ? await response.json().catch(() => null) : null;
+      if (response?.ok && result?.success === true) refunded++;
+      else pendingRefunds.push(ticket.id);
+    }
+
     const now = new Date().toISOString();
     const { error: cancelError } = await admin.from("screenings")
       .update({ lifecycle: "cancelled", cancelled_at: now }).eq("id", s.id);
