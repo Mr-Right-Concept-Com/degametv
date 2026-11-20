@@ -11,7 +11,7 @@ export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const { isSuperAdmin, isPlatformAdmin } = useTenant();
   const navigate = useNavigate();
   const branding = useBranding();
