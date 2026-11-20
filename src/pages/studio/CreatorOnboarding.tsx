@@ -8,6 +8,8 @@ type Result = {success?:boolean;caseId?:string;status?:string;creatorAccountId?:
 type Invitation={id:string;studio_account_id:string;email:string;role:string;expires_at:string};
 type Member={id:string;user_id:string;role:string;accepted_at:string|null};
 const field = "w-full rounded-lg border bg-background px-3 py-2 text-sm";
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+ typeof value === "object" && value !== null && !Array.isArray(value);
 export default function CreatorOnboarding() {
  const {user}=useAuth();
  const [studioAccountId,setStudioAccountId]=useState("");
@@ -36,10 +38,14 @@ export default function CreatorOnboarding() {
   const path=user!.id+"/kyb/"+crypto.randomUUID()+"-"+kyb.registrationDocument.name.replace(/[^a-zA-Z0-9._-]/g,"_");
   const {error:uploadError}=await supabase.storage.from("kyb-docs").upload(path,kyb.registrationDocument,{contentType:kyb.registrationDocument.type,cacheControl:"0",upsert:false});
   if(uploadError)throw uploadError;
-  const {data,error}=await supabase.rpc("submit_business_verification" as never,{p_legal_business_name:kyb.legalBusinessName,p_registration_country:kyb.registrationCountry,p_registration_number:kyb.registrationNumber,p_registration_document_path:path,p_business_address:kyb.businessAddress,p_business_city:kyb.businessCity,p_business_region:kyb.businessRegion||null,p_business_postal_code:kyb.businessPostalCode||null,p_bank_name:kyb.bankName,p_bank_account_number:kyb.bankAccountNumber,p_bank_account_name:kyb.bankAccountName,p_bank_country:kyb.bankCountry,p_tax_identifier:kyb.taxIdentifier} as never);
-  const payload=data as {success?:boolean;verification_id?:string;error?:string}|null;if(error||!payload?.success||!payload.verification_id)throw new Error(payload?.error??error?.message??"Business verification could not be submitted.");
+  const {data,error}=await supabase.rpc("submit_business_verification",{p_legal_business_name:kyb.legalBusinessName,p_registration_country:kyb.registrationCountry,p_registration_number:kyb.registrationNumber,p_registration_document_path:path,p_business_address:kyb.businessAddress,p_business_city:kyb.businessCity,p_business_region:kyb.businessRegion,p_business_postal_code:kyb.businessPostalCode,p_bank_name:kyb.bankName,p_bank_account_number:kyb.bankAccountNumber,p_bank_account_name:kyb.bankAccountName,p_bank_country:kyb.bankCountry,p_tax_identifier:kyb.taxIdentifier});
+  const payload: unknown = data;
+  const response = isRecord(payload) ? payload : null;
+  const verificationId = typeof response?.verification_id === "string" ? response.verification_id : null;
+  const responseError = typeof response?.error === "string" ? response.error : null;
+  if(error||response?.success!==true||!verificationId)throw new Error(responseError??error?.message??"Business verification could not be submitted.");
   const provider=await invokeFn<{status?:string;providerConfigured?:boolean}>("run-business-provider",{verificationId:payload.verification_id});
-  setForm(v=>({...v,legalName:kyb.legalBusinessName,businessVerificationId:payload.verification_id!,taxIdentifier:kyb.taxIdentifier,bankAccountNumber:kyb.bankAccountNumber,bankName:kyb.bankName,bankCountry:kyb.bankCountry,bankAccountName:kyb.bankAccountName}));
+  setForm(v=>({...v,legalName:kyb.legalBusinessName,businessVerificationId:verificationId,taxIdentifier:kyb.taxIdentifier,bankAccountNumber:kyb.bankAccountNumber,bankName:kyb.bankName,bankCountry:kyb.bankCountry,bankAccountName:kyb.bankAccountName}));
   setVaultMasks({bank:kyb.bankAccountNumber.slice(-4),tax:kyb.taxIdentifier.slice(-4)});
   setKyb(v=>({...v,registrationNumber:"",bankAccountNumber:"",taxIdentifier:""}));
   setMessage(provider.ok&&provider.data?.providerConfigured?"KYB evidence submitted and provider checks were dispatched.":"KYB evidence submitted securely; it is queued for manual review until the configured business and bank providers are active.");
