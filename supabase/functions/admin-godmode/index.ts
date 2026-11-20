@@ -145,9 +145,15 @@ Deno.serve(async (req) => {
       }
       case "country_currency_set": {
         const {data:previous} = await admin.from("country_currency_rules").select("*").eq("country_code",p.countryCode).maybeSingle();
+        if(!previous)return json({error:"Country code is not present in the canonical ISO country registry."},404);
+        const {data:currency,error:currencyError}=await admin.from("country_currency_rules").select("currency_code").eq("currency_code",p.currencyCode).eq("enabled",true).limit(1);
+        if(currencyError||!currency?.length)return json({error:"Currency code is not present in the enabled ISO 4217 registry."},422);
+        let canonicalLocale:string;
+        try{canonicalLocale=Intl.getCanonicalLocales(p.localeCode)[0];}catch{return json({error:"Locale must be a valid BCP 47 language tag."},400);}
+        if(p.timezoneName){try{new Intl.DateTimeFormat("en",{timeZone:p.timezoneName}).format();}catch{return json({error:"Timezone must be a valid IANA timezone."},400);}}
         const {data,error} = await admin.from("country_currency_rules").upsert({
           country_code:p.countryCode,currency_code:p.currencyCode,currency_symbol:p.currencySymbol,
-          locale_code:p.localeCode,timezone_name:p.timezoneName,enabled:p.enabled,source:"admin",updated_by:user.id,updated_at:new Date().toISOString()
+          locale_code:canonicalLocale,timezone_name:p.timezoneName,enabled:p.enabled,source:"admin",updated_by:user.id,updated_at:new Date().toISOString()
         },{onConflict:"country_code"}).select().single();
         if(error)return json({error:error.message},400);
         result=data;entityId=p.countryCode;
