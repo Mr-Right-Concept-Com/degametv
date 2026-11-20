@@ -106,6 +106,9 @@ Deno.serve(async req=>{
  if(sessionError||!session)return json(404,{error:"Upload session not found."});
  if(Date.parse(session.expires_at)<Date.now()&&session.status!=="READY")return json(410,{error:"Upload session expired."});
  if(p.action==="recover"){
+  if(["QUARANTINED","SCANNING","PROMOTING","TRANSCODING","READY","FAILED","CANCELLED","DEAD_LETTER"].includes(session.status)){
+   return json(200,{sessionId:session.id,status:session.status,receivedSizeBytes:session.received_size_bytes,expectedSizeBytes:session.expected_size_bytes,partSizeBytes:session.chunk_size_bytes,parts:session.chunk_manifest??[],expiresAt:session.expires_at});
+  }
   if(!session.storage_upload_id)return json(409,{error:"No active multipart storage session exists."});
   try{const storage=await getStorage(db),res=await signedRequest(storage,session.object_path,"GET",{"uploadId":session.storage_upload_id});if(!res.ok)return json(502,{error:"Storage provider could not recover multipart parts.",providerStatus:res.status});const xml=await res.text(),parts=[...xml.matchAll(/<Part>([\s\S]*?)<\/Part>/g)].map(m=>({partNumber:Number(xmlValue(m[1],"PartNumber")),etag:xmlValue(m[1],"ETag")?.replaceAll("&quot;","").replaceAll('"',""),checksumSha256:xmlValue(m[1],"ChecksumSHA256"),size:Number(xmlValue(m[1],"Size")??0)})).filter(x=>Number.isInteger(x.partNumber)&&x.etag&&x.checksumSha256);return json(200,{sessionId:session.id,status:session.status,receivedSizeBytes:session.received_size_bytes,expectedSizeBytes:session.expected_size_bytes,partSizeBytes:session.chunk_size_bytes,parts,expiresAt:session.expires_at});}catch(e){return json(503,{error:e instanceof Error?e.message:"Multipart recovery failed."});}
  }
