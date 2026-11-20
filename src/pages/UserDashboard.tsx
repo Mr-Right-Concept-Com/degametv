@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Ticket, Play, Clock, CheckCircle, Copy, Film, User, Wallet,
-  LogOut, ArrowRight, Calendar, Loader2, Settings, Star, Shield, Award, Sparkles
+  LogOut, ArrowRight, Calendar, Loader2, Settings, Star, Shield, Award, Sparkles, Download
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -40,6 +40,7 @@ type DashboardWatchHistory = Tables<'watch_history'> & {
   content: Pick<Tables<'content'>, 'title' | 'poster_url'> | null;
 };
 type WalletBalance = Database['public']['Functions']['wallet_balance_by_currency']['Returns'][number];
+type WalletActivity = Database['public']['Functions']['get_my_wallet_activity']['Returns'][number];
 type DashboardInvitation = z.infer<typeof invitationListSchema>[number];
 
 export default function UserDashboard() {
@@ -51,6 +52,8 @@ export default function UserDashboard() {
   const [watchHistory, setWatchHistory] = useState<DashboardWatchHistory[]>([]);
   const [loyalty, setLoyalty] = useState<Tables<'loyalty_points'>[]>([]);
   const [walletBalances, setWalletBalances] = useState<WalletBalance[]>([]);
+  const [walletActivity, setWalletActivity] = useState<WalletActivity[]>([]);
+  const [walletCurrencyFilter, setWalletCurrencyFilter] = useState('all');
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawCurrency, setWithdrawCurrency] = useState('');
   const [bankCountry, setBankCountry] = useState('NG');
@@ -102,7 +105,7 @@ export default function UserDashboard() {
     if (!user?.id) { setLoading(false); return; }
     setLoading(true);
     try {
-      const [ticketsRes, historyRes, profileRes, loyaltyRes, walletRes, inviteRes] = await Promise.all([
+      const [ticketsRes, historyRes, profileRes, loyaltyRes, walletRes, walletActivityRes, inviteRes] = await Promise.all([
         supabase.from('screening_tickets')
           .select('*, screening:screenings(title,poster_url,slug)')
           .or('user_id.eq.' + user.id + ',email.eq.' + (user.email ?? ''))
@@ -113,6 +116,7 @@ export default function UserDashboard() {
         supabase.from('loyalty_points').select('*').eq('user_id', user.id)
           .order('created_at', { ascending: false }).limit(50),
         supabase.rpc('wallet_balance_by_currency', { _user_id: user.id }),
+        supabase.rpc('get_my_wallet_activity', { p_limit: 100 }),
         supabase.functions.invoke('manage-event-invites', { body: { action: 'my_invitations' } }),
       ]);
       if (!isCurrent()) return;
@@ -124,6 +128,8 @@ export default function UserDashboard() {
       setLoyalty(loyaltyRes.data ?? []);
       if (walletRes.error) toast.error('Creator balances could not be loaded.');
       setWalletBalances(walletRes.data ?? []);
+      if (walletActivityRes.error) toast.error('Wallet activity could not be loaded.');
+      setWalletActivity(walletActivityRes.data ?? []);
       if (inviteRes.error) toast.error('Your event invitations could not be loaded.');
       else {
         const parsed = invitationListSchema.safeParse(inviteRes.data?.invitations);
@@ -370,8 +376,35 @@ export default function UserDashboard() {
                     <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-muted-foreground">Requests are checked against settled earnings and reserved balances. Submission does not guarantee approval or immediate payment.</p><Button onClick={()=>void submitWithdrawalRequest()} disabled={requestingWithdrawal||walletBalances.length===0}>{requestingWithdrawal?'Submitting…':'Request payout'}</Button></div>
                   </CardContent>
                 </Card>
-                <div className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">
-                  Detailed wallet activity is not available in this dashboard yet.
+                <div className="space-y-3 rounded-xl border p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div><h3 className="font-semibold">Wallet activity</h3><p className="text-xs text-muted-foreground">Recent ledger activity, including creator earnings and contribution transactions.</p></div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select aria-label="Filter wallet activity by currency" value={walletCurrencyFilter} onChange={event => setWalletCurrencyFilter(event.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
+                        <option value="all">All currencies</option>
+                        {[...new Set(walletActivity.map(row => row.currency))].sort().map(currency => <option key={currency} value={currency}>{currency}</option>)}
+                      </select>
+                      <Button type="button" size="sm" variant="outline" disabled={walletActivity.length === 0} onClick={() => {
+                        const rows = walletActivity.filter(row => walletCurrencyFilter === 'all' || row.currency === walletCurrencyFilter);
+                        const columns = ['Date','Type','Direction','Amount','Currency','Status','Description','Counterparty','Reference'];
+                        const safeCell = (value: string | number) => {
+                          const text = String(value ?? '');
+                          const protectedText = /^[=+\-@\t\r]/.test(text) ? "'" + text : text;
+                          return '"' + protectedText.replaceAll('"', '""') + '"';
+                        };
+                        const csv = [columns, ...rows.map(row => [row.created_at,row.activity_type,row.direction,row.amount_major,row.currency,row.status,row.description,row.counterparty,row.reference])].map(row => row.map(safeCell).join(',')).join('\r\n');
+                        const url = URL.createObjectURL(new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' }));
+                        const anchor = document.createElement('a');
+                        anchor.href = url;
+                        anchor.download = 'degametv-wallet-activity.csv';
+                        anchor.click();
+                        URL.revokeObjectURL(url);
+                      }}><Download className="mr-2 h-4 w-4"/>Export CSV</Button>
+                    </div>
+                  </div>
+                  {walletActivity.filter(row => walletCurrencyFilter === 'all' || row.currency === walletCurrencyFilter).length === 0
+                    ? <p className="py-5 text-center text-sm text-muted-foreground">No wallet activity is recorded for this filter.</p>
+                    : <div className="divide-y">{walletActivity.filter(row => walletCurrencyFilter === 'all' || row.currency === walletCurrencyFilter).map(row => <div key={row.id} className="grid gap-1 py-3 sm:grid-cols-[1fr_auto] sm:items-center"><div className="min-w-0"><p className="truncate text-sm font-medium">{row.description || row.activity_type}</p><p className="text-xs text-muted-foreground">{row.counterparty || 'Platform'} · {new Date(row.created_at).toLocaleString()} · {row.status}</p>{row.reference && <p className="truncate font-mono text-[10px] text-muted-foreground">{row.reference}</p>}</div><p className={`text-sm font-semibold ${row.direction === 'credit' ? 'text-emerald-600' : 'text-foreground'}`}>{row.direction === 'credit' ? '+' : '−'}{Number(row.amount_major).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})} {row.currency}</p></div>)}</div>}
                 </div>
               </CardContent>
             </Card>
@@ -522,7 +555,7 @@ export default function UserDashboard() {
                   />
                 </div>
                 <div className="space-y-3 rounded-xl border p-4">
-                  <div><p className="font-medium text-sm">Region, language & currency</p><p className="text-xs text-muted-foreground">Location is suggested automatically. You can override display preferences at any time. Ticket and payment amounts remain in their original transaction currency.</p></div>
+                  <div><p className="font-medium text-sm">Region, language & currency</p><p className="text-xs text-muted-foreground">Location is suggested automatically. You can override display preferences whenever needed. Ticket and payment amounts remain in their original transaction currency.</p></div>
                   <div className="space-y-2">
                     <Label>Country / region</Label>
                     <select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={preferredCountry} onChange={e => { setPreferredCountry(e.target.value); const rule = runtimeConfig?.countries.find(c => c.country_code === e.target.value); if (rule) { if (!preferredCurrency) setPreferredCurrency(rule.currency_code); setPreferredLocale(rule.locale_code); } }}>

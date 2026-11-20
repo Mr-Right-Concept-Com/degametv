@@ -1,289 +1,97 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { 
-  Plus, Search, MoreHorizontal, Eye, Edit, Trash2, 
-  Radio, Users, Clock, DollarSign, Play, Pause, Settings,
-  MessageSquare, Video, Calendar
-} from 'lucide-react';
-import { mockLiveStreams } from '@/data/mockData';
+import { Card, CardContent } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Calendar, DollarSign, Radio, Search, Users } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import type { Tables } from '@/integrations/supabase/types';
+
+type StreamRow = Pick<Tables<'live_streams'>, 'id' | 'title' | 'description' | 'thumbnail_url' | 'banner_url' | 'status' | 'viewer_count' | 'is_ticketed' | 'ticket_price' | 'currency' | 'scheduled_start' | 'recording_enabled' | 'chat_enabled'>;
+type StreamTicketRow = Pick<Tables<'tickets'>, 'stream_id' | 'price' | 'currency'>;
+
+const statusClass = (status: string) => {
+  switch (status) {
+    case 'live': return 'border-red-500/30 bg-red-500/10 text-red-500';
+    case 'scheduled': return 'border-blue-500/30 bg-blue-500/10 text-blue-500';
+    case 'ended': return 'border-muted bg-muted text-muted-foreground';
+    case 'cancelled': return 'border-muted bg-muted text-muted-foreground';
+    default: return 'border-border bg-background text-muted-foreground';
+  }
+};
 
 export default function StreamManagement() {
+  const [streams, setStreams] = useState<StreamRow[]>([]);
+  const [ticketRows, setTicketRows] = useState<StreamTicketRow[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const filteredStreams = mockLiveStreams.filter((stream) =>
-    stream.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      setLoading(true);
+      setLoadError(null);
+      const [streamsResult, ticketsResult] = await Promise.all([
+        supabase.from('live_streams').select('id,title,description,thumbnail_url,banner_url,status,viewer_count,is_ticketed,ticket_price,currency,scheduled_start,recording_enabled,chat_enabled').order('created_at', { ascending: false }).limit(500),
+        supabase.from('tickets').select('stream_id,price,currency').not('stream_id', 'is', null).is('revoked_at', null).limit(5000),
+      ]);
+      if (!active) return;
+      if (streamsResult.error || ticketsResult.error) {
+        setLoadError('Live stream data could not be loaded with the current admin permissions.');
+      } else {
+        setStreams(streamsResult.data ?? []);
+        setTicketRows(ticketsResult.data ?? []);
+      }
+      setLoading(false);
+    };
+    void load();
+    return () => { active = false; };
+  }, []);
 
-  const liveStreams = filteredStreams.filter((s) => s.status === 'live');
-  const scheduledStreams = filteredStreams.filter((s) => s.status === 'scheduled');
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'live': return 'bg-red-500/20 text-red-400 border-red-500/30';
-      case 'scheduled': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-      case 'ended': return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
-      default: return 'bg-muted text-muted-foreground';
+  const filteredStreams = useMemo(() => streams.filter(stream => stream.title.toLowerCase().includes(searchQuery.toLowerCase())), [streams, searchQuery]);
+  const liveCount = streams.filter(stream => stream.status === 'live').length;
+  const scheduledCount = streams.filter(stream => stream.status === 'scheduled').length;
+  const viewerCount = streams.filter(stream => stream.status === 'live').reduce((total, stream) => total + (stream.viewer_count ?? 0), 0);
+  const revenueByCurrency = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const ticket of ticketRows) {
+      if (!ticket.currency || ticket.stream_id === null) continue;
+      totals.set(ticket.currency, (totals.get(ticket.currency) ?? 0) + Number(ticket.price));
     }
-  };
-
-  const totalViewers = mockLiveStreams
-    .filter((s) => s.status === 'live')
-    .reduce((acc, s) => acc + (s.viewerCount || 0), 0);
+    return [...totals.entries()].sort(([left], [right]) => left.localeCompare(right));
+  }, [ticketRows]);
 
   return (
     <AdminLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-display font-bold">Live Streams</h1>
-            <p className="text-muted-foreground">Manage live streaming events and broadcasts</p>
-          </div>
-          <Button className="gap-2 bg-gradient-primary">
-            <Plus className="w-4 h-4" />
-            Create Stream
-          </Button>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div><h1 className="text-3xl font-display font-bold">Live Streams</h1><p className="text-muted-foreground">Live stream records and paid ticket entitlements from the platform database.</p></div>
+          <Button asChild className="gap-2"><Link to="/studio/live"><Radio className="h-4 w-4" /> Open Creator Live Studio</Link></Button>
         </div>
-
-        {/* Live Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="bg-gradient-to-br from-red-500/20 to-red-500/5 border-red-500/30">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-red-500/20">
-                  <Radio className="w-5 h-5 text-red-400 animate-pulse" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{liveStreams.length}</p>
-                  <p className="text-sm text-muted-foreground">Live Now</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-card border-border">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-purple-500/20">
-                  <Users className="w-5 h-5 text-purple-400" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{totalViewers.toLocaleString()}</p>
-                  <p className="text-sm text-muted-foreground">Total Viewers</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-card border-border">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-500/20">
-                  <Calendar className="w-5 h-5 text-blue-400" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{scheduledStreams.length}</p>
-                  <p className="text-sm text-muted-foreground">Scheduled</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-card border-border">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-green-500/20">
-                  <DollarSign className="w-5 h-5 text-green-400" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">$84.5K</p>
-                  <p className="text-sm text-muted-foreground">Ticket Revenue</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><Radio className="h-5 w-5 text-red-500"/><div><p className="text-2xl font-bold">{loading ? '—' : liveCount.toLocaleString()}</p><p className="text-sm text-muted-foreground">Live now</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><Users className="h-5 w-5 text-primary"/><div><p className="text-2xl font-bold">{loading ? '—' : viewerCount.toLocaleString()}</p><p className="text-sm text-muted-foreground">Current viewers</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><Calendar className="h-5 w-5 text-primary"/><div><p className="text-2xl font-bold">{loading ? '—' : scheduledCount.toLocaleString()}</p><p className="text-sm text-muted-foreground">Scheduled</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><DollarSign className="h-5 w-5 text-green-500"/><div><p className="text-2xl font-bold">{loading ? '—' : ticketRows.length.toLocaleString()}</p><p className="text-sm text-muted-foreground">Valid stream tickets</p><p className="mt-1 text-xs text-muted-foreground">{revenueByCurrency.length ? revenueByCurrency.map(([currency, amount]) => `${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${currency}`).join(' · ') : 'No paid stream tickets recorded'}</p></div></div></CardContent></Card>
         </div>
-
-        {/* Active Streams */}
-        {liveStreams.length > 0 && (
-          <div className="space-y-4">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              Live Now
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {liveStreams.map((stream) => (
-                <Card key={stream.id} className="bg-card border-border overflow-hidden">
-                  <div className="relative">
-                    <img
-                      src={stream.bannerUrl || stream.thumbnailUrl}
-                      alt={stream.title}
-                      className="w-full h-40 object-cover"
-                    />
-                    <div className="absolute top-3 left-3">
-                      <Badge className="bg-red-500 text-white gap-1">
-                        <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                        LIVE
-                      </Badge>
-                    </div>
-                    <div className="absolute top-3 right-3">
-                      <Badge variant="outline" className="bg-black/50 text-white border-white/30">
-                        <Users className="w-3 h-3 mr-1" />
-                        {stream.viewerCount?.toLocaleString()}
-                      </Badge>
-                    </div>
-                  </div>
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold mb-2">{stream.title}</h3>
-                    <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-                      {stream.description}
-                    </p>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {stream.chatEnabled && (
-                          <Badge variant="outline" className="gap-1">
-                            <MessageSquare className="w-3 h-3" />
-                            Chat
-                          </Badge>
-                        )}
-                        {stream.recordingEnabled && (
-                          <Badge variant="outline" className="gap-1">
-                            <Video className="w-3 h-3" />
-                            Recording
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button size="sm" variant="outline">
-                          <Settings className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="destructive">
-                          <Pause className="w-4 h-4 mr-1" />
-                          End
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Search */}
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search streams..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-
-        {/* All Streams Table */}
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-border hover:bg-transparent">
-                <TableHead className="w-[350px]">Stream</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Viewers</TableHead>
-                <TableHead>Monetization</TableHead>
-                <TableHead>Scheduled</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
+        <div className="relative max-w-md"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"/><Input placeholder="Search streams..." value={searchQuery} onChange={event => setSearchQuery(event.target.value)} className="pl-10"/></div>
+        {loadError && <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{loadError}</div>}
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <Table><TableHeader><TableRow><TableHead>Stream</TableHead><TableHead>Status</TableHead><TableHead>Viewers</TableHead><TableHead>Monetization</TableHead><TableHead>Scheduled</TableHead></TableRow></TableHeader>
             <TableBody>
-              {filteredStreams.map((stream) => (
-                <TableRow key={stream.id} className="border-border">
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={stream.thumbnailUrl || stream.bannerUrl}
-                        alt={stream.title}
-                        className="w-20 h-12 object-cover rounded-lg"
-                      />
-                      <div>
-                        <p className="font-medium">{stream.title}</p>
-                        <p className="text-sm text-muted-foreground line-clamp-1">
-                          {stream.description}
-                        </p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={getStatusColor(stream.status)}>
-                      {stream.status === 'live' && (
-                        <span className="w-2 h-2 rounded-full bg-red-400 mr-1 animate-pulse" />
-                      )}
-                      {stream.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Users className="w-4 h-4 text-muted-foreground" />
-                      {stream.viewerCount?.toLocaleString() || '0'}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">
-                      {stream.isTicketed ? `$${stream.ticketPrice}` : 'Free'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {stream.scheduledStart
-                      ? new Date(stream.scheduledStart).toLocaleDateString()
-                      : 'N/A'}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem className="gap-2">
-                          <Play className="w-4 h-4" />
-                          Watch Stream
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="gap-2">
-                          <Eye className="w-4 h-4" />
-                          View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="gap-2">
-                          <Edit className="w-4 h-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="gap-2">
-                          <Settings className="w-4 h-4" />
-                          Stream Settings
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="gap-2 text-destructive">
-                          <Trash2 className="w-4 h-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {loading ? <TableRow><TableCell colSpan={5} className="py-10 text-center text-muted-foreground">Loading live streams…</TableCell></TableRow>
+                : filteredStreams.length === 0 ? <TableRow><TableCell colSpan={5} className="py-10 text-center text-muted-foreground">{loadError ? 'Stream records are unavailable.' : 'No live streams match this search.'}</TableCell></TableRow>
+                : filteredStreams.map(stream => <TableRow key={stream.id}>
+                  <TableCell><div className="flex items-center gap-3">{(stream.thumbnail_url || stream.banner_url) && <img src={stream.thumbnail_url || stream.banner_url || ''} alt="" className="h-12 w-20 rounded-lg object-cover"/>}<div><p className="font-medium">{stream.title}</p><p className="line-clamp-1 text-sm text-muted-foreground">{stream.description || '—'}</p><p className="mt-1 text-xs text-muted-foreground">{stream.chat_enabled ? 'Chat enabled' : 'Chat disabled'} · {stream.recording_enabled ? 'Recording enabled' : 'Recording disabled'}</p></div></div></TableCell>
+                  <TableCell><Badge variant="outline" className={statusClass(stream.status)}>{stream.status}</Badge></TableCell>
+                  <TableCell>{(stream.viewer_count ?? 0).toLocaleString()}</TableCell>
+                  <TableCell>{stream.is_ticketed ? `${Number(stream.ticket_price ?? 0).toLocaleString()} ${stream.currency ?? ''}` : 'Free'}</TableCell>
+                  <TableCell>{stream.scheduled_start ? new Date(stream.scheduled_start).toLocaleString() : '—'}</TableCell>
+                </TableRow>)}
             </TableBody>
           </Table>
         </div>
