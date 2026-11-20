@@ -66,7 +66,7 @@ export default function ScreeningsPage() {
     setLoading(true);
     const { data: contentData } = await supabase.from('content').select('id,title,slug,description,poster_url,type,tenant_id').eq('status','published').order('title');
     setContentOptions((contentData ?? []) as ContentOption[]);
-    const { data: sData } = await supabase.from('screenings').select('*').order('created_at', { ascending: false });
+    const { data: sData } = await supabase.from('screenings').select('id,title,slug,status,screening_date,created_at,poster_url,content_id').order('created_at', { ascending: false });
     const { data: tData } = await supabase.from('screening_tickets').select('screening_id, price, payment_status');
 
     const ticketMap = new Map<string, { count: number; revenue: number }>();
