@@ -1,0 +1,9 @@
+comment on table public.channels is E'@graphql({"description":"Public catalogue of active free channels. Public channel stream endpoints are intentionally readable; paid and private media delivery is handled by signed playback sessions.","max_rows":100})';
+comment on table public.feature_flags is E'@graphql({"description":"Public client feature flag surface. Row-level security scopes tenant and rollout visibility; privileged release controls are stored separately.","max_rows":100})';
+comment on table public.knowledgebase_categories is E'@graphql({"description":"Public knowledgebase category labels only. Article content uses separate audience-aware row-level security.","max_rows":100})';
+comment on table public.platform_settings is E'@graphql({"description":"Public settings surface. Only rows marked is_public are visible; provider credentials and worker secrets are not stored here.","max_rows":100})';
+comment on table public.promo_banners is E'@graphql({"description":"Public active promotional banners. Ownership and scheduling visibility are enforced by row-level security.","max_rows":100})';
+comment on table public.release_domains is E'@graphql({"description":"Active public storefront hostnames and display branding. Unverified and inactive domains are excluded by row-level security.","max_rows":100})';
+comment on table public.subscription_plans is E'@graphql({"description":"Active public subscription plan catalogue. Purchase authorization and payment-provider selection are server-side.","max_rows":100})';
+comment on view public.public_content_catalog is E'@graphql({"description":"Read-only published content catalogue; security-invoker semantics preserve underlying content RLS.","max_rows":50})';
+comment on view public.public_screenings_catalog is E'@graphql({"description":"Read-only public and unlisted screening catalogue; security-invoker semantics preserve underlying screening RLS.","max_rows":50})';
