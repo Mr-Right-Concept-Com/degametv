@@ -32,9 +32,10 @@ Deno.serve(async (req) => {
     userId = data.user?.id ?? null;
   }
 
-  const visitorId = typeof body?.visitorId === "string" && /^[A-Za-z0-9_-]{8,128}$/.test(body.visitorId)
+  const visitorId = typeof body?.visitorId === "string"
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.visitorId)
     ? body.visitorId
-    : "anonymous";
+    : crypto.randomUUID();
   const profileQuery = userId
     ? db.from("profiles").select("preferred_country,preferred_currency,locale_code,preferred_locale,language,timezone").eq("user_id", userId).maybeSingle()
     : Promise.resolve({ data: null, error: null });
@@ -47,6 +48,7 @@ Deno.serve(async (req) => {
     profileQuery,
     db.from("platform_settings").select("setting_value,is_public").eq("setting_key","public_site_url").maybeSingle(),
     db.from("platform_settings").select("setting_value").eq("setting_key","base_currency").maybeSingle(),
+    db.from("platform_release_rollouts").select("release_key,release_version,state").in("state",["canary","approved"]),
   ]);
   if (countries.error || features.error || profileResult.error || siteSetting.error || baseSetting.error || releaseResult.error) {
     return response({ error: "Runtime configuration could not be loaded." }, 503);
@@ -73,9 +75,10 @@ Deno.serve(async (req) => {
     value && currencySchema.safeParse(value).success && supportedCurrencies.has(value)
   ) ?? country?.currency_code ?? configuredBaseCurrency;
 
-  const profileLocale = typeof (profile?.preferred_locale ?? profile?.locale_code) === "string"
-    && /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(profile.locale_code)
-    ? (profile.preferred_locale ?? profile.locale_code) : null;
+  const profileLocaleCandidate = profile?.preferred_locale ?? profile?.locale_code;
+  const profileLocale = typeof profileLocaleCandidate === "string"
+    && /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(profileLocaleCandidate)
+    ? profileLocaleCandidate : null;
   const browserLocale = acceptLanguage && /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(acceptLanguage)
     ? acceptLanguage : null;
   const locale = profileLocale ?? browserLocale ?? country?.locale_code ?? "en";
@@ -118,6 +121,7 @@ Deno.serve(async (req) => {
     countryCurrency: country ?? null,
     countries: countries.data ?? [],
     features: runtimeFeatures,
+    releases: releases.filter(Boolean),
     generatedAt: new Date().toISOString(),
   });
 });
