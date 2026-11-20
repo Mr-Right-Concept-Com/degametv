@@ -10,11 +10,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
+import { invokeFn } from '@/lib/invokeFn';
 import { z } from 'zod';
 import { Trash2, UserPlus, Megaphone } from 'lucide-react';
 
-const ROLES = { producer: 'Producer', live_operator: 'Live Operator', accountant: 'Accountant', viewer: 'Viewer' } as const;
-const inviteSchema = z.object({ email: z.string().trim().email('Enter a valid email').max(255), role: z.enum(['producer', 'live_operator', 'accountant', 'viewer']) });
+const ROLES = { ADMIN: 'Administrator', PRODUCER: 'Producer', BROADCASTER: 'Broadcaster', FINANCE_VIEWER: 'Finance Viewer', MODERATOR: 'Moderator' } as const;
+const inviteSchema = z.object({ email: z.string().trim().email('Enter a valid email').max(255), role: z.enum(['ADMIN', 'PRODUCER', 'BROADCASTER', 'FINANCE_VIEWER', 'MODERATOR']) });
 const bannerSchema = z.object({
   screeningId: z.string().uuid('Choose an event'),
   imageUrl: z.string().trim().url('Enter a valid image URL'),
@@ -26,20 +27,28 @@ export default function StudioTeam() {
   const { user } = useAuth();
   const [acct, setAcct] = useState<any>(null);
   const [members, setMembers] = useState<any[]>([]);
-  const [invite, setInvite] = useState({ email: '', role: 'producer' });
+  const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
+  const [myInvitations, setMyInvitations] = useState<any[]>([]);
+  const [invite, setInvite] = useState({ email: '', role: 'PRODUCER' });
   const [events, setEvents] = useState<{ id: string; title: string; slug: string; banner_url: string | null }[]>([]);
   const [banners, setBanners] = useState<any[]>([]);
   const [req, setReq] = useState({ screeningId: '', imageUrl: '', placement: 'home' });
 
   const load = async () => {
     if (!user) return;
-    const [{ data: a }, { data: m }, { data: c }, { data: b }] = await Promise.all([
+    const [{ data: a }, { data: c }, { data: b }] = await Promise.all([
       supabase.from('studio_accounts').select('id,user_id,tier,company_name,rights_declared,seats,status,base_currency').eq('user_id', user.id).maybeSingle(),
-      supabase.from('studio_members').select('*').eq('owner_id', user.id).order('created_at'),
       supabase.from('content').select('id').eq('creator_id', user.id),
       supabase.from('promo_banners').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }),
     ]);
-    setAcct(a); setMembers(m || []); setBanners(b || []);
+    setAcct(a); setBanners(b || []);
+    const invitations = await invokeFn<{invitations:any[]}>('creator-onboarding',{action:'list_invitations'});
+    if (invitations.ok) setMyInvitations(invitations.data?.invitations ?? []);
+    if (a?.id) {
+      const team = await invokeFn<{members:any[];invitations:any[]}>('creator-onboarding',{action:'list_team',studioAccountId:a.id});
+      if (team.ok) { setMembers(team.data?.members ?? []); setPendingInvitations(team.data?.invitations ?? []); }
+      else { setMembers([]); setPendingInvitations([]); }
+    }
     const ids = (c || []).map(x => x.id);
     if (ids.length) {
       const { data: s } = await supabase.from('screenings').select('id, title, slug, banner_url').in('content_id', ids);
@@ -49,24 +58,25 @@ export default function StudioTeam() {
   useEffect(() => { load(); }, [user]);
 
   const isBusiness = acct?.tier === 'business' && acct?.status === 'approved';
-  const active = members.filter(m => m.status !== 'removed');
+  const active = members;
 
   const sendInvite = async () => {
     const p = inviteSchema.safeParse(invite);
     if (!p.success) { toast.error(p.error.errors[0].message); return; }
-    const { error } = await supabase.from('studio_members').insert({ owner_id: user!.id, member_email: p.data.email.toLowerCase(), role: p.data.role });
-    if (error) { toast.error(error.message.includes('duplicate') ? 'That person is already invited' : error.message); return; }
-    toast.success(`Invited ${p.data.email}. They join automatically when they sign in with that email.`);
-    setInvite({ email: '', role: 'producer' }); load();
+    if (!acct?.id) { toast.error('An approved Studio account is required.'); return; }
+    const result = await invokeFn<{invitation:{acceptanceToken:string}}>('creator-onboarding',{action:'invite',studioAccountId:acct.id,email:p.data.email.toLowerCase(),role:p.data.role});
+    if (!result.ok) { toast.error(result.error ?? 'Invitation failed.'); return; }
+    toast.success(`Invitation created for ${p.data.email}. Share this one-time token securely: ${result.data?.invitation?.acceptanceToken ?? 'token unavailable'}`);
+    setInvite({ email: '', role: 'PRODUCER' }); load();
   };
 
   const updateRole = async (id: string, role: string) => {
-    const { error } = await supabase.from('studio_members').update({ role }).eq('id', id);
-    if (error) toast.error(error.message); else { toast.success('Role updated'); load(); }
+    const result = await invokeFn('creator-onboarding',{action:'update_member_role',membershipId:id,role});
+    if (!result.ok) toast.error(result.error ?? 'Role update failed.'); else { toast.success('Role updated'); load(); }
   };
   const remove = async (id: string) => {
-    const { error } = await supabase.from('studio_members').update({ status: 'removed' }).eq('id', id);
-    if (error) toast.error(error.message); else { toast.success('Seat freed'); load(); }
+    const result = await invokeFn('creator-onboarding',{action:'revoke_member',membershipId:id});
+    if (!result.ok) toast.error(result.error ?? 'Member revocation failed.'); else { toast.success('Studio access revoked'); load(); }
   };
 
   const requestBanner = async () => {
@@ -98,17 +108,19 @@ export default function StudioTeam() {
                 <Button className="rounded-full" disabled={active.length >= (acct.seats || 0)} onClick={sendInvite}><UserPlus className="w-4 h-4 mr-1" />Invite</Button>
               </div>
             )}
+            {pendingInvitations.map((inv:any) => <div key={inv.id} className="flex items-center justify-between gap-2 rounded-xl border p-2"><div className="min-w-0 flex-1"><p className="truncate text-sm">{inv.email}</p><Badge variant="secondary">{inv.role} · pending</Badge></div><Button size="sm" variant="outline" onClick={async()=>{const r=await invokeFn('creator-onboarding',{action:'revoke_invitation',invitationId:inv.id});if(!r.ok)toast.error(r.error??'Invitation revocation failed.');else{toast.success('Invitation revoked');load();}}}>Revoke invite</Button></div>)}
             {active.map(m => (
               <div key={m.id} className="flex items-center gap-2 border border-border rounded-xl p-2">
-                <div className="flex-1 min-w-0"><p className="text-sm truncate">{m.member_email}</p>
-                  <Badge variant={m.status === 'active' ? 'default' : 'secondary'} className="text-[10px]">{m.status}</Badge></div>
+                <div className="flex-1 min-w-0"><p className="text-sm truncate">{m.user_id}</p>
+                  <Badge variant={m.revoked_at ? 'destructive' : 'default'} className="text-[10px]" >{m.role}</Badge></div>
                 <Select value={m.role} onValueChange={v => updateRole(m.id, v)}>
-                  <SelectTrigger className="w-36 h-8" aria-label={`Role for ${m.member_email}`}><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-36 h-8" aria-label={`Role for ${m.user_id}`}><SelectValue /></SelectTrigger>
                   <SelectContent>{Object.entries(ROLES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
                 </Select>
                 <Button size="icon" variant="ghost" aria-label={`Remove ${m.member_email}`} onClick={() => remove(m.id)}><Trash2 className="w-4 h-4" /></Button>
               </div>
             ))}
+            {myInvitations.length > 0 && <div className="space-y-2 rounded-lg border p-3"><h3 className="text-sm font-semibold">Invitations addressed to you</h3>{myInvitations.map((inv:any)=><div key={inv.id} className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs">{inv.email} · {inv.role}</span><div className="flex gap-2"><Button size="sm" onClick={async()=>{const r=await invokeFn('creator-onboarding',{action:'accept_invitation',invitationId:inv.id});if(!r.ok)toast.error(r.error??'Acceptance failed.');else{toast.success('Invitation accepted');load();}}}>Accept</Button><Button size="sm" variant="outline" onClick={async()=>{const r=await invokeFn('creator-onboarding',{action:'reject_invitation',invitationId:inv.id});if(!r.ok)toast.error(r.error??'Decline failed.');else{toast.success('Invitation declined');load();}}}>Decline</Button></div></div>)}</div>}
           </CardContent>
         </Card>
 
