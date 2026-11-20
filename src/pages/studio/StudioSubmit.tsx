@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { CONTENT_FORMATS } from '@/lib/validations/creatorOS';
 import { assistCreatorMetadata } from '@/lib/publishing/universalPublisher';
+import { invokeFn } from '@/lib/invokeFn';
 import { useMultipartMediaUpload } from '@/lib/media/useMultipartMediaUpload';
 
 const GENRES = ['Action', 'Comedy', 'Drama', 'Horror', 'Thriller', 'Romance', 'Documentary', 'Animation', 'Sci-Fi', 'Fantasy', 'Crime', 'Biography', 'Musical', 'Nollywood', 'African Cinema'];
@@ -114,6 +115,7 @@ export default function StudioSubmit() {
   const [submitting, setSubmitting] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
+  const [creatorBaseCurrency, setCreatorBaseCurrency] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [published, setPublished] = useState(false);
   const [createdContentId, setCreatedContentId] = useState<string | null>(null);
@@ -172,6 +174,14 @@ export default function StudioSubmit() {
     replay_base_price: '',
     replay_access_hours: '48',
   });
+
+  useEffect(() => {
+    let active = true;
+    if (!user?.id) return;
+    void supabase.from('studio_accounts').select('base_currency,status').eq('user_id', user.id).eq('status', 'approved').maybeSingle()
+      .then(({ data }) => { if (active && data?.base_currency) setCreatorBaseCurrency(data.base_currency); });
+    return () => { active = false; };
+  }, [user?.id]);
 
   useEffect(() => {
     const countries = runtime.config?.countries ?? [];
@@ -288,7 +298,7 @@ export default function StudioSubmit() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((form.project_type === 'live' || form.release_strategy === 'premiere') && !runtime.config?.baseCurrency) {
+    if ((form.project_type === 'live' || form.release_strategy === 'premiere') && !creatorBaseCurrency) {
       toast.error('Platform base currency is unavailable. Refresh Creator Studio before publishing a priced event.');
       return;
     }
@@ -390,6 +400,19 @@ export default function StudioSubmit() {
       return;
     }
     setCreatedContentId(contentId);
+    const territories = form.rights_territories.split(',').map(value => value.trim().toUpperCase()).filter(Boolean);
+    const rightsResult = await invokeFn<{rightsStatus:string;baseCurrency:string}>("creator-onboarding", {
+      action:"record_content_rights",
+      contentId,
+      declaration:{
+        rightsType:form.distribution_rights,
+        territories:territories.length?territories:["WORLD"],
+        contentFormat:form.project_type==="live"?"RECORDED_EVENT":form.preset_type,
+        attestedAt:new Date().toISOString(),
+        statement:"I confirm that I hold or am authorized to grant the distribution rights declared for this production and the listed territories."
+      }
+    });
+    if (!rightsResult.ok) { toast.error(rightsResult.error ?? "Rights declaration could not be recorded. Your production remains a draft."); setSubmitting(false); return; }
     if (mediaUpload.sessionId && mediaUpload.status === 'QUARANTINED') {
       try { await mediaUpload.attachToContent(contentId, mediaUpload.sessionId); }
       catch (attachmentError) { toast.error(attachmentError instanceof Error ? attachmentError.message : 'The uploaded master could not be attached. Your draft remains saved.'); setSubmitting(false); return; }
@@ -413,7 +436,7 @@ export default function StudioSubmit() {
         const { data: event, error: eventError } = await supabase.rpc('create_creator_screening', {
           p_content_id: contentId,
           p_screening_date: scheduledDate.toISOString(),
-          p_location_pricing: { base: Number(form.base_price || 0), currency: runtime.config?.baseCurrency || '' },
+          p_location_pricing: { base: Number(form.base_price || 0), currency: creatorBaseCurrency || '' },
           p_event_type: eventType,
           p_slug: form.project_title,
         });
@@ -424,12 +447,19 @@ export default function StudioSubmit() {
         }
         const screeningId = (event as { screening_id: string }).screening_id;
         setCreatedScreeningId(screeningId);
+        const { error: basePriceError } = await supabase.from('screenings').update({
+          price_amount: Number(form.base_price || 0),
+          price_currency: creatorBaseCurrency,
+          replay_price_amount: form.replay_base_price.trim() ? Number(form.replay_base_price) : null,
+          replay_price_currency: form.replay_base_price.trim() ? creatorBaseCurrency : null,
+        }).eq('id', screeningId);
+        if (basePriceError) { toast.error('Screening exists, but its immutable creator base-currency price could not be saved. Update the event before ticket sales.'); setSubmitting(false); return; }
         if (form.project_type === 'live') {
           const { data: pricingResult, error: pricingError } = await supabase.functions.invoke('manage-live-pricing', {
             body: {
               screeningId,
               basePrice: Number(form.base_price || 0),
-              baseCurrency: runtime.config?.baseCurrency,
+              baseCurrency: creatorBaseCurrency,
               replayBasePrice: form.replay_base_price.trim() ? Number(form.replay_base_price) : null,
               admissionModel: form.admission_model,
               replayAccessHours: Number(form.replay_access_hours || 48),
@@ -741,7 +771,7 @@ export default function StudioSubmit() {
                         </SelectContent>
                       </Select>
                     </div>
-                    {form.replay_access_model === 'SEPARATE_PRICE' && <div className="space-y-1"><Label>Replay price ({runtime.config?.baseCurrency || "base currency"})</Label><Input inputMode="decimal" value={form.replay_base_price} onChange={e=>setForm(f=>({...f,replay_base_price:e.target.value}))} placeholder="Enter replay price"/></div>}
+                    {form.replay_access_model === 'SEPARATE_PRICE' && <div className="space-y-1"><Label>Replay price ({creatorBaseCurrency || "base currency"})</Label><Input inputMode="decimal" value={form.replay_base_price} onChange={e=>setForm(f=>({...f,replay_base_price:e.target.value}))} placeholder="Enter replay price"/></div>}
                     <div className="space-y-1"><Label>Replay access window (hours)</Label><Input type="number" min="1" max="8760" value={form.replay_access_hours} onChange={e=>setForm(f=>({...f,replay_access_hours:e.target.value}))}/></div>
                   </>}
                 </div>}
@@ -758,7 +788,7 @@ export default function StudioSubmit() {
                     </div>
                     {form.admission_model === 'FREE' && <p className="text-xs text-muted-foreground">Viewers can claim a free pass. No payment is collected.</p>}
                   </div>}
-                  {(form.project_type !== 'live' || form.admission_model === 'TICKETED') && <div className="space-y-2"><Label>Admission price ({runtime.config?.baseCurrency || "base currency"})</Label><Input inputMode="decimal" required value={form.base_price} onChange={e => setForm(f => ({ ...f, base_price: e.target.value }))} placeholder="Enter ticket price"/>{errors.base_price && <p className="text-xs text-destructive">{errors.base_price}</p>}<p className="text-xs text-muted-foreground">Viewers see an automatically converted price in their supported local currency. Your creator price remains in the platform base currency.</p></div>}
+                  {(form.project_type !== 'live' || form.admission_model === 'TICKETED') && <div className="space-y-2"><Label>Admission price ({creatorBaseCurrency || "base currency"})</Label><Input inputMode="decimal" required value={form.base_price} onChange={e => setForm(f => ({ ...f, base_price: e.target.value }))} placeholder="Enter ticket price"/>{errors.base_price && <p className="text-xs text-destructive">{errors.base_price}</p>}<p className="text-xs text-muted-foreground">Viewers see an automatically converted price in their supported local currency. Your creator price remains in the platform base currency.</p></div>}
                 </div> : null}
                 <div className="space-y-2"><Label>Rights Territories</Label><Input value={form.rights_territories} onChange={e => setForm(f => ({ ...f, rights_territories: e.target.value }))} placeholder="NG, GH, GB, US" /></div>
                 <div className="space-y-2">
