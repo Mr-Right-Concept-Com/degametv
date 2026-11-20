@@ -29,6 +29,10 @@ const stats = [
 
 export default function MarketplaceManagement() {
   const [searchQuery, setSearchQuery] = useState('');
+  const filteredListings = mockListings.filter((listing) =>
+    [listing.title, listing.seller, listing.type, listing.license, listing.status]
+      .some((value) => value.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+  );
 
   return (
     <AdminLayout
@@ -104,7 +108,7 @@ export default function MarketplaceManagement() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockListings.map((listing) => (
+                    {filteredListings.map((listing) => (
                       <TableRow key={listing.id}>
                         <TableCell className="font-medium">{listing.title}</TableCell>
                         <TableCell>{listing.seller}</TableCell>
