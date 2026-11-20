@@ -34,7 +34,7 @@ export default function StudioTeam() {
   const load = async () => {
     if (!user) return;
     const [{ data: a }, { data: m }, { data: c }, { data: b }] = await Promise.all([
-      supabase.from('studio_accounts').select('*').eq('user_id', user.id).maybeSingle(),
+      supabase.from('studio_accounts').select('id,user_id,tier,company_name,rights_declared,seats,status,base_currency').eq('user_id', user.id).maybeSingle(),
       supabase.from('studio_members').select('*').eq('owner_id', user.id).order('created_at'),
       supabase.from('content').select('id').eq('creator_id', user.id),
       supabase.from('promo_banners').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }),
