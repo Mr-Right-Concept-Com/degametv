@@ -17,7 +17,10 @@ const Body=z.object({
 }).strict().refine(v=>[v.screeningId,v.liveStreamId,v.contentId].filter(Boolean).length===1,"Choose exactly one support target.").refine(v=>v.contributionType==="tip"?v.amount!==undefined:Boolean(v.giftCatalogKey),"Tips require an amount; gifts require a catalogue item.");
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, x-client-info, content-type, cf-ipcountry","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
-const markProviderHealth=async(db:any,id:string,status:'healthy'|'unhealthy',error:string|null=null)=>{await db.from('service_provider_bindings').update({health_status:status,health_checked_at:new Date().toISOString(),health_error:error}).eq('id',id);};
+const markProviderHealth=async(db:ReturnType<typeof createClient>,id:string,status:'healthy'|'unhealthy',error:string|null=null)=>{await db.from('service_provider_bindings').update({health_status:status,health_checked_at:new Date().toISOString(),health_error:error}).eq('id',id);};
+type PaymentProvider={id:string;provider_key:string;is_live:boolean;credential:string;settings:Record<string,unknown>;endpoints:Record<string,unknown>;base_url:string};
+const isRecord=(value:unknown):value is Record<string,unknown>=>typeof value==="object"&&value!==null&&!Array.isArray(value);
+const isPaymentProvider=(value:unknown):value is PaymentProvider=>isRecord(value)&&typeof value.id==="string"&&typeof value.provider_key==="string"&&value.is_live===true&&typeof value.credential==="string"&&isRecord(value.settings)&&isRecord(value.endpoints)&&typeof value.base_url==="string";
 const minorScale=(currency:string)=>["BIF","CLP","DJF","GNF","ISK","JPY","KMF","KRW","PYG","RWF","UGX","VND","VUV","XAF","XOF","XPF"].includes(currency)?1:["BHD","IQD","JOD","KWD","LYD","OMR","TND"].includes(currency)?1000:100;
 async function convert(base:string,service:string,amount:number,from:string,to:string,country:string){
  if(from===to)return amount;
@@ -107,7 +110,7 @@ Deno.serve(async(req)=>{
   if(!Number.isSafeInteger(amountMinor)||amountMinor<=0)return json(422,{error:"Contribution amount is invalid."});
   const {data:providers,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:"payments"});
   if(providerError||!Array.isArray(providers))return json(503,{error:"No payment provider is configured."});
-  const usable=providers.filter((v:any)=>v.is_live===true&&v.credential&&Array.isArray(v.settings?.supported_currencies)&&v.settings.supported_currencies.includes(currency)&&typeof v.endpoints?.checkout_initialize==="string"&&v.endpoints.checkout_initialize.startsWith("/")&&!v.endpoints.checkout_initialize.startsWith("//")&&typeof v.endpoints?.payment_verify==="string"&&v.endpoints.payment_verify.startsWith("/")&&!v.endpoints.payment_verify.startsWith("//")&&(!p.method||v.provider_key===p.method));
+  const usable=providers.filter((value:unknown):value is PaymentProvider=>isPaymentProvider(value)&&typeof value.settings.supported_currencies==="object"&&Array.isArray(value.settings.supported_currencies)&&value.settings.supported_currencies.includes(currency)&&typeof value.endpoints.checkout_initialize==="string"&&value.endpoints.checkout_initialize.startsWith("/")&&!value.endpoints.checkout_initialize.startsWith("//")&&typeof value.endpoints.payment_verify==="string"&&value.endpoints.payment_verify.startsWith("/")&&!value.endpoints.payment_verify.startsWith("//")&&(!p.method||value.provider_key===p.method));
   if(!usable.length)return json(503,{error:"No live payment provider is available for this currency."});
   const {data:commissionSetting,error:commissionError}=await db.from("platform_settings").select("setting_value").eq("setting_key","commission_rates").maybeSingle();
   const rate=Number(commissionSetting?.setting_value?.creator);
@@ -131,7 +134,7 @@ Deno.serve(async(req)=>{
    }
    return json(503,{error:"Could not create contribution order. No charge was made."});
   }
-  let checkoutUrl:string|null=null,selected:any=null,checkoutId:string|null=null;
+  let checkoutUrl:string|null=null,selected:PaymentProvider|null=null,checkoutId:string|null=null;
   for(const provider of usable){
    try{
     const target=new URL(provider.endpoints.checkout_initialize,provider.base_url);if(target.origin!==new URL(provider.base_url).origin){await markProviderHealth(db,provider.id,"unhealthy","Checkout endpoint host mismatch.");continue;}
@@ -166,5 +169,5 @@ Deno.serve(async(req)=>{
   const {error:updateError}=await db.from("event_contributions").update({provider_key:selected.provider_key,provider_checkout_id:checkoutId,checkout_url:checkoutUrl}).eq("provider_reference",reference);
   if(updateError)return json(503,{error:"Checkout started but contribution order reconciliation is pending. Contact support before retrying."});
   return json(200,{success:true,checkoutUrl,reference,amount:amountMajor,currency,contributionType:p.contributionType});
- }catch(error){console.error("process-event-contribution",error);return json(503,{error:error instanceof Error?error.message:"Contribution checkout unavailable."});}
+ }catch(error:unknown){console.error("process-event-contribution",error);return json(503,{error:error instanceof Error?error.message:"Contribution checkout unavailable."});}
 });
