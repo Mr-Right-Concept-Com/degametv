@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
+import type { Enums } from '@/integrations/supabase/types';
 import { Search, Loader2, Users as UsersIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -15,7 +16,7 @@ interface UserRow {
   full_name: string | null;
   avatar_url: string | null;
   created_at: string;
-  role: string | null;
+  role: Enums<'app_role'> | null;
   role_id: string | null;
 }
 
@@ -37,7 +38,7 @@ const roleLabels: Record<string, string> = {
   viewer: 'Viewer',
 };
 
-const assignableRoles = ['viewer', 'creator', 'moderator', 'platform_admin'] as const;
+const assignableRoles = ['viewer', 'creator', 'moderator', 'platform_admin'] as const satisfies readonly Enums<'app_role'>[];
 
 export default function UsersPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -78,7 +79,7 @@ export default function UsersPage() {
     fetchUsers();
   }, []);
 
-  const handleRoleChange = async (userId: string, newRole: string) => {
+  const handleRoleChange = async (userId: string, newRole: (typeof assignableRoles)[number]) => {
     setUpdatingRole(userId);
     const existing = users.find(u => u.user_id === userId);
     
@@ -86,7 +87,7 @@ export default function UsersPage() {
       // Update existing role record
       const { error } = await supabase
         .from('user_roles')
-        .update({ role: newRole as any })
+        .update({ role: newRole })
         .eq('id', existing.role_id);
 
       if (error) {
@@ -99,7 +100,7 @@ export default function UsersPage() {
       // Insert new role record
       const { data, error } = await supabase
         .from('user_roles')
-        .insert({ user_id: userId, role: newRole as any })
+        .insert({ user_id: userId, role: newRole })
         .select('id')
         .single();
 
