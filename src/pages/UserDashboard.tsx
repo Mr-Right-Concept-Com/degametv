@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  Ticket, Play, Clock, CheckCircle, Copy, Film, User,
+  Ticket, Play, Clock, CheckCircle, Copy, Film, User, Wallet,
   LogOut, ArrowRight, Calendar, Loader2, Settings, Star, Shield, Award, Sparkles
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -30,6 +30,7 @@ export default function UserDashboard() {
   const [tickets, setTickets] = useState<any[]>([]);
   const [watchHistory, setWatchHistory] = useState<any[]>([]);
   const [loyalty, setLoyalty] = useState<any[]>([]);
+  const [walletBalances, setWalletBalances] = useState<any[]>([]);
   const [invitations, setInvitations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
@@ -94,6 +95,8 @@ export default function UserDashboard() {
     if (ticketsRes.data) setTickets(ticketsRes.data);
     if (historyRes.data) setWatchHistory(historyRes.data);
     if (loyaltyRes.data) setLoyalty(loyaltyRes.data);
+    const { data: walletData, error: walletError } = await (supabase as any).rpc('wallet_balance_by_currency', { _user_id: user!.id });
+    if (!walletError && Array.isArray(walletData)) setWalletBalances(walletData);
     const { data: inviteData } = await supabase.functions.invoke("manage-event-invites", { body: { action: "my_invitations" } });
     if (inviteData?.invitations) setInvitations(inviteData.invitations);
     if (profileRes.data) {
@@ -221,6 +224,7 @@ export default function UserDashboard() {
 
         <Tabs defaultValue={new URLSearchParams(window.location.search).get("tab") === "invitations" ? "invitations" : "tickets"} className="space-y-4">
           <TabsList className="bg-secondary/50 w-full sm:w-auto">
+            <TabsTrigger value="wallet"><Wallet className="w-4 h-4 mr-1.5" /> Wallet</TabsTrigger>
             <TabsTrigger value="tickets">
               <Ticket className="w-4 h-4 mr-1.5" />
               My Tickets
@@ -240,6 +244,17 @@ export default function UserDashboard() {
             </TabsTrigger>
           </TabsList>
 
+
+          <TabsContent value="wallet" className="space-y-4">
+            <Card>
+              <CardHeader><CardTitle className="text-base flex items-center gap-2"><Wallet className="h-4 w-4"/> Wallet &amp; creator earnings</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">Your earnings are shown by their original transaction currency. Pending settlement is not withdrawable; only verified settled funds appear as available.</p>
+                {walletBalances.length === 0 ? <div className="rounded-xl border border-dashed p-8 text-center"><Wallet className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40"/><p className="font-medium">No creator earnings yet</p><p className="mt-1 text-xs text-muted-foreground">When you earn from ticket sales, tips or gifts as an approved creator, your balances will appear here.</p></div> : walletBalances.map((balance:any) => <div key={balance.currency} className="grid gap-3 rounded-xl border p-4 sm:grid-cols-3"><div><p className="text-xs text-muted-foreground">Currency</p><p className="text-lg font-bold">{balance.currency}</p></div><div><p className="text-xs text-muted-foreground">Pending settlement</p><p className="text-lg font-semibold">{Number(balance.escrow || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</p></div><div><p className="text-xs text-muted-foreground">Available to withdraw</p><p className="text-lg font-semibold text-primary">{Number(balance.withdrawable || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</p></div></div>)}
+                <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">This view currently reports creator earnings from the settlement ledger. Personal wallet top-ups, stored-value spending and peer-to-peer transfers are not enabled by this ledger.</div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* ─── TICKETS ─── */}
           <TabsContent value="tickets" className="space-y-3">
