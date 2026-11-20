@@ -27,26 +27,7 @@ export type SupportTicket = z.infer<typeof TicketSchema>;
 export type SupportMessage = z.infer<typeof MessageSchema>;
 export type SupportArticle = z.infer<typeof ArticleSchema>;
 export type SupportStatus = 'open' | 'awaiting_support' | 'awaiting_user' | 'in_progress' | 'escalated' | 'resolved' | 'closed';
-type QueryResult = { data: unknown; error: unknown };
-interface QueryBuilder extends PromiseLike<QueryResult> {
-  select(columns: string): QueryBuilder;
-  insert(values: Record<string, unknown>): QueryBuilder;
-  upsert(values: Record<string, unknown>, options?: { onConflict?: string }): QueryBuilder;
-  update(values: Record<string, unknown>): QueryBuilder;
-  eq(column: string, value: string | boolean): QueryBuilder;
-  is(column: string, value: null): QueryBuilder;
-  in(column: string, values: string[]): QueryBuilder;
-  not(column: string, operator: string, value: null): QueryBuilder;
-  order(column: string, options: { ascending: boolean }): QueryBuilder;
-  limit(count: number): QueryBuilder;
-  maybeSingle(): Promise<QueryResult>;
-  single(): Promise<QueryResult>;
-}
-interface SupportClient {
-  from(table: 'support_agents' | 'support_tickets' | 'support_messages' | 'knowledgebase_articles' | 'knowledgebase_categories' | 'support_sla_policies'): QueryBuilder;
-  rpc(name: 'create_support_chat' | 'reopen_support_ticket' | 'rate_support_ticket', args?: Record<string, unknown>): Promise<QueryResult>;
-}
-const client = supabase as unknown as SupportClient;
+const client = supabase;
 
 function throwIfError(error: unknown): void {
   if (error == null) return;
