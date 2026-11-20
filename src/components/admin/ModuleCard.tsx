@@ -3,9 +3,9 @@ import { Module, ModuleId } from '@/types/modules';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Settings, ExternalLink } from 'lucide-react';
+import { Settings } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import * as Icons from 'lucide-react';
-import { Link } from 'react-router-dom';
 
 interface ModuleCardProps {
   module: Module;
@@ -14,8 +14,10 @@ interface ModuleCardProps {
   className?: string;
 }
 
+const iconRegistry = Icons as unknown as Record<string, LucideIcon>;
+
 export function ModuleCard({ module, enabled, onToggle, className }: ModuleCardProps) {
-  const IconComponent = (Icons as any)[module.icon] || Icons.Package;
+  const IconComponent = iconRegistry[module.icon] ?? Icons.Package;
 
   return (
     <div className={cn(
