@@ -52,6 +52,6 @@ test("a configured production hostname resolves to the native storefront",async(
  await expect(page.getByText("Official production storefront")).toBeVisible({timeout:30000});
  const tickets=page.getByRole("button",{name:"Get tickets",exact:true});
  const watch=page.getByRole("button",{name:"Watch / Details",exact:true});
- if(await tickets.count()){await expect(tickets).toBeEnabled();await tickets.click();await expect(page).toHaveURL(/\\/buy\\//);}
- else {await expect(watch).toBeVisible();await watch.click();await expect(page).toHaveURL(/\\/content\\//);}
+ if(await tickets.count()){await expect(tickets).toBeEnabled();await tickets.click();await expect(page).toHaveURL(new RegExp("/buy/"));}
+ else {await expect(watch).toBeVisible();await watch.click();await expect(page).toHaveURL(new RegExp("/content/"));}
 });
