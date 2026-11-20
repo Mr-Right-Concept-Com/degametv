@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -19,7 +19,6 @@ const businessSchema = z.object({
   bank_name: z.string().trim().min(2).max(100),
   bank_account_number: z.string().trim().regex(/^\d{6,34}$/, "Enter a valid account number"),
   bank_account_name: z.string().trim().min(2).max(150),
-  seats: z.number().int().min(1).max(50),
   business_address: z.string().trim().min(5).max(240),
   business_city: z.string().trim().min(2).max(120),
   business_region: z.string().trim().max(120),
@@ -54,12 +53,12 @@ export function TierUpgradeCard() {
   const [tier, setTier] = useState<"creator" | "business">("creator");
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
-  const [f, setF] = useState({ company_name: "", cac_number: "", tax_id: "", bank_name: "", bank_account_number: "", bank_account_name: "", business_address: "", business_city: "", business_region: "", business_postal_code: "", registration_country: "NG", bank_country: "NG", seats: 1, rights_declared: false });
+  const [f, setF] = useState({ company_name: "", cac_number: "", tax_id: "", bank_name: "", bank_account_number: "", bank_account_name: "", business_address: "", business_city: "", business_region: "", business_postal_code: "", registration_country: "NG", bank_country: "NG", rights_declared: false });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const mounted = useRef(false);
   const loadGeneration = useRef(0);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const generation = ++loadGeneration.current;
     if (!user) {
       if (mounted.current) { setAcct(null); setAccountError(false); setLoadingState(false); }
@@ -79,14 +78,14 @@ export function TierUpgradeCard() {
     } finally {
       if (mounted.current && generation === loadGeneration.current) setLoadingState(false);
     }
-  };
+  }, [user]);
   const [accountLoading, setLoadingState] = useState(true);
   useEffect(() => {
     mounted.current = true;
     setLoadingState(true);
     void load();
     return () => { mounted.current = false; loadGeneration.current += 1; };
-  }, [user?.id]);
+  }, [load]);
 
   const submit = async () => {
     if (!user || busy) return;
@@ -187,7 +186,7 @@ export function TierUpgradeCard() {
           ))}
         </div>
         {tier === "business" && <div className="grid sm:grid-cols-2 gap-3">
-          {field("company_name", "Registered company name")}{field("registration_country", "Registration country (ISO-2)")}{field("cac_number", "Business registration number")}{field("tax_id", "Tax ID (TIN)")}{field("seats", "Team seats", "number")}{field("business_address", "Registered business address")}{field("business_city", "City")}{field("business_region", "State / Region")}{field("business_postal_code", "Postal code")}{field("bank_country", "Bank country (ISO-2)")}{field("bank_name", "Corporate bank")}{field("bank_account_number", "Account number")}{field("bank_account_name", "Account name")}
+          {field("company_name", "Registered company name")}{field("registration_country", "Registration country (ISO-2)")}{field("cac_number", "Business registration number")}{field("tax_id", "Tax ID (TIN)")}{field("business_address", "Registered business address")}{field("business_city", "City")}{field("business_region", "State / Region")}{field("business_postal_code", "Postal code")}{field("bank_country", "Bank country (ISO-2)")}{field("bank_name", "Corporate bank")}{field("bank_account_number", "Account number")}{field("bank_account_name", "Account name")}
           <div className="space-y-1"><Label htmlFor="cac_doc">Business registration certificate (PDF/image)</Label><Input id="cac_doc" type="file" accept=".pdf,image/*" onChange={event => setFile(event.target.files?.[0] || null)} />{errors.cac_doc && <p className="text-xs text-destructive">{errors.cac_doc}</p>}</div>
           <div className="sm:col-span-2 flex items-start gap-2"><Checkbox id="rights" checked={f.rights_declared} onCheckedChange={checked => setF(current => ({ ...current, rights_declared: checked === true }))} /><Label htmlFor="rights" className="text-sm font-normal leading-snug">I declare my company owns or licenses the distribution rights for all content it premieres.</Label></div>
           {errors.rights_declared && <p className="text-xs text-destructive sm:col-span-2">{errors.rights_declared}</p>}
