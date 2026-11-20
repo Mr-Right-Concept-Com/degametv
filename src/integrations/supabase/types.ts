@@ -2616,6 +2616,80 @@ export type Database = {
           },
         ]
       }
+      personal_wallet_accounts: {
+        Row: {
+          balance_minor: number
+          created_at: string
+          currency: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance_minor?: number
+          created_at?: string
+          currency: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance_minor?: number
+          created_at?: string
+          currency?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      personal_wallet_ledger: {
+        Row: {
+          amount_minor: number
+          balance_after_minor: number
+          created_at: string
+          currency: string
+          entry_type: string
+          id: string
+          idempotency_key: string
+          metadata: Json
+          reference: string | null
+          related_contribution_id: string | null
+          user_id: string
+        }
+        Insert: {
+          amount_minor: number
+          balance_after_minor: number
+          created_at?: string
+          currency: string
+          entry_type: string
+          id?: string
+          idempotency_key: string
+          metadata?: Json
+          reference?: string | null
+          related_contribution_id?: string | null
+          user_id: string
+        }
+        Update: {
+          amount_minor?: number
+          balance_after_minor?: number
+          created_at?: string
+          currency?: string
+          entry_type?: string
+          id?: string
+          idempotency_key?: string
+          metadata?: Json
+          reference?: string | null
+          related_contribution_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "personal_wallet_ledger_related_contribution_id_fkey"
+            columns: ["related_contribution_id"]
+            isOneToOne: false
+            referencedRelation: "event_contributions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_ai_policies: {
         Row: {
           allow_financial_decisions: boolean
@@ -4870,6 +4944,63 @@ export type Database = {
           },
         ]
       }
+      wallet_topup_orders: {
+        Row: {
+          amount_major: number
+          amount_minor: number
+          checkout_url: string | null
+          created_at: string
+          currency: string
+          id: string
+          idempotency_key: string
+          paid_at: string | null
+          provider_checkout_id: string | null
+          provider_key: string
+          provider_mode: string
+          provider_reference: string
+          provider_transaction_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount_major: number
+          amount_minor: number
+          checkout_url?: string | null
+          created_at?: string
+          currency: string
+          id?: string
+          idempotency_key: string
+          paid_at?: string | null
+          provider_checkout_id?: string | null
+          provider_key: string
+          provider_mode: string
+          provider_reference: string
+          provider_transaction_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount_major?: number
+          amount_minor?: number
+          checkout_url?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          idempotency_key?: string
+          paid_at?: string | null
+          provider_checkout_id?: string | null
+          provider_key?: string
+          provider_mode?: string
+          provider_reference?: string
+          provider_transaction_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       watch_history: {
         Row: {
           city: string | null
@@ -5721,6 +5852,15 @@ export type Database = {
         Returns: string
       }
       create_support_chat: { Args: never; Returns: Json }
+      credit_personal_wallet_topup: {
+        Args: {
+          p_amount_minor: number
+          p_currency: string
+          p_reference: string
+          p_transaction_id: string
+        }
+        Returns: Json
+      }
       enqueue_event_cancellation_notifications: {
         Args: { p_screening_id: string }
         Returns: number
@@ -5793,6 +5933,30 @@ export type Database = {
           message: string
         }[]
       }
+      get_event_contribution_leaderboard: {
+        Args: {
+          p_currency?: string
+          p_target_id: string
+          p_target_kind: string
+        }
+        Returns: {
+          contribution_count: number
+          contributor_name: string
+          currency: string
+          rank_position: number
+          total_amount_major: number
+        }[]
+      }
+      get_event_contribution_totals: {
+        Args: { p_target_id: string; p_target_kind: string }
+        Returns: {
+          contribution_count: number
+          currency: string
+          gift_count: number
+          supporter_count: number
+          total_amount_major: number
+        }[]
+      }
       get_event_notification_worker_secret: { Args: never; Returns: string }
       get_media_transcoder_callback_secret: { Args: never; Returns: string }
       get_media_worker_secret: { Args: never; Returns: string }
@@ -5819,6 +5983,14 @@ export type Database = {
           actual_started_at: string
           lifecycle_status: string
           reconnect_grace_expires_at: string
+        }[]
+      }
+      get_my_personal_wallet_balances: {
+        Args: never
+        Returns: {
+          balance_major: number
+          balance_minor: number
+          currency: string
         }[]
       }
       get_my_studio_account: {
@@ -5955,6 +6127,10 @@ export type Database = {
         Args: { p_limit?: number }
         Returns: number
       }
+      refund_personal_wallet_contribution: {
+        Args: { p_contribution_id: string }
+        Returns: Json
+      }
       register_release_domain: {
         Args: {
           p_branding?: Json
@@ -6070,6 +6246,10 @@ export type Database = {
         Returns: string
       }
       run_event_settlement_maintenance: { Args: never; Returns: number }
+      spend_personal_wallet_for_contribution: {
+        Args: { p_contribution_id: string }
+        Returns: Json
+      }
       store_creator_vault_material: {
         Args: {
           p_bank_account_number?: string
