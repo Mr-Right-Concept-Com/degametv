@@ -19,6 +19,7 @@ export function useMultipartMediaUpload(userId:string|undefined){
    let id=sessionId,rec=recovery;
    if(id&&rec&&rec.expectedSizeBytes!==file.size){id=null;rec=null;}
    if(id){const r=await invokeFn<Recovery>("media-ingest-control",{action:"recover",sessionId:id});if(!r.ok||!r.data)throw new Error(r.error??"Could not recover the previous upload.");rec=r.data;}
+   if(rec&&["QUARANTINED","SCANNING","PROMOTING","TRANSCODING","READY"].includes(rec.status)){setStatus("QUARANTINED");setProgress(100);return {sessionId:id??rec.sessionId};}
    if(!id||!rec){const init=await invokeFn<Init>("media-ingest-control",{action:"init_multipart",contentId,filename:file.name,mimeType:file.type||"application/octet-stream",sizeBytes:file.size,chunkSizeBytes:64*1024*1024});if(!init.ok||!init.data)throw new Error(init.error??"Could not initialize multipart upload.");id=init.data.sessionId;rec={sessionId:id,status:init.data.status,expectedSizeBytes:file.size,partSizeBytes:init.data.partSizeBytes,parts:[]};setSessionId(id);localStorage.setItem(STORAGE_KEY(userId),id);}
    setRecovery(rec);const done=new Map(rec.parts.map(p=>[p.partNumber,p]));let sent=rec.parts.reduce((n,p)=>n+Math.min(rec!.partSizeBytes,file.size-(p.partNumber-1)*rec!.partSizeBytes),0);setProgress(Math.min(100,Math.round(sent/file.size*100)));setStatus("UPLOADING");
    const count=Math.ceil(file.size/rec.partSizeBytes);
