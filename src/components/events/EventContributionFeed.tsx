@@ -39,16 +39,20 @@ export function EventContributionFeed({screeningId,liveStreamId,contentId}:{scre
  const [items,setItems]=useState<Item[]>([]);
  const [celebration,setCelebration]=useState<Item|null>(null);
  const latestSeen=useRef<string|null>(null);
+ const celebrationTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
  useEffect(()=>{
   if(!screeningId&&!liveStreamId&&!contentId)return;
   let active=true;
   const load=async()=>{
+   try {
    let data: unknown = null;
    if(contentId){
     const result=await feedRpc.rpc("get_content_support_feed",{p_content_id:contentId});
+    if(result.error)throw result.error;
     data=result.data;
    }else{
     const result=await feedRpc.rpc("get_event_contribution_feed",{p_screening_id:screeningId??null,p_live_stream_id:liveStreamId??null});
+    if(result.error)throw result.error;
     data=result.data;
    }
    if(!active)return;
@@ -61,14 +65,16 @@ export function EventContributionFeed({screeningId,liveStreamId,contentId}:{scre
     if(newest.contribution_type==="gift"){
      setCelebration(newest);
      const duration=Math.min(10000,Math.max(1200,Number(newest.animation_duration_ms)||2600));
-     window.setTimeout(()=>setCelebration(current=>current?.id===newest.id?null:current),duration);
+     if(celebrationTimer.current)window.clearTimeout(celebrationTimer.current);
+     celebrationTimer.current=window.setTimeout(()=>setCelebration(current=>current?.id===newest.id?null:current),duration);
     }
    }
    setItems(rows);
+   } catch { if(active)console.error('Creator support feed refresh failed.'); }
   };
   void load();
   const timer=window.setInterval(()=>void load(),liveStreamId?2500:10000);
-  return()=>{active=false;window.clearInterval(timer);};
+  return()=>{active=false;window.clearInterval(timer);if(celebrationTimer.current)window.clearTimeout(celebrationTimer.current);};
  },[screeningId,liveStreamId,contentId]);
  if(items.length===0&&!celebration)return null;
  return <>
