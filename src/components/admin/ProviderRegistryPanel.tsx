@@ -58,7 +58,7 @@ export function ProviderRegistryPanel({initialCapability='payments'}:{initialCap
   const test=async(row:Provider)=>{
     setSaving(true);
     try{const r=await invokeFn<{success:boolean;mode:string}>('admin-provider-control',{action:'test',capability:row.capability,providerKey:row.provider_key});if(!r.ok)throw new Error(r.error);toast.success('Provider health check passed ('+(r.data?.mode||'configured')+' mode).');await load();}
-    catch(e){toast.error((e as Error).message);}finally{setSaving(false);}
+    catch(e){toast.error((e as Error).message);await load();}finally{setSaving(false);}
   };
   const edit=(row:Provider)=>{
     setCapability(row.capability);setProviderKey(row.provider_key);setBaseUrl(row.base_url||'');setEndpoints(JSON.stringify(row.endpoints||{},null,2));setSettings(JSON.stringify(row.settings||{},null,2));setEnabled(row.enabled);setLive(row.is_live);setPriority(row.priority ?? 100);
