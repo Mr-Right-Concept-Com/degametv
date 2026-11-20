@@ -1,40 +1,32 @@
 import { useState, useEffect } from 'react';
+import { z } from 'zod';
 import { PromoBanner } from '@/components/cinema/PromoBanner';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Calendar, Clock, Search, Ticket, Film, Star } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { fetchCatalogRows } from '@/integrations/supabase/catalog';
 import { Badge } from '@/components/ui/badge';
 import { Loader2 } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
-interface ContentRow {
-  id: string;
-  title: string;
-  type: string;
-  description: string | null;
-  poster_url: string | null;
-  genres: string[] | null;
-  release_date: string | null;
-}
-interface ScreeningRow {
-  id: string;
-  content_id?: string | null;
-  event_type?: string | null;
-  title: string;
-  slug: string;
-  description: string | null;
-  poster_url: string | null;
-  banner_url: string | null;
-  screening_date: string | null;
-  duration: number | null;
-  location_pricing: any;
-  status: string;
-  star_rating: number | null;
-  age_rating: string | null;
-}
+const contentRowSchema = z.object({
+  id: z.string(), title: z.string(), type: z.string(),
+  description: z.string().nullable().optional(), poster_url: z.string().nullable().optional(),
+  genres: z.array(z.string()).nullable().optional(), release_date: z.string().nullable().optional(),
+}).passthrough();
+type ContentRow = z.infer<typeof contentRowSchema>;
+
+const screeningRowSchema = z.object({
+  id: z.string(), content_id: z.string().nullable().optional(), event_type: z.string().nullable().optional(),
+  title: z.string(), slug: z.string(), description: z.string().nullable().optional(),
+  poster_url: z.string().nullable().optional(), banner_url: z.string().nullable().optional(),
+  screening_date: z.string().nullable().optional(), duration: z.number().nullable().optional(),
+  location_pricing: z.unknown().nullable().optional(), status: z.string(),
+  star_rating: z.number().nullable().optional(), age_rating: z.string().nullable().optional(),
+}).passthrough();
+type ScreeningRow = z.infer<typeof screeningRowSchema>;
 
 export default function Cinema() {
   const [searchParams] = useSearchParams();
@@ -42,33 +34,42 @@ export default function Cinema() {
   const [screenings, setScreenings] = useState<ScreeningRow[]>([]);
   const [titles, setTitles] = useState<ContentRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   usePageTitle('Virtual Cinema');
 
   useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
     const fetchScreenings = async () => {
-      const [{ data: titleData, error: titleError }, { data, error: screeningError }] = await Promise.all([
-        (supabase as any).from('public_content_catalog').select('id,title,type,description,poster_url,genres,release_date').order('created_at',{ascending:false}),
-        (supabase as any).from('public_screenings_catalog')
-        .select('id,content_id,title,slug,description,poster_url,banner_url,trailer_url,release_date,screening_date,duration,location_pricing,status,event_type,lifecycle,live_price_ngn,live_price_usd,live_recording_status,live_started_at,live_ended_at,live_replay_ready_at,replay_price_ngn,replay_price_usd,replay_access_hours,refund_policy,cast_crew,gallery_images,age_rating,star_rating,review_count,allowed_countries,blocked_countries,cancelled_at,created_at,updated_at')
-        .eq('status', 'published')
-        .order('screening_date', { ascending: true })
-      ]);
-      if (titleError || screeningError) {
-        console.error('cinema_catalogue_load_failed', { titleError, screeningError });
-      }
-      if (titleData) setTitles(titleData as ContentRow[]);
-      if (data) setScreenings(data as unknown as ScreeningRow[]);
-      setLoading(false);
+      try {
+        const [titleData, screeningData] = await Promise.all([
+          fetchCatalogRows({ view: 'public_content_catalog', select: 'id,title,type,description,poster_url,genres,release_date', order: 'created_at.desc', signal: controller.signal }, contentRowSchema),
+          fetchCatalogRows({ view: 'public_screenings_catalog', select: 'id,content_id,title,slug,description,poster_url,banner_url,screening_date,duration,location_pricing,status,event_type,star_rating,age_rating', filters: { status: 'eq.published' }, order: 'screening_date.asc', signal: controller.signal }, screeningRowSchema),
+        ]);
+        if (active) { setTitles(titleData); setScreenings(screeningData); }
+      } catch (error) {
+        if (active && !(error instanceof DOMException && error.name === 'AbortError')) {
+          console.error('cinema_catalogue_load_failed', error);
+          setLoadError('The cinema catalogue could not be loaded. Please try again later.');
+        }
+      } finally { if (active) setLoading(false); }
     };
-    fetchScreenings();
+    void fetchScreenings();
+    return () => { active = false; controller.abort(); };
   }, []);
 
   const filtered = screenings.filter(s => s.title.toLowerCase().includes(searchQuery.toLowerCase()));
   const filteredTitles = titles.filter(title => title.title.toLowerCase().includes(searchQuery.toLowerCase()) || (title.genres || []).some(genre => genre.toLowerCase().includes(searchQuery.toLowerCase())));
 
-  const getPrice = (pricing: any) => {
-    const p = typeof pricing === 'string' ? JSON.parse(pricing) : pricing;
-    return p?.nigeria ? `₦${Number(p.nigeria).toLocaleString()}` : '$15';
+  const getPrice = (pricing: unknown) => {
+    let value: unknown = pricing;
+    if (typeof value === 'string') {
+      try { value = JSON.parse(value) as unknown; } catch { return 'Price unavailable'; }
+    }
+    const parsed = z.object({ nigeria: z.union([z.number(), z.string()]).optional() }).passthrough().safeParse(value);
+    return parsed.success && parsed.data.nigeria !== undefined
+      ? `₦${Number(parsed.data.nigeria).toLocaleString()}`
+      : 'Price unavailable';
   };
 
   return (
@@ -92,6 +93,7 @@ export default function Cinema() {
           </div>
         </div>
 
+        {loadError && <p role="alert" className="mb-5 rounded-xl border border-destructive/30 p-4 text-sm text-destructive">{loadError}</p>}
         {!loading && (
           <section className="mb-12">
             <div className="mb-5 flex items-end justify-between gap-3">
@@ -158,13 +160,13 @@ export default function Cinema() {
                         {s.duration}min
                       </span>
                     )}
-                    {(s as any).star_rating > 0 && (
+                    {(s.star_rating ?? 0) > 0 && (
                       <span className="flex items-center gap-1">
                         <Star className="w-3 h-3 fill-accent text-accent" />
-                        {Number((s as any).star_rating).toFixed(1)}
+                        {Number(s.star_rating).toFixed(1)}
                       </span>
                     )}
-                    {(s as any).age_rating && (
+                    {s.age_rating && (
                       <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-accent text-accent">
                         {(s as any).age_rating}
                       </Badge>
