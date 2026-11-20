@@ -13,6 +13,7 @@ const Body=z.object({
  contributorName:z.string().trim().max(100).optional(),
  isAnonymous:z.boolean().default(false),
  method:z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/).optional(),
+ paymentMethod:z.enum(["provider","personal_wallet"]).default("provider"),
  idempotencyKey:z.string().uuid().optional()
 }).strict().refine(v=>[v.screeningId,v.liveStreamId,v.contentId].filter(Boolean).length===1,"Choose exactly one support target.").refine(v=>v.contributionType==="tip"?v.amount!==undefined:Boolean(v.giftCatalogKey),"Tips require an amount; gifts require a catalogue item.");
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, x-client-info, content-type, cf-ipcountry","Access-Control-Allow-Methods":"POST, OPTIONS"};
@@ -41,12 +42,18 @@ Deno.serve(async(req)=>{
  try{
   if(p.idempotencyKey){
    const {data:existing,error:existingError}=await db.from("event_contributions")
-    .select("provider_reference,status,checkout_url,amount_major,currency,contribution_type")
+    .select("id,provider_reference,status,checkout_url,amount_major,currency,contribution_type,provider_mode")
     .eq("contributor_user_id",user.id).eq("idempotency_key",p.idempotencyKey).maybeSingle();
    if(existingError)return json(503,{error:"Could not confirm the previous contribution request."});
    if(existing){
     if(existing.status==="pending"&&existing.checkout_url)return json(200,{success:true,checkoutUrl:existing.checkout_url,reference:existing.provider_reference,amount:existing.amount_major,currency:existing.currency,contributionType:existing.contribution_type,reused:true});
+    if(existing.status==="paid"&&existing.provider_mode==="wallet")return json(200,{success:true,paid:true,reference:existing.provider_reference,contributionType:existing.contribution_type,reused:true});
     if(existing.status==="paid")return json(409,{error:"This contribution has already been paid.",alreadyPaid:true});
+    if(existing.status==="pending"&&existing.provider_mode==="wallet"){
+     const {data:spent,error:spendError}=await db.rpc("spend_personal_wallet_for_contribution",{p_contribution_id:existing.id});
+     if(!spendError)return json(200,{success:true,paid:true,reference:existing.provider_reference,contributionType:existing.contribution_type,reused:true,balanceMinor:spent?.balance_minor});
+     return json(spendError.message.includes("insufficient_personal_wallet_funds")?402:409,{error:spendError.message.includes("insufficient_personal_wallet_funds")?"Insufficient Personal Wallet balance. Top up your wallet or use external checkout.":"The wallet contribution could not be completed. Please retry."});
+    }
     if(["failed","refunded"].includes(existing.status))return json(409,{error:"The previous attempt did not complete. Start a new contribution attempt.",retryable:true});
     return json(409,{error:"This contribution request is already being processed. Please wait before retrying."});
    }
@@ -108,10 +115,13 @@ Deno.serve(async(req)=>{
   const amount=await convert(url,service,requestedAmount,currency,currency,country);
   const scale=minorScale(currency),amountMinor=Math.round(amount*scale);
   if(!Number.isSafeInteger(amountMinor)||amountMinor<=0)return json(422,{error:"Contribution amount is invalid."});
-  const {data:providers,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:"payments"});
-  if(providerError||!Array.isArray(providers))return json(503,{error:"No payment provider is configured."});
-  const usable=providers.filter((value:unknown):value is PaymentProvider=>isPaymentProvider(value)&&typeof value.settings.supported_currencies==="object"&&Array.isArray(value.settings.supported_currencies)&&value.settings.supported_currencies.includes(currency)&&typeof value.endpoints.checkout_initialize==="string"&&value.endpoints.checkout_initialize.startsWith("/")&&!value.endpoints.checkout_initialize.startsWith("//")&&typeof value.endpoints.payment_verify==="string"&&value.endpoints.payment_verify.startsWith("/")&&!value.endpoints.payment_verify.startsWith("//")&&(!p.method||value.provider_key===p.method));
-  if(!usable.length)return json(503,{error:"No live payment provider is available for this currency."});
+  let usable:PaymentProvider[]=[];
+  if(p.paymentMethod==="provider"){
+   const {data:providers,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:"payments"});
+   if(providerError||!Array.isArray(providers))return json(503,{error:"No payment provider is configured."});
+   usable=providers.filter((value:unknown):value is PaymentProvider=>isPaymentProvider(value)&&Array.isArray(value.settings.supported_currencies)&&value.settings.supported_currencies.includes(currency)&&typeof value.endpoints.checkout_initialize==="string"&&value.endpoints.checkout_initialize.startsWith("/")&&!value.endpoints.checkout_initialize.startsWith("//")&&typeof value.endpoints.payment_verify==="string"&&value.endpoints.payment_verify.startsWith("/")&&!value.endpoints.payment_verify.startsWith("//")&&(!p.method||value.provider_key===p.method));
+   if(!usable.length)return json(503,{error:"No live payment provider is available for this currency."});
+  }
   const {data:commissionSetting,error:commissionError}=await db.from("platform_settings").select("setting_value").eq("setting_key","commission_rates").maybeSingle();
   const rate=Number(commissionSetting?.setting_value?.creator);
   if(commissionError||!Number.isFinite(rate)||rate<0||rate>0.5)return json(503,{error:"Creator commission policy is not configured safely."});
@@ -119,13 +129,13 @@ Deno.serve(async(req)=>{
   const reference="DTVG_"+crypto.randomUUID().replaceAll("-","");
   const {data:siteSetting}=await db.from("platform_settings").select("setting_value,is_public").eq("setting_key","public_site_url").maybeSingle();
   let origin:string;try{const site=new URL(String(siteSetting?.setting_value||""));if(siteSetting?.is_public!==true||site.protocol!=="https:")throw new Error();origin=site.origin;}catch{return json(503,{error:"The canonical return URL is not configured."});}
-  const {error:insertError}=await db.from("event_contributions").insert({
+  const {data:createdContribution,error:insertError}=await db.from("event_contributions").insert({
    tenant_id:tenantId,creator_id:creatorId,screening_id:screeningId,live_stream_id:liveStreamId,content_id:contentId,target_kind:contentId?"content":"event",
    contributor_user_id:user.id,idempotency_key:p.idempotencyKey??null,contributor_name:p.isAnonymous?null:(p.contributorName||user.user_metadata?.full_name||user.email),
    contributor_email:user.email,contribution_type:p.contributionType,gift_catalog_key:p.contributionType==="gift"?p.giftCatalogKey??"standard":null,
    message:p.message??null,amount_minor:amountMinor,amount_major:amountMajor,platform_fee_major:feeMajor,currency,
-   provider_key:usable[0].provider_key,provider_reference:reference,provider_mode:"live",status:"pending",is_anonymous:p.isAnonymous
-  });
+   provider_key:p.paymentMethod==="personal_wallet"?"personal_wallet":usable[0].provider_key,provider_reference:reference,provider_mode:p.paymentMethod==="personal_wallet"?"wallet":"live",status:"pending",is_anonymous:p.isAnonymous
+  }).select("id").single();
   if(insertError){
    if(p.idempotencyKey){
     const {data:existing}=await db.from("event_contributions").select("provider_reference,status,checkout_url,amount_major,currency,contribution_type").eq("contributor_user_id",user.id).eq("idempotency_key",p.idempotencyKey).maybeSingle();
@@ -133,6 +143,15 @@ Deno.serve(async(req)=>{
     if(existing)return json(409,{error:"This contribution request is already being processed. Please wait before retrying."});
    }
    return json(503,{error:"Could not create contribution order. No charge was made."});
+  }
+  if(p.paymentMethod==="personal_wallet"){
+   if(!createdContribution?.id)return json(503,{error:"Could not create wallet contribution record."});
+   const {data:spent,error:spendError}=await db.rpc("spend_personal_wallet_for_contribution",{p_contribution_id:createdContribution.id});
+   if(spendError){
+    if(!spendError.message.includes("insufficient_personal_wallet_funds"))await db.from("event_contributions").update({status:"failed"}).eq("id",createdContribution.id).eq("status","pending");
+    return json(spendError.message.includes("insufficient_personal_wallet_funds")?402:409,{error:spendError.message.includes("insufficient_personal_wallet_funds")?"Insufficient Personal Wallet balance. Top up your wallet or use external checkout.":"The wallet contribution could not be completed. Please retry."});
+   }
+   return json(200,{success:true,paid:true,reference,contributionId:createdContribution.id,contributionType:p.contributionType,balanceMinor:spent?.balance_minor});
   }
   let checkoutUrl:string|null=null,selected:PaymentProvider|null=null,checkoutId:string|null=null;
   for(const provider of usable){

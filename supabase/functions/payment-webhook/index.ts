@@ -42,14 +42,17 @@ serve(async(req:Request)=>{
   const eventMetadata=isRecord(eventData.metadata)?eventData.metadata:{};
   const reference=eventData.reference??eventData.tx_ref??eventMetadata.reference??
    eventData.client_reference_id??event.reference??(isRecord(event.data)?event.data.reference:undefined);
-  if(typeof reference!=="string"||(!/^DTV_[A-Za-z0-9]+$/.test(reference)&&!/^DTVL_[A-Za-z0-9]+$/.test(reference)&&!/^DTVG_[A-Za-z0-9]+$/.test(reference)))return json(400,{error:"Invalid payment reference."});
+  if(typeof reference!=="string"||(!/^DTV_[A-Za-z0-9]+$/.test(reference)&&!/^DTVL_[A-Za-z0-9]+$/.test(reference)&&!/^DTVG_[A-Za-z0-9]+$/.test(reference)&&!/^DTVW_[A-Za-z0-9]+$/.test(reference)))return json(400,{error:"Invalid payment reference."});
   const liveOrder=reference.startsWith("DTVL_");
   const contributionOrder=reference.startsWith("DTVG_");
+  const walletTopupOrder=reference.startsWith("DTVW_");
   const orderLookup=liveOrder
    ? await admin.from("live_payment_orders").select("provider,provider_mode,provider_checkout_id,metadata,email_sent_at,status,user_id").eq("provider_reference",reference).maybeSingle()
    : contributionOrder
     ? await admin.from("event_contributions").select("provider:provider_key,provider_mode,provider_checkout_id,status").eq("provider_reference",reference).maybeSingle()
-    : await admin.from("guest_payment_orders").select("provider,provider_mode,provider_checkout_id").eq("provider_reference",reference).maybeSingle();
+    : walletTopupOrder
+     ? await admin.from("wallet_topup_orders").select("provider:provider_key,provider_mode,provider_checkout_id,status").eq("provider_reference",reference).maybeSingle()
+     : await admin.from("guest_payment_orders").select("provider,provider_mode,provider_checkout_id").eq("provider_reference",reference).maybeSingle();
   if(orderLookup.error||!orderLookup.data?.provider)return json(404,{error:"Payment order not found."});
   const [{data:binding,error:bindingError},{data:secrets,error:secretError}]=await Promise.all([
    admin.from("service_provider_bindings").select("provider_key,base_url,endpoints,settings,is_live").eq("capability","payments").eq("provider_key",orderLookup.data.provider).maybeSingle(),
@@ -115,6 +118,14 @@ serve(async(req:Request)=>{
    result={verified:providerPayload.status==="success"&&providerData.status==="successful",status:providerData.status==="successful"?"paid":"unpaid",transaction_id:providerData.id,amount_minor:Math.round(major*Math.pow(10,digits)),currency};
   }
   if(!verification.ok||result?.verified!==true||result?.status!=="paid"||!Number.isFinite(Number(result?.amount_minor))||typeof result?.currency!=="string")return json(409,{error:"Payment has not been verified as successful."});
+  if(walletTopupOrder){
+   const {data:credited,error:creditError}=await admin.rpc("credit_personal_wallet_topup",{
+    p_reference:reference,p_transaction_id:String(result.transaction_id||reference),
+    p_amount_minor:Number(result.amount_minor),p_currency:String(result.currency).toUpperCase()
+   });
+   if(creditError)return json(409,{error:"Payment was verified but Personal Wallet credit could not be completed."});
+   return json(200,{received:true,verified:true,walletCredit:credited,entitlementGranted:false});
+  }
   if(contributionOrder){
    const {data:completed,error:completeError}=await admin.rpc("complete_event_contribution",{
     p_reference:reference,p_transaction_id:String(result.transaction_id||reference),
