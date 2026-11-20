@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
-import { CheckCheck, Loader2, MessageSquare, Send, ShieldAlert, UserRoundCheck, Paperclip } from 'lucide-react';
+import { CheckCheck, Loader2, MessageSquare, Send, ShieldAlert, UserRoundCheck, Paperclip, Star, RotateCcw } from 'lucide-react';
 
 type Ticket={id:string;ticket_number:number;user_id:string;subject:string;category:string;priority:string;status:string;description:string;assigned_agent_id:string|null;department:string;channel:string;first_response_due_at:string|null;resolution_due_at:string|null;created_at:string;last_message_at:string};
 type Message={id:string;ticket_id:string;sender_id:string;body:string;is_internal:boolean;created_at:string;attachment_paths?:string[];attachmentUrls?:string[]};
