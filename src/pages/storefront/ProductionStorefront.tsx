@@ -9,8 +9,8 @@ export default function ProductionStorefront(){
   const {data:resolved,error:resolveError}=await supabase.rpc("resolve_release_domain",{p_hostname:host});
   if(resolveError)throw resolveError;const row=Array.isArray(resolved)?resolved[0]:resolved;
   const id=row?.content_id??row?.content?.id;if(typeof id!=="string")throw new Error("This production storefront is not available on this hostname.");
-  const {data,error:contentError}=await supabase.from("content").select("*").eq("id",id).maybeSingle();if(contentError||!content)throw contentError??new Error("Production not found.");
-  if(live)setProduction(content as Production);
+  const {data,error:contentError}=await supabase.from("content").select("*").eq("id",id).maybeSingle();if(contentError||!data)throw contentError??new Error("Production not found.");
+  if(live)setProduction(data as Production);
  }catch(e){if(live)setError(e instanceof Error?e.message:"Storefront could not be loaded.");}finally{if(live)setLoading(false);}};void load();return()=>{live=false;};},[]);
  const metadata=production?.dynamic_metadata??{};
  const branding=(metadata.branding&&typeof metadata.branding==="object"?metadata.branding:{}) as Record<string,unknown>;
