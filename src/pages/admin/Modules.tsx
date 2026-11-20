@@ -2,7 +2,7 @@ import { AdminLayout } from '@/components/admin/AdminLayout';
 import { ModuleCard } from '@/components/admin/ModuleCard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTenant } from '@/hooks/useTenant';
-import { MODULE_DEFINITIONS, ModuleId, getModulesByCategory } from '@/types/modules';
+import { MODULE_DEFINITIONS, ModuleId, Module, getModulesByCategory } from '@/types/modules';
 
 export default function ModulesPage() {
   const { isModuleEnabled, enableModule, disableModule } = useTenant();
@@ -16,7 +16,7 @@ export default function ModulesPage() {
   };
 
   const categories = [
-    { id: 'all', label: 'All (12 Modules)' },
+    { id: 'all', label: `All (${MODULE_DEFINITIONS.length} Modules)` },
     { id: 'content', label: 'Content' },
     { id: 'streaming', label: 'Streaming' },
     { id: 'commerce', label: 'Commerce' },
@@ -51,10 +51,10 @@ export default function ModulesPage() {
           </div>
         </TabsContent>
 
-        {['content', 'streaming', 'commerce', 'platform', 'future'].map((category) => (
+        {(['content', 'streaming', 'commerce', 'platform', 'future'] satisfies Module['category'][]).map((category) => (
           <TabsContent key={category} value={category} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {getModulesByCategory(category as any).map((module) => (
+              {getModulesByCategory(category).map((module) => (
                 <ModuleCard
                   key={module.id}
                   module={module}
