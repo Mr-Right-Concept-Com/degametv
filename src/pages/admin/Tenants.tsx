@@ -1,234 +1,70 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Plus, Search, MoreHorizontal, Edit, Trash2, Eye, Ban, Check } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Search, MoreHorizontal, Ban, Check, Loader2, Building2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
-interface Tenant {
-  id: string;
-  name: string;
-  slug: string;
-  domain?: string;
-  plan: 'starter' | 'professional' | 'enterprise';
-  status: 'active' | 'suspended' | 'trial' | 'pending';
-  modules: number;
-  users: number;
-  revenue: number;
-  createdAt: string;
-}
-
-const mockTenants: Tenant[] = [
-  {
-    id: '1',
-    name: 'StreamFlix',
-    slug: 'streamflix',
-    domain: 'streamflix.com',
-    plan: 'enterprise',
-    status: 'active',
-    modules: 8,
-    users: 45000,
-    revenue: 125000,
-    createdAt: '2024-01-15',
-  },
-  {
-    id: '2',
-    name: 'FilmHub Africa',
-    slug: 'filmhub-africa',
-    domain: 'filmhubafrica.com',
-    plan: 'professional',
-    status: 'active',
-    modules: 5,
-    users: 12000,
-    revenue: 34500,
-    createdAt: '2024-02-20',
-  },
-  {
-    id: '3',
-    name: 'LiveSports Pro',
-    slug: 'livesports-pro',
-    plan: 'professional',
-    status: 'trial',
-    modules: 3,
-    users: 850,
-    revenue: 0,
-    createdAt: '2024-03-10',
-  },
-  {
-    id: '4',
-    name: 'Indie Cinema',
-    slug: 'indie-cinema',
-    domain: 'indiecinema.io',
-    plan: 'starter',
-    status: 'active',
-    modules: 2,
-    users: 3200,
-    revenue: 8900,
-    createdAt: '2024-02-28',
-  },
-  {
-    id: '5',
-    name: 'FestivalStream',
-    slug: 'festivalstream',
-    plan: 'enterprise',
-    status: 'suspended',
-    modules: 6,
-    users: 0,
-    revenue: 0,
-    createdAt: '2023-12-01',
-  },
-];
-
-const planColors = {
-  starter: 'bg-muted text-muted-foreground',
-  professional: 'bg-age-blue/20 text-age-blue',
-  enterprise: 'bg-age-gold/20 text-age-gold',
-};
-
-const statusColors = {
-  active: 'bg-success/20 text-success',
-  suspended: 'bg-destructive/20 text-destructive',
-  trial: 'bg-warning/20 text-warning',
-  pending: 'bg-muted text-muted-foreground',
+type Tenant = {
+ id:string;name:string;slug:string;custom_domain:string|null;tenant_type:string;
+ is_active:boolean;created_at:string;user_count:number;content_count:number;published_content_count:number;
 };
 
 export default function TenantsPage() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [tenants] = useState<Tenant[]>(mockTenants);
+ const [searchQuery,setSearchQuery]=useState('');
+ const [tenants,setTenants]=useState<Tenant[]>([]);
+ const [loading,setLoading]=useState(true);
+ const [busyId,setBusyId]=useState<string|null>(null);
 
-  const filteredTenants = tenants.filter(tenant =>
-    tenant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    tenant.slug.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+ const load=useCallback(async()=>{
+  setLoading(true);
+  const {data,error}=await (supabase as any).rpc('admin_list_tenants');
+  if(error){toast.error('Tenant inventory could not be loaded.');setTenants([]);}
+  else setTenants((data||[]) as Tenant[]);
+  setLoading(false);
+ },[]);
+ useEffect(()=>{void load();},[load]);
 
-  const formatCurrency = (num: number) => {
-    if (num >= 1000) return `$${(num / 1000).toFixed(1)}K`;
-    return `$${num}`;
-  };
+ const filtered=useMemo(()=>{
+  const q=searchQuery.trim().toLowerCase();
+  if(!q)return tenants;
+  return tenants.filter(t=>[t.name,t.slug,t.custom_domain||'',t.tenant_type].some(v=>v.toLowerCase().includes(q)));
+ },[tenants,searchQuery]);
 
-  const formatNumber = (num: number) => {
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-    return num.toString();
-  };
+ const setStatus=async(tenant:Tenant,active:boolean)=>{
+  setBusyId(tenant.id);
+  const {error}=await (supabase as any).rpc('admin_set_tenant_status',{p_tenant_id:tenant.id,p_is_active:active});
+  if(error)toast.error('Tenant status could not be changed.');
+  else{toast.success(active?'Tenant activated.':'Tenant suspended.');await load();}
+  setBusyId(null);
+ };
 
-  return (
-    <AdminLayout
-      title="Tenants"
-      description="Manage platform tenants and their configurations"
-      actions={
-        <Button className="gradient-primary" disabled>
-          <Plus className="h-4 w-4 mr-2" />
-          New Tenant
-        </Button>
-      }
-    >
-      {/* Filters */}
-      <div className="flex items-center gap-4 mb-6">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search tenants..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="rounded-xl border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead>Tenant</TableHead>
-              <TableHead>Plan</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Modules</TableHead>
-              <TableHead className="text-right">Users</TableHead>
-              <TableHead className="text-right">Revenue</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredTenants.map((tenant) => (
-              <TableRow key={tenant.id}>
-                <TableCell>
-                  <div>
-                    <p className="font-medium">{tenant.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {tenant.domain || `${tenant.slug}.agemedia.com`}
-                    </p>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge className={planColors[tenant.plan]}>
-                    {tenant.plan}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge className={statusColors[tenant.status]}>
-                    {tenant.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">{tenant.modules}</TableCell>
-                <TableCell className="text-right">{formatNumber(tenant.users)}</TableCell>
-                <TableCell className="text-right">{formatCurrency(tenant.revenue)}</TableCell>
-                <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
-                        <Eye className="h-4 w-4 mr-2" />
-                        View Details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Edit className="h-4 w-4 mr-2" />
-                        Edit Tenant
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      {tenant.status === 'active' ? (
-                        <DropdownMenuItem className="text-warning">
-                          <Ban className="h-4 w-4 mr-2" />
-                          Suspend
-                        </DropdownMenuItem>
-                      ) : (
-                        <DropdownMenuItem className="text-success">
-                          <Check className="h-4 w-4 mr-2" />
-                          Activate
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem className="text-destructive">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </AdminLayout>
-  );
+ return <AdminLayout title="Tenants" description="Manage real platform tenants. New tenants are provisioned through approved creator and business onboarding.">
+  <div className="mb-6 flex items-center gap-4">
+   <div className="relative w-full max-w-sm"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"/><Input placeholder="Search tenants…" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} className="pl-9"/></div>
+   <Badge variant="outline">{tenants.length} tenants</Badge>
+  </div>
+  <div className="rounded-xl border bg-card">
+   <Table>
+    <TableHeader><TableRow className="hover:bg-transparent"><TableHead>Tenant</TableHead><TableHead>Type</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Users</TableHead><TableHead className="text-right">Content</TableHead><TableHead>Created</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+    <TableBody>
+     {loading?<TableRow><TableCell colSpan={7} className="py-12 text-center text-muted-foreground"><Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin"/>Loading tenant inventory…</TableCell></TableRow>
+      :filtered.length===0?<TableRow><TableCell colSpan={7} className="py-12 text-center text-muted-foreground"><Building2 className="mx-auto mb-2 h-6 w-6"/>{tenants.length===0?'No tenant records have been provisioned yet.':'No tenants match this search.'}</TableCell></TableRow>
+      :filtered.map(t=><TableRow key={t.id}>
+       <TableCell><p className="font-medium">{t.name}</p><p className="text-xs text-muted-foreground">{t.custom_domain||t.slug+'.degametv.com'}</p></TableCell>
+       <TableCell><Badge variant="outline">{t.tenant_type.replaceAll('_',' ')}</Badge></TableCell>
+       <TableCell><Badge variant={t.is_active?'default':'destructive'}>{t.is_active?'Active':'Suspended'}</Badge></TableCell>
+       <TableCell className="text-right">{Number(t.user_count||0).toLocaleString()}</TableCell>
+       <TableCell className="text-right"><span>{Number(t.published_content_count||0).toLocaleString()} published</span><span className="block text-xs text-muted-foreground">{Number(t.content_count||0).toLocaleString()} total</span></TableCell>
+       <TableCell className="text-sm text-muted-foreground">{new Date(t.created_at).toLocaleDateString()}</TableCell>
+       <TableCell className="text-right"><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" disabled={busyId===t.id}>{busyId===t.id?<Loader2 className="h-4 w-4 animate-spin"/>:<MoreHorizontal className="h-4 w-4"/>}</Button></DropdownMenuTrigger><DropdownMenuContent align="end">{t.is_active?<DropdownMenuItem className="text-destructive" onClick={()=>void setStatus(t,false)}><Ban className="mr-2 h-4 w-4"/>Suspend tenant</DropdownMenuItem>:<DropdownMenuItem onClick={()=>void setStatus(t,true)}><Check className="mr-2 h-4 w-4"/>Activate tenant</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu></TableCell>
+      </TableRow>)}
+    </TableBody>
+   </Table>
+  </div>
+ </AdminLayout>;
 }
