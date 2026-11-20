@@ -105,34 +105,17 @@ export default function SupportCenter() {
   const startLiveChat = async () => {
     if (!user) return;
     setCreating(true);
-    const { data: existing, error: lookupError } = await (supabase as any).from('support_tickets')
-      .select('id,ticket_number,subject,category,priority,status,description,created_at,channel')
-      .eq('user_id', user.id).eq('channel', 'live_chat')
-      .in('status', ['open','awaiting_support','awaiting_user','in_progress','escalated'])
-      .order('last_message_at', { ascending: false }).limit(1).maybeSingle();
-    if (lookupError) {
-      toast.error('Could not check your active support chat.');
+    const { data, error } = await (supabase as any).rpc('create_support_chat');
+    if (error || !data?.id) {
+      toast.error('Live support is temporarily unavailable. Please create a support request.');
       setCreating(false);
       return;
     }
-    let ticket = existing as SupportTicket | null;
-    if (!ticket) {
-      const { data, error } = await (supabase as any).from('support_tickets').insert({
-        user_id: user.id, subject: 'Live chat support', category: 'other',
-        description: 'Live chat conversation started from the DeGameTV Help Centre.',
-        channel: 'live_chat',
-      }).select('id,ticket_number,subject,category,priority,status,description,created_at,channel').single();
-      if (error) {
-        toast.error('Live support is temporarily unavailable. Please create a support request.');
-        setCreating(false);
-        return;
-      }
-      ticket = data as SupportTicket;
-    }
+    const ticket = data as SupportTicket;
     await loadTickets();
-    if (ticket) await loadMessages(ticket);
+    await loadMessages(ticket);
     setActiveTab('requests');
-    toast.success(existing ? 'Your active support chat is ready.' : 'Live support chat started. An agent can join shortly.');
+    toast.success('Your live support conversation is ready. An agent can join shortly.');
     setCreating(false);
   };
 
@@ -180,7 +163,8 @@ export default function SupportCenter() {
                 <div className="max-h-80 space-y-3 overflow-y-auto">
                   {messages.map(m => <div key={m.id} className={`max-w-[85%] rounded-xl p-3 text-sm ${m.sender_id === user?.id ? 'ml-auto bg-primary text-primary-foreground' : 'bg-muted'}`}><p>{m.body}</p><p className="mt-1 text-[10px] opacity-70">{new Date(m.created_at).toLocaleString()}</p></div>)}
                 </div>
-                {selected.status !== 'closed' && <div className="flex gap-2"><Input value={reply} onChange={e=>setReply(e.target.value)} placeholder="Write a reply…" maxLength={12000}/><Button onClick={()=>void sendReply()} disabled={!reply.trim()}><Send className="h-4 w-4"/></Button></div>}
+                {selected.status !== 'closed' && {(selected.status === 'closed' || selected.status === 'resolved') && <Button variant="outline" size="sm" onClick={async()=>{const {error}=await (supabase as any).rpc('reopen_support_ticket',{p_ticket_id:selected.id});if(error)toast.error('This request cannot be reopened.');else{toast.success('Support request reopened.');const next={...selected,status:'open'};setSelected(next);await loadTickets();}}}>Reopen request</Button>}
+                <div className="flex gap-2"><Input value={reply} onChange={e=>setReply(e.target.value)} placeholder="Write a reply…" maxLength={12000}/><Button onClick={()=>void sendReply()} disabled={!reply.trim()}><Send className="h-4 w-4"/></Button></div>}
               </>}
             </CardContent></Card>
           </TabsContent>
