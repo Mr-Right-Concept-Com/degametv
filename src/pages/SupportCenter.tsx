@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { BookOpen, LifeBuoy, MessageCircle, Plus, Search, Send, TicketCheck, Paperclip } from 'lucide-react';
+import { BookOpen, LifeBuoy, MessageCircle, Plus, Search, Send, TicketCheck, Paperclip, Star, RotateCcw } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 type SupportTicket = {
