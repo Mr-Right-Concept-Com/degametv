@@ -40,6 +40,6 @@ export function useMultipartMediaUpload(userId:string|undefined){
  const pause=useCallback(()=>{paused.current=true;},[]);
  const resume=useCallback(async(file?:File)=>{const selected=file??activeFile.current;if(!selected)throw new Error("Select the same source file to resume this upload.");return upload(selected);},[upload]);
  const cancel=useCallback(async()=>{if(!sessionId)return;paused.current=true;const r=await invokeFn("media-ingest-control",{action:"abort_multipart",sessionId});if(!r.ok)throw new Error(r.error??"Upload cancellation failed.");if(userId)localStorage.removeItem(STORAGE_KEY(userId));setSessionId(null);setRecovery(null);setProgress(0);setStatus("CANCELLED");},[sessionId,userId]);
- const attachToContent=useCallback(async(contentId:string)=>{if(!sessionId) return;const r=await invokeFn("media-ingest-control",{action:"attach_content",sessionId,contentId});if(!r.ok)throw new Error(r.error??"Completed media could not be attached to this production.");},[sessionId]);
+ const attachToContent=useCallback(async(contentId:string,targetSessionId?:string)=>{const id=targetSessionId??sessionId;if(!id) return;const r=await invokeFn("media-ingest-control",{action:"attach_content",sessionId:id,contentId});if(!r.ok)throw new Error(r.error??"Completed media could not be attached to this production.");},[sessionId]);
  return {status,progress,sessionId,error,fileName,recovery,upload,pause,resume,cancel,attachToContent};
 }
