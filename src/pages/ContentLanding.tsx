@@ -45,7 +45,7 @@ export default function ContentLanding() {
       if (!id) { setLoading(false); return; }
       const { data, error } = await (supabase as any).from('public_content_catalog')
         .select('id,title,description,type,poster_url,trailer_url,duration,release_date,genres')
-        .eq('id', id).eq('status', 'published').maybeSingle();
+        .eq('id', id).maybeSingle();
       if (!active) return;
       if (error || !data) { setContent(null); setLoading(false); return; }
       setContent(data as PublicContent);
