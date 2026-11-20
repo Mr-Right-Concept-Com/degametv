@@ -29,8 +29,8 @@ export default function Index() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data } = await supabase
-        .from('screenings')
+      const { data } = await (supabase as any)
+        .from('public_screenings_catalog')
         .select('id,content_id,title,slug,description,poster_url,banner_url,trailer_url,release_date,screening_date,duration,location_pricing,status,event_type,lifecycle,live_price_ngn,live_price_usd,live_recording_status,live_started_at,live_ended_at,live_replay_ready_at,replay_price_ngn,replay_price_usd,replay_access_hours,refund_policy,cast_crew,gallery_images,age_rating,star_rating,review_count,allowed_countries,blocked_countries,cancelled_at,created_at,updated_at')
         .eq('status', 'published')
         .order('screening_date', { ascending: true });
