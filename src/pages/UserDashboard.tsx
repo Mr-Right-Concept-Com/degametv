@@ -396,11 +396,21 @@ export default function UserDashboard() {
 
           <TabsContent value="wallet" className="space-y-4">
             <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><Wallet className="h-4 w-4"/> Wallet &amp; creator earnings</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-base flex items-center gap-2"><Wallet className="h-4 w-4"/> Financial Centre</CardTitle></CardHeader>
               <CardContent className="space-y-3">
-                <p className="text-sm text-muted-foreground">Your earnings are shown by their original transaction currency. Pending settlement is not withdrawable; only verified settled funds appear as available.</p>
+                <section className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+                  <div><h3 className="font-semibold">Personal stored-value wallet</h3><p className="text-xs text-muted-foreground">Funds you top up and spend on creator tips and gifts. This balance is separate from creator earnings, escrow and payouts.</p></div>
+                  {personalWalletBalances.length === 0 ? <p className="text-sm text-muted-foreground">No personal wallet balance yet. Complete a verified top-up to fund your wallet.</p> : <div className="grid gap-2 sm:grid-cols-2">{personalWalletBalances.map(balance => <div key={balance.currency} className="rounded-lg border bg-background p-3"><p className="text-xs text-muted-foreground">{balance.currency} available to spend</p><p className="text-xl font-bold">{Number(balance.balance_major).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})} {balance.currency}</p></div>)}</div>}
+                  <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                    <div className="space-y-1"><Label htmlFor="personal-wallet-topup-amount">Top-up amount</Label><Input id="personal-wallet-topup-amount" type="number" min="0.01" step="0.01" value={topupAmount} onChange={event => setTopupAmount(event.target.value)} placeholder="0.00"/></div>
+                    <div className="space-y-1"><Label htmlFor="personal-wallet-topup-currency">Currency</Label><select id="personal-wallet-topup-currency" value={topupCurrency} onChange={event => setTopupCurrency(event.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Choose currency</option>{walletTopupCurrencies.map(currency => <option key={currency} value={currency}>{currency}</option>)}</select></div>
+                    <Button type="button" onClick={() => void submitWalletTopup()} disabled={topupBusy || !topupCurrency || !topupAmount.trim()}>{topupBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Wallet className="mr-2 h-4 w-4"/>}Top up wallet</Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Wallet funds are credited only after the payment provider webhook signature and transaction amount are verified.</p>
+                </section>
+                <div className="space-y-1"><h3 className="font-semibold">Creator earnings &amp; settlement</h3><p className="text-sm text-muted-foreground">Revenue from your creator activity remains in the creator ledger. Pending settlement is not withdrawable; only verified settled funds appear as available.</p></div>
                 {walletBalances.length === 0 ? <div className="rounded-xl border border-dashed p-8 text-center"><Wallet className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40"/><p className="font-medium">No creator earnings yet</p><p className="mt-1 text-xs text-muted-foreground">When you earn from ticket sales, tips or gifts as an approved creator, your balances will appear here.</p></div> : walletBalances.map(balance => <div key={balance.currency} className="grid gap-3 rounded-xl border p-4 sm:grid-cols-3"><div><p className="text-xs text-muted-foreground">Currency</p><p className="text-lg font-bold">{balance.currency}</p></div><div><p className="text-xs text-muted-foreground">Pending settlement</p><p className="text-lg font-semibold">{Number(balance.escrow || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</p></div><div><p className="text-xs text-muted-foreground">Available to withdraw</p><p className="text-lg font-semibold text-primary">{Number(balance.withdrawable || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</p></div></div>)}
-                <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">Creator earnings are tracked separately from personal stored-value funds. This history includes your sent and received tips and gifts; it does not imply that a personal cash wallet or top-up balance is enabled.</div>
+                <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">Creator earnings and settlement holds remain separate from your Personal Wallet balance.</div>
                 <Card className="border-primary/20">
                   <CardHeader><CardTitle className="text-base">Request a creator payout</CardTitle></CardHeader>
                   <CardContent className="grid gap-3 sm:grid-cols-2">
@@ -415,7 +425,7 @@ export default function UserDashboard() {
                 </Card>
                 <div className="space-y-3 rounded-xl border p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div><h3 className="font-semibold">Wallet activity</h3><p className="text-xs text-muted-foreground">Recent ledger activity, including creator earnings and contribution transactions.</p></div>
+                    <div><h3 className="font-semibold">Wallet activity</h3><p className="text-xs text-muted-foreground">Unified personal wallet, ticket, creator contribution and payout activity.</p></div>
                     <div className="flex flex-wrap items-center gap-2">
                       <select aria-label="Filter wallet activity by currency" value={walletCurrencyFilter} onChange={event => setWalletCurrencyFilter(event.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
                         <option value="all">All currencies</option>
