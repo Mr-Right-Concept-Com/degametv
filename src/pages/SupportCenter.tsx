@@ -152,7 +152,7 @@ export default function SupportCenter() {
       attachmentPaths = [path];
     }
     const { error } = await (supabase as any).from('support_messages').insert({
-      ticket_id: selected.id, sender_id: user.id, body, is_internal: false, attachment_paths: attachmentPaths,
+      ticket_id: selected.id, sender_id: user.id, body: body || 'Attachment sent.', is_internal: false, attachment_paths: attachmentPaths,
     });
     if (error) toast.error('Could not send your reply.');
     else {
