@@ -56,7 +56,7 @@ export default function Godmode() {
 
   const load = async () => {
     const [s, p, r, t, sc, a, currencies] = await Promise.all([
-      supabase.from('platform_settings').select('setting_key, setting_value, description').order('setting_key'),
+      supabase.from('platform_settings').select('setting_key, setting_value, description').neq('setting_key','email_provider').neq('setting_key','currency_rates').neq('setting_key','escrow_hold_days').order('setting_key'),
       supabase.from('profiles').select('user_id, email, full_name').order('created_at', { ascending: false }).limit(500),
       supabase.from('user_roles').select('user_id, role'),
       supabase.from('studio_accounts').select('*').order('created_at', { ascending: false }),
