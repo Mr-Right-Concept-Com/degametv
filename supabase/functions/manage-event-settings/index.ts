@@ -32,7 +32,8 @@ Deno.serve(async(req)=>{
  const {data:event,error:eventError}=await admin.from("screenings").select("id,tenant_id,content_id,screening_date,sales_open_at,sales_close_at,early_bird_price,early_bird_ends_at,early_bird_capacity").eq("id",p.screeningId).maybeSingle();
  if(eventError||!event)return json(404,{error:"Event not found."});
  const {data:content}=await admin.from("content").select("creator_id").eq("id",event.content_id).maybeSingle();
- const {data:isAdmin}=await admin.rpc("is_super_admin",{_user_id:user.id});
+ const {data:adminRole,error:roleError}=await admin.from("user_roles").select("user_id").eq("user_id",user.id).eq("role","super_admin").maybeSingle();
+ const isAdmin=!roleError&&Boolean(adminRole);
  if(!isAdmin&&content?.creator_id!==user.id)return json(403,{error:"Only the event owner or an authorized administrator can change these settings."});
  const open=p.salesOpenAt===undefined?event.sales_open_at:p.salesOpenAt;
  const close=p.salesCloseAt===undefined?event.sales_close_at:p.salesCloseAt;
