@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { z } from "zod";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,36 +13,66 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { EventContribution } from "@/components/events/EventContribution";
 import { EventContributionFeed } from "@/components/events/EventContributionFeed";
 
-type EventData={id:string;title:string;description:string|null;slug:string;poster_url:string|null;banner_url:string|null;trailer_url:string|null;screening_date:string|null;event_timezone:string;live_price_ngn:number|null;live_price_usd:number|null;base_price:number|null;base_currency:string|null;access_model:string;status:string;lifecycle:string;event_visibility:string;invite_only:boolean};
+const eventDataSchema = z.object({
+ id:z.string(), title:z.string(), description:z.string().nullable(), slug:z.string(),
+ poster_url:z.string().nullable(), banner_url:z.string().nullable(), trailer_url:z.string().nullable(),
+ screening_date:z.string().nullable(), event_timezone:z.string(), live_price_ngn:z.number().nullable(),
+ live_price_usd:z.number().nullable(), base_price:z.number().nullable(), base_currency:z.string().nullable(),
+ access_model:z.string(), status:z.string(), lifecycle:z.string(), event_visibility:z.string(), invite_only:z.boolean(),
+});
+type EventData = z.infer<typeof eventDataSchema>;
+const invitedEventResponseSchema = z.object({ event: eventDataSchema, error: z.string().optional() });
+const claimResponseSchema = z.object({ stream_id: z.string().optional(), success: z.boolean().optional(), error: z.string().optional() }).passthrough();
+const checkoutResponseSchema = z.object({ success: z.boolean(), checkoutUrl: z.string().url().optional(), error: z.string().optional() }).passthrough();
 export default function InvitedEvent(){
  const {screeningId=""}=useParams();const {user,loading:authLoading}=useAuth();const navigate=useNavigate();usePageTitle("Private event");
  const [event,setEvent]=useState<EventData|null>(null);const [currency,setCurrency]=useState("NGN");const [loading,setLoading]=useState(true);const [buying,setBuying]=useState(false);const [error,setError]=useState("");
- useEffect(()=>{if(!user||!screeningId)return;let active=true;(async()=>{
-  const [{data,error:inviteError},{data:profile}]=await Promise.all([
-   supabase.functions.invoke("manage-event-invites",{body:{action:"get_invited_event",screeningId}}),
-   supabase.from("profiles").select("preferred_currency").eq("user_id",user.id).maybeSingle()
-  ]);
-  if(!active)return;
-  if(inviteError||!data?.event)setError(data?.error||"You do not have access to this private event.");
-  else setEvent(data.event as EventData);
-  if(profile?.preferred_currency)setCurrency(profile.preferred_currency);
-  setLoading(false);
- })();return()=>{active=false;};},[user?.id,screeningId]);
+ const mountedRef=useRef(true);
+ useEffect(()=>{mountedRef.current=true;return()=>{mountedRef.current=false;};},[]);
+ useEffect(()=>{
+  if(!user||!screeningId){setLoading(false);return;}
+  let active=true;
+  const load=async()=>{
+   try{
+    const [{data:inviteData,error:inviteError},{data:profile,error:profileError}]=await Promise.all([
+     supabase.functions.invoke("manage-event-invites",{body:{action:"get_invited_event",screeningId}}),
+     supabase.from("profiles").select("preferred_currency").eq("user_id",user.id).maybeSingle()
+    ]);
+    if(!active)return;
+    const response: unknown=inviteData;
+    const parsed=invitedEventResponseSchema.safeParse(response);
+    if(inviteError||!parsed.success){setError(inviteError?.message||"You do not have access to this private event.");}
+    else setEvent(parsed.data.event);
+    if(profileError)console.error("private_event_profile_load_failed",profileError);
+    if(profile?.preferred_currency)setCurrency(profile.preferred_currency);
+   }catch(loadError){if(active){console.error("private_event_load_failed",loadError);setError("The private event could not be loaded.");}}
+   finally{if(active)setLoading(false);}
+  };
+  void load();
+  return()=>{active=false;};
+ },[user?.id,screeningId]);
  const buy=async()=>{
-  if(!event||!user)return;setBuying(true);
-  if(event.access_model==="FREE"){
-   const {data:claim,error:claimError}=await supabase.rpc("claim_free_live_ticket" as never,{p_screening_id:event.id} as never);
-   setBuying(false);
-   if(claimError){toast.error(claimError.message||"Free admission could not be claimed.");return;}
-   const result=claim as {stream_id?:string}|null;
-   toast.success("Your free event pass is ready.");
-   if(result?.stream_id)navigate("/live/watch/"+result.stream_id);else navigate("/dashboard?tab=tickets");
-   return;
-  }
-  const {data,error:checkoutError}=await supabase.functions.invoke("process-live-payment",{body:{screeningId:event.id,ticketType:"live",currency,email:user.email}});
-  setBuying(false);
-  if(checkoutError||!data?.success||!data?.checkoutUrl){toast.error(data?.error||"Checkout could not be started.");return;}
-  window.location.assign(data.checkoutUrl);
+  if(!event||!user||buying)return;
+  setBuying(true);
+  try{
+   if(event.access_model==="FREE"){
+    const {data:claim,error:claimError}=await supabase.rpc("claim_free_live_ticket",{p_screening_id:event.id});
+    if(claimError)throw new Error(claimError.message||"Free admission could not be claimed.");
+    const parsed=claimResponseSchema.safeParse(claim);
+    if(!parsed.success)throw new Error("The ticket service returned an invalid response.");
+    if(!mountedRef.current)return;
+    toast.success("Your free event pass is ready.");
+    if(parsed.data.stream_id)navigate("/live/watch/"+parsed.data.stream_id);else navigate("/dashboard?tab=tickets");
+    return;
+   }
+   const {data,error:checkoutError}=await supabase.functions.invoke("process-live-payment",{body:{screeningId:event.id,ticketType:"live",currency,email:user.email}});
+   if(checkoutError)throw new Error(checkoutError.message||"Checkout could not be started.");
+   const response: unknown=data;
+   const parsed=checkoutResponseSchema.safeParse(response);
+   if(!parsed.success||!parsed.data.success||!parsed.data.checkoutUrl)throw new Error(parsed.success?(parsed.data.error||"Checkout could not be started."):"The checkout service returned an invalid response.");
+   if(mountedRef.current)window.location.assign(parsed.data.checkoutUrl);
+  }catch(purchaseError){if(mountedRef.current){toast.error(purchaseError instanceof Error?purchaseError.message:"The purchase could not be completed.");}}
+  finally{if(mountedRef.current)setBuying(false);}
  };
  if(authLoading||loading)return <MainLayout><div className="grid min-h-[60vh] place-items-center"><Loader2 className="h-7 w-7 animate-spin"/></div></MainLayout>;
  if(!user)return <MainLayout><div className="mx-auto max-w-md px-4 py-16"><Card><CardContent className="p-8 text-center"><Lock className="mx-auto mb-3 h-10 w-10 text-muted-foreground"/><h1 className="text-xl font-semibold">Private event invitation</h1><p className="mt-2 text-sm text-muted-foreground">Sign in with the invited email address to access this event.</p><Button asChild className="mt-5 w-full"><Link to={"/auth?redirectTo="+encodeURIComponent(window.location.pathname)}>Sign in</Link></Button></CardContent></Card></div></MainLayout>;
