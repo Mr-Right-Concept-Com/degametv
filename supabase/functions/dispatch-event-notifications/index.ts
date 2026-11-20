@@ -20,6 +20,13 @@ Deno.serve(async(req)=>{
  let sent=0,failed=0;
  for(const item of items||[]){
   const payload=item.payload||{};
+  if(item.notification_type==="private_invitation"&&payload.invite_id){
+   const {data:invite}=await admin.from("event_access_invites").select("status,expires_at").eq("id",payload.invite_id).maybeSingle();
+   if(!invite||!["pending","sent"].includes(invite.status)||(invite.expires_at&&Date.parse(invite.expires_at)<=Date.now())){
+    await admin.from("event_notification_outbox").update({status:"cancelled",last_error:"invitation_revoked_or_expired"}).eq("id",item.id);
+    continue;
+   }
+  }
   const recipient=String(item.recipient_email||"");
   const message={to:recipient,subject:String(payload.subject||"DeGameTV event update"),html:String(payload.html||"<p>You have an event update from DeGameTV.</p>"),text:typeof payload.text==="string"?payload.text:undefined,idempotencyKey:item.idempotency_key};
   const response=await fetch(url+"/functions/v1/dispatch-email",{method:"POST",headers:{Authorization:"Bearer "+service,apikey:service,"Content-Type":"application/json"},body:JSON.stringify({messages:[message]}),signal:AbortSignal.timeout(25000)}).catch(()=>null);
