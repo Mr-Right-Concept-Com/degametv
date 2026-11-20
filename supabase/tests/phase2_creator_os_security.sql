@@ -32,6 +32,21 @@ begin
   if not has_function_privilege('service_role','public.store_creator_vault_material(uuid,text,text)','execute') then
     raise exception 'service role must be able to store Vault materials';
   end if;
+  if has_function_privilege('authenticated','public.get_media_worker_secret()','execute')
+     or has_function_privilege('authenticated','public.get_media_transcoder_callback_secret()','execute') then
+    raise exception 'browser roles must not read media worker or callback tokens';
+  end if;
+  if not has_function_privilege('service_role','public.get_media_worker_secret()','execute')
+     or not has_function_privilege('service_role','public.get_media_transcoder_callback_secret()','execute') then
+    raise exception 'service-role media token access is not configured';
+  end if;
+  if not exists(select 1 from vault.decrypted_secrets where name='degame-media-worker-token')
+     or not exists(select 1 from vault.decrypted_secrets where name='degame-media-transcoder-callback-token') then
+    raise exception 'media worker and callback tokens must be stored in Vault';
+  end if;
+  if not exists(select 1 from cron.job where jobname='degame-media-ingest-worker' and active) then
+    raise exception 'durable media worker cron dispatcher is not active';
+  end if;
   if not exists(select 1 from pg_constraint where conrelid='public.release_domains'::regclass and conname like '%hostname%') then
     raise exception 'release domain hostname uniqueness constraint/index is missing';
   end if;
