@@ -39,8 +39,8 @@ export function PlatformGovernancePanel(){
  const transition=async(key:string,transitionName:string,reason:string,trafficPercentage?:number)=>{
   setBusy(true);try{await control({action:"release_transition",releaseKey:key,transition:transitionName,reason,trafficPercentage});toast.success("Release state updated.");await load();}catch(e){toast.error((e as Error).message);}finally{setBusy(false);}
  };
- const probe=async(key:string)=>{
-  setBusy(true);try{const r=await control<{success:boolean;latencyMs:number;errorCode:string|null}>({action:"release_probe",releaseKey:key});toast[r.success?"success":"error"](r.success?"Health probe passed in "+r.latencyMs+" ms.":"Health probe failed: "+(r.errorCode??"unknown"));await load();}catch(e){toast.error((e as Error).message);}finally{setBusy(false);}
+ const probe=async(key:string,samples:number)=>{
+  setBusy(true);try{const r=await control<{success:boolean;samples:number;successfulSamples:number;errorRate:number;p95LatencyMs:number}>({action:"release_probe_batch",releaseKey:key,samples});toast[r.success?"success":"error"]("Canary probe window: "+r.successfulSamples+"/"+r.samples+" healthy; error rate "+(r.errorRate*100).toFixed(1)+"%; p95 "+r.p95LatencyMs+" ms.");await load();}catch(e){toast.error((e as Error).message);}finally{setBusy(false);}
  };
  const updatePolicy=(key:string,patch:Partial<Policy>)=>setPolicyDraft(current=>({...current,[key]:{...current[key],...patch}}));
  const savePolicy=async(key:string)=>{
@@ -64,7 +64,7 @@ export function PlatformGovernancePanel(){
      <div className="flex flex-wrap gap-2">
       {row.state==="draft"&&<Button size="sm" variant="outline" disabled={busy} onClick={()=>void transition(row.release_key,"validate","Artifact and endpoint validation")}>Validate</Button>}
       {row.state==="validated"&&<><Input aria-label="Canary traffic percentage" className="w-24" type="number" min="1" max="99" value={traffic} onChange={e=>setTraffic(e.target.value)}/><Button size="sm" disabled={busy||Number(traffic)<1||Number(traffic)>99} onClick={()=>void transition(row.release_key,"start_canary","Begin deterministic canary",Number(traffic))}>Start canary</Button></>}
-      {row.state==="canary"&&<><Button size="sm" variant="outline" disabled={busy} onClick={()=>void probe(row.release_key)}>Run health probe</Button><Button size="sm" variant="outline" disabled={busy} onClick={()=>void transition(row.release_key,"set_traffic","Adjust canary traffic",Math.max(1,Math.min(99,Number(traffic)||1)))}>Set traffic</Button><Button size="sm" disabled={busy} onClick={()=>void transition(row.release_key,"approve","Approve after verified health thresholds")}>Approve 100%</Button></>}
+      {row.state==="canary"&&<><Button size="sm" variant="outline" disabled={busy} onClick={()=>void probe(row.release_key,row.minimum_samples)}>Run health sample window</Button><Button size="sm" variant="outline" disabled={busy} onClick={()=>void transition(row.release_key,"set_traffic","Adjust canary traffic",Math.max(1,Math.min(99,Number(traffic)||1)))}>Set traffic</Button><Button size="sm" disabled={busy} onClick={()=>void transition(row.release_key,"approve","Approve after verified health thresholds")}>Approve 100%</Button></>}
       {["validated","canary"].includes(row.state)&&<Button size="sm" variant="destructive" disabled={busy} onClick={()=>void transition(row.release_key,"rollback","Operator rollback")}>Rollback</Button>}
       {["validated","canary"].includes(row.state)&&<Button size="sm" variant="ghost" disabled={busy} onClick={()=>void transition(row.release_key,"pause","Operator pause")}>Pause</Button>}
      </div>
