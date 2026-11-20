@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { CONTENT_FORMATS } from '@/lib/validations/creatorOS';
+import { CONTENT_FORMATS, creatorContentSchema, baseCurrencyPricingSchema, rightsDeclarationSchema } from '@/lib/validations/creatorOS';
 import { assistCreatorMetadata } from '@/lib/publishing/universalPublisher';
 import { invokeFn } from '@/lib/invokeFn';
 import { useMultipartMediaUpload } from '@/lib/media/useMultipartMediaUpload';
@@ -153,6 +153,10 @@ export default function StudioSubmit() {
     video_url: '',
     budget_range: '',
     distribution_rights: '',
+    rights_ownership_type: 'SOLE_OWNER' as 'SOLE_OWNER'|'CO_OWNED'|'LICENSED'|'PUBLIC_DOMAIN'|'COMMISSIONED',
+    rights_exclusivity: 'NON_EXCLUSIVE' as 'EXCLUSIVE'|'NON_EXCLUSIVE',
+    rights_holder: '',
+    source_content_id: '',
     premiere_date: '',
     premiere_time: '20:00',
     admission_model: 'TICKETED' as 'FREE' | 'TICKETED',
@@ -280,6 +284,21 @@ export default function StudioSubmit() {
       toast.error(metadataResult.error.errors[0]?.message || 'Check the format-specific details.');
       return false;
     }
+    const format = liveFlow ? 'LIVE_PRODUCTION' : form.preset_type;
+    const liveFormat:Record<string,string>={broadcast:'LIVE_SHOW',concert:'CONCERT',conference:'CONFERENCE',talk:'LIVE_SHOW',gaming:'OTHER',watch_party:'SCREENING',sports:'OTHER',worship:'OTHER',other:'OTHER'};
+    const formatPayload:Record<string,unknown>={
+      format,title:form.project_title,synopsis:form.description,logline:'',posterUrl:form.poster_url||'',
+      tags:[],genres:form.genres,originalLanguage:form.original_language||undefined,productionCountry:form.production_country||undefined,
+      runtimeMinutes:form.duration_minutes?Number(form.duration_minutes):undefined,releaseYear:form.release_year?Number(form.release_year):undefined,
+      seasons:form.season_number?Number(form.season_number):undefined,seriesContentId:form.source_content_id||undefined,
+      seasonNumber:form.season_number?Number(form.season_number):undefined,episodeNumber:form.episode_number?Number(form.episode_number):undefined,
+      parentContentId:form.source_content_id||undefined,artist:form.primary_artist||undefined,episodeNumber:form.episode_number?Number(form.episode_number):undefined,
+      gameTitle:form.category_tag||undefined,sport:form.category_tag||undefined,competition:form.category_tag||undefined,
+      subject:form.category_tag||undefined,eventFormat:liveFlow?liveFormat[form.live_event_format]??'OTHER':form.category_tag||'recorded_event',
+      sourceContentId:form.source_content_id||undefined,
+    };
+    const formatResult=creatorContentSchema.safeParse(formatPayload);
+    if(!formatResult.success){toast.error(formatResult.error.errors[0]?.message||'Complete the required metadata for this content format.');return false;}
     setErrors({});
     return true;
   };
@@ -292,6 +311,12 @@ export default function StudioSubmit() {
       setErrors(errs);
       return false;
     }
+    const currency=creatorBaseCurrency;
+    const priceCheck=baseCurrencyPricingSchema.safeParse({amount:Number(form.base_price||0),currency,replayAmount:form.replay_base_price.trim()?Number(form.replay_base_price):undefined});
+    if(!priceCheck.success){toast.error(priceCheck.error.errors[0]?.message||'Creator base-currency pricing is invalid.');return false;}
+    const territories=form.rights_territories.split(',').map(v=>v.trim().toUpperCase()).filter(v=>v&&v!=='WORLD');
+    const rightsCheck=rightsDeclarationSchema.safeParse({ownershipType:form.rights_ownership_type,rightsHolder:form.rights_holder||form.submitter_name,territories,exclusivity:form.rights_exclusivity,attested:true,evidenceReferences:[]});
+    if(!rightsCheck.success){toast.error(rightsCheck.error.errors[0]?.message||'Complete the rights holder, ownership and territory declaration.');return false;}
     setErrors({});
     return true;
   };
@@ -407,7 +432,7 @@ export default function StudioSubmit() {
       declaration:{
         rightsType:form.distribution_rights,
         territories:territories.length?territories:["WORLD"],
-        contentFormat:form.project_type==="live"?"RECORDED_EVENT":form.preset_type,
+        contentFormat:liveFlow?"LIVE_PRODUCTION":form.preset_type,
         attestedAt:new Date().toISOString(),
         statement:"I confirm that I hold or am authorized to grant the distribution rights declared for this production and the listed territories."
       }
@@ -644,6 +669,7 @@ export default function StudioSubmit() {
                   <div className="space-y-2"><Label>Audience rating</Label><Select value={form.content_rating} onValueChange={v => setForm(f => ({...f, content_rating:v as typeof f.content_rating}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTENT_RATINGS.map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select></div>
                   <div className="space-y-2"><Label>Master aspect ratio</Label><Select value={form.aspect_ratio} onValueChange={v => setForm(f => ({...f, aspect_ratio:v as typeof f.aspect_ratio}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ASPECT_RATIOS.map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select></div>
                 </div>}
+                {!liveFlow && ['SEASON','EPISODE','REPLAY'].includes(form.preset_type) && <div className="space-y-2"><Label>{form.preset_type==='REPLAY'?'Source production ID':'Parent series content ID'}</Label><Input required value={form.source_content_id} onChange={e=>setForm(f=>({...f,source_content_id:e.target.value}))} placeholder="Existing content UUID"/></div>}
                 {!liveFlow && ['series','episode'].includes(form.project_type) && <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>Season number</Label><Input inputMode="numeric" value={form.season_number} onChange={e=>setForm(f=>({...f,season_number:e.target.value}))} placeholder="e.g. 1"/>{errors.season_number&&<p className="text-xs text-destructive">{errors.season_number}</p>}</div>
                   {form.project_type === 'episode' && <div className="space-y-2"><Label>Episode number</Label><Input inputMode="numeric" value={form.episode_number} onChange={e=>setForm(f=>({...f,episode_number:e.target.value}))} placeholder="e.g. 3"/>{errors.episode_number&&<p className="text-xs text-destructive">{errors.episode_number}</p>}</div>}
@@ -749,7 +775,10 @@ export default function StudioSubmit() {
                   </Select>
                 </div>
                 <details className="rounded-xl border p-4"><summary className="cursor-pointer font-medium">Rights, Territories & Prior Screenings</summary><div className="mt-4 space-y-3">
-                  <div className="space-y-2"><Label>Rights Declaration <span className="text-destructive">*</span></Label><Select value={form.distribution_rights} onValueChange={v => setForm(f => ({ ...f, distribution_rights: v }))}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{RIGHTS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Distribution rights scope <span className="text-destructive">*</span></Label><Select value={form.distribution_rights} onValueChange={v => setForm(f => ({ ...f, distribution_rights: v }))}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{RIGHTS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Rights ownership type</Label><Select value={form.rights_ownership_type} onValueChange={v=>setForm(f=>({...f,rights_ownership_type:v as typeof f.rights_ownership_type}))}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{["SOLE_OWNER","CO_OWNED","LICENSED","PUBLIC_DOMAIN","COMMISSIONED"].map(v=><SelectItem key={v} value={v}>{v.replaceAll("_"," ")}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Rights holder</Label><Input value={form.rights_holder} onChange={e=>setForm(f=>({...f,rights_holder:e.target.value}))} placeholder="Legal rights holder name"/></div>
+                  <div className="space-y-2"><Label>Distribution exclusivity</Label><Select value={form.rights_exclusivity} onValueChange={v=>setForm(f=>({...f,rights_exclusivity:v as typeof f.rights_exclusivity}))}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="EXCLUSIVE">Exclusive</SelectItem><SelectItem value="NON_EXCLUSIVE">Non-exclusive</SelectItem></SelectContent></Select></div>
                   <div className="space-y-2"><Label>Rights Territories</Label><Input value={form.rights_territories} onChange={e => setForm(f => ({ ...f, rights_territories: e.target.value }))} placeholder="NG, GH, GB, US or leave blank for worldwide rights" /></div>
                   <div className="space-y-2"><Label>Prior Screenings</Label><Textarea value={form.prior_screenings} onChange={e => setForm(f => ({ ...f, prior_screenings: e.target.value }))} rows={2} placeholder="Festivals, cinemas, or previous digital releases" /></div>
                 </div></details>
