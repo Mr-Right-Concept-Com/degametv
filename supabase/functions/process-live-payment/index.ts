@@ -62,7 +62,6 @@ serve(async(req:Request)=>{
   if(error||!screening)return json(404,{error:"Published event not found."});
   const now=Date.now();
   if(["live","combo"].includes(ticketType)){
-   if(screening.presale_enabled===false&&screening.screening_date&&now<Date.parse(screening.screening_date))return json(409,{error:"Advance ticket sales are disabled for this event."});
    if(screening.sales_open_at&&now<Date.parse(screening.sales_open_at))return json(409,{error:"Ticket sales have not opened yet."});
    if(screening.sales_close_at&&now>=Date.parse(screening.sales_close_at))return json(409,{error:"Ticket sales have closed for this event."});
   }
@@ -73,6 +72,7 @@ serve(async(req:Request)=>{
   }
   const {data:stream}=await db.from("live_streams").select("id,tenant_id,status,metadata").eq("tenant_id",screening.tenant_id).contains("metadata",{screening_id:screening.id}).maybeSingle();
   if(!stream)return json(409,{error:"Live event has not been provisioned."});
+  if(["live","combo"].includes(ticketType)&&screening.presale_enabled===false&&stream.status==="scheduled"&&(!screening.screening_date||now<Date.parse(screening.screening_date)))return json(409,{error:"Advance ticket sales are disabled for this event."});
   if(["live","combo"].includes(ticketType)&&!["scheduled","live","starting"].includes(stream.status))return json(409,{error:"Live admission is not currently available."});
   if(ticketType==="live"&&screening.access_model==="FREE")return json(409,{error:"This event is free. Claim a free pass instead of checking out."});
   if(ticketType==="replay"&&screening.replay_access_model!=="SEPARATE_PRICE")return json(409,{error:"Replay access is included with the live ticket or available free; a separate replay purchase is not enabled."});
