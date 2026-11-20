@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -37,7 +37,7 @@ const adjustSchema = z.object({
   reason: z.string().min(3, 'Give a reason'),
 });
 
-interface Profile { user_id: string; email: string | null; full_name: string | null }
+type Profile = Pick<Tables<'profiles'>, 'user_id' | 'email' | 'full_name'>;
 
 export default function Godmode() {
   usePageTitle('Godmode — Admin');
@@ -56,7 +56,7 @@ export default function Godmode() {
   const [adj, setAdj] = useState({ userId: '', amount: '', currency: 'USD', reason: '' });
   const [currencyOptions, setCurrencyOptions] = useState<{ currency_code: string; currency_symbol: string | null }[]>([]);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const [s, p, r, t, sc, a, currencies] = await Promise.all([
       supabase.from('platform_settings').select('setting_key, setting_value, description').neq('setting_key','email_provider').neq('setting_key','currency_rates').neq('setting_key','escrow_hold_days').order('setting_key'),
       supabase.from('profiles').select('user_id, email, full_name').order('created_at', { ascending: false }).limit(500),
@@ -69,7 +69,7 @@ export default function Godmode() {
     const editableSettings = (s.data || []).filter(item => !['email_provider','currency_rates','escrow_hold_days'].includes(item.setting_key));
     setSettings(editableSettings);
     setDrafts(Object.fromEntries(editableSettings.map(x => [x.setting_key, JSON.stringify(x.setting_value, null, 2)])));
-    setProfiles((p.data as Profile[]) || []);
+    setProfiles(p.data || []);
     setRoles(r.data || []);
     setTiers(t.data || []);
     setScreenings(sc.data || []);
@@ -77,7 +77,7 @@ export default function Godmode() {
     setCurrencyOptions(Array.from(new Map((currencies.data || []).map(row => [row.currency_code, row])).values()));
     const { data: bn } = await supabase.from('promo_banners').select('*').order('sort_order').order('created_at', { ascending: false });
     setBanners(bn || []);
-  };
+  }, []);
 
   const bannerSchema = z.object({ title: z.string().trim().min(2, 'Add a title').max(120), subtitle: z.string().max(200), image_url: z.string().trim().url('Image URL is invalid'), link_url: z.string().trim().max(500), placement: z.enum(['home', 'cinema', 'all']) });
   const addBanner = async () => {
@@ -94,7 +94,7 @@ export default function Godmode() {
     const { error } = await supabase.from('promo_banners').delete().eq('id', id);
     if (error) toast.error(error.message); else { toast.success('Banner removed'); load(); }
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void load(); }, [load]);
 
   const run = async (id: string, body: Record<string, unknown>, ok: string) => {
     setBusy(id);
