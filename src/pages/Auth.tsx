@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, Mail, Lock, User, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -22,15 +22,20 @@ export default function Auth() {
   const [fullName, setFullName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const isMounted = useRef(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string; fullName?: string }>({});
   
   const { user, signIn, signUp } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user) {
-      navigate('/');
-    }
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
+
+  useEffect(() => {
+    if (user && isMounted.current) navigate('/');
   }, [user, navigate]);
 
   const validateForm = () => {
@@ -65,6 +70,7 @@ export default function Auth() {
     try {
       if (isLogin) {
         const { error } = await signIn(email.trim().toLowerCase(), password);
+        if (!isMounted.current) return;
         if (error) {
           if (error.message.includes('Invalid login credentials')) {
             toast.error('Invalid email or password');
@@ -77,6 +83,7 @@ export default function Auth() {
         }
       } else {
         const { error } = await signUp(email.trim().toLowerCase(), password, fullName.trim());
+        if (!isMounted.current) return;
         if (error) {
           if (error.message.includes('already registered')) {
             toast.error('This email is already registered');
@@ -87,10 +94,12 @@ export default function Auth() {
           toast.success('Account created! Please check your email to verify.');
         }
       }
-    } catch (err) {
-      toast.error('An unexpected error occurred');
+    } catch (err: unknown) {
+      if (!isMounted.current) return;
+      const message = err instanceof Error ? err.message : 'An unexpected error occurred';
+      toast.error(message);
     } finally {
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
     }
   };
 
@@ -198,28 +207,37 @@ export default function Auth() {
                   type="button"
                   variant="link"
                   className="text-primary p-0 h-auto"
+                  disabled={resetLoading}
                   onClick={async () => {
-                    if (!email) {
+                    if (resetLoading) return;
+                    const normalizedEmail = email.trim().toLowerCase();
+                    if (!normalizedEmail) {
                       toast.error('Please enter your email first');
                       return;
                     }
-                    const emailResult = emailSchema.safeParse(email);
+                    const emailResult = emailSchema.safeParse(normalizedEmail);
                     if (!emailResult.success) {
                       toast.error('Please enter a valid email address');
                       return;
                     }
+                    setResetLoading(true);
                     try {
-                      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                      const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
                         redirectTo: `${window.location.origin}/reset-password`,
                       });
                       if (error) throw error;
-                      toast.success('Password reset link sent! Check your email.');
-                    } catch (err: any) {
-                      toast.error(err.message || 'Failed to send reset email');
+                      if (isMounted.current) toast.success('Password reset link sent! Check your email.');
+                    } catch (err: unknown) {
+                      if (!isMounted.current) return;
+                      const message = err instanceof Error ? err.message : 'Failed to send reset email';
+                      toast.error(message || 'Failed to send reset email');
+                    } finally {
+                      if (isMounted.current) setResetLoading(false);
                     }
                   }}
                 >
-                  Forgot password?
+                  {resetLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {resetLoading ? 'Sending reset link…' : 'Forgot password?'}
                 </Button>
               </div>
             )}
