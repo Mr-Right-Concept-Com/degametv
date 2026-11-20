@@ -44,8 +44,9 @@ Deno.serve(async(req)=>{
   if(!currencyCount)return json(422,{error:"This contribution currency is not enabled."});
   let tenantId:string,creatorId:string,screeningId:string|null=p.screeningId??null,liveStreamId:string|null=p.liveStreamId??null,eventTitle:string;
   if(p.screeningId){
-   const {data:event,error}=await db.from("screenings").select("id,tenant_id,content_id,title,status,event_visibility,invite_only").eq("id",p.screeningId).eq("status","published").maybeSingle();
+   const {data:event,error}=await db.from("screenings").select("id,tenant_id,content_id,title,status,lifecycle,event_visibility,invite_only").eq("id",p.screeningId).eq("status","published").maybeSingle();
    if(error||!event)return json(404,{error:"Event not found."});
+   if(event.lifecycle==="cancelled"||event.lifecycle==="archived")return json(410,{error:"This event is no longer accepting contributions."});
    const {data:content}=await db.from("content").select("creator_id").eq("id",event.content_id).maybeSingle();
    if(!content?.creator_id)return json(409,{error:"The event creator is not configured."});
    if(event.event_visibility==="private"||event.invite_only){
