@@ -43,8 +43,12 @@ Deno.serve(async req=>{
  if(lookupError||!screening)return json({error:"Event not found."},404);
  const {data:content,error:contentError}=await db.from("content").select("creator_id,tenant_id").eq("id",screening.content_id).maybeSingle();
  if(contentError||!content||content.creator_id!==user.id||content.tenant_id!==screening.tenant_id)return json({error:"You do not own this event in its tenant."},403);
- const {data:approved}=await db.rpc("is_approved_creator",{p_user_id:user.id});
- if(!approved)return json({error:"Approved creator access is required."},403);
+ const [{data:creatorRole,error:roleError},{data:studio,error:studioError}]=await Promise.all([
+  db.from("user_roles").select("user_id").eq("user_id",user.id).eq("role","creator").maybeSingle(),
+  db.from("studio_accounts").select("id").eq("user_id",user.id).eq("status","approved").maybeSingle(),
+ ]);
+ if(roleError||studioError)return json({error:"Creator permissions could not be verified."},503);
+ if(!creatorRole||!studio)return json({error:"Approved creator access is required."},403);
  const update:Record<string,unknown>={replay_access_hours:parsed.data.replayAccessHours,updated_at:new Date().toISOString()};
  if(parsed.data.basePrice!==undefined){
   const baseCurrency=parsed.data.baseCurrency!.toUpperCase();
