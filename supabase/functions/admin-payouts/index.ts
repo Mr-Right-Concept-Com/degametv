@@ -45,20 +45,15 @@ Deno.serve(async req=>{
  if(transition.transition==="reject"&&(!transition.adminNote||transition.adminNote.length<5)){
   return json({error:"A rejection reason of at least five characters is required."},422);
  }
- const nextStatus=transition.transition==="approve"?"approved":"rejected";
- const patch=transition.transition==="approve"
-  ?{status:nextStatus,approved_by:user.id,approved_at:new Date().toISOString(),admin_note:transition.adminNote??null,updated_at:new Date().toISOString()}
-  :{status:nextStatus,rejected_by:user.id,rejected_at:new Date().toISOString(),admin_note:transition.adminNote,updated_at:new Date().toISOString()};
- const {data:updated,error:updateError}=await admin.from("withdrawal_requests").update(patch)
-  .eq("id",transition.id).eq("status","pending")
-  .select("id,user_id,amount,currency,status,admin_note,approved_at,rejected_at,updated_at").maybeSingle();
- if(updateError)return json({error:"Withdrawal transition could not be committed."},503);
- if(!updated)return json({error:"The request is no longer pending. Refresh the payout queue before acting."},409);
- const action=transition.transition==="approve"?"withdrawal.approved":"withdrawal.rejected";
- const {error:auditError}=await admin.from("audit_logs").insert({
-  user_id:user.id,action,entity_type:"withdrawal_request",entity_id:updated.id,
-  old_data:{status:"pending"},new_data:{status:nextStatus,admin_note:transition.adminNote??null},
+ const {data:withdrawal,error:transitionError}=await admin.rpc("transition_withdrawal_request",{
+  p_request_id:transition.id,p_transition:transition.transition,p_actor_id:user.id,p_admin_note:transition.adminNote??null,
  });
- if(auditError)return json({error:"The transition was applied but its audit record could not be written. Escalate this incident immediately.",requestId:updated.id},503);
- return json({withdrawal:updated});
+ if(transitionError){
+  const message=transitionError.message??"";
+  if(message.includes("withdrawal_request_state_conflict"))return json({error:"The request is no longer pending. Refresh the payout queue before acting."},409);
+  if(message.includes("withdrawal_rejection_reason_required"))return json({error:"A rejection reason of at least five characters is required."},422);
+  if(message.includes("super_admin_required"))return json({error:"Super administrator access required."},403);
+  return json({error:"Withdrawal transition and audit could not be committed."},503);
+ }
+ return json({withdrawal});
 });
