@@ -59,7 +59,7 @@ async function presignPart(c:S3Config,key:string,uploadId:string,partNumber:numb
 function xmlValue(xml:string,tag:string){return new RegExp("<"+tag+">([\\s\\S]*?)</"+tag+">").exec(xml)?.[1]??null;}
 const Common={sessionId:z.string().uuid()};
 const Body=z.discriminatedUnion("action",[
- z.object({action:z.literal("init_multipart"),contentId:z.string().uuid().optional(),filename:z.string().trim().min(1).max(240),mimeType:z.string().regex(/^[\\w.+-]+\\/[\\w.+-]+$/),sizeBytes:z.number().int().positive().max(20*1024*1024*1024),sha256:z.string().regex(/^[a-f0-9]{64}$/i).optional(),chunkSizeBytes:z.number().int().min(5*1024*1024).max(512*1024*1024).default(64*1024*1024)}).strict(),
+ z.object({action:z.literal("init_multipart"),contentId:z.string().uuid().optional(),filename:z.string().trim().min(1).max(240),mimeType:z.string().regex(new RegExp("^[A-Za-z0-9.+-]+/[A-Za-z0-9.+-]+$")),sizeBytes:z.number().int().positive().max(20*1024*1024*1024),sha256:z.string().regex(/^[a-f0-9]{64}$/i).optional(),chunkSizeBytes:z.number().int().min(5*1024*1024).max(512*1024*1024).default(64*1024*1024)}).strict(),
  z.object({action:z.literal("sign_part"),...Common,partNumber:z.number().int().min(1).max(10000),checksumSha256:z.string().regex(/^[A-Za-z0-9+/]{43}=$/)}).strict(),
  z.object({action:z.literal("complete_multipart"),...Common,parts:z.array(z.object({partNumber:z.number().int().min(1).max(10000),etag:z.string().min(1).max(200),checksumSha256:z.string().regex(/^[A-Za-z0-9+/]{43}=$/)}).strict()).min(1).max(10000)}).strict(),
  z.object({action:z.literal("abort_multipart"),...Common}).strict(),
