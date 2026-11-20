@@ -82,6 +82,13 @@ Deno.serve(async req => {
       knowledgeSources.push({slug:article.slug,title:article.title});
       remainingSourceChars -= block.length;
     }
+    if (sourceBlocks.length === 0) return respond({
+      workflowKey:request.workflowKey,
+      output:"The approved knowledgebase did not contain enough material to answer this question. I’m escalating it to the support team.",
+      requiresHumanReview:true,
+      decisionAuthority:"none",
+      sources:[],
+    });
     const sourceText = sourceBlocks.join("\n\n");
     effectiveInput = "Customer question:\n"+request.input+"\n\nApproved knowledgebase sources (the only factual support material you may use):\n"+sourceText+
       "\n\nAnswer only what these sources support. If they do not answer the question, say so and recommend human support. Do not claim payment, refund, payout, identity, KYC, or account status.";
