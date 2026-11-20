@@ -9,6 +9,25 @@ type Item={
  animation_duration_ms?:number|null;amount_major:number;currency:string;
  contributor_name:string;message:string|null;created_at:string
 };
+const isItem = (value: unknown): value is Item => {
+ const row = typeof value === "object" && value !== null && !Array.isArray(value)
+  ? value as Record<string, unknown>
+  : null;
+ return row !== null
+  && typeof row.id === "string"
+  && (row.contribution_type === "tip" || row.contribution_type === "gift")
+  && typeof row.amount_major === "number"
+  && typeof row.currency === "string"
+  && typeof row.contributor_name === "string"
+  && (typeof row.message === "string" || row.message === null)
+  && typeof row.created_at === "string"
+  && (row.gift_catalog_key === undefined || typeof row.gift_catalog_key === "string" || row.gift_catalog_key === null)
+  && (row.gift_name === undefined || typeof row.gift_name === "string" || row.gift_name === null)
+  && (row.gift_emoji === undefined || typeof row.gift_emoji === "string" || row.gift_emoji === null)
+  && (row.gift_asset_url === undefined || typeof row.gift_asset_url === "string" || row.gift_asset_url === null)
+  && (row.gift_animation_url === undefined || typeof row.gift_animation_url === "string" || row.gift_animation_url === null)
+  && (row.animation_duration_ms === undefined || typeof row.animation_duration_ms === "number" || row.animation_duration_ms === null);
+};
 const formatMoney=(amount:number,currency:string)=>{try{return new Intl.NumberFormat(undefined,{style:"currency",currency,maximumFractionDigits:2}).format(Number(amount||0));}catch{return Number(amount||0).toFixed(2)+" "+currency;}};
 
 export function EventContributionFeed({screeningId,liveStreamId,contentId}:{screeningId?:string;liveStreamId?:string;contentId?:string}){
@@ -19,16 +38,16 @@ export function EventContributionFeed({screeningId,liveStreamId,contentId}:{scre
   if(!screeningId&&!liveStreamId&&!contentId)return;
   let active=true;
   const load=async()=>{
-   let data:any[]|null=null;
+   let data: unknown = null;
    if(contentId){
-    const result=await (supabase as any).rpc("get_content_support_feed",{p_content_id:contentId});
+    const result=await supabase.rpc("get_content_support_feed" as never,{p_content_id:contentId} as never);
     data=result.data;
    }else{
-    const result=await (supabase as any).rpc("get_event_contribution_feed",{p_screening_id:screeningId??null,p_live_stream_id:liveStreamId??null});
+    const result=await supabase.rpc("get_event_contribution_feed" as never,{p_screening_id:screeningId??null,p_live_stream_id:liveStreamId??null} as never);
     data=result.data;
    }
-   if(!active||!data)return;
-   const rows=data as Item[];
+   if(!active||!Array.isArray(data))return;
+   const rows=data.filter(isItem);
    const newest=rows[0];
    if(latestSeen.current===null){latestSeen.current=newest?.id??null;}
    else if(newest&&newest.id!==latestSeen.current){
