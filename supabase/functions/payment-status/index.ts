@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { z } from "npm:zod@3.25.76";
-const schema=z.object({reference:z.string().min(20).max(80).regex(/^DTV(?:L)?_[A-Za-z0-9]+$/)}).strict();
+const schema=z.object({reference:z.string().min(20).max(80).regex(/^DTV(?:L|G)?_[A-Za-z0-9]+$/)}).strict();
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
 const randomToken=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,"0")).join("");
@@ -82,6 +82,26 @@ serve(async(req:Request)=>{
  try{
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
   const reference=parsed.data.reference;
+  if(reference.startsWith("DTVG_")){
+   const {data:order,error}=await admin.from("event_contributions").select("id,status,provider:provider_key,provider_mode,provider_checkout_id,amount_minor,currency,contribution_type").eq("provider_reference",reference).maybeSingle();
+   if(error||!order)return json(404,{error:"No contribution payment could be found for that reference."});
+   let status=order.status;
+   if(status==="pending"){
+    const verified=await verifyProviderPayment(admin,reference,order);
+    if(verified.state==="failed"){
+     await admin.from("event_contributions").update({status:"failed"}).eq("id",order.id).eq("status","pending");
+     status="failed";
+    }else if(verified.state==="paid"){
+     const {error:completeError}=await admin.rpc("complete_event_contribution",{
+      p_reference:reference,p_transaction_id:verified.transactionId,p_amount_minor:verified.amountMinor,p_currency:verified.currency
+     });
+     if(completeError)return json(409,{error:"Payment was verified but contribution settlement is delayed. Retry shortly."});
+     status="paid";
+    }
+   }
+   return json(200,{status,contributionType:order.contribution_type,entitlementGranted:false});
+  }
+
   if(reference.startsWith("DTVL_")){
    const {data:order,error}=await admin.from("live_payment_orders").select("id,status,email,user_id,provider_reference,provider_checkout_id,provider,provider_mode,amount_minor,amount_major,currency,provider_transaction_id,stream_id,screening_id,ticket_type,metadata,email_sent_at").eq("provider_reference",reference).maybeSingle();
    if(error||!order)return json(404,{error:"No live event payment could be found for that reference."});
