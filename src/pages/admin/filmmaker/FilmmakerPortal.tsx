@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,34 +8,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
+import type { Tables } from '@/integrations/supabase/types';
 import {
   Film, CheckCircle, Clock, XCircle, Eye, Search, RefreshCw, Loader2, ChevronRight, Check, X
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
-interface Submission {
-  id: string;
-  submitter_name: string;
-  submitter_email: string;
-  company_name: string | null;
-  project_title: string;
-  project_type: string;
-  description: string | null;
-  genres: string[] | null;
-  duration_minutes: number | null;
-  release_year: number | null;
-  poster_url: string | null;
-  trailer_url: string | null;
-  screener_url: string | null;
-  video_url: string | null;
-  budget_range: string | null;
-  distribution_rights: string | null;
-  status: string;
-  admin_notes: string | null;
-  created_at: string;
-}
-
+type Submission = Tables<'filmmaker_submissions'>;
 export default function FilmmakerPortal() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,18 +25,18 @@ export default function FilmmakerPortal() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  const fetchSubmissions = async () => {
+  const fetchSubmissions = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('filmmaker_submissions')
       .select('*')
       .order('created_at', { ascending: false });
-    if (error) toast.error('Failed to load submissions');
-    else setSubmissions(data || []);
+    if (error) toast.error('Failed to load submissions: ' + error.message);
+    else setSubmissions(data ?? []);
     setLoading(false);
-  };
+  }, []);
 
-  useEffect(() => { fetchSubmissions(); }, []);
+  useEffect(() => { void fetchSubmissions(); }, [fetchSubmissions]);
 
   const updateStatus = async (id: string, status: string) => {
     if (status === 'rejected' && adminNote.trim().length < 10) {
@@ -68,7 +48,7 @@ export default function FilmmakerPortal() {
       const { error } = await supabase.rpc('review_creator_submission', {
         p_submission_id: id,
         p_status: status,
-        p_admin_note: adminNote.trim() || null,
+        p_admin_note: adminNote.trim(),
       });
       if (error) {
         const message = error.message.includes('self_review_forbidden')
