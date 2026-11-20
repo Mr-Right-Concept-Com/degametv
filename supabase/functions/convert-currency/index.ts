@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
     if (!cached) {
       const { data: bindings, error: bindingError } = await db.from("service_provider_bindings")
         .select("provider_key,base_url,endpoints,settings,is_live,priority")
-        .eq("capability", "fx_rates").eq("enabled", true).is("removed_at", null)
+        .eq("capability", "fx_rates").eq("enabled", true).eq("health_status", "healthy").is("removed_at", null)
         .order("priority", { ascending: true });
       if (bindingError) return respond({ error: "FX provider routing is unavailable." }, 503);
       if (!bindings?.length) return respond({ error: "No active FX provider is configured.", code: "FX_PROVIDER_UNAVAILABLE" }, 503);
