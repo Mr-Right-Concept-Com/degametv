@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
       user_id: user.id, action: "event_cancel_refund", entity_type: "screening", entity_id: s.id,
       new_data: { refunded, pending_refund_ticket_ids: pendingRefunds, reason: p.reason || null },
     });
-    return json(200, {
+    return json({
       success: true, refunded, pendingRefunds,
       message: pendingRefunds.length
         ? "Screening cancelled. Some refunds could not be confirmed and require reconciliation."
