@@ -48,56 +48,102 @@ Deno.serve(async (req) => {
 
   const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: configs, error: configError } = await admin.rpc("get_service_provider_runtime_config", { p_capability: "email" });
-  const config = Array.isArray(configs) ? configs[0] : null;
-  if (configError || !config?.credential || !config?.base_url) return json({ error: "No enabled Vault-backed email provider is available.", code: "EMAIL_PROVIDER_UNAVAILABLE" }, 503);
-  const endpoint = config.endpoints?.send_email;
-  if (typeof endpoint !== "string" || !endpoint.startsWith("/") || endpoint.startsWith("//")) return json({ error: "The email provider is missing its send_email endpoint contract." }, 503);
-  const fromName = typeof config.settings?.from_name === "string" ? config.settings.from_name : "DeGameTV";
-  const fromEmail = typeof config.settings?.from_email === "string" ? config.settings.from_email : "";
-  const replyTo = typeof config.settings?.reply_to === "string" ? config.settings.reply_to : null;
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fromEmail)) return json({ error: "A verified sender email must be configured in provider settings." }, 503);
-  const adapter = String(config.settings?.adapter ?? config.provider_key).toLowerCase();
-  const sendUrl = new URL(endpoint, config.base_url);
-  if (sendUrl.origin !== new URL(config.base_url).origin) return json({ error: "Email endpoint host mismatch." }, 400);
-  const authHeader = typeof config.settings?.credential_header === "string" ? config.settings.credential_header : "Authorization";
-  const authPrefix = typeof config.settings?.credential_prefix === "string" ? config.settings.credential_prefix : "Bearer ";
+  const providers = Array.isArray(configs) ? configs : [];
+  if (configError || !providers.length) return json({ error: "No enabled Vault-backed email provider is available.", code: "EMAIL_PROVIDER_UNAVAILABLE" }, 503);
 
-  const results: Array<{ index: number; success: boolean; providerMessageId?: string | null; error?: string }> = new Array(parsed.data.messages.length);
+  const results: Array<{ index:number; success:boolean; provider?:string; providerMessageId?:string|null; error?:string }> = new Array(parsed.data.messages.length);
   let cursor = 0;
   const worker = async () => {
     while (true) {
       const index = cursor++;
       if (index >= parsed.data.messages.length) return;
       const message = parsed.data.messages[index];
-      let success = false, providerMessageId: string | null = null, lastError = "provider_request_failed";
-      for (let attempt = 0; attempt < 3 && !success; attempt++) {
+      let delivered = false, uncertain = false, lastError = "provider_unavailable";
+      for (const config of providers) {
+        if (!config?.credential || typeof config.base_url !== "string") continue;
+        const endpoint = config.endpoints?.send_email;
+        if (typeof endpoint !== "string" || !endpoint.startsWith("/") || endpoint.startsWith("//")) continue;
+        let sendUrl:URL;
         try {
-          const headers: Record<string,string> = { [authHeader]: authPrefix + config.credential, "Content-Type": "application/json", Accept: "application/json" };
-          if (message.idempotencyKey) headers["Idempotency-Key"] = message.idempotencyKey;
-          const response = await fetch(sendUrl, {
-            method: "POST", headers, body: JSON.stringify(buildPayload(adapter, fromName, fromEmail, replyTo, message)),
-            signal: AbortSignal.timeout(15000),
-          });
-          const raw = await response.text();
-          let result: Record<string,unknown> | null = null;
-          try { result = raw ? JSON.parse(raw) as Record<string,unknown> : null; } catch { result = null; }
-          if (response.ok && result?.success !== false && result?.accepted !== false && !result?.error) {
-            success = true;
-            const id = result?.id ?? result?.message_id ?? result?.MessageID;
-            providerMessageId = typeof id === "string" ? id : null;
-          } else {
-            lastError = response.status === 429 ? "provider_rate_limited" : "provider_rejected_message";
-            if (response.status < 500 && response.status !== 429) break;
+          const base = new URL(config.base_url);
+          const host = base.hostname.toLowerCase();
+          if (base.protocol !== "https:" || base.username || base.password || !host.includes(".")
+            || host==="localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")
+            || host.startsWith("[") || /^(127|10|0|224|240)\./.test(host) || /^192\.168\./.test(host)
+            || /^169\.254\./.test(host) || /^172\.(1[6-9]|2[0-9]|3[01])\./.test(host)) continue;
+          sendUrl = new URL(endpoint,base);
+          if (sendUrl.origin !== base.origin) continue;
+        } catch { continue; }
+        const fromName = typeof config.settings?.from_name === "string" ? config.settings.from_name : "DeGameTV";
+        const fromEmail = typeof config.settings?.from_email === "string" ? config.settings.from_email : "";
+        const replyTo = typeof config.settings?.reply_to === "string" ? config.settings.reply_to : null;
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fromEmail)) continue;
+        const adapter = String(config.settings?.adapter ?? config.provider_key).toLowerCase();
+        const authHeader = typeof config.settings?.credential_header === "string" ? config.settings.credential_header : "Authorization";
+        const authPrefix = typeof config.settings?.credential_prefix === "string" ? config.settings.credential_prefix : "Bearer ";
+        let providerAccepted = false, providerUncertain = false, providerMessageId:string|null = null;
+        for (let attempt=0;attempt<3&&!providerAccepted&&!providerUncertain;attempt++) {
+          try {
+            const headers:Record<string,string> = { [authHeader]:authPrefix+config.credential,"Content-Type":"application/json",Accept:"application/json" };
+            if(message.idempotencyKey)headers["Idempotency-Key"]=message.idempotencyKey;
+            const response=await fetch(sendUrl,{
+              method:"POST",headers,body:JSON.stringify(buildPayload(adapter,fromName,fromEmail,replyTo,message)),
+              redirect:"manual",signal:AbortSignal.timeout(15000),
+            });
+            const raw=await response.text();
+            let result:Record<string,unknown>|null=null;
+            try{result=raw?JSON.parse(raw) as Record<string,unknown>:null;}catch{result=null;}
+            if(response.ok&&result?.success!==false&&result?.accepted!==false&&!result?.error){
+              providerAccepted=true;
+              const id=result?.id??result?.message_id??result?.MessageID;
+              providerMessageId=typeof id==="string"?id:null;
+              await admin.from("service_provider_bindings").update({health_status:"healthy",health_checked_at:new Date().toISOString(),health_error:null})
+                .eq("capability","email").eq("provider_key",config.provider_key);
+              break;
+            }
+            if([400,422].includes(response.status)){
+              lastError="provider_rejected_message";
+              break;
+            }
+            if([401,403,404,429].includes(response.status)){
+              lastError=response.status===429?"provider_rate_limited":"provider_configuration_rejected";
+              await admin.from("service_provider_bindings").update({health_status:"unhealthy",health_checked_at:new Date().toISOString(),health_error:lastError})
+                .eq("capability","email").eq("provider_key",config.provider_key);
+              break;
+            }
+            if(response.status>=500||response.status===0){
+              lastError="provider_unavailable_after_submission";
+              providerUncertain=true;
+              await admin.from("service_provider_bindings").update({health_status:"unhealthy",health_checked_at:new Date().toISOString(),health_error:lastError})
+                .eq("capability","email").eq("provider_key",config.provider_key);
+              break;
+            }
+            lastError="provider_rejected_message";
+            break;
+          } catch {
+            lastError="provider_outcome_unknown";
+            providerUncertain=true;
+            await admin.from("service_provider_bindings").update({health_status:"unhealthy",health_checked_at:new Date().toISOString(),health_error:lastError})
+              .eq("capability","email").eq("provider_key",config.provider_key);
           }
-        } catch {
-          lastError = "provider_unreachable";
+          if(!providerAccepted&&!providerUncertain&&attempt<2)await new Promise(resolve=>setTimeout(resolve,300*(2**attempt)));
         }
-        if (!success && attempt < 2) await new Promise(resolve => setTimeout(resolve, 300 * (2 ** attempt)));
+        if(providerAccepted){
+          delivered=true;
+          results[index]={index,success:true,provider:config.provider_key,providerMessageId};
+          break;
+        }
+        if(providerUncertain){
+          uncertain=true;
+          break;
+        }
+        // Only definitive provider rejection permits trying the next provider.
       }
-      results[index] = success ? { index, success, providerMessageId } : { index, success: false, error: lastError };
+      if(!delivered)results[index]={index,success:false,error:uncertain?"provider_outcome_unknown":lastError};
     }
   };
-  await Promise.all(Array.from({ length: Math.min(8, parsed.data.messages.length) }, () => worker()));
-  const sent = results.filter(result => result.success).length;
-  return json({ success: sent === results.length, sent, failed: results.length - sent, provider: config.provider_key, mode: config.is_live ? "live" : "test", results }, sent === results.length ? 200 : 207);
+  await Promise.all(Array.from({length:Math.min(8,parsed.data.messages.length)},()=>worker()));
+  const sent=results.filter(result=>result.success).length;
+  const failed=results.length-sent;
+  return json({success:sent===results.length,sent,failed,providersAttempted:providers.length,results},sent===results.length?200:207);
 });
