@@ -44,7 +44,7 @@ export default function Godmode() {
   const [roles, setRoles] = useState<{ user_id: string; role: string }[]>([]);
   const [tiers, setTiers] = useState<Tables<'studio_accounts'>[]>([]);
   const [screenings, setScreenings] = useState<Pick<Tables<'screenings'>, 'id' | 'title' | 'lifecycle'>[]>([]);
-  const [audit, setAudit] = useState<Tables<'audit_logs'>[]>([]);
+  const [audit, setAudit] = useState<Pick<Tables<'audit_logs'>, 'id' | 'user_id' | 'action' | 'entity_type' | 'entity_id' | 'created_at'>[]>([]);
   const [banners, setBanners] = useState<Tables<'promo_banners'>[]>([]);
   const [nb, setNb] = useState({ title: '', subtitle: '', image_url: '', link_url: '', placement: 'home' });
   const [busy, setBusy] = useState<string | null>(null);
@@ -60,7 +60,7 @@ export default function Godmode() {
       supabase.from('user_roles').select('user_id, role'),
       supabase.from('studio_accounts').select('*').order('created_at', { ascending: false }),
       supabase.from('screenings').select('id, title, lifecycle').order('created_at', { ascending: false }).limit(200),
-      supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(100),
+      supabase.from('audit_logs').select('id,user_id,action,entity_type,entity_id,created_at').order('created_at', { ascending: false }).limit(100),
       supabase.from('country_currency_rules').select('currency_code,currency_symbol').eq('enabled', true).order('currency_code'),
     ]);
     const editableSettings = (s.data || []).filter(item => item.setting_key !== 'email_provider');
