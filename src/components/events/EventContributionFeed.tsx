@@ -18,6 +18,7 @@ export function EventContributionFeed({screeningId,liveStreamId,contentId}:{scre
  const [celebration,setCelebration]=useState<Item|null>(null);
  const latestSeen=useRef<string|null>(null);
  const celebrationTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+ const aggregateRefreshAt=useRef(0);
  useEffect(()=>{
   if(!screeningId&&!liveStreamId&&!contentId)return;
   let active=true;
@@ -51,7 +52,8 @@ export function EventContributionFeed({screeningId,liveStreamId,contentId}:{scre
     }
     const targetKind=contentId?"content":screeningId?"screening":"live_stream";
     const targetId=contentId??screeningId??liveStreamId;
-    if(targetId){
+    if(targetId&&Date.now()-aggregateRefreshAt.current>=15000){
+     aggregateRefreshAt.current=Date.now();
      const [leaderboardResult,totalsResult]=await Promise.all([
       supabase.rpc("get_event_contribution_leaderboard",{p_target_kind:targetKind,p_target_id:targetId}),
       supabase.rpc("get_event_contribution_totals",{p_target_kind:targetKind,p_target_id:targetId})
