@@ -179,14 +179,36 @@ Deno.serve(async req => {
       return json({error:"Provider health check did not respond. Provider mode was not changed."},502);
     }
   }
-  if(p.action==="remove"&&p.capability==="payments"){
-    const [guestPending,livePending]=await Promise.all([
-      admin.from("guest_payment_orders").select("id",{count:"exact",head:true}).eq("provider",p.providerKey).eq("status","pending"),
-      admin.from("live_payment_orders").select("id",{count:"exact",head:true}).eq("provider",p.providerKey).eq("status","pending"),
-    ]);
-    if(guestPending.error||livePending.error)return json({error:"Pending payment orders could not be checked; provider removal was blocked."},503);
-    const pending=(guestPending.count??0)+(livePending.count??0);
-    if(pending>0)return json({error:"This provider cannot be removed while "+pending+" payment orders are pending. Disable new routing, allow pending orders to settle, then remove it."},409);
+  if(p.action==="remove"){
+    const dependencies:Array<{label:string;count:number|null;error:unknown}>=[];
+    if(p.capability==="payments"){
+      const checks=await Promise.all([
+        admin.from("guest_payment_orders").select("id",{count:"exact",head:true}).eq("provider",p.providerKey),
+        admin.from("live_payment_orders").select("id",{count:"exact",head:true}).eq("provider",p.providerKey),
+        admin.from("event_contributions").select("id",{count:"exact",head:true}).eq("provider_key",p.providerKey),
+        admin.from("payments").select("id",{count:"exact",head:true}).eq("provider",p.providerKey),
+        admin.from("payment_refunds").select("id",{count:"exact",head:true}).eq("provider",p.providerKey),
+      ]);
+      ["guest payment orders","live payment orders","event contributions","payments","refunds"].forEach((label,index)=>dependencies.push({label,count:checks[index].count,error:checks[index].error}));
+    }else if(p.capability==="identity"){
+      const [identity,business]=await Promise.all([
+        admin.from("identity_verifications").select("id",{count:"exact",head:true}).in("status",["pending","processing"]).or("identity_provider.eq."+p.providerKey+",liveness_provider.eq."+p.providerKey),
+        admin.from("business_verifications").select("id",{count:"exact",head:true}).in("status",["pending","processing"]).eq("verification_provider",p.providerKey),
+      ]);
+      dependencies.push({label:"pending identity verifications",count:identity.count,error:identity.error},{label:"pending business verifications",count:business.count,error:business.error});
+    }else if(p.capability==="bank_verification"){
+      const bank=await admin.from("business_verifications").select("id",{count:"exact",head:true}).in("status",["pending","processing"]).filter("provider_result->>bank_provider","eq",p.providerKey);
+      dependencies.push({label:"pending bank verifications",count:bank.count,error:bank.error});
+    }else if(p.capability==="live_streaming"){
+      const streams=await admin.from("stream_configs").select("id",{count:"exact",head:true}).eq("provider",p.providerKey);
+      dependencies.push({label:"configured live streams",count:streams.count,error:streams.error});
+    }else if(["ai_text","ai_moderation","ai_embeddings"].includes(p.capability)){
+      const policies=await admin.from("platform_ai_policies").select("workflow_key",{count:"exact",head:true}).eq("enabled",true).contains("provider_allowlist",[p.providerKey]);
+      dependencies.push({label:"enabled AI workflows",count:policies.count,error:policies.error});
+    }
+    if(dependencies.some(item=>item.error))return json({error:"Provider dependencies could not be verified; removal was blocked."},503);
+    const active=dependencies.filter(item=>(item.count??0)>0);
+    if(active.length)return json({error:"Provider removal is blocked by active or historical dependencies: "+active.map(item=>item.label+" ("+item.count+")").join(", ")+". Disable new routing first and preserve the provider for existing callbacks, refunds, verification and active sessions."},409);
   }
   const args=p.action==="remove"
     ? {p_capability:p.capability,p_provider_key:p.providerKey,p_enabled:false,p_is_live:false,p_remove:true}
