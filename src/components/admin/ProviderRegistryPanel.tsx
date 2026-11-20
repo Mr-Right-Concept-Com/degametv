@@ -17,7 +17,8 @@ const capabilities: {value:Capability;label:string}[] = [
   {value:'bank_verification',label:'Bank verification'},{value:'video_delivery',label:'Video delivery'},
   {value:'email',label:'Email delivery'},{value:'live_streaming',label:'Live streaming'},{value:'fx_rates',label:'Foreign exchange (FX)'},
   {value:'storage',label:'Object storage'},{value:'cdn',label:'Content delivery network'},{value:'drm',label:'Digital rights management'},
-  {value:'sms',label:'SMS delivery'},{value:'push',label:'Push notifications'},{value:'geolocation',label:'Geolocation'},{value:'analytics',label:'Analytics'},\n  {value:'ai_text',label:'AI text generation'},{value:'ai_moderation',label:'AI moderation'},{value:'ai_embeddings',label:'AI embeddings'},
+  {value:'sms',label:'SMS delivery'},{value:'push',label:'Push notifications'},{value:'geolocation',label:'Geolocation'},{value:'analytics',label:'Analytics'},
+  {value:'ai_text',label:'AI text generation'},{value:'ai_moderation',label:'AI moderation'},{value:'ai_embeddings',label:'AI embeddings'},
 ];
 export function ProviderRegistryPanel({initialCapability='payments'}:{initialCapability?:Capability}){
   const [rows,setRows]=useState<Provider[]>([]);
