@@ -1,6 +1,6 @@
 import { defineConfig, devices } from 'playwright/test';
 
-const baseURL = process.env.DEGAMETV_E2E_BASE_URL || 'http://127.0.0.1:5173';
+const baseURL = process.env.DEGAMETV_E2E_BASE_URL || 'http://127.0.0.1:4173';
 const externalBaseURL = Boolean(process.env.DEGAMETV_E2E_BASE_URL);
 
 export default defineConfig({
@@ -19,7 +19,7 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: externalBaseURL ? undefined : {
-    command: 'npm run dev -- --host 127.0.0.1',
+    command: 'npm run preview -- --host 127.0.0.1 --port 4173',
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
