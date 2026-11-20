@@ -28,7 +28,6 @@ export function VideoPlayer({ src, poster, title, onTimeUpdate, onHeartbeat, aut
   const [showQuality, setShowQuality] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout>>();
   const beatTimer = useRef<ReturnType<typeof setInterval>>();
-  const mountedRef = useRef(true);
 
   useEffect(() => {
     const video = videoRef.current;
