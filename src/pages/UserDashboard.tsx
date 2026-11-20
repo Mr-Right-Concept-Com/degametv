@@ -47,7 +47,7 @@ export default function UserDashboard() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [preferredCountry, setPreferredCountry] = useState('');
   const [preferredCurrency, setPreferredCurrency] = useState('');
-  const [preferredLocale, setPreferredLocale] = useState('');
+  const [preferredLocale, setPreferredLocale] = useState('');\n  const [preferredTimezone, setPreferredTimezone] = useState('');
   const [studioAccess, setStudioAccess] = useState<'checking' | 'approved' | 'not-approved'>('checking');
 
   useEffect(() => {
@@ -115,7 +115,7 @@ export default function UserDashboard() {
       setDisplayName(profileRes.data.display_name || profileRes.data.full_name || '');
       setPreferredCountry(profileRes.data.preferred_country || runtimeConfig?.geo.countryCode || '');
       setPreferredCurrency(profileRes.data.preferred_currency || '');
-      setPreferredLocale(profileRes.data.locale_code || runtimeConfig?.locale || '');
+      setPreferredLocale(profileRes.data.preferred_locale || profileRes.data.locale_code || runtimeConfig?.locale || '');\n      setPreferredTimezone(profileRes.data.timezone || runtimeConfig?.timezone || 'UTC');
     }
     setLoading(false);
   };
@@ -164,16 +164,21 @@ export default function UserDashboard() {
     if (preferredCurrency && !/^[A-Z]{3}$/.test(preferredCurrency)) { toast.error('Choose a valid currency.'); return; }
     if (preferredLocale.trim().length > 24 || (preferredLocale.trim() && !/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(preferredLocale.trim()))) { toast.error('Enter a valid language tag, such as en-US or fr-CA.'); return; }
     setSavingProfile(true);
-    const { error } = await supabase.from('profiles').update({
-      preferred_country: preferredCountry || null,
-      preferred_currency: preferredCurrency || null,
-      locale_code: preferredLocale.trim() || null,
-      updated_at: new Date().toISOString(),
-    }).eq('user_id', user.id);
+    const locale = preferredLocale.trim() || null;
+    const { data, error } = await supabase.functions.invoke('update-locale-preferences', {
+      body: {
+        country: preferredCountry || null,
+        currency: preferredCurrency || null,
+        language: locale ? locale.split('-')[0] : null,
+        locale,
+        timezone: preferredTimezone.trim() || null,
+      },
+    });
     if (error) toast.error(error.message);
+    else if (data?.error) toast.error(data.error);
     else {
-      toast.success('Language, location and currency preferences saved.');
-      setProfile((current: any) => ({ ...current, preferred_country: preferredCountry || null, preferred_currency: preferredCurrency || null, locale_code: preferredLocale.trim() || null }));
+      toast.success('Language, location, currency and timezone preferences saved.');
+      setProfile((current: any) => ({ ...current, ...(data?.preferences ?? {}) }));
       await refreshRuntimeConfig();
     }
     setSavingProfile(false);
@@ -477,7 +482,7 @@ export default function UserDashboard() {
                   <div className="space-y-2">
                     <Label>Language / locale</Label>
                     <Input value={preferredLocale} maxLength={24} onChange={e => setPreferredLocale(e.target.value)} placeholder="en-US" />
-                  </div>
+                  </div>\n                  <div className="space-y-2">\n                    <Label>Timezone (IANA)</Label>\n                    <Input value={preferredTimezone} maxLength={100} onChange={e => setPreferredTimezone(e.target.value)} placeholder="Africa/Lagos" />\n                  </div>
                   <Button variant="outline" onClick={savePreferences} disabled={savingProfile} className="w-full">{savingProfile ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Save region preferences</Button>
                 </div>
                 <div className="space-y-2">
