@@ -125,7 +125,6 @@ export default function StudioSubmit() {
   const draftKey = `degametv:studio:create:${user?.id || 'guest'}`;
   const [uploadingPoster, setUploadingPoster] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
-  const mediaUpload.progress = mediaUpload.progress;
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [form, setForm] = useState({
