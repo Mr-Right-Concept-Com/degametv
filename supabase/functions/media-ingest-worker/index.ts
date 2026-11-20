@@ -46,9 +46,11 @@ const Transcode=z.object({jobId:z.string().uuid(),status:z.literal("accepted"),p
 const Callback=z.object({action:z.literal("transcode_callback"),jobId:z.string().uuid(),status:z.enum(["complete","failed"]),renditions:z.array(z.object({path:z.string().min(1).max(1000),kind:z.enum(["hls","dash","thumbnail","preview","caption"]),mimeType:z.string().optional(),width:z.number().int().positive().optional(),height:z.number().int().positive().optional(),language:z.string().optional()})).default([]),subtitles:z.array(z.record(z.unknown())).default([]),error:z.string().max(1000).optional()}).strict();
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});if(req.method!=="POST")return json(405,{error:"Method not allowed."});
- const secret=Deno.env.get("MEDIA_WORKER_SECRET");if(!secret||req.headers.get("x-media-worker-secret")!==secret)return json(401,{error:"Worker authentication failed."});
  const url=Deno.env.get("SUPABASE_URL"),key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");if(!url||!key)return json(503,{error:"Media worker is not configured."});
- const db=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}}),body=await req.json().catch(()=>({}));
+ const db=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
+ const {data:secret,error:secretError}=await db.rpc("get_media_worker_secret");
+ if(secretError||typeof secret!=="string"||!secret||req.headers.get("x-media-worker-secret")!==secret)return json(401,{error:"Worker authentication failed."});
+ const body=await req.json().catch(()=>({}));
  let storage:Storage;
  try{storage=storageConfig(await binding(db,"media_storage"));}catch(e){return json(503,{error:e instanceof Error?e.message:"Storage provider unavailable."});}
  if(body?.action==="transcode_callback"){
@@ -100,7 +102,7 @@ Deno.serve(async req=>{
    const uploadTargets=await Promise.all(outputs.map(async o=>({...o,uploadUrl:await presign(storage,o.path,"PUT",o.mimeType,storage.deliveryBucket,86400)})));
    const transcodeUrl=new URL(transcoder.endpoints.transcode??"/transcode",transcoder.base_url??undefined).toString();
    const callbackUrl=Deno.env.get("MEDIA_TRANSCODE_CALLBACK_URL");if(!callbackUrl)throw new Error("MEDIA_TRANSCODE_CALLBACK_URL is not configured.");
-   const transcodeResponse=await fetch(transcodeUrl,{method:"POST",headers:{"Authorization":"Bearer "+transcoder.credential,"Content-Type":"application/json","Idempotency-Key":"transcode:"+job.id},body:JSON.stringify({jobId:job.id,sourceUrl:await presign(storage,masterPath,"GET",undefined,storage.deliveryBucket,21600),sourceSha256:scan.data.sha256,outputFormat:"fmp4-single-file",outputs:uploadTargets,packaging:{hls:"byte-range",dash:"SegmentBase"},callbackUrl,callbackSecret:Deno.env.get("MEDIA_WORKER_SECRET")}),signal:AbortSignal.timeout(30000)});
+   const transcodeResponse=await fetch(transcodeUrl,{method:"POST",headers:{"Authorization":"Bearer "+transcoder.credential,"Content-Type":"application/json","Idempotency-Key":"transcode:"+job.id},body:JSON.stringify({jobId:job.id,sourceUrl:await presign(storage,masterPath,"GET",undefined,storage.deliveryBucket,21600),sourceSha256:scan.data.sha256,outputFormat:"fmp4-single-file",outputs:uploadTargets,packaging:{hls:"byte-range",dash:"SegmentBase"},callbackUrl,callbackSecret:secret}),signal:AbortSignal.timeout(30000)});
    if(!transcodeResponse.ok)throw new Error("transcoder_http_"+transcodeResponse.status);
    const parsed=Transcode.safeParse(await transcodeResponse.json());if(!parsed.success||parsed.data.jobId!==job.id)throw new Error("transcoder_response_invalid");
    await db.from("media_upload_sessions").update({status:"TRANSCODING",updated_at:new Date().toISOString()}).eq("id",job.upload_session_id);
