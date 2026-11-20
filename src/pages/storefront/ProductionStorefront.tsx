@@ -30,7 +30,7 @@ export default function ProductionStorefront(){
  const trailer=String(branding.trailerUrl??production?.trailer_url??"");
  const scheduledAt=screening?.screening_date??screening?.release_date??production?.release_date??(typeof metadata.scheduledAt==="string"?metadata.scheduledAt:typeof metadata.premiereAt==="string"?metadata.premiereAt:"");
  const remaining=useMemo(()=>scheduledAt?countdown(scheduledAt,now):null,[scheduledAt,now]);
- const cast=Array.isArray(production?.cast_crew)?production.cast_crew:Array.isArray(metadata.cast)?metadata.cast:typeof metadata.cast_crew_text==="string"?metadata.cast_crew_text.split(/\\r?\\n/).map(line=>{const [name,role]=line.split("—").map(v=>v.trim());return {name,role};}).filter(person=>person.name):[];
+ const cast=Array.isArray(production?.cast_crew)?production.cast_crew:Array.isArray(metadata.cast)?metadata.cast:typeof metadata.cast_crew_text==="string"?metadata.cast_crew_text.split(/\r?\n/).map(line=>{const [name,role]=line.split("—").map(v=>v.trim());return {name,role};}).filter(person=>person.name):[];
  const price=screening?.price_amount??screening?.base_price??production?.price??null;
  const currency=screening?.price_currency??screening?.base_currency??production?.currency??"";
  const salesOpen=screening?.sales_open_at?new Date(screening.sales_open_at).getTime()<=now:true;
