@@ -13,11 +13,18 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
 import { BookOpen, Loader2, Plus, Save, UserPlus, Users } from 'lucide-react';
 import { z } from 'zod';
+import {
+  createKnowledgebaseCategory, listKnowledgebaseCategories, listKnowledgebaseAdminArticles,
+  listSupportAdminAgents, listSupportSlaPolicies, upsertSupportAdminAgent,
+  setSupportAdminAgentActive, saveKnowledgebaseAdminArticle, setKnowledgebaseArticlePublished,
+  updateSupportSlaPolicy, type KnowledgebaseCategory, type KnowledgebaseAdminArticle,
+  type SupportAdminAgent, type SupportSlaPolicy,
+} from '@/integrations/supabase/support';
 
-type Category={id:string;slug:string;title:string;description:string|null;sort_order:number;is_published:boolean};
-type Article={id:string;category_id:string|null;slug:string;title:string;summary:string|null;body_markdown:string;audience:string;is_published:boolean;published_at:string|null};
-type Agent={user_id:string;display_name:string|null;department:string;is_active:boolean;created_at:string};
-type SlaPolicy={priority:string;first_response_minutes:number;resolution_minutes:number;is_active:boolean};
+type Category = KnowledgebaseCategory;
+type Article = KnowledgebaseAdminArticle;
+type Agent = SupportAdminAgent;
+type SlaPolicy = SupportSlaPolicy;
 const articleSchema=z.object({slug:z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(120),title:z.string().trim().min(3).max(180),summary:z.string().max(500),body_markdown:z.string().trim().min(20).max(50000),audience:z.enum(['all','viewer','creator','studio','technical'])});
 const categorySchema=z.object({slug:z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(80),title:z.string().trim().min(2).max(100),description:z.string().max(500),sort_order:z.number().int().min(0)});
 
@@ -28,29 +35,27 @@ export default function SupportKnowledgebaseAdmin(){
  const [loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[editing,setEditing]=useState<string|null>(null);
  const [categoryForm,setCategoryForm]=useState({slug:'',title:'',description:'',sort_order:'0'});
  const [form,setForm]=useState({category_id:'none',slug:'',title:'',summary:'',body_markdown:'',audience:'all' as Article['audience'],is_published:false});
- const load=async()=>{setLoading(true);const [c,a,g,s]=await Promise.all([(supabase as any).from('knowledgebase_categories').select('*').order('sort_order'),(supabase as any).from('knowledgebase_articles').select('*').order('updated_at',{ascending:false}),(supabase as any).from('support_agents').select('*').order('created_at',{ascending:false}),(supabase as any).from('support_sla_policies').select('*').order('priority')]);if(c.error)toast.error(c.error.message);else setCategories(c.data||[]);if(a.error)toast.error(a.error.message);else setArticles(a.data||[]);if(g.error)toast.error(g.error.message);else setAgents(g.data||[]);if(s.error)toast.error(s.error.message);else setSlaPolicies(s.data||[]);setLoading(false);};
- useEffect(()=>{void load();},[]);
+ const load=async(isActive:()=>boolean=()=>true)=>{setLoading(true);try{const [c,a,g,s]=await Promise.all([listKnowledgebaseCategories(),listKnowledgebaseAdminArticles(),listSupportAdminAgents(),listSupportSlaPolicies()]);if(!isActive())return;setCategories(c);setArticles(a);setAgents(g);setSlaPolicies(s);}catch(error:unknown){if(isActive())toast.error(error instanceof Error?error.message:'Support administration data could not be loaded.');}finally{if(isActive())setLoading(false);}};
+ useEffect(()=>{let active=true;void load(()=>active);return()=>{active=false;};},[]);
  const reset=()=>{setEditing(null);setForm({category_id:'none',slug:'',title:'',summary:'',body_markdown:'',audience:'all',is_published:false});};
  const saveAgent=async()=>{
   if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(agentUserId.trim())){toast.error('Enter the account user UUID.');return;}
   setSaving(true);
-  const {error}=await (supabase as any).from('support_agents').upsert({user_id:agentUserId.trim(),display_name:agentName.trim()||null,department:agentDepartment,is_active:true},{onConflict:'user_id'});
+  await upsertSupportAdminAgent({user_id:agentUserId.trim(),display_name:agentName.trim()||null,department:agentDepartment,is_active:true});
   setSaving(false);
-  if(error)toast.error(error.message);else{toast.success('Support agent access enabled.');setAgentUserId('');setAgentName('');await load();}
+  toast.success('Support agent access enabled.');setAgentUserId('');setAgentName('');await load();
  };
  const saveSla=async(policy:SlaPolicy)=>{
   if(!Number.isInteger(policy.first_response_minutes)||policy.first_response_minutes<5||policy.first_response_minutes>10080||!Number.isInteger(policy.resolution_minutes)||policy.resolution_minutes<15||policy.resolution_minutes>43200){toast.error('SLA minutes are outside the allowed range.');return;}
-  const {error}=await (supabase as any).from('support_sla_policies').update({first_response_minutes:policy.first_response_minutes,resolution_minutes:policy.resolution_minutes,is_active:policy.is_active,updated_at:new Date().toISOString()}).eq('priority',policy.priority);
-  if(error)toast.error(error.message);else{toast.success(policy.priority+' SLA updated.');await load();}
+  await updateSupportSlaPolicy(policy);toast.success(policy.priority+' SLA updated.');await load();
  };
  const toggleAgent=async(agent:Agent,enabled:boolean)=>{
-  const {error}=await (supabase as any).from('support_agents').update({is_active:enabled,updated_at:new Date().toISOString()}).eq('user_id',agent.user_id);
-  if(error)toast.error(error.message);else{toast.success(enabled?'Agent enabled.':'Agent access suspended.');await load();}
+  await setSupportAdminAgentActive(agent.user_id,enabled);toast.success(enabled?'Agent enabled.':'Agent access suspended.');await load();
  };
- const saveCategory=async()=>{const parsed=categorySchema.safeParse({...categoryForm,sort_order:Number(categoryForm.sort_order)});if(!parsed.success){toast.error(parsed.error.issues[0]?.message||'Check category details.');return;}setSaving(true);const {error}=await (supabase as any).from('knowledgebase_categories').insert({...parsed.data,description:parsed.data.description||null,is_published:true});setSaving(false);if(error)toast.error(error.message);else{toast.success('Knowledgebase category created.');setCategoryForm({slug:'',title:'',description:'',sort_order:'0'});await load();}};
+ const saveCategory=async()=>{const parsed=categorySchema.safeParse({...categoryForm,sort_order:Number(categoryForm.sort_order)});if(!parsed.success){toast.error(parsed.error.issues[0]?.message||'Check category details.');return;}setSaving(true);await createKnowledgebaseCategory({...parsed.data,description:parsed.data.description||null});setSaving(false);toast.success('Knowledgebase category created.');setCategoryForm({slug:'',title:'',description:'',sort_order:'0'});await load();};
  const edit=(a:Article)=>{setEditing(a.id);setForm({category_id:a.category_id||'none',slug:a.slug,title:a.title,summary:a.summary||'',body_markdown:a.body_markdown,audience:a.audience as Article['audience'],is_published:a.is_published});};
- const saveArticle=async()=>{if(!user)return;const parsed=articleSchema.safeParse(form);if(!parsed.success){toast.error(parsed.error.issues[0]?.message||'Check article details.');return;}setSaving(true);const now=new Date().toISOString();const payload={...parsed.data,summary:parsed.data.summary||null,category_id:form.category_id==='none'?null:form.category_id,is_published:form.is_published,published_at:form.is_published?(articles.find(a=>a.id===editing)?.published_at||now):null,updated_by:user.id,...(!editing?{created_by:user.id}:{})};const q=editing?(supabase as any).from('knowledgebase_articles').update(payload).eq('id',editing):(supabase as any).from('knowledgebase_articles').insert(payload);const {error}=await q;setSaving(false);if(error)toast.error(error.message);else{toast.success(form.is_published?'Article saved and published.':'Article saved as draft.');reset();await load();}};
- const togglePublish=async(a:Article,published:boolean)=>{const {error}=await (supabase as any).from('knowledgebase_articles').update({is_published:published,published_at:published?(a.published_at||new Date().toISOString()):null,updated_by:user?.id}).eq('id',a.id);if(error)toast.error(error.message);else{toast.success(published?'Article published.':'Article unpublished.');await load();}};
+ const saveArticle=async()=>{if(!user)return;const parsed=articleSchema.safeParse(form);if(!parsed.success){toast.error(parsed.error.issues[0]?.message||'Check article details.');return;}setSaving(true);const now=new Date().toISOString();const payload={...parsed.data,summary:parsed.data.summary||null,category_id:form.category_id==='none'?null:form.category_id,is_published:form.is_published,published_at:form.is_published?(articles.find(a=>a.id===editing)?.published_at||now):null,updated_by:user.id,...(!editing?{created_by:user.id}:{})};await saveKnowledgebaseAdminArticle({...payload,...(editing?{id:editing}:{})});setSaving(false);toast.success(form.is_published?'Article saved and published.':'Article saved as draft.');reset();await load();};
+ const togglePublish=async(a:Article,published:boolean)=>{await setKnowledgebaseArticlePublished({id:a.id,published,published_at:published?(a.published_at||new Date().toISOString()):null,updated_by:user?.id});toast.success(published?'Article published.':'Article unpublished.');await load();};
  return <AdminLayout><div className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6">
   <div><p className="text-xs font-semibold tracking-widest text-primary">CUSTOMER EXPERIENCE</p><h1 className="text-2xl font-bold">Help Centre Knowledgebase</h1><p className="mt-1 text-sm text-muted-foreground">Create, edit, publish and retire help articles without a code deployment.</p></div>
   <Card><CardHeader><CardTitle className="text-base">Support service levels (SLA)</CardTitle></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
