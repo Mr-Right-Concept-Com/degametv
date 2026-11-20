@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,12 @@ const kycSchema = z.object({
   kyc_selfie_url: z.string().min(1, 'Upload your selfie liveness video'),
 });
 
+interface KycRpcClient {
+ rpc(name:"submit_identity_verification",args:{p_country_code:string;p_document_type:string;p_full_name:string;p_document_path:string;p_selfie_video_path:string;p_date_of_birth:string|null;p_address_line:string|null;p_address_city:string|null;p_address_region:string|null;p_address_postal_code:string|null}):Promise<{data:unknown;error:{message:string}|null}>;
+}
+const kycRpc=supabase as unknown as KycRpcClient;
+const submissionSchema=z.object({success:z.literal(true),verification_id:z.string().uuid(),status:z.string(),mode:z.string()});
+const providerSchema=z.object({status:z.string().optional(),providerConfigured:z.boolean().optional(),creatorActivated:z.boolean().optional()});
 interface Profile {
   kyc_status: string | null;
   kyc_id_type: string | null;
@@ -44,6 +50,8 @@ export function KYCVerification({ onVerified, compact }: Props) {
   const [uploadingId, setUploadingId] = useState(false);
   const [uploadingSelfie, setUploadingSelfie] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const mounted=useRef(false);
+  const loadGeneration=useRef(0);
   const [form, setForm] = useState({
     kyc_full_name: '',
     kyc_id_type: '',
@@ -52,13 +60,16 @@ export function KYCVerification({ onVerified, compact }: Props) {
   });
 
   const load = async () => {
-    if (!user) return;
+    const generation=++loadGeneration.current;
+    if (!user) { if(mounted.current)setLoading(false); return; }
     setLoading(true);
     const { data } = await supabase
       .from('profiles')
       .select('kyc_status, kyc_id_type, kyc_id_url, kyc_selfie_url, kyc_full_name, kyc_submitted_at, kyc_verified_at')
       .eq('user_id', user.id)
       .maybeSingle();
+    if (!mounted.current || generation!==loadGeneration.current) return;
+    if (error) { toast.error('Identity status could not be loaded.'); setLoading(false); return; }
     if (data) {
       setProfile(data as Profile);
       setForm(current => ({
@@ -70,10 +81,10 @@ export function KYCVerification({ onVerified, compact }: Props) {
       }));
       if (data.kyc_status === 'verified') onVerified?.();
     }
-    setLoading(false);
+    if(mounted.current)setLoading(false);
   };
 
-  useEffect(() => { load(); }, [user?.id]);
+  useEffect(() => { mounted.current=true; void load(); return () => { mounted.current=false; loadGeneration.current+=1; }; }, [user?.id]);
 
   const upload = async (file: File, kind: 'id' | 'selfie') => {
     if (!user) { toast.error('Sign in before uploading identity documents.'); return; }
@@ -112,7 +123,7 @@ export function KYCVerification({ onVerified, compact }: Props) {
     }
     setErrors({});
     setSubmitting(true);
-    const { data, error } = await supabase.rpc('submit_identity_verification' as never, {
+    const { data, error } = await kycRpc.rpc('submit_identity_verification', {
       p_country_code: form.country_code,
       p_document_type: result.data.kyc_id_type,
       p_full_name: result.data.kyc_full_name,
@@ -123,21 +134,23 @@ export function KYCVerification({ onVerified, compact }: Props) {
       p_address_city: form.address_city || null,
       p_address_region: form.address_region || null,
       p_address_postal_code: form.address_postal_code || null,
-    } as never);
-    if (error || !data || !(data as { success?: boolean } | null)?.success) {
-      toast.error((data as { error?: string } | null)?.error || error?.message || 'Submission failed. Your application has not been submitted.');
+    });
+    const submission=submissionSchema.safeParse(data);
+    if (error || !submission.success) {
+      toast.error(error?.message || 'Submission returned an invalid response.');
       setSubmitting(false);
       return;
     }
-    const verificationId = (data as { verification_id?: string }).verification_id;
+    const verificationId = submission.data.verification_id;
     if (verificationId) {
-      const providerRun = await invokeFn<{ status?: string; providerConfigured?: boolean; creatorActivated?: boolean }>(
+      const providerRun = await invokeFn<unknown>(
         'run-identity-provider',
         { verificationId },
       );
-      if (providerRun.ok && providerRun.data?.creatorActivated) {
+      const providerResult=providerSchema.safeParse(providerRun.data);
+      if (providerRun.ok && providerResult.success && providerResult.data.creatorActivated) {
         toast.success('Identity verified. Creator Studio access is now active.');
-      } else if (providerRun.ok && providerRun.data?.providerConfigured) {
+      } else if (providerRun.ok && providerResult.success && providerResult.data.providerConfigured) {
         toast.message('Identity checks completed. Your application is awaiting the configured review policy.');
       } else {
         toast.success('Application submitted. It is safely queued for manual review until an identity provider is configured.');
