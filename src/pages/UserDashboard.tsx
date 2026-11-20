@@ -47,7 +47,8 @@ export default function UserDashboard() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [preferredCountry, setPreferredCountry] = useState('');
   const [preferredCurrency, setPreferredCurrency] = useState('');
-  const [preferredLocale, setPreferredLocale] = useState('');\n  const [preferredTimezone, setPreferredTimezone] = useState('');
+  const [preferredLocale, setPreferredLocale] = useState('');
+  const [preferredTimezone, setPreferredTimezone] = useState('');
   const [studioAccess, setStudioAccess] = useState<'checking' | 'approved' | 'not-approved'>('checking');
 
   useEffect(() => {
@@ -115,7 +116,8 @@ export default function UserDashboard() {
       setDisplayName(profileRes.data.display_name || profileRes.data.full_name || '');
       setPreferredCountry(profileRes.data.preferred_country || runtimeConfig?.geo.countryCode || '');
       setPreferredCurrency(profileRes.data.preferred_currency || '');
-      setPreferredLocale(profileRes.data.preferred_locale || profileRes.data.locale_code || runtimeConfig?.locale || '');\n      setPreferredTimezone(profileRes.data.timezone || runtimeConfig?.timezone || 'UTC');
+      setPreferredLocale(profileRes.data.preferred_locale || profileRes.data.locale_code || runtimeConfig?.locale || '');
+      setPreferredTimezone(profileRes.data.timezone || runtimeConfig?.timezone || 'UTC');
     }
     setLoading(false);
   };
@@ -482,7 +484,11 @@ export default function UserDashboard() {
                   <div className="space-y-2">
                     <Label>Language / locale</Label>
                     <Input value={preferredLocale} maxLength={24} onChange={e => setPreferredLocale(e.target.value)} placeholder="en-US" />
-                  </div>\n                  <div className="space-y-2">\n                    <Label>Timezone (IANA)</Label>\n                    <Input value={preferredTimezone} maxLength={100} onChange={e => setPreferredTimezone(e.target.value)} placeholder="Africa/Lagos" />\n                  </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Timezone (IANA)</Label>
+                    <Input value={preferredTimezone} maxLength={100} onChange={e => setPreferredTimezone(e.target.value)} placeholder="Africa/Lagos" />
+                  </div>
                   <Button variant="outline" onClick={savePreferences} disabled={savingProfile} className="w-full">{savingProfile ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Save region preferences</Button>
                 </div>
                 <div className="space-y-2">
