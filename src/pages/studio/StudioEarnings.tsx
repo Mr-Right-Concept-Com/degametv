@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { z } from 'zod';
 import { StudioLayout } from '@/components/studio/StudioLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,6 +36,7 @@ const money = (n: number, currency: string) => {
 export default function StudioEarnings() {
   usePageTitle('Studio: Wallet & Earnings');
   const { user } = useAuth();
+  const userId = user?.id;
   const runtime = useRuntimeConfig();
   const [loading, setLoading] = useState(true);
   const [balances, setBalances] = useState<Bal[]>([]);
@@ -46,11 +47,11 @@ export default function StudioEarnings() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
-  const load = async () => {
-    if (!user) return;
+  const load = useCallback(async () => {
+    if (!userId) return;
     const [b, w, c] = await Promise.all([
       supabase.rpc('wallet_balance_by_currency', { _user_id: user.id }),
-      supabase.from('withdrawal_requests').select('id, amount, currency, bank_country, status, created_at, bank_name').eq('user_id', user.id).order('created_at', { ascending: false }),
+      supabase.from('withdrawal_requests').select('id, amount, currency, bank_country, status, created_at, bank_name').eq('user_id', userId).order('created_at', { ascending: false }),
     ]);
     if (b.error) toast.error('Wallet balances could not be loaded.');
     const rows = (b.data as Bal[] | null) || [];
@@ -59,8 +60,8 @@ export default function StudioEarnings() {
     setReqs((w.data as WR[]) || []);
     setContributions((c.data as unknown as Contribution[]) || []);
     setLoading(false);
-  };
-  useEffect(() => { void load(); }, [user?.id]);
+  }, [userId, runtime.config?.geo.countryCode]);
+  useEffect(() => { void load(); }, [load]);
   useEffect(() => { if (!form.bank_country && runtime.config?.geo.countryCode) setForm(current => ({ ...current, bank_country: runtime.config!.geo.countryCode! })); }, [runtime.config?.geo.countryCode, form.bank_country]);
 
   const selectedBalance = balances.find(row => row.currency === form.currency);
