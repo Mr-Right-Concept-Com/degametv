@@ -31,6 +31,7 @@ type QueryResult = { data: unknown; error: unknown };
 interface QueryBuilder extends PromiseLike<QueryResult> {
   select(columns: string): QueryBuilder;
   insert(values: Record<string, unknown>): QueryBuilder;
+  upsert(values: Record<string, unknown>, options?: { onConflict?: string }): QueryBuilder;
   update(values: Record<string, unknown>): QueryBuilder;
   eq(column: string, value: string | boolean): QueryBuilder;
   is(column: string, value: null): QueryBuilder;
@@ -42,7 +43,7 @@ interface QueryBuilder extends PromiseLike<QueryResult> {
   single(): Promise<QueryResult>;
 }
 interface SupportClient {
-  from(table: 'support_agents' | 'support_tickets' | 'support_messages' | 'knowledgebase_articles'): QueryBuilder;
+  from(table: 'support_agents' | 'support_tickets' | 'support_messages' | 'knowledgebase_articles' | 'knowledgebase_categories' | 'support_sla_policies'): QueryBuilder;
   rpc(name: 'create_support_chat' | 'reopen_support_ticket' | 'rate_support_ticket', args?: Record<string, unknown>): Promise<QueryResult>;
 }
 const client = supabase as unknown as SupportClient;
@@ -124,5 +125,85 @@ export async function insertSupportMessage(input: { ticketId: string; senderId: 
     ticket_id: input.ticketId, sender_id: input.senderId, body: input.body,
     is_internal: input.internal, attachment_paths: input.attachmentPaths,
   });
+  throwIfError(result.error);
+}
+
+const AdminAgentSchema = AgentSchema.extend({
+  display_name: z.string().nullable(),
+  department: z.string(),
+  created_at: z.string(),
+});
+const KnowledgebaseCategorySchema = z.object({
+  id: z.string().uuid(), slug: z.string(), title: z.string(),
+  description: z.string().nullable(), sort_order: z.number(), is_published: z.boolean(),
+});
+const AdminArticleSchema = ArticleSchema.extend({
+  category_id: z.string().uuid().nullable(), audience: z.enum(['all', 'viewer', 'creator', 'studio', 'technical']),
+  is_published: z.boolean(), published_at: z.string().nullable(),
+});
+const SlaPolicySchema = z.object({
+  priority: z.string(), first_response_minutes: z.number().int(),
+  resolution_minutes: z.number().int(), is_active: z.boolean(),
+});
+export type SupportAdminAgent = z.infer<typeof AdminAgentSchema>;
+export type KnowledgebaseCategory = z.infer<typeof KnowledgebaseCategorySchema>;
+export type KnowledgebaseAdminArticle = z.infer<typeof AdminArticleSchema>;
+export type SupportSlaPolicy = z.infer<typeof SlaPolicySchema>;
+
+export async function listSupportAdminAgents() {
+  const result = await client.from('support_agents').select('user_id,is_active,display_name,department,created_at').order('created_at', { ascending: false });
+  throwIfError(result.error);
+  return parseRows(AdminAgentSchema, result.data);
+}
+export async function upsertSupportAdminAgent(input: { user_id: string; display_name: string | null; department: string; is_active: boolean }) {
+  const result = await client.from('support_agents').upsert(input, { onConflict: 'user_id' });
+  throwIfError(result.error);
+}
+export async function setSupportAdminAgentActive(userId: string, isActive: boolean) {
+  const result = await client.from('support_agents').update({ is_active: isActive, updated_at: new Date().toISOString() }).eq('user_id', userId);
+  throwIfError(result.error);
+}
+export async function listKnowledgebaseCategories() {
+  const result = await client.from('knowledgebase_categories').select('id,slug,title,description,sort_order,is_published').order('sort_order', { ascending: true });
+  throwIfError(result.error);
+  return parseRows(KnowledgebaseCategorySchema, result.data);
+}
+export async function createKnowledgebaseCategory(input: { slug: string; title: string; description: string | null; sort_order: number }) {
+  const result = await client.from('knowledgebase_categories').insert({ ...input, is_published: true });
+  throwIfError(result.error);
+}
+export async function listKnowledgebaseAdminArticles() {
+  const result = await client.from('knowledgebase_articles').select('id,slug,title,summary,body_markdown,category_id,audience,is_published,published_at').order('updated_at', { ascending: false });
+  throwIfError(result.error);
+  return parseRows(AdminArticleSchema, result.data);
+}
+export async function saveKnowledgebaseAdminArticle(input: {
+  id?: string; slug: string; title: string; summary: string | null; body_markdown: string;
+  category_id: string | null; audience: 'all' | 'viewer' | 'creator' | 'studio' | 'technical';
+  is_published: boolean; published_at: string | null; updated_by: string; created_by?: string;
+}) {
+  const { id, ...payload } = input;
+  const query = id
+    ? client.from('knowledgebase_articles').update(payload).eq('id', id)
+    : client.from('knowledgebase_articles').insert(payload);
+  const result = await query;
+  throwIfError(result.error);
+}
+export async function setKnowledgebaseArticlePublished(input: { id: string; published: boolean; published_at: string | null; updated_by: string | undefined }) {
+  const result = await client.from('knowledgebase_articles').update({
+    is_published: input.published, published_at: input.published_at, updated_by: input.updated_by,
+  }).eq('id', input.id);
+  throwIfError(result.error);
+}
+export async function listSupportSlaPolicies() {
+  const result = await client.from('support_sla_policies').select('priority,first_response_minutes,resolution_minutes,is_active').order('priority', { ascending: true });
+  throwIfError(result.error);
+  return parseRows(SlaPolicySchema, result.data);
+}
+export async function updateSupportSlaPolicy(input: { priority: string; first_response_minutes: number; resolution_minutes: number; is_active: boolean }) {
+  const result = await client.from('support_sla_policies').update({
+    first_response_minutes: input.first_response_minutes, resolution_minutes: input.resolution_minutes,
+    is_active: input.is_active, updated_at: new Date().toISOString(),
+  }).eq('priority', input.priority);
   throwIfError(result.error);
 }
