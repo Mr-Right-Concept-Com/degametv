@@ -159,7 +159,7 @@ export default function StudioSubmit() {
     premiere_date: '',
     premiere_time: '20:00',
     admission_model: 'TICKETED' as 'FREE' | 'TICKETED',
-    base_price: '',
+    base_price: '0',
     rights_territories: '',
     prior_screenings: '',
     cast_crew_text: '',
