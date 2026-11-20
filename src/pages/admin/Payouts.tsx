@@ -8,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
 
-type WR = { id: string; user_id: string; amount: number; currency: string; bank_name: string; account_number: string; account_name: string; status: string; created_at: string };
+type WR = { id: string; user_id: string; amount: number; currency: string; bank_name: string; account_number: string; account_name: string; bank_country: string | null; status: string; created_at: string };
 type SA = { id: string; user_id: string; tier: string; status: string; company_name: string | null; cac_number: string | null; tax_id: string | null; seats: number; created_at: string };
 
 export default function Payouts() {
@@ -18,7 +18,7 @@ export default function Payouts() {
 
   const load = async () => {
     const [w, a] = await Promise.all([
-      supabase.from('withdrawal_requests').select('*').order('created_at', { ascending: false }),
+      supabase.from('withdrawal_requests').select('id,user_id,amount,currency,bank_name,account_number,account_name,bank_country,status,created_at').order('created_at', { ascending: false }),
       supabase.from('studio_accounts').select('*').order('created_at', { ascending: false }),
     ]);
     setWrs((w.data as WR[]) || []);
@@ -59,7 +59,7 @@ export default function Payouts() {
                   <TableRow key={w.id}>
                     <TableCell>{new Date(w.created_at).toLocaleDateString()}</TableCell>
                     <TableCell>{w.currency} {Number(w.amount).toLocaleString()}</TableCell>
-                    <TableCell className="text-xs">{w.bank_name} · {w.account_number}<br />{w.account_name}</TableCell>
+                    <TableCell className="text-xs">{w.bank_name} · {w.bank_country || '—'}<br />Account ending ····{String(w.account_number || '').replace(/\\D/g, '').slice(-4) || 'unavailable'}<br />{w.account_name}</TableCell>
                     <TableCell><Badge variant="secondary">{w.status}</Badge></TableCell>
                     <TableCell className="space-x-1 whitespace-nowrap">
                       {w.status === 'pending' && <><Button size="sm" onClick={() => setW(w.id, 'approved')}>Approve</Button><Button size="sm" variant="outline" onClick={() => setW(w.id, 'rejected')}>Reject</Button></>}
