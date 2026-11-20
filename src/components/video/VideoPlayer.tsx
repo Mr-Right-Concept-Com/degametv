@@ -28,10 +28,12 @@ export function VideoPlayer({ src, poster, title, onTimeUpdate, onHeartbeat, aut
   const [showQuality, setShowQuality] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout>>();
   const beatTimer = useRef<ReturnType<typeof setInterval>>();
+  const mountedRef = useRef(true);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !src) return;
+    setLevels([]); setCurrentLevel(-1); setCurrentTime(0); setDuration(0); setBuffered(0);
 
     if (src.includes('.m3u8') && Hls.isSupported()) {
       const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
@@ -48,6 +50,7 @@ export function VideoPlayer({ src, poster, title, onTimeUpdate, onHeartbeat, aut
         if (autoPlay) video.play().catch(() => {});
       });
       hls.on(Hls.Events.LEVEL_SWITCHED, (_e, data) => setCurrentLevel(data.level));
+      hls.on(Hls.Events.ERROR, (_event, data) => { if(data.fatal) { setPlaying(false); hls.destroy(); if(hlsRef.current===hls)hlsRef.current=null; } });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = src;
       if (autoPlay) video.play().catch(() => {});
@@ -56,7 +59,7 @@ export function VideoPlayer({ src, poster, title, onTimeUpdate, onHeartbeat, aut
       if (autoPlay) video.play().catch(() => {});
     }
 
-    return () => { hlsRef.current?.destroy(); hlsRef.current = null; };
+    return () => { hlsRef.current?.destroy(); hlsRef.current = null; video.pause(); video.removeAttribute('src'); video.load(); };
   }, [src, autoPlay]);
 
   useEffect(() => {
@@ -68,7 +71,7 @@ export function VideoPlayer({ src, poster, title, onTimeUpdate, onHeartbeat, aut
     const onTime = () => {
       setCurrentTime(video.currentTime);
       setDuration(video.duration || 0);
-      onTimeUpdate?.(video.currentTime, video.duration);
+      onTimeUpdate?.(video.currentTime, Number.isFinite(video.duration)?video.duration:0);
       if (video.buffered.length > 0) setBuffered(video.buffered.end(video.buffered.length - 1));
     };
 
@@ -91,7 +94,7 @@ export function VideoPlayer({ src, poster, title, onTimeUpdate, onHeartbeat, aut
         if (v && !v.paused) onHeartbeat(v.currentTime);
       }, 15000);
     }
-    return () => { if (beatTimer.current) clearInterval(beatTimer.current); };
+    return () => { if (beatTimer.current) clearInterval(beatTimer.current); beatTimer.current=undefined; };
   }, [playing, onHeartbeat]);
 
   const togglePlay = () => {
@@ -111,8 +114,8 @@ export function VideoPlayer({ src, poster, title, onTimeUpdate, onHeartbeat, aut
   const toggleFullscreen = () => {
     const el = containerRef.current;
     if (!el) return;
-    if (document.fullscreenElement) document.exitFullscreen();
-    else el.requestFullscreen();
+    if (document.fullscreenElement) void document.exitFullscreen().catch(()=>{});
+    else void el.requestFullscreen().catch(()=>{});
   };
 
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -140,7 +143,7 @@ export function VideoPlayer({ src, poster, title, onTimeUpdate, onHeartbeat, aut
 
   const handleMouseMove = () => {
     setShowControls(true);
-    clearTimeout(hideTimer.current);
+    if(hideTimer.current) clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => { if (playing) setShowControls(false); }, 3000);
   };
 
