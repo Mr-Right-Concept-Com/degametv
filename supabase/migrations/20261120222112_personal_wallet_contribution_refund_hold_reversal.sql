@@ -2,7 +2,7 @@ CREATE OR REPLACE FUNCTION public.refund_personal_wallet_contribution(p_contribu
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
- SET search_path TO 'public', 'auth', 'pg_temp'
+ SET search_path TO 'public', 'pg_temp'
 AS $function$
 declare c public.event_contributions%rowtype;v_balance bigint;v_scale bigint;v_amount_major numeric;
 begin

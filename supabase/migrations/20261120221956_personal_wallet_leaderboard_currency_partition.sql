@@ -2,7 +2,7 @@ CREATE OR REPLACE FUNCTION public.get_event_contribution_leaderboard(p_target_ki
  RETURNS TABLE(rank_position bigint, contributor_name text, total_amount_major numeric, currency text, contribution_count bigint)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
- SET search_path TO 'public', 'auth', 'pg_temp'
+ SET search_path TO 'public', 'pg_temp'
 AS $function$
 begin
  if p_target_id is null or p_target_kind not in ('content','screening','live_stream') then raise exception 'invalid_contribution_target' using errcode='22023';end if;

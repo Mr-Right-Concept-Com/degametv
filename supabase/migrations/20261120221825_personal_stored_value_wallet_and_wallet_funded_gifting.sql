@@ -54,7 +54,7 @@ CREATE OR REPLACE FUNCTION public.get_my_personal_wallet_balances()
  RETURNS TABLE(currency text, balance_minor bigint, balance_major numeric)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
- SET search_path TO 'public', 'auth', 'pg_temp'
+ SET search_path TO 'public', 'pg_temp'
 AS $function$
 declare v_user uuid:=auth.uid();
 begin
@@ -70,7 +70,7 @@ CREATE OR REPLACE FUNCTION public.credit_personal_wallet_topup(p_reference text,
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
- SET search_path TO 'public', 'auth', 'pg_temp'
+ SET search_path TO 'public', 'pg_temp'
 AS $function$
 declare o public.wallet_topup_orders%rowtype;v_balance bigint;
 begin
@@ -95,7 +95,7 @@ CREATE OR REPLACE FUNCTION public.spend_personal_wallet_for_contribution(p_contr
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
- SET search_path TO 'public', 'auth', 'pg_temp'
+ SET search_path TO 'public', 'pg_temp'
 AS $function$
 declare c public.event_contributions%rowtype;v_balance bigint;v_release_at timestamptz;v_hold_hours integer;v_fee_minor bigint;v_scale bigint;
 begin
@@ -134,7 +134,7 @@ CREATE OR REPLACE FUNCTION public.refund_personal_wallet_contribution(p_contribu
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
- SET search_path TO 'public', 'auth', 'pg_temp'
+ SET search_path TO 'public', 'pg_temp'
 AS $function$
 declare c public.event_contributions%rowtype;v_balance bigint;v_scale bigint;v_amount_major numeric;
 begin
@@ -163,7 +163,7 @@ CREATE OR REPLACE FUNCTION public.get_my_wallet_activity(p_limit integer DEFAULT
  RETURNS TABLE(id uuid, activity_type text, direction text, amount_major numeric, currency text, status text, description text, counterparty text, reference text, created_at timestamp with time zone)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
- SET search_path TO 'public', 'auth', 'pg_temp'
+ SET search_path TO 'public', 'pg_temp'
 AS $function$
 declare v_user uuid:=auth.uid();v_limit integer:=greatest(1,least(coalesce(p_limit,100),100));
 begin
@@ -195,7 +195,7 @@ CREATE OR REPLACE FUNCTION public.get_event_contribution_leaderboard(p_target_ki
  RETURNS TABLE(rank_position bigint, contributor_name text, total_amount_major numeric, currency text, contribution_count bigint)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
- SET search_path TO 'public', 'auth', 'pg_temp'
+ SET search_path TO 'public', 'pg_temp'
 AS $function$
 begin
  if p_target_id is null or p_target_kind not in ('content','screening','live_stream') then raise exception 'invalid_contribution_target' using errcode='22023';end if;
@@ -216,7 +216,7 @@ CREATE OR REPLACE FUNCTION public.get_event_contribution_totals(p_target_kind te
  RETURNS TABLE(currency text, total_amount_major numeric, supporter_count bigint, contribution_count bigint, gift_count bigint)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
- SET search_path TO 'public', 'auth', 'pg_temp'
+ SET search_path TO 'public', 'pg_temp'
 AS $function$
 begin
  if p_target_id is null or p_target_kind not in ('content','screening','live_stream') then raise exception 'invalid_contribution_target' using errcode='22023';end if;
