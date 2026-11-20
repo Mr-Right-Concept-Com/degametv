@@ -38,7 +38,6 @@ const editableSettings = new Set([
   "base_currency",
   "commission_rates",
   "creator_approval_mode",
-  "currency_rates",
   "escrow_hold_days",
   "kyb_verification_mode",
   "kyc_verification_mode",
@@ -73,7 +72,11 @@ Deno.serve(async (req) => {
           && (typeof p.value !== "string" || !approvalModes.has(p.value))) {
           return json({ error: "Approval mode must be manual, automatic, or hybrid." }, 400);
         }
-        if (p.key === "base_currency" && (typeof p.value !== "string" || !/^[A-Z]{3}$/.test(p.value))) return json({ error: "Platform base currency must be a three-letter ISO 4217 code." }, 400);
+        if (p.key === "base_currency") {
+          if (typeof p.value !== "string" || !/^[A-Z]{3}$/.test(p.value)) return json({ error: "Platform base currency must be a three-letter ISO 4217 code." }, 400);
+          const {data:currency,error:currencyError}=await admin.from("country_currency_rules").select("currency_code").eq("currency_code",p.value).eq("enabled",true).limit(1);
+          if(currencyError||!currency?.length)return json({error:"Platform base currency is not present in the enabled ISO 4217 registry."},422);
+        }
         if (/(secret|api[_-]?key|password|token)/i.test(p.key) || ["email_provider", "payment_gateways"].includes(p.key)) return json({ error: "Credential and provider settings must use their Vault control plane." }, 403);
         const { error } = await admin.from("platform_settings")
           .upsert({ setting_key: p.key, setting_value: p.value, updated_at: new Date().toISOString() }, { onConflict: "setting_key" });
