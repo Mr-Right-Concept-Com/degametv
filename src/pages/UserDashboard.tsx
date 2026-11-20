@@ -189,6 +189,8 @@ export default function UserDashboard() {
           </Button>
         </div>
 
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4"><div><p className="font-semibold">Need a hand?</p><p className="text-xs text-muted-foreground">Get help with your account, tickets, wallet, playback or Creator Studio.</p></div><Button asChild variant="outline" className="rounded-full"><Link to="/support">Help &amp; Support <ArrowRight className="ml-2 h-4 w-4" /></Link></Button></div>
+
         {/* Studio access is surfaced here only after approval. */}
         {studioAccess === 'approved' ? (
           <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/10 to-secondary/40 p-4 sm:flex-row sm:items-center sm:justify-between">
