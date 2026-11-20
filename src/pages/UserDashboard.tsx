@@ -181,6 +181,26 @@ export default function UserDashboard() {
     return () => { active = false; };
   }, [user?.id, user?.email, navigate, fetchAll, checkStudioAccess]);
 
+  const submitWalletTopup = async () => {
+    const amount = Number(topupAmount);
+    if (!Number.isFinite(amount) || amount <= 0 || !/^[A-Z]{3}$/.test(topupCurrency)) { toast.error('Enter a valid top-up amount and currency.'); return; }
+    if (topupBusy) return;
+    setTopupBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('personal-wallet-topup', { body: { amount, currency: topupCurrency, idempotencyKey: topupIdempotencyKey.current } });
+      const parsed = walletTopupResponseSchema.safeParse(data);
+      if (error || !parsed.success || !parsed.data.success) {
+        if (parsed.success && !parsed.data.success && parsed.data.retryable) topupIdempotencyKey.current = crypto.randomUUID();
+        toast.error(parsed.success && !parsed.data.success ? parsed.data.error || 'Wallet top-up could not be started.' : error?.message || 'Wallet top-up returned an invalid response.');
+        return;
+      }
+      topupIdempotencyKey.current = crypto.randomUUID();
+      if ('paid' in parsed.data && parsed.data.paid) { toast.success('Personal Wallet top-up confirmed.'); setTopupAmount(''); await fetchAll(); return; }
+      window.location.assign(parsed.data.checkoutUrl);
+    } catch { toast.error('Wallet top-up could not be started. You can safely retry.'); }
+    finally { setTopupBusy(false); }
+  };
+
   const submitWithdrawalRequest = async () => {
     if (!user?.id) return;
     const amount = Number(withdrawAmount);
