@@ -96,7 +96,7 @@ if (import.meta.main) serve(async (req: Request) => {
     if (configError || !Array.isArray(configs) || !configs.length) {
       return json(503, { success: false, error: "No live payment adapter is available." });
     }
-    const config = configs.find((provider: unknown): provider is PaymentProvider => isPaymentProvider(provider) && => provider.provider_key === method && provider.is_live === true && Boolean(provider.credential));
+    const config = configs.find((provider: unknown): provider is PaymentProvider => isPaymentProvider(provider) && provider.provider_key === method);
     if (!config) return json(503, { success: false, error: "The selected live payment adapter is not active or its Vault credentials are incomplete." });
     const checkoutEndpoint = config.endpoints?.checkout_initialize;
     if (!config.credential || typeof checkoutEndpoint !== "string" || !checkoutEndpoint.startsWith("/") || checkoutEndpoint.startsWith("//") || typeof config.endpoints?.payment_verify !== "string" || !config.endpoints.payment_verify.startsWith("/") || config.endpoints.payment_verify.startsWith("//") || typeof config.endpoints?.refund !== "string" || !config.endpoints.refund.startsWith("/") || config.endpoints.refund.startsWith("//")) {
@@ -104,7 +104,7 @@ if (import.meta.main) serve(async (req: Request) => {
     }
     if (config.is_live) {
       const { data: delivery } = await admin.rpc("get_service_provider_runtime_config", { p_capability: "video_delivery" });
-      if (!Array.isArray(delivery) || !delivery.length || !delivery[0].endpoints?.playback_authorize) {
+      if (!Array.isArray(delivery) || !delivery.length || !isRecord(delivery[0]) || !isRecord(delivery[0].endpoints) || typeof delivery[0].endpoints.playback_authorize !== "string") {
         return json(503, { success: false, error: "Live sales require configured secure playback entitlement. No charge was made." });
       }
     }
