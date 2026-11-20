@@ -1,6 +1,4 @@
-import { ReactNode } from 'react';
-import { Bell, HelpCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import type { ReactNode } from 'react';
 
 interface AdminHeaderProps {
   title?: string;
@@ -25,18 +23,7 @@ export function AdminHeader({ title, description, actions, children }: AdminHead
           )}
         </div>
 
-        <div className="flex items-center gap-2">
-          {actions}
-          <Button variant="ghost" size="icon" aria-label="Help" className="hidden sm:inline-flex">
-            <HelpCircle className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-          </Button>
-          <Button variant="ghost" size="icon" aria-label="Notifications (3 unread)" className="relative">
-            <Bell className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-            <span aria-hidden="true" className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground flex items-center justify-center">
-              3
-            </span>
-          </Button>
-        </div>
+        {actions && <div className="flex items-center gap-2">{actions}</div>}
       </div>
     </header>
   );
