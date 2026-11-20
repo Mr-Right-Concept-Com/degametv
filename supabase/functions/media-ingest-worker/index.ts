@@ -12,6 +12,23 @@ Deno.serve(async req=>{
  const url=Deno.env.get("SUPABASE_URL"),key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
  if(!url||!key)return json(503,{error:"Media worker is not configured."});
  const db=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}}),body=await req.json().catch(()=>({}));
+ if(body?.action==="transcode_callback"){
+  const callback=z.object({action:z.literal("transcode_callback"),jobId:z.string().uuid(),status:z.enum(["complete","failed"]),renditions:z.array(z.object({path:z.string().min(1).max(1000),kind:z.enum(["hls","dash","thumbnail","preview","caption"]),mimeType:z.string().optional(),width:z.number().int().positive().optional(),height:z.number().int().positive().optional(),language:z.string().optional()})).default([]),subtitles:z.array(z.record(z.unknown())).default([]),error:z.string().max(1000).optional()}).strict().safeParse(body);
+  if(!callback.success)return json(400,{error:"Invalid transcoder callback."});
+  const p=callback.data,{data:job,error:jobError}=await db.from("media_processing_jobs").select("id,upload_session_id,status,attempts,max_attempts").eq("id",p.jobId).maybeSingle();
+  if(jobError||!job||job.status!=="TRANSCODING")return json(404,{error:"Active transcode job not found."});
+  if(p.status==="complete"){
+   if(!p.renditions.some(r=>r.kind==="hls")||!p.renditions.some(r=>r.kind==="dash")||!p.renditions.some(r=>r.kind==="thumbnail"))return json(422,{error:"HLS, DASH and thumbnail renditions are mandatory."});
+   if(p.renditions.some(r=>!r.path.startsWith("jobs/"+job.id+"/")))return json(422,{error:"Rendition path is outside this job's delivery namespace."});
+   const {error}=await db.from("media_processing_jobs").update({status:"READY",stage:"complete",renditions:p.renditions,subtitles:p.subtitles,locked_at:null,locked_by:null,last_error:null,updated_at:new Date().toISOString()}).eq("id",job.id);
+   if(error)return json(503,{error:"Transcode output could not be persisted."});
+   await db.from("media_upload_sessions").update({status:"READY",updated_at:new Date().toISOString()}).eq("id",job.upload_session_id);
+   return json(200,{success:true,status:"READY"});
+  }
+  const attempts=Number(job.attempts??1),dead=attempts>=Number(job.max_attempts??8),delay=Math.min(3600,Math.pow(2,attempts)*15);
+  const {error}=await db.from("media_processing_jobs").update({status:dead?"DEAD_LETTER":"RETRY_WAIT",available_at:new Date(Date.now()+delay*1000).toISOString(),dead_lettered_at:dead?new Date().toISOString():null,last_error:p.error??"transcode_failed",locked_at:null,locked_by:null,updated_at:new Date().toISOString()}).eq("id",job.id);
+  return error?json(503,{error:"Transcode failure could not be persisted."}):json(200,{success:true,status:dead?"DEAD_LETTER":"RETRY_WAIT"});
+ }
  const worker=typeof body.workerId==="string"&&/^[a-zA-Z0-9._:-]{3,100}$/.test(body.workerId)?body.workerId:"media-worker-"+crypto.randomUUID();
  const {data:jobs,error}=await db.rpc("claim_media_processing_jobs",{p_worker:worker,p_limit:Math.min(Math.max(Number(body.limit)||3,1),10)});
  if(error)return json(503,{error:"Durable media jobs could not be claimed."});
