@@ -59,7 +59,7 @@ export default function Payouts() {
                   <TableRow key={w.id}>
                     <TableCell>{new Date(w.created_at).toLocaleDateString()}</TableCell>
                     <TableCell>{w.currency} {Number(w.amount).toLocaleString()}</TableCell>
-                    <TableCell className="text-xs">{w.bank_name} · {w.bank_country || '—'}<br />Account ending ····{String(w.account_number || '').replace(/\\D/g, '').slice(-4) || 'unavailable'}<br />{w.account_name}</TableCell>
+                    <TableCell className="text-xs">{w.bank_name} · {w.bank_country || '—'}<br />Account ending ····{String(w.account_number || '').replace(/\D/g, '').slice(-4) || 'unavailable'}<br />{w.account_name}</TableCell>
                     <TableCell><Badge variant="secondary">{w.status}</Badge></TableCell>
                     <TableCell className="space-x-1 whitespace-nowrap">
                       {w.status === 'pending' && <><Button size="sm" onClick={() => setW(w.id, 'approved')}>Approve</Button><Button size="sm" variant="outline" onClick={() => setW(w.id, 'rejected')}>Reject</Button></>}
