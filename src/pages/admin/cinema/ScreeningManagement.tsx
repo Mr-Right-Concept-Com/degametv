@@ -22,7 +22,7 @@ import {
 import { 
   Plus, Search, MoreHorizontal, Eye, Edit, Trash2, 
   Clapperboard, Users, Calendar, DollarSign, Play, 
-  Clock, Ticket, Film, RefreshCw, Lock
+  Clock, Ticket, RefreshCw, Lock
 } from 'lucide-react';
 
 const mockScreenings = [
@@ -115,6 +115,11 @@ export default function ScreeningManagement() {
       default: return 'bg-muted text-muted-foreground';
     }
   };
+
+  const filteredScreenings = mockScreenings.filter((screening) =>
+    screening.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    screening.film.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const totalRevenue = mockScreenings.reduce(
     (acc, s) => acc + s.ticketsSold * s.ticketPrice,
@@ -236,7 +241,7 @@ export default function ScreeningManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mockScreenings.map((screening) => (
+                  {filteredScreenings.map((screening) => (
                     <TableRow key={screening.id} className="border-border">
                       <TableCell>
                         <div>
