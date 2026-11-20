@@ -32,10 +32,10 @@ async function requestS3(c:Storage,key:string,method:string,headers:Record<strin
  const auth="AWS4-HMAC-SHA256 Credential="+c.accessKeyId+"/"+scope+", SignedHeaders="+signed+", Signature="+sig;
  const {host:_host,...wireHeaders}=all;return fetch(u,{method,headers:{...wireHeaders,...headers,Authorization:auth},body:body??undefined,signal:AbortSignal.timeout(30000)});
 }
-async function presign(c:Storage,key:string,method:"GET"|"PUT",contentType?:string,bucket=c.bucket){
+async function presign(c:Storage,key:string,method:"GET"|"PUT",contentType?:string,bucket=c.bucket,expiresSeconds=900){
  const u=objectUrl(c,key,bucket),now=stamp(),day=now.slice(0,8),scope=day+"/"+c.region+"/s3/aws4_request";
  const headers=contentType?"content-type;host":"host";
- const params:Record<string,string>={"X-Amz-Algorithm":"AWS4-HMAC-SHA256","X-Amz-Credential":c.accessKeyId+"/"+scope,"X-Amz-Date":now,"X-Amz-Expires":"900","X-Amz-SignedHeaders":headers};
+ const params:Record<string,string>={"X-Amz-Algorithm":"AWS4-HMAC-SHA256","X-Amz-Credential":c.accessKeyId+"/"+scope,"X-Amz-Date":now,"X-Amz-Expires":String(expiresSeconds),"X-Amz-SignedHeaders":headers};
  if(c.sessionToken)params["X-Amz-Security-Token"]=c.sessionToken;for(const [k,v] of Object.entries(params))u.searchParams.set(k,v);
  const canonical=method+"\n"+u.pathname+"\n"+query(u)+"\n"+(contentType?"content-type:"+contentType+"\n":"")+"host:"+u.host+"\n\n"+headers+"\nUNSIGNED-PAYLOAD";
  const toSign="AWS4-HMAC-SHA256\n"+now+"\n"+scope+"\n"+await hash(canonical),sig=hex(await hmac(await keyFor(c,day),toSign));
@@ -94,10 +94,10 @@ Deno.serve(async req=>{
     {kind:"preview",path:outputPrefix+"preview.mp4",mimeType:"video/mp4"},
     {kind:"caption",path:outputPrefix+"captions.vtt",mimeType:"text/vtt"}
    ];
-   const uploadTargets=await Promise.all(outputs.map(async o=>({...o,uploadUrl:await presign(storage,o.path,"PUT",o.mimeType,storage.deliveryBucket)})));
+   const uploadTargets=await Promise.all(outputs.map(async o=>({...o,uploadUrl:await presign(storage,o.path,"PUT",o.mimeType,storage.deliveryBucket,86400)})));
    const transcodeUrl=new URL(transcoder.endpoints.transcode??"/transcode",transcoder.base_url??undefined).toString();
    const callbackUrl=Deno.env.get("MEDIA_TRANSCODE_CALLBACK_URL");if(!callbackUrl)throw new Error("MEDIA_TRANSCODE_CALLBACK_URL is not configured.");
-   const transcodeResponse=await fetch(transcodeUrl,{method:"POST",headers:{"Authorization":"Bearer "+transcoder.credential,"Content-Type":"application/json","Idempotency-Key":"transcode:"+job.id},body:JSON.stringify({jobId:job.id,sourceUrl:await presign(storage,masterPath,"GET",undefined,storage.deliveryBucket),sourceSha256:scan.data.sha256,outputFormat:"fmp4-single-file",outputs:uploadTargets,packaging:{hls:"byte-range",dash:"SegmentBase"},callbackUrl,callbackSecret:Deno.env.get("MEDIA_WORKER_SECRET")}),signal:AbortSignal.timeout(30000)});
+   const transcodeResponse=await fetch(transcodeUrl,{method:"POST",headers:{"Authorization":"Bearer "+transcoder.credential,"Content-Type":"application/json","Idempotency-Key":"transcode:"+job.id},body:JSON.stringify({jobId:job.id,sourceUrl:await presign(storage,masterPath,"GET",undefined,storage.deliveryBucket,21600),sourceSha256:scan.data.sha256,outputFormat:"fmp4-single-file",outputs:uploadTargets,packaging:{hls:"byte-range",dash:"SegmentBase"},callbackUrl,callbackSecret:Deno.env.get("MEDIA_WORKER_SECRET")}),signal:AbortSignal.timeout(30000)});
    if(!transcodeResponse.ok)throw new Error("transcoder_http_"+transcodeResponse.status);
    const parsed=Transcode.safeParse(await transcodeResponse.json());if(!parsed.success||parsed.data.jobId!==job.id)throw new Error("transcoder_response_invalid");
 
