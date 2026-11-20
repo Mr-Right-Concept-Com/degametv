@@ -49,6 +49,9 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const fetchTenantAndRole = async () => {
+      setLoading(true);
+      setTenant(DEFAULT_TENANT);
+      setUserRole(null);
       if (!user) {
         setTenant(DEFAULT_TENANT);
         setUserRole(null);
