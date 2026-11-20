@@ -40,6 +40,8 @@ type DashboardWatchHistory = Tables<'watch_history'> & {
   content: Pick<Tables<'content'>, 'title' | 'poster_url'> | null;
 };
 type WalletBalance = Database['public']['Functions']['wallet_balance_by_currency']['Returns'][number];
+type PersonalWalletBalance = Database['public']['Functions']['get_my_personal_wallet_balances']['Returns'][number];
+const walletTopupResponseSchema = z.union([z.object({ success: z.literal(true), checkoutUrl: z.string().url(), reference: z.string() }),z.object({ success: z.literal(true), paid: z.literal(true), reference: z.string() }),z.object({ success: z.literal(false), error: z.string().optional(), retryable: z.boolean().optional() })]);
 type WalletActivity = Database['public']['Functions']['get_my_wallet_activity']['Returns'][number];
 type DashboardInvitation = z.infer<typeof invitationListSchema>[number];
 
@@ -52,6 +54,12 @@ export default function UserDashboard() {
   const [watchHistory, setWatchHistory] = useState<DashboardWatchHistory[]>([]);
   const [loyalty, setLoyalty] = useState<Tables<'loyalty_points'>[]>([]);
   const [walletBalances, setWalletBalances] = useState<WalletBalance[]>([]);
+  const [personalWalletBalances, setPersonalWalletBalances] = useState<PersonalWalletBalance[]>([]);
+  const [walletTopupCurrencies, setWalletTopupCurrencies] = useState<string[]>([]);
+  const [topupAmount, setTopupAmount] = useState('');
+  const [topupCurrency, setTopupCurrency] = useState('');
+  const [topupBusy, setTopupBusy] = useState(false);
+  const topupIdempotencyKey = useRef(crypto.randomUUID());
   const [walletActivity, setWalletActivity] = useState<WalletActivity[]>([]);
   const [walletCurrencyFilter, setWalletCurrencyFilter] = useState('all');
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -105,7 +113,7 @@ export default function UserDashboard() {
     if (!user?.id) { setLoading(false); return; }
     setLoading(true);
     try {
-      const [ticketsRes, historyRes, profileRes, loyaltyRes, walletRes, walletActivityRes, inviteRes] = await Promise.all([
+      const [ticketsRes, historyRes, profileRes, loyaltyRes, walletRes, personalWalletRes, walletActivityRes, currencyRulesRes, inviteRes] = await Promise.all([
         supabase.from('screening_tickets')
           .select('*, screening:screenings(title,poster_url,slug)')
           .or('user_id.eq.' + user.id + ',email.eq.' + (user.email ?? ''))
@@ -116,7 +124,9 @@ export default function UserDashboard() {
         supabase.from('loyalty_points').select('*').eq('user_id', user.id)
           .order('created_at', { ascending: false }).limit(50),
         supabase.rpc('wallet_balance_by_currency', { _user_id: user.id }),
+        supabase.rpc('get_my_personal_wallet_balances'),
         supabase.rpc('get_my_wallet_activity', { p_limit: 100 }),
+        supabase.from('country_currency_rules').select('currency_code').eq('enabled', true).order('currency_code'),
         supabase.functions.invoke('manage-event-invites', { body: { action: 'my_invitations' } }),
       ]);
       if (!isCurrent()) return;
@@ -128,6 +138,13 @@ export default function UserDashboard() {
       setLoyalty(loyaltyRes.data ?? []);
       if (walletRes.error) toast.error('Creator balances could not be loaded.');
       setWalletBalances(walletRes.data ?? []);
+      if (personalWalletRes.error) toast.error('Personal Wallet balances could not be loaded.');
+      const personalBalances = personalWalletRes.data ?? [];
+      setPersonalWalletBalances(personalBalances);
+      if (currencyRulesRes.error) toast.error('Available wallet currencies could not be loaded.');
+      const supportedCurrencies = [...new Set((currencyRulesRes.data ?? []).map(row => row.currency_code))].sort();
+      setWalletTopupCurrencies(supportedCurrencies);
+      setTopupCurrency(current => current || (profileRes.data?.preferred_currency && supportedCurrencies.includes(profileRes.data.preferred_currency) ? profileRes.data.preferred_currency : supportedCurrencies[0] || personalBalances[0]?.currency || ''));
       if (walletActivityRes.error) toast.error('Wallet activity could not be loaded.');
       setWalletActivity(walletActivityRes.data ?? []);
       if (inviteRes.error) toast.error('Your event invitations could not be loaded.');
