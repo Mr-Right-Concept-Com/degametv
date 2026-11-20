@@ -4,10 +4,10 @@ import { z } from "npm:zod@3";
 
 const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("list") }),
-  z.object({ action: z.literal("test"), capability: z.enum(["payments","identity","bank_verification","video_delivery","email","live_streaming","fx_rates","storage","cdn","drm","sms","push","geolocation","analytics"]), providerKey: z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/) }),
+  z.object({ action: z.literal("test"), capability: z.enum(["payments","identity","bank_verification","video_delivery","email","live_streaming","fx_rates","storage","cdn","drm","sms","push","geolocation","analytics","ai_text","ai_moderation","ai_embeddings"]), providerKey: z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/) }),
   z.object({
     action: z.literal("configure"),
-    capability: z.enum(["payments","identity","bank_verification","video_delivery","email","live_streaming","fx_rates","storage","cdn","drm","sms","push","geolocation","analytics"]),
+    capability: z.enum(["payments","identity","bank_verification","video_delivery","email","live_streaming","fx_rates","storage","cdn","drm","sms","push","geolocation","analytics","ai_text","ai_moderation","ai_embeddings"]),
     providerKey: z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/),
     enabled: z.boolean(),
     live: z.boolean(),
@@ -22,7 +22,7 @@ const schema = z.discriminatedUnion("action", [
   }),
   z.object({
     action: z.literal("remove"),
-    capability: z.enum(["payments","identity","bank_verification","video_delivery","email","live_streaming","fx_rates","storage","cdn","drm","sms","push","geolocation","analytics"]),
+    capability: z.enum(["payments","identity","bank_verification","video_delivery","email","live_streaming","fx_rates","storage","cdn","drm","sms","push","geolocation","analytics","ai_text","ai_moderation","ai_embeddings"]),
     providerKey: z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/),
   }),
 ]);
@@ -78,7 +78,7 @@ Deno.serve(async req => {
     if(p.capability==="sms"&&!endpoint("send_sms"))return json({error:"SMS adapters require a send_sms endpoint."},400);
     if(p.capability==="push"&&!endpoint("send_push"))return json({error:"Push adapters require a send_push endpoint."},400);
     if(p.capability==="geolocation"&&!endpoint("lookup"))return json({error:"Geolocation adapters require a lookup endpoint."},400);
-    if(p.capability==="analytics"&&!endpoint("ingest"))return json({error:"Analytics adapters require an ingest endpoint."},400);
+    if(p.capability==="analytics"&&!endpoint("ingest"))return json({error:"Analytics adapters require an ingest endpoint."},400);\n    if(p.capability==="ai_text"&&!endpoint("completion"))return json({error:"AI text adapters require a completion endpoint."},400);\n    if(p.capability==="ai_moderation"&&!endpoint("completion"))return json({error:"AI moderation adapters require a completion endpoint."},400);\n    if(p.capability==="ai_embeddings"&&!endpoint("embeddings"))return json({error:"AI embedding adapters require an embeddings endpoint."},400);\n    if(["ai_text","ai_moderation","ai_embeddings"].includes(p.capability)&&!["openai_compatible","anthropic_messages"].includes(String(p.settings.protocol??"")))return json({error:"AI adapters require an explicit supported protocol setting."},400);
   }
   if(p.action==="list"){
     const {data,error}=await admin.from("service_provider_bindings")
