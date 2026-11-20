@@ -87,7 +87,7 @@ Deno.serve(async req => {
   if (!policy.allowed_data_classes?.includes(request.dataClass)) return respond({error:"The supplied data classification is not allowed for this workflow."},403);
   if (request.input.length > policy.max_input_chars) return respond({error:"Input exceeds the workflow policy limit."},413);
   let effectiveInput = request.input;
-  let knowledgeSources: Array<{slug:string;title:string}> = [];
+  const knowledgeSources: Array<{slug:string;title:string}> = [];
   if (request.workflowKey === "finance.anomaly_triage") {
     const since = new Date(Date.now()-24*60*60*1000).toISOString();
     const [payments,refunds,contributions,ledger,providers] = await Promise.all([
