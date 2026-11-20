@@ -32,7 +32,7 @@ const ProviderSchema = z.object({
   removed_at: z.string().nullable(), priority: z.number(), hasTestCredential: z.boolean(), hasLiveCredential: z.boolean(),
   hasTestWebhookSecret: z.boolean(), hasLiveWebhookSecret: z.boolean(),
   health_status: z.enum(['unknown','healthy','unhealthy']), health_checked_at: z.string().nullable(), health_error: z.string().nullable(),
-  secretVersions: z.array(z.object({ secret_kind: z.string(), version: z.number(), created_at: z.string(), retired_at: z.string().nullable() })).optional(),
+  secretVersions: z.array(z.object({ secret_kind: z.string(), version: z.number(), created_at: z.string(), retired_at: z.string().nullable() })),
 });
 
 export function ProviderRegistryPanel({initialCapability='payments'}:{initialCapability?:Capability}){
