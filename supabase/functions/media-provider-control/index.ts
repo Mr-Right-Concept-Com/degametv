@@ -16,6 +16,18 @@ async function featureEnabled(db: ReturnType<typeof createClient>, key: string, 
  return new DataView(digest).getUint32(0,false)%100<flag.rollout_percentage;
 }
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json"}});
+type MediaProvider = {
+ provider_key:string; base_url:string; credential:string;
+ endpoints:Record<string,unknown>; settings:Record<string,unknown>; is_live?:boolean;
+};
+const isRecord=(value:unknown):value is Record<string,unknown> =>
+ value!==null&&typeof value==="object"&&!Array.isArray(value);
+const isStringArray=(value:unknown):value is string[] =>
+ Array.isArray(value)&&value.every((item:unknown)=>typeof item==="string");
+const isMediaProvider=(value:unknown):value is MediaProvider =>
+ isRecord(value)&&typeof value.provider_key==="string"&&typeof value.base_url==="string"&&
+ typeof value.credential==="string"&&isRecord(value.endpoints)&&isRecord(value.settings);
+
 const endpoint=(base:string,path:unknown)=>{if(typeof path!=="string"||!path.startsWith("/")||path.startsWith("//"))throw new Error("provider_endpoint_missing");const u=new URL(path,base);if(u.origin!==new URL(base).origin)throw new Error("provider_endpoint_invalid");return u;};
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:corsHeaders});
@@ -39,7 +51,8 @@ Deno.serve(async req=>{
  const capability=p.action==="create_live"||p.action==="stop_live"?"live_streaming":"video_delivery";
  const {data:providers,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:capability});
  if(providerError||!Array.isArray(providers))return json({error:"Media provider registry is unavailable."},503);
- let provider=providers[0];
+ let provider:MediaProvider|null=null;
+ const providerCandidates:unknown[]=providers;
  const operation=p.action==="create_upload"?"upload_create":p.action==="create_live"?"live_create":"live_stop";
  try{
   if(p.action==="stop_live"){
@@ -51,9 +64,10 @@ Deno.serve(async req=>{
    ]);
    const vault=Array.isArray(secrets)?secrets[0]:null,mode=stream.metadata?.provider_mode==="live"?"live":"test";
    const credential=mode==="live"?(vault?.live_credential||vault?.test_credential):(vault?.test_credential||vault?.live_credential);
-   provider=binding?{...binding,credential}:null;
-   if(!provider?.credential||!provider.endpoints?.live_stop)return json({error:"The provider that created this stream is no longer configured. Restore its Vault binding to stop it safely."},503);
-   const response=await fetch(endpoint(provider.base_url,provider.endpoints.live_stop),{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+provider.credential},body:JSON.stringify({stream_id:p.streamId,provider_reference:stream.metadata?.provider_reference}),signal:AbortSignal.timeout(15000)});
+   const stopProviderValue=binding?{...binding,credential}:null;
+   if(!isMediaProvider(stopProviderValue)||typeof stopProviderValue.endpoints.live_stop!=="string")return json({error:"The provider that created this stream is no longer configured. Restore its Vault binding to stop it safely."},503);
+   const stopProvider=stopProviderValue;
+   const response=await fetch(endpoint(stopProvider.base_url,stopProvider.endpoints.live_stop),{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+stopProvider.credential},body:JSON.stringify({stream_id:p.streamId,provider_reference:stream.metadata?.provider_reference}),signal:AbortSignal.timeout(15000)});
    const result=await response.json().catch(()=>null);
    if(!response.ok||result?.stopped!==true)return json({error:"Provider could not confirm stream termination."},502);
    const endedAt=new Date().toISOString();
@@ -129,21 +143,24 @@ Deno.serve(async req=>{
   const payload=p.action==="create_upload"
    ? {owner_id:user.id,file_name:p.fileName,content_type:p.contentType,size_bytes:p.sizeBytes,content_id:p.contentId??null,transcode:true,delivery_profile:"adaptive"}
    : {owner_id:user.id,title:p.title,description:p.description??null,scheduled_start:p.scheduledStart??null,recording_enabled:p.recordingEnabled};
-  let response:Response|null=null,result:any=null;
-  for(const candidate of providers){
-   if(!candidate.credential||!candidate.endpoints?.[operation])continue;
+  let response:Response|null=null,result:Record<string,unknown>|null=null;
+  for(const candidateValue of providerCandidates){
+   if(!isMediaProvider(candidateValue))continue;
+   const candidate=candidateValue;
+   const operationPath=candidate.endpoints[operation];
+   if(typeof operationPath!=="string")continue;
    try{
-    const attempt=await fetch(endpoint(candidate.base_url,candidate.endpoints[operation]),{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+candidate.credential},body:JSON.stringify(payload),signal:AbortSignal.timeout(20000)});
-    const body=await attempt.json().catch(()=>null);
-    if(attempt.ok&&body){provider=candidate;response=attempt;result=body;break;}
+    const attempt=await fetch(endpoint(candidate.base_url,operationPath),{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+candidate.credential},body:JSON.stringify(payload),signal:AbortSignal.timeout(20000)});
+    const bodyValue:unknown=await attempt.json().catch(()=>null);
+    if(attempt.ok&&isRecord(bodyValue)){provider=candidate;response=attempt;result=bodyValue;break;}
    }catch{continue;}
   }
-  if(!response||!result)return json({error:"No configured media provider could provision this resource. Check provider health and contracts."},502);
+  if(!response||!result||!provider)return json({error:"No configured media provider could provision this resource. Check provider health and contracts."},502);
   if(p.action==="create_upload"){
-   let uploadUrl:URL;try{uploadUrl=new URL(result.upload_url);if(uploadUrl.protocol!=="https:")throw new Error();}catch{return json({error:"Media provider returned an invalid upload URL."},502);}
-   const allowed=Array.isArray(provider.settings?.allowed_upload_origins)?provider.settings.allowed_upload_origins:[];
+   let uploadUrl:URL;try{if(typeof result.upload_url!=="string")throw new Error();uploadUrl=new URL(result.upload_url);if(uploadUrl.protocol!=="https:")throw new Error();}catch{return json({error:"Media provider returned an invalid upload URL."},502);}
+   const allowed=isStringArray(provider.settings.allowed_upload_origins)?provider.settings.allowed_upload_origins:[];
    if(!allowed.includes(uploadUrl.origin)||typeof result.asset_id!=="string"||!result.asset_id)return json({error:"Media provider upload origin or asset contract is not approved."},502);
-   return json({success:true,assetId:result.asset_id,uploadUrl:uploadUrl.toString(),uploadHeaders:result.upload_headers&&typeof result.upload_headers==="object"?result.upload_headers:{},expiresAt:result.expires_at??null,transcoding:"provider_managed"});
+   return json({success:true,assetId:result.asset_id,uploadUrl:uploadUrl.toString(),uploadHeaders:isRecord(result.upload_headers)?result.upload_headers:{},expiresAt:result.expires_at??null,transcoding:"provider_managed"});
   }
   if(typeof result.provider_reference!=="string"||typeof result.ingest_url!=="string"||typeof result.stream_key!=="string"||!result.stream_key.trim())return json({error:"Media provider returned an incomplete live-stream contract."},502);
   let ingest:URL;try{ingest=new URL(result.ingest_url);if(ingest.protocol!=="rtmp:"&&ingest.protocol!=="rtmps:")throw new Error();}catch{return json({error:"Provider returned an invalid ingest endpoint."},502);}
@@ -159,6 +176,6 @@ Deno.serve(async req=>{
    metadata:{provider:provider.provider_key,provider_mode:provider.is_live===true?"live":"test",provider_reference:result.provider_reference,screening_id:p.screeningId,provisioned_at:new Date().toISOString(),stream_key_delivery:"one_time"},
   }).select("id").single();
   if(insertError||!stream){console.error("live_stream_insert",insertError);return json({error:"Live stream was provisioned but could not be reconciled to the creator account."},503);}
-  return json({success:true,streamId:stream.id,ingestUrl:ingest.toString(),streamKey:result.stream_key,playbackUrl:result.playback_url??null,ingestProtocol:ingest.protocol.slice(0,-1),provider:provider.provider_key,credentialDelivery:"one_time"});
+  return json({success:true,streamId:stream.id,ingestUrl:ingest.toString(),streamKey:result.stream_key,playbackUrl:typeof result.playback_url==="string"?result.playback_url:null,ingestProtocol:ingest.protocol.slice(0,-1),provider:provider.provider_key,credentialDelivery:"one_time"});
  }catch(e){console.error("media-provider-control",e);return json({error:"Media provider request failed."},502);}
 });
