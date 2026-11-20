@@ -2,7 +2,10 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, x-client-info, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
-const Body=z.object({caseId:z.string().uuid(),action:z.enum(["approve","reject","request_information","suspend","resolve_appeal"]),reason:z.string().trim().min(3).max(2000),decision:z.enum(["approve","reject"]).optional()}).strict().superRefine((v,c)=>{if(v.action==="resolve_appeal"&&!v.decision)c.addIssue({code:"custom",path:["decision"],message:"Appeal resolution requires a decision."});});
+const Body=z.discriminatedUnion("action",[
+ z.object({action:z.literal("list"),status:z.enum(["SUBMITTED","UNDER_REVIEW","APPEAL_PENDING","REJECTED","SUSPENDED"]).optional()}).strict(),
+ z.object({caseId:z.string().uuid(),action:z.enum(["approve","reject","request_information","suspend","resolve_appeal"]),reason:z.string().trim().min(3).max(2000),decision:z.enum(["approve","reject"]).optional()}).strict().superRefine((v,c)=>{if(v.action==="resolve_appeal"&&!v.decision)c.addIssue({code:"custom",path:["decision"],message:"Appeal resolution requires a decision."});})
+]);
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
  if(req.method!=="POST")return json(405,{error:"Method not allowed."});
@@ -15,6 +18,12 @@ Deno.serve(async req=>{
  const {data:admin,error:adminError}=await db.from("user_roles").select("role").eq("user_id",user.id).in("role",["super_admin","platform_admin"]).limit(1);
  if(adminError||!admin?.length)return json(403,{error:"God Mode administrator permission is required."});
  const p=parsed.data;
+ if(p.action==="list"){
+  let query=db.from("creator_verification_cases").select("id,user_id,studio_account_id,entity_type,status,country_code,submitted_at,reviewed_at,appeal_reason,requirements_snapshot,identity_verification_id,business_verification_id").order("submitted_at",{ascending:false}).limit(100);
+  if(p.status)query=query.eq("status",p.status);
+  const {data,error}=await query;
+  return error?json(503,{error:"Creator review queue could not be loaded."}):json(200,{success:true,cases:data??[]});
+ }
  const {data:record,error:readError}=await db.from("creator_verification_cases").select("*").eq("id",p.caseId).maybeSingle();
  if(readError||!record)return json(404,{error:"Creator application not found."});
  if(["APPROVED","REJECTED","SUSPENDED"].includes(record.status)&&p.action!=="resolve_appeal")return json(409,{error:"This application is already in a terminal review state."});
