@@ -35,6 +35,8 @@ const ProviderSchema = z.object({
   secretVersions: z.array(z.object({ secret_kind: z.string(), version: z.number(), created_at: z.string(), retired_at: z.string().nullable() })),
 });
 
+const isCapability = (value: string): value is Capability => capabilities.some((item) => item.value === value);
+
 export function ProviderRegistryPanel({initialCapability='payments'}:{initialCapability?:Capability}){
   const [rows,setRows]=useState<Provider[]>([]);
   const requestId = useRef(0);
@@ -87,7 +89,7 @@ export function ProviderRegistryPanel({initialCapability='payments'}:{initialCap
   const test=async(row:Provider)=>{
     setSaving(true);
     try{const r=await invokeFn<unknown>('admin-provider-control',{action:'test',capability:row.capability,providerKey:row.provider_key});if(!r.ok)throw new Error(r.error);const outcome=z.object({success:z.boolean(),mode:z.string().optional()}).parse(r.data);if(!outcome.success)throw new Error('Provider health check did not pass.');toast.success('Provider health check passed ('+(outcome.mode||'configured')+' mode).');await load();}
-    catch(e){toast.error((e as Error).message);await load();}finally{setSaving(false);}
+    catch(e: unknown){toast.error(errorMessage(e, 'Provider health check failed'));await load();}finally{setSaving(false);}
   };
   const edit=(row:Provider)=>{
     setCapability(row.capability);setProviderKey(row.provider_key);setBaseUrl(row.base_url||'');setEndpoints(JSON.stringify(row.endpoints||{},null,2));setSettings(JSON.stringify(row.settings||{},null,2));setEnabled(row.enabled);setLive(row.is_live);setPriority(row.priority ?? 100);
@@ -106,12 +108,12 @@ export function ProviderRegistryPanel({initialCapability='payments'}:{initialCap
   const remove=async(row:Provider)=>{
     setSaving(true);
     try{const r=await invokeFn('admin-provider-control',{action:'remove',capability:row.capability,providerKey:row.provider_key});if(!r.ok)throw new Error(r.error);toast.success('Provider detached from the active registry.');await load();}
-    catch(e){toast.error((e as Error).message);}finally{setSaving(false);}
+    catch(e: unknown){toast.error(errorMessage(e, 'Provider operation failed'));}finally{setSaving(false);}
   };
   return <div className="space-y-4">
     <Card><CardHeader><CardTitle className="text-base">Unified provider registry</CardTitle><CardDescription>One runtime control plane for payments, identity, banking, media, live streaming, email and foreign exchange. Save test keys first, run a health check even while disabled, then enable test mode. Add live keys and switch to live only after a successful health check. Secrets stay in Vault and changes apply immediately without a rebuild.</CardDescription></CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2"><Label>Capability</Label><Select value={capability} onValueChange={v=>setCapability(v as Capability)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{capabilities.map(c=><SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
+        <div className="space-y-2"><Label>Capability</Label><Select value={capability} onValueChange={v=>{if(isCapability(v))setCapability(v)}}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{capabilities.map(c=><SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
         <div className="space-y-2"><Label>Provider adapter key</Label><Input value={providerKey} onChange={e=>setProviderKey(e.target.value.trim().toLowerCase())} placeholder="Your provider adapter identifier"/></div>
         <div className="space-y-2 md:col-span-2"><Label>HTTPS API base URL</Label><Input value={baseUrl} onChange={e=>setBaseUrl(e.target.value)} placeholder="https://api.provider.example"/></div>
         <div className="space-y-2"><Label>Routing priority (lower number wins)</Label><Input type="number" min={0} max={10000} step={1} value={priority} onChange={e=>setPriority(Math.max(0,Math.min(10000,Number(e.target.value)||0)))}/></div>
