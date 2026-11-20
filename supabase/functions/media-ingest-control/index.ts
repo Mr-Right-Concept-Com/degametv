@@ -184,18 +184,38 @@ Deno.serve(async req=>{
   if(sorted.length!==expected||sorted.some((x,i)=>x.partNumber!==i+1)||new Set(sorted.map(x=>x.partNumber)).size!==sorted.length)return json(409,{error:"Multipart part sequence is incomplete or duplicated.",expectedParts:expected,receivedParts:sorted.length});
   if(sorted.some((x,i)=>x.etag.replaceAll('"',"").length<8||!/^[a-fA-F0-9-]+$/.test(x.etag.replaceAll('"',""))))return json(422,{error:"A storage part returned an invalid ETag."});
   try{
-   const storage=await getStorage(db),actual=await listMultipartParts(storage,session.object_path,session.storage_upload_id);
-   for(const part of sorted){const got=actual.find(x=>x.partNumber===part.partNumber);if(!got||got.etag!==part.etag.replaceAll('"',"")||got.checksumSha256!==part.checksumSha256)return json(422,{error:"Storage ETag or SHA-256 checksum does not match the submitted part manifest.",partNumber:part.partNumber});}
+   const storage=await getStorage(db);
    const manifest=sorted.map(x=>({partNumber:x.partNumber,etag:x.etag.replaceAll('"',""),checksumSha256:x.checksumSha256,size:x.partNumber<expected?Number(session.chunk_size_bytes):Number(session.expected_size_bytes)-(expected-1)*Number(session.chunk_size_bytes)}));
-   const xml="<CompleteMultipartUpload>"+manifest.map(x=>"<Part><PartNumber>"+x.partNumber+"</PartNumber><ETag>&quot;"+x.etag+"&quot;</ETag><ChecksumSHA256>"+x.checksumSha256+"</ChecksumSHA256></Part>").join("")+"</CompleteMultipartUpload>";
-   const done=await signedRequest(storage,session.object_path,"POST",{"uploadId":session.storage_upload_id},xml,{"content-type":"application/xml"});if(!done.ok){const detail=(await done.text()).slice(0,400);return json(502,{error:"Storage provider rejected multipart completion.",providerStatus:done.status,detail});}
-   const resultXml=await done.text(),storageEtag=xmlValue(resultXml,"ETag");
-   const digest=await sha256(manifest.map(x=>x.checksumSha256).join(":"));
+   let storageEtag:string|null=null;
+   const existingObject=await signedRequest(storage,session.object_path,"HEAD");
+   if(existingObject.ok){
+    const actualBytes=Number(existingObject.headers.get("content-length")??0);
+    if(actualBytes!==Number(session.expected_size_bytes))return json(422,{error:"Completed quarantine object size does not match the declared upload size.",expectedBytes:Number(session.expected_size_bytes),actualBytes});
+    storageEtag=existingObject.headers.get("etag")?.replaceAll('"',"")??null;
+   }else{
+    if(existingObject.status!==404)return json(502,{error:"Storage object state could not be verified before multipart completion.",providerStatus:existingObject.status});
+    const actual=await listMultipartParts(storage,session.object_path,session.storage_upload_id);
+    if(actual.length!==expected)return json(422,{error:"Storage provider part count differs from the declared multipart manifest.",expectedParts:expected,actualParts:actual.length});
+    let actualBytes=0;
+    for(const part of sorted){
+     const got=actual.find(x=>x.partNumber===part.partNumber),expectedBytes=part.partNumber<expected?Number(session.chunk_size_bytes):Number(session.expected_size_bytes)-(expected-1)*Number(session.chunk_size_bytes);
+     if(!got||got.etag!==part.etag.replaceAll('"',"")||got.checksumSha256!==part.checksumSha256||got.size!==expectedBytes)return json(422,{error:"Storage ETag, part size or SHA-256 checksum does not match the submitted manifest.",partNumber:part.partNumber,expectedBytes,actualBytes:got?.size??null});
+     actualBytes+=got.size;
+    }
+    if(actualBytes!==Number(session.expected_size_bytes))return json(422,{error:"Verified multipart part sizes do not sum to the declared file size.",expectedBytes:Number(session.expected_size_bytes),actualBytes});
+    const xml="<CompleteMultipartUpload>"+manifest.map(x=>"<Part><PartNumber>"+x.partNumber+"</PartNumber><ETag>&quot;"+x.etag+"&quot;</ETag><ChecksumSHA256>"+x.checksumSha256+"</ChecksumSHA256></Part>").join("")+"</CompleteMultipartUpload>";
+    const done=await signedRequest(storage,session.object_path,"POST",{"uploadId":session.storage_upload_id},xml,{"content-type":"application/xml"});
+    if(!done.ok){const detail=(await done.text()).slice(0,400);return json(502,{error:"Storage provider rejected multipart completion.",providerStatus:done.status,detail});}
+    const resultXml=await done.text();storageEtag=xmlValue(resultXml,"ETag")?.replaceAll('"',"")??null;
+    const head=await signedRequest(storage,session.object_path,"HEAD");
+    const finalBytes=Number(head.headers.get("content-length")??0);
+    if(!head.ok||finalBytes!==Number(session.expected_size_bytes))return json(502,{error:"Completed quarantine object failed final size verification.",providerStatus:head.status,expectedBytes:Number(session.expected_size_bytes),actualBytes:finalBytes});
+   }
    const {data:job,error:jobError}=await db.from("media_processing_jobs").insert({upload_session_id:session.id,content_id:session.content_id,idempotency_key:"media:"+session.id,status:"QUARANTINED",stage:"inspection",quarantine_path:session.object_path,sha256:null,provenance:{algorithm:"S3-MULTIPART-PER-PART-SHA256",expected_sha256:session.expected_sha256??null,parts:manifest,storage_etag:storageEtag,source_filename:session.original_filename,completed_at:new Date().toISOString()}}).select("id,status").single();
    let finalJob=job;if(jobError?.code==="23505"){const {data:existing}=await db.from("media_processing_jobs").select("id,status").eq("idempotency_key","media:"+session.id).single();finalJob=existing;}else if(jobError)return json(503,{error:"Media processing job could not be queued."});
    const {error:updateError}=await db.from("media_upload_sessions").update({status:"QUARANTINED",received_size_bytes:session.expected_size_bytes,chunk_manifest:manifest,completed_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",session.id).eq("status","UPLOADING");
    if(updateError)return json(503,{error:"Upload completed but the session state could not be committed."});
-   if(session.content_id){const {data:content}=await db.from("content").select("metadata").eq("id",session.content_id).single();const metadata={...(content?.metadata??{}),media_ingestion:{status:"QUARANTINED",job_id:finalJob?.id,master_object_path:session.object_path,sha256:session.expected_sha256??digest}};const {error:linkError}=await db.from("content").update({metadata}).eq("id",session.content_id).eq("creator_id",user.id);if(linkError)return json(503,{error:"Media job was queued but content attachment requires reconciliation.",jobId:finalJob?.id});}
+   if(session.content_id){const {data:content}=await db.from("content").select("metadata").eq("id",session.content_id).single();const metadata={...(content?.metadata??{}),media_ingestion:{status:"QUARANTINED",job_id:finalJob?.id,master_object_path:session.object_path,sha256:session.expected_sha256??null}};const {error:linkError}=await db.from("content").update({metadata}).eq("id",session.content_id).eq("creator_id",user.id);if(linkError)return json(503,{error:"Media job was queued but content attachment requires reconciliation.",jobId:finalJob?.id});}
    return json(202,{success:true,status:"QUARANTINED",job:finalJob,parts:manifest.length,objectPath:session.object_path});
   }catch(e){return json(503,{error:e instanceof Error?e.message:"Multipart completion failed."});}
  }
