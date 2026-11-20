@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
     ? body.visitorId
     : "anonymous";
   const profileQuery = userId
-    ? db.from("profiles").select("preferred_country,preferred_currency,locale_code").eq("user_id", userId).maybeSingle()
+    ? db.from("profiles").select("preferred_country,preferred_currency,locale_code,preferred_locale,language,timezone").eq("user_id", userId).maybeSingle()
     : Promise.resolve({ data: null, error: null });
   const [countries, features, profileResult, siteSetting, baseSetting] = await Promise.all([
     db.from("country_currency_rules")
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
   const acceptLanguage = req.headers.get("accept-language")?.split(",")[0]?.trim();
   const localeRegion = acceptLanguage?.split("-")[1]?.toUpperCase();
   const preferredCountry = profile?.preferred_country?.toUpperCase();
-  const candidate = [preferredCountry, edgeCountry, requestedCountry, localeRegion]
+  const candidate = [preferredCountry, requestedCountry, edgeCountry, localeRegion]
     .find((value) => value && countrySchema.safeParse(value).success && enabledCountryCodes.has(value)) ?? null;
   const country = candidate ? enabledCountries.find((item) => item.country_code === candidate) : undefined;
 
@@ -73,9 +73,9 @@ Deno.serve(async (req) => {
     value && currencySchema.safeParse(value).success && supportedCurrencies.has(value)
   ) ?? country?.currency_code ?? configuredBaseCurrency;
 
-  const profileLocale = typeof profile?.locale_code === "string"
+  const profileLocale = typeof (profile?.preferred_locale ?? profile?.locale_code) === "string"
     && /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(profile.locale_code)
-    ? profile.locale_code : null;
+    ? (profile.preferred_locale ?? profile.locale_code) : null;
   const browserLocale = acceptLanguage && /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(acceptLanguage)
     ? acceptLanguage : null;
   const locale = profileLocale ?? browserLocale ?? country?.locale_code ?? "en";
@@ -101,7 +101,7 @@ Deno.serve(async (req) => {
   return response({
     cohortId,
     webAppUrl,
-    geo: { countryCode: candidate, source: candidate === preferredCountry ? "profile_preference" : candidate === edgeCountry ? "edge" : candidate === requestedCountry ? "explicit" : candidate === localeRegion ? "locale_hint" : "unknown" },
+    geo: { countryCode: candidate, source: candidate === preferredCountry ? "profile_preference" : candidate === requestedCountry ? "explicit" : candidate === edgeCountry ? "edge" : candidate === localeRegion ? "locale_hint" : "unknown" },\n    timezone: profile?.timezone ?? country?.timezone_name ?? "UTC",\n    language: profile?.language ?? locale.split("-")[0],
     locale,
     currency,
     baseCurrency: configuredBaseCurrency,
