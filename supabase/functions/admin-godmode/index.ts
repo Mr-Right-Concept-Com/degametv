@@ -38,7 +38,6 @@ const editableSettings = new Set([
   "base_currency",
   "commission_rates",
   "creator_approval_mode",
-  "escrow_hold_days",
   "kyb_verification_mode",
   "kyc_verification_mode",
   "public_site_url",
