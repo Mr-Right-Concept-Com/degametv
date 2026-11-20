@@ -38,7 +38,7 @@ export function BrandingRegistryPanel(){
    setBrand({...defaults,...record.brand_config});
    setVersion(record.version);
    setIsPublic(record.is_public);
-  }catch(e){toast.error((e as Error).message);}finally{setLoading(false);}
+  }catch(e){toast.error(e instanceof Error ? e.message : 'Operation failed');}finally{setLoading(false);}
  },[]);
  useEffect(()=>{void load();},[load]);
  const update=(key:keyof BrandConfig,value:string)=>setBrand(current=>({...current,[key]:value}));
@@ -50,7 +50,7 @@ export function BrandingRegistryPanel(){
    setVersion(record.version);
    setBrand({...defaults,...record.brand_config});
    toast.success("Canonical branding updated. Connected web clients refresh through realtime.");
-  }catch(e){toast.error((e as Error).message);}finally{setSaving(false);}
+  }catch(e){toast.error(e instanceof Error ? e.message : 'Operation failed');}finally{setSaving(false);}
  };
  const colorField=(key:"primaryColor"|"secondaryColor"|"accentColor"|"backgroundColor",label:string)=><div className="space-y-2"><Label>{label}</Label><div className="flex items-center gap-2"><Input type="color" className="h-10 w-14 p-1" value={brand[key]} onChange={e=>update(key,e.target.value)}/><Input value={brand[key]} maxLength={7} onChange={e=>update(key,e.target.value)}/></div></div>;
  return <Card>
