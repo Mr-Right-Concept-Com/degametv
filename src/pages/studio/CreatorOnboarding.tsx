@@ -44,7 +44,7 @@ export default function CreatorOnboarding() {
   const verificationId = typeof response?.verification_id === "string" ? response.verification_id : null;
   const responseError = typeof response?.error === "string" ? response.error : null;
   if(error||response?.success!==true||!verificationId)throw new Error(responseError??error?.message??"Business verification could not be submitted.");
-  const provider=await invokeFn<{status?:string;providerConfigured?:boolean}>("run-business-provider",{verificationId:payload.verification_id});
+  const provider=await invokeFn<{status?:string;providerConfigured?:boolean}>("run-business-provider",{verificationId});
   setForm(v=>({...v,legalName:kyb.legalBusinessName,businessVerificationId:verificationId,taxIdentifier:kyb.taxIdentifier,bankAccountNumber:kyb.bankAccountNumber,bankName:kyb.bankName,bankCountry:kyb.bankCountry,bankAccountName:kyb.bankAccountName}));
   setVaultMasks({bank:kyb.bankAccountNumber.slice(-4),tax:kyb.taxIdentifier.slice(-4)});
   setKyb(v=>({...v,registrationNumber:"",bankAccountNumber:"",taxIdentifier:""}));
