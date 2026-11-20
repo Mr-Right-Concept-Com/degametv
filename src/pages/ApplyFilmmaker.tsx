@@ -9,6 +9,7 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 import { Film, Globe, DollarSign, Users, Loader2, Clock, ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 export default function ApplyFilmmaker() {
   const { user, loading } = useAuth();
@@ -17,23 +18,38 @@ export default function ApplyFilmmaker() {
   const [identityVerified, setIdentityVerified] = useState(false);
   const [studioStatus, setStudioStatus] = useState<string | null>(null);
   const [canEnterStudio, setCanEnterStudio] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     let active = true;
-    if (!user) { setChecking(false); return; }
-    const load = async () => {
-      const [profile, roles, studio] = await Promise.all([
-        supabase.from('profiles').select('kyc_status').eq('user_id', user.id).maybeSingle(),
-        supabase.from('user_roles').select('role').eq('user_id', user.id).in('role', ['creator', 'super_admin', 'platform_admin']),
-        supabase.from('studio_accounts').select('status').eq('user_id', user.id).maybeSingle(),
-      ]);
-      if (!active) return;
-      const roleSet = new Set((roles.data ?? []).map(row => row.role));
-      const admin = roleSet.has('super_admin') || roleSet.has('platform_admin');
-      setIdentityVerified(profile.data?.kyc_status === 'verified');
-      setStudioStatus(studio.data?.status ?? null);
-      setCanEnterStudio(admin || (roleSet.has('creator') && studio.data?.status === 'approved'));
+    if (!user) {
       setChecking(false);
+      return () => { active = false; };
+    }
+    const load = async () => {
+      try {
+        const [profile, roles, studio] = await Promise.all([
+          supabase.from('profiles').select('kyc_status').eq('user_id', user.id).maybeSingle(),
+          supabase.from('user_roles').select('role').eq('user_id', user.id).in('role', ['creator', 'super_admin', 'platform_admin']),
+          supabase.from('studio_accounts').select('status').eq('user_id', user.id).maybeSingle(),
+        ]);
+        if (!active) return;
+        if (profile.error || roles.error || studio.error) {
+          throw profile.error ?? roles.error ?? studio.error;
+        }
+        const roleSet = new Set((roles.data ?? []).map(row => row.role));
+        const admin = roleSet.has('super_admin') || roleSet.has('platform_admin');
+        setIdentityVerified(profile.data?.kyc_status === 'verified');
+        setStudioStatus(studio.data?.status ?? null);
+        setCanEnterStudio(admin || (roleSet.has('creator') && studio.data?.status === 'approved'));
+      } catch {
+        if (active) {
+          setLoadError(true);
+          toast.error('Your creator application status could not be checked. Please refresh.');
+        }
+      } finally {
+        if (active) setChecking(false);
+      }
     };
     void load();
     return () => { active = false; };
@@ -84,6 +100,7 @@ export default function ApplyFilmmaker() {
           </Card>
         )}
 
+        {loadError && <Card className="border-destructive/30"><CardContent className="p-4 text-sm text-destructive">We could not verify your current application status. Refresh this page before continuing.</CardContent></Card>}
         <KYCVerification onVerified={() => setIdentityVerified(true)} />
         {identityVerified ? (
           <div className="space-y-3">
