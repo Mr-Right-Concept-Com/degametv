@@ -90,6 +90,9 @@ export function Navbar() {
                   </Link>
                 </Button>
 
+                <Button variant="ghost" size="icon" aria-label="Open help and support" className="rounded-full h-9 w-9" onClick={() => navigate('/support')}>
+                  <LifeBuoy className="h-4 w-4" />
+                </Button>
                 <Button variant="ghost" size="icon" aria-label="Open my wallet" className="rounded-full h-9 w-9" onClick={() => navigate('/dashboard?tab=wallet')}>
                   <Wallet className="h-4 w-4" />
                 </Button>
