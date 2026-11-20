@@ -16,7 +16,11 @@ const Body = z.object({
 }).strict();
 const respond = (body: unknown, status=200) => new Response(JSON.stringify(body), { status, headers });
 const readPath = (value: unknown, path: string): unknown => path.split(".").reduce<unknown>((current,key) => {
-  if (!current || typeof current !== "object" || Array.isArray(current)) return undefined;
+  if (Array.isArray(current)) {
+    const index = Number(key);
+    return Number.isInteger(index) && index >= 0 ? current[index] : undefined;
+  }
+  if (!current || typeof current !== "object") return undefined;
   return (current as Record<string,unknown>)[key];
 }, value);
 const validBaseUrl = (value: string) => {
