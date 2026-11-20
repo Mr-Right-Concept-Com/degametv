@@ -186,8 +186,8 @@ export default function StudioLive() {
                   <div><Label htmlFor="live-usd">Legacy live price (USD)</Label><Input id="live-usd" inputMode="decimal" value={liveUsd} onChange={e => setLiveUsd(e.target.value)} placeholder="0 = free" /></div>
                   <div><Label htmlFor="replay-ngn">Legacy replay price (NGN)</Label><Input id="replay-ngn" inputMode="decimal" value={replayNgn} onChange={e => setReplayNgn(e.target.value)} placeholder="Not available" /></div>
                   <div><Label htmlFor="replay-usd">Legacy replay price (USD)</Label><Input id="replay-usd" inputMode="decimal" value={replayUsd} onChange={e => setReplayUsd(e.target.value)} placeholder="Not available" /></div>
-                </div>}
-              </div>
+                </div>
+              </div>}
               <div><Label htmlFor="replay-hours">Replay access duration (hours)</Label><Input id="replay-hours" type="number" min="1" max="8760" value={replayHours} onChange={e => setReplayHours(e.target.value)} /></div>
               <Button className="w-full" variant="outline" disabled={busy || !screeningId} onClick={savePricing}>Save access pricing</Button>
             </div>
