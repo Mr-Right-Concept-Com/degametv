@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Gift, Sparkles } from 'lucide-react';
 
+interface FeedRpcClient { rpc(name:"get_event_contribution_feed", args:{p_screening_id:string|null;p_live_stream_id:string|null}): Promise<{data:unknown;error:{message:string}|null}> }
+const feedClient=supabase as unknown as FeedRpcClient;
 type GiftEvent={id:string;created_at:string;contribution_type:string;gift_catalog_key:string|null;amount_major:number;currency:string;contributor_name:string;message:string|null;gift_name:string|null;gift_emoji:string|null;gift_asset_url:string|null;gift_animation_url:string|null;animation_duration_ms:number|null};
 const isGiftEvent = (value: unknown): value is GiftEvent => {
  const row = typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -20,11 +22,14 @@ export function LiveGiftOverlay({streamId}:{streamId:string}){
  const [queue,setQueue]=useState<GiftEvent[]>([]);
  const seenIds=useRef<Set<string>>(new Set());
  const initialised=useRef(false);
+ const seenReset=useRef(streamId);
 
  useEffect(()=>{
   let alive=true;
+  seenIds.current.clear();initialised.current=false;seenReset.current=streamId;
   const poll=async()=>{
-   const {data,error}=await supabase.rpc('get_event_contribution_feed' as never,{p_screening_id:null,p_live_stream_id:streamId} as never);
+   try {
+   const {data,error}=await feedClient.rpc('get_event_contribution_feed',{p_screening_id:null,p_live_stream_id:streamId});
    if(!alive||error||!Array.isArray(data))return;
    const rows=data.filter(isGiftEvent);
    if(!initialised.current){
@@ -40,6 +45,7 @@ export function LiveGiftOverlay({streamId}:{streamId:string}){
    const gifts=fresh.filter(item=>item.contribution_type==='gift')
     .sort((a,b)=>new Date(a.created_at||0).getTime()-new Date(b.created_at||0).getTime());
    if(gifts.length)setQueue(current=>[...current,...gifts]);
+   } catch { if(alive) console.error('Live gift feed refresh failed.'); }
   };
   void poll();
   const timer=window.setInterval(()=>void poll(),2500);
