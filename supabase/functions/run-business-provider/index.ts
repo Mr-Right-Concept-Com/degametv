@@ -1,6 +1,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json"}});
+const isRecord=(value:unknown):value is Record<string,unknown>=>typeof value==="object"&&value!==null&&!Array.isArray(value);
+type VerificationProvider={provider_key:string;credential:string;base_url:string;endpoints:Record<string,unknown>};
+const isVerificationProvider=(value:unknown):value is VerificationProvider=>isRecord(value)&&typeof value.provider_key==="string"&&typeof value.credential==="string"&&typeof value.base_url==="string"&&isRecord(value.endpoints);
 const endpoint=(base:string,path:unknown)=>{if(typeof path!=="string"||!path.startsWith("/")||path.startsWith("//"))throw new Error("provider_endpoint_missing");const u=new URL(path,base);if(u.origin!==new URL(base).origin)throw new Error("provider_endpoint_invalid");return u;};
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:corsHeaders});
@@ -10,12 +13,13 @@ Deno.serve(async req=>{
  const caller=createClient(url,anon,{global:{headers:{Authorization:authorization}},auth:{persistSession:false,autoRefreshToken:false}});
  const {data:{user},error:authError}=await caller.auth.getUser();
  if(authError||!user)return json({error:"Authentication required."},401);
- const body=await req.json().catch(()=>null),id=typeof body?.verificationId==="string"?body.verificationId:"";
+ const body:unknown=await req.json().catch(()=>null),id=isRecord(body)&&typeof body.verificationId==="string"?body.verificationId:"";
  if(!/^[0-9a-f-]{36}$/i.test(id))return json({error:"A valid business verification ID is required."},400);
  const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
  const {data:material,error:materialError}=await db.rpc("get_business_verification_material",{p_verification_id:id});
- const record=Array.isArray(material)?material[0]:null;
- if(materialError||!record||record.user_id!==user.id)return json({error:"Business verification application not found."},404);
+ const recordValue:unknown=Array.isArray(material)?material[0]:null;
+ const record=isRecord(recordValue)?recordValue:null;
+ if(materialError||!record||record.user_id!==user.id||typeof record.registration_document_path!=="string")return json({error:"Business verification application not found."},404);
  const {data:current,error:currentError}=await db.from("business_verifications").select("status").eq("id",id).maybeSingle();
  if(currentError||!current)return json({error:"Business verification application not found."},404);
  if(current.status!=="pending"&&current.status!=="processing")return json({status:current.status},409);
@@ -23,13 +27,16 @@ Deno.serve(async req=>{
  const {data:bankProviders}=await db.rpc("get_service_provider_runtime_config",{p_capability:"bank_verification"});
  if(!Array.isArray(businessProviders)||!businessProviders.length||!Array.isArray(bankProviders)||!bankProviders.length)
    return json({status:"pending",providerConfigured:false,message:"Business and bank checks remain queued for manual review."});
- const businessProvider=businessProviders[0],bankProvider=bankProviders[0];
+ const businessProviderValue:unknown=businessProviders[0],bankProviderValue:unknown=bankProviders[0];
+ const businessProvider=isVerificationProvider(businessProviderValue)?businessProviderValue:null;
+ const bankProvider=isVerificationProvider(bankProviderValue)?bankProviderValue:null;
+ if(!businessProvider||!bankProvider)return json({status:"pending",providerConfigured:false,message:"Business or bank provider contract is incomplete; manual review remains available."});
  if(!businessProvider.credential||!businessProvider.endpoints?.business_verify||!bankProvider.credential||!bankProvider.endpoints?.bank_verify)
    return json({status:"pending",providerConfigured:false,message:"Business or bank provider contract is incomplete; manual review remains available."});
  try{
   const {data:doc,error:docError}=await db.storage.from("kyb-docs").createSignedUrl(record.registration_document_path,600);
   if(docError||!doc?.signedUrl)return json({error:"Registration evidence could not be securely shared with the provider."},503);
-  const auth=(p:any)=>({"Content-Type":"application/json","Authorization":"Bearer "+p.credential});
+  const auth=(provider:VerificationProvider):Record<string,string>=>({"Content-Type":"application/json","Authorization":"Bearer "+provider.credential});
   const [businessResponse,bankResponse]=await Promise.all([
    fetch(endpoint(businessProvider.base_url,businessProvider.endpoints.business_verify),{method:"POST",headers:auth(businessProvider),body:JSON.stringify({
     country:record.registration_country,registration_number:record.registration_number,legal_business_name:record.legal_business_name,
@@ -41,7 +48,7 @@ Deno.serve(async req=>{
    }),signal:AbortSignal.timeout(20000)}),
   ]);
   const [business,bank]=await Promise.all([businessResponse.json().catch(()=>null),bankResponse.json().catch(()=>null)]);
-  if(!businessResponse.ok||!bankResponse.ok||!business||!bank)return json({error:"Verification providers could not complete the checks. Application remains pending."},502);
+  if(!businessResponse.ok||!bankResponse.ok||!isRecord(business)||!isRecord(bank))return json({error:"Verification providers could not complete the checks. Application remains pending."},502);
   const checks={
    registration_valid:business.registration_valid===true,
    business_name_match:business.business_name_match===true,
@@ -65,5 +72,5 @@ Deno.serve(async req=>{
   }
   await db.from("audit_logs").insert({user_id:user.id,action:automatic?"business.provider.auto_verified":"business.provider.review_required",entity_type:"business_verification",entity_id:id,new_data:{business_provider:businessProvider.provider_key,bank_provider:bankProvider.provider_key,checks,mode:record.verification_mode}});
   return json({status,providerConfigured:true,checks,studioActivated:automatic});
- }catch(e){console.error("run-business-provider",e);return json({error:"Business verification provider request failed. Application remains pending."},502);}
+ }catch(e:unknown){console.error("run-business-provider",e);return json({error:"Business verification provider request failed. Application remains pending."},502);}
 });
