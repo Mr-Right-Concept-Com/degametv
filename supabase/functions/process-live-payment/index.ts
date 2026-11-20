@@ -13,7 +13,11 @@ const schema=z.object({
 }).strict();
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, x-client-info, content-type, cf-ipcountry","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
-const markProviderHealth=async(db:any,id:string,status:'healthy'|'unhealthy',error:string|null=null)=>{await db.from('service_provider_bindings').update({health_status:status,health_checked_at:new Date().toISOString(),health_error:error}).eq('id',id);};
+const markProviderHealth=async(db:ReturnType<typeof createClient>,id:string,status:'healthy'|'unhealthy',error:string|null=null)=>{await db.from('service_provider_bindings').update({health_status:status,health_checked_at:new Date().toISOString(),health_error:error}).eq('id',id);};
+type PaymentProvider={id:string;provider_key:string;is_live:boolean;credential:string;settings:Record<string,unknown>;endpoints:Record<string,unknown>;base_url:string};
+type AuthUser={id:string;email?:string|null};
+const isRecord=(value:unknown):value is Record<string,unknown>=>typeof value==="object"&&value!==null&&!Array.isArray(value);
+const isPaymentProvider=(value:unknown):value is PaymentProvider=>isRecord(value)&&typeof value.id==="string"&&typeof value.provider_key==="string"&&value.is_live===true&&typeof value.credential==="string"&&isRecord(value.settings)&&isRecord(value.endpoints)&&typeof value.base_url==="string";
 async function featureEnabled(db:ReturnType<typeof createClient>,key:string,subject:string):Promise<boolean>{
  const {data:flag,error}=await db.from("platform_feature_controls").select("enabled,rollout_percentage,release_state").eq("feature_key",key).maybeSingle();
  if(error||!flag)return false;
@@ -37,7 +41,7 @@ serve(async(req:Request)=>{
  if(!url||!service||!anon)return json(503,{error:"Checkout is unavailable."});
  const parsed=schema.safeParse(await req.json().catch(()=>null));
  if(!parsed.success)return json(400,{error:"Invalid event checkout request."});
- let user:any=null;
+ let user:AuthUser|null=null;
  if(authorization){
   const userClient=createClient(url,anon,{global:{headers:{Authorization:authorization}},auth:{persistSession:false,autoRefreshToken:false}});
   const {data,error:userError}=await userClient.auth.getUser();
@@ -92,11 +96,11 @@ serve(async(req:Request)=>{
 
   const {data:providers,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:"payments"});
   if(providerError||!Array.isArray(providers)||!providers.length)return json(503,{error:"No payment provider is enabled in Admin Provider Vault."});
-  const usable=providers.filter((p:any)=>
+  const usable=providers.filter((value:unknown):value is PaymentProvider=>isPaymentProvider(value)&&(
    p.is_live===true&&p.credential&&Array.isArray(p.settings?.supported_currencies)&&p.settings.supported_currencies.includes(currency)
    &&typeof p.endpoints?.checkout_initialize==="string"&&p.endpoints.checkout_initialize.startsWith("/")&&!p.endpoints.checkout_initialize.startsWith("//")&&typeof p.endpoints?.payment_verify==="string"&&p.endpoints.payment_verify.startsWith("/")&&!p.endpoints.payment_verify.startsWith("//")&&typeof p.endpoints?.refund==="string"&&p.endpoints.refund.startsWith("/")&&!p.endpoints.refund.startsWith("//")
-   &&(!parsed.data.method||p.provider_key===parsed.data.method)
-  );
+   &&(!parsed.data.method||value.provider_key===parsed.data.method)
+  ));
   if(!usable.length)return json(503,{error:"No live payment provider is enabled for this currency and payment method."});
   const {data:authUser}=user?await db.auth.admin.getUserById(user.id):{data:null};
   const email=user?.email||authUser?.user?.email||parsed.data.email;
@@ -135,7 +139,7 @@ serve(async(req:Request)=>{
    metadata:{created_from:"viewer_checkout",guest_checkout:!user,provider_mode:"live",country_code:countryCode,source_currency:pricingCurrency,base_amount:baseAmount,early_bird_reserved:earlyBirdReserved},
   });
   if(insertError){if(earlyBirdReserved)await db.rpc("release_event_early_bird_slot",{p_provider_reference:reference});return json(503,{error:"Could not create a secure ticket order. No charge was made."});}
-  let checkoutUrl:string|null=null,selected:any=null,selectedCheckoutId:string|null=null;
+  let checkoutUrl:string|null=null,selected:PaymentProvider|null=null,selectedCheckoutId:string|null=null;
   for(const provider of usable){
    try{
     const target=new URL(provider.endpoints.checkout_initialize,provider.base_url);
@@ -175,7 +179,7 @@ serve(async(req:Request)=>{
   const {error:updateError}=await db.from("live_payment_orders").update({provider:selected.provider_key,provider_checkout_id:selectedCheckoutId,provider_mode:"live",metadata:{created_from:"viewer_checkout",guest_checkout:!user,provider_mode:"live",country_code:countryCode,source_currency:pricingCurrency,base_amount:baseAmount,early_bird_reserved:earlyBirdReserved,checkout_created_at:new Date().toISOString()}}).eq("provider_reference",reference);
   if(updateError)return json(503,{error:"Checkout was created but its order record could not be finalized. Contact support before retrying."});
   return json(200,{success:true,checkoutUrl,reference,screeningTitle:screening.title,amount:convertedAmount,currency,provider:selected.provider_key});
- }catch(error){
+ }catch(error:unknown){
   console.error("process-live-payment",error);
   return json(503,{error:error instanceof Error?error.message:"Checkout is temporarily unavailable."});
  }
