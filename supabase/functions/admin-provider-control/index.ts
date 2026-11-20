@@ -179,6 +179,29 @@ Deno.serve(async req => {
       return json({error:"Provider health check did not respond. Provider mode was not changed."},502);
     }
   }
+  if(p.action==="configure"&&!p.enabled){
+    const dependencies:Array<{label:string;count:number|null;error:unknown}>=[];
+    if(p.capability==="live_streaming"){
+      const streams=await admin.from("stream_configs").select("id",{count:"exact",head:true}).eq("provider",p.providerKey);
+      dependencies.push({label:"configured live streams",count:streams.count,error:streams.error});
+    }else if(p.capability==="identity"){
+      const [identity,business]=await Promise.all([
+        admin.from("identity_verifications").select("id",{count:"exact",head:true}).in("status",["pending","processing"]).or("identity_provider.eq."+p.providerKey+",liveness_provider.eq."+p.providerKey),
+        admin.from("business_verifications").select("id",{count:"exact",head:true}).in("status",["pending","processing"]).eq("verification_provider",p.providerKey),
+      ]);
+      dependencies.push({label:"pending identity verifications",count:identity.count,error:identity.error},{label:"pending business verifications",count:business.count,error:business.error});
+    }else if(p.capability==="bank_verification"){
+      const bank=await admin.from("business_verifications").select("id",{count:"exact",head:true}).in("status",["pending","processing"]).filter("provider_result->>bank_provider","eq",p.providerKey);
+      dependencies.push({label:"pending bank verifications",count:bank.count,error:bank.error});
+    }else if(["ai_text","ai_moderation","ai_embeddings"].includes(p.capability)){
+      const policies=await admin.from("platform_ai_policies").select("workflow_key",{count:"exact",head:true}).eq("enabled",true).contains("provider_allowlist",[p.providerKey]);
+      dependencies.push({label:"enabled AI workflows",count:policies.count,error:policies.error});
+    }
+    if(dependencies.some(item=>item.error))return json({error:"Provider dependencies could not be verified; disabling this provider was blocked."},503);
+    const active=dependencies.filter(item=>(item.count??0)>0);
+    if(active.length)return json({error:"Provider cannot be disabled while dependent workflows exist: "+active.map(item=>item.label+" ("+item.count+")").join(", ")+". Route those workflows to another healthy provider first."},409);
+  }
+
   if(p.action==="remove"){
     const dependencies:Array<{label:string;count:number|null;error:unknown}>=[];
     if(p.capability==="payments"){
