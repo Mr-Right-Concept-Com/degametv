@@ -368,4 +368,85 @@ revoke insert,update,delete on public.creator_verification_cases,public.creator_
 grant select on public.creator_verification_cases,public.creator_verification_audit,
   public.studio_memberships,public.content_rights_declarations,public.media_upload_sessions to authenticated;
 
+
+-- Complete content-format contract (kept as text so new formats do not require unsafe enum casts).
+alter table public.content add column if not exists content_format text;
+update public.content set content_format=coalesce(content_format,preset_type::text,'FILM');
+do $ begin
+  alter table public.content add constraint content_format_allowed_check
+  check (content_format in ('FILM','SERIES','SEASON','EPISODE','SHORT','TRAILER','MUSIC_VIDEO','PODCAST','GAMING','SPORTS','EDUCATIONAL','VOD','LIVE_PRODUCTION','RECORDED_EVENT','REPLAY'));
+exception when duplicate_object then null; end $;
+
+create table if not exists public.creator_content_lifecycle_audit (
+  id bigint generated always as identity primary key,
+  content_id uuid not null references public.content(id) on delete restrict,
+  actor_id uuid references auth.users(id),
+  from_state public.creator_content_lifecycle,
+  to_state public.creator_content_lifecycle not null,
+  reason text,
+  created_at timestamptz not null default now()
+);
+create index if not exists creator_content_lifecycle_audit_content_idx
+  on public.creator_content_lifecycle_audit(content_id,created_at desc);
+alter table public.creator_content_lifecycle_audit enable row level security;
+alter table public.creator_content_lifecycle_audit force row level security;
+revoke all on public.creator_content_lifecycle_audit from anon,authenticated;
+grant select on public.creator_content_lifecycle_audit to authenticated;
+grant all on public.creator_content_lifecycle_audit to service_role;
+create policy creator_content_lifecycle_audit_owner_read on public.creator_content_lifecycle_audit
+ for select to authenticated using (exists(
+   select 1 from public.content c where c.id=content_id and c.creator_id=(select auth.uid())
+ ));
+comment on table public.creator_content_lifecycle_audit is E'@graphql({"description":"Append-only publishing lifecycle history. Visible only to the owning creator; state changes are server-validated."})';
+
+create or replace function public.enforce_creator_content_lifecycle()
+returns trigger language plpgsql set search_path=public,pg_temp as $
+declare v_allowed boolean;
+begin
+  if tg_op='INSERT' then
+    if new.creator_base_currency is null then
+      select sa.base_currency into new.creator_base_currency
+      from public.studio_accounts sa where sa.user_id=new.creator_id and sa.status='approved';
+    end if;
+    if new.lifecycle_state not in ('DRAFT','REVIEW') then
+      raise exception 'new_content_must_start_as_draft' using errcode='23514';
+    end if;
+    insert into public.creator_content_lifecycle_audit(content_id,actor_id,from_state,to_state,reason)
+    values(new.id,auth.uid(),null,new.lifecycle_state,'content_created');
+    return new;
+  end if;
+  if old.creator_base_currency is not null and new.creator_base_currency is distinct from old.creator_base_currency then
+    raise exception 'content_creator_base_currency_is_immutable' using errcode='23514';
+  end if;
+  if new.lifecycle_state is distinct from old.lifecycle_state then
+    v_allowed := case old.lifecycle_state
+      when 'DRAFT' then new.lifecycle_state in ('REVIEW','ARCHIVED')
+      when 'REVIEW' then new.lifecycle_state in ('DRAFT','APPROVED','WITHDRAWN')
+      when 'APPROVED' then new.lifecycle_state in ('SCHEDULED','PUBLISHED','WITHDRAWN')
+      when 'SCHEDULED' then new.lifecycle_state in ('PUBLISHED','WITHDRAWN')
+      when 'PUBLISHED' then new.lifecycle_state in ('UPDATED','WITHDRAWN','ARCHIVED')
+      when 'UPDATED' then new.lifecycle_state in ('PUBLISHED','WITHDRAWN','ARCHIVED')
+      when 'WITHDRAWN' then new.lifecycle_state in ('REVIEW','ARCHIVED')
+      when 'ARCHIVED' then false
+      else false end;
+    if not v_allowed then
+      raise exception 'invalid_content_lifecycle_transition:%->%',old.lifecycle_state,new.lifecycle_state using errcode='23514';
+    end if;
+    new.lifecycle_updated_at:=now();
+    insert into public.creator_content_lifecycle_audit(content_id,actor_id,from_state,to_state,reason)
+    values(old.id,auth.uid(),old.lifecycle_state,new.lifecycle_state,'lifecycle_transition');
+  end if;
+  return new;
+end $;
+drop trigger if exists content_creator_lifecycle_guard on public.content;
+create trigger content_creator_lifecycle_guard
+before insert or update of lifecycle_state,creator_base_currency on public.content
+for each row execute function public.enforce_creator_content_lifecycle();
+
+-- Explicit deny policies document backend-only access while keeping RLS policy-complete.
+create policy studio_invitations_backend_only on public.studio_invitations
+ for all to anon,authenticated using (false) with check (false);
+create policy media_processing_jobs_backend_only on public.media_processing_jobs
+ for all to anon,authenticated using (false) with check (false);
+
 commit;
