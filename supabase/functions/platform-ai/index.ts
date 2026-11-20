@@ -91,7 +91,7 @@ Deno.serve(async req => {
   }
   const {data:bindings,error:bindingError} = await db.from("service_provider_bindings")
     .select("provider_key,base_url,endpoints,settings,is_live,priority")
-    .eq("capability",policy.capability).eq("enabled",true).is("removed_at",null)
+    .eq("capability",policy.capability).eq("enabled",true).eq("health_status","healthy").is("removed_at",null)
     .order("priority",{ascending:true});
   if (bindingError) return respond({error:"AI provider routing is unavailable."},503);
   const allowed = (bindings ?? []).filter(row => policy.provider_allowlist?.includes(row.provider_key));
