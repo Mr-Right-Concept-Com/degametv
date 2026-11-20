@@ -103,11 +103,22 @@ Deno.serve(async req => {
     if(p.capability==="ai_embeddings"&&p.settings.protocol!=="openai_compatible")return json({error:"Embedding adapters require the openai_compatible protocol."},400);
   }
   if(p.action==="list"){
-    const {data,error}=await admin.from("service_provider_bindings")
-      .select("id,capability,provider_key,enabled,is_live,base_url,endpoints,settings,updated_at,removed_at,priority,health_status,health_checked_at,health_error,test_credential_secret_ref,live_credential_secret_ref,test_webhook_secret_ref,live_webhook_secret_ref,credential_secret_ref,webhook_secret_ref")
-      .order("capability").order("priority").order("provider_key");
-    if(error)return json({error:"Provider registry could not be loaded."},503);
-    return json({providers:(data||[]).map(({test_credential_secret_ref,live_credential_secret_ref,test_webhook_secret_ref,live_webhook_secret_ref,credential_secret_ref,webhook_secret_ref,...row})=>({...row,settings:sanitizeSettings(row.settings),hasTestCredential:Boolean(test_credential_secret_ref)||Boolean(credential_secret_ref&&!row.is_live),hasLiveCredential:Boolean(live_credential_secret_ref)||Boolean(credential_secret_ref&&row.is_live),hasTestWebhookSecret:Boolean(test_webhook_secret_ref)||Boolean(webhook_secret_ref&&!row.is_live),hasLiveWebhookSecret:Boolean(live_webhook_secret_ref)||Boolean(webhook_secret_ref&&row.is_live)}))});
+    const [{data,error},{data:versions,error:versionError}]=await Promise.all([
+      admin.from("service_provider_bindings")
+        .select("id,capability,provider_key,enabled,is_live,base_url,endpoints,settings,updated_at,removed_at,priority,health_status,health_checked_at,health_error,test_credential_secret_ref,live_credential_secret_ref,test_webhook_secret_ref,live_webhook_secret_ref,credential_secret_ref,webhook_secret_ref")
+        .order("capability").order("priority").order("provider_key"),
+      admin.from("service_provider_secret_versions").select("capability,provider_key,secret_kind,version,created_at,retired_at").order("version",{ascending:false}),
+    ]);
+    if(error||versionError)return json({error:"Provider registry and Vault version metadata could not be loaded."},503);
+    return json({providers:(data||[]).map(({test_credential_secret_ref,live_credential_secret_ref,test_webhook_secret_ref,live_webhook_secret_ref,credential_secret_ref,webhook_secret_ref,...row})=>({
+      ...row,settings:sanitizeSettings(row.settings),
+      hasTestCredential:Boolean(test_credential_secret_ref)||Boolean(credential_secret_ref&&!row.is_live),
+      hasLiveCredential:Boolean(live_credential_secret_ref)||Boolean(credential_secret_ref&&row.is_live),
+      hasTestWebhookSecret:Boolean(test_webhook_secret_ref)||Boolean(webhook_secret_ref&&!row.is_live),
+      hasLiveWebhookSecret:Boolean(live_webhook_secret_ref)||Boolean(webhook_secret_ref&&row.is_live),
+      secretVersions:(versions||[]).filter(v=>v.capability===row.capability&&v.provider_key===row.provider_key)
+        .map(v=>({secret_kind:v.secret_kind,version:v.version,created_at:v.created_at,retired_at:v.retired_at})),
+    }))});
   }
   if(p.action==="test"){
     const [{data:binding,error:bindingError},{data:secrets,error:secretError}]=await Promise.all([
