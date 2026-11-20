@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { CONTENT_FORMATS } from '@/lib/validations/creatorOS';
 import { assistCreatorMetadata } from '@/lib/publishing/universalPublisher';
+import { useMultipartMediaUpload } from '@/lib/media/useMultipartMediaUpload';
 
 const GENRES = ['Action', 'Comedy', 'Drama', 'Horror', 'Thriller', 'Romance', 'Documentary', 'Animation', 'Sci-Fi', 'Fantasy', 'Crime', 'Biography', 'Musical', 'Nollywood', 'African Cinema'];
 const GENRES_BY_TYPE: Record<string, string[]> = { movie: GENRES, series: GENRES, episode: GENRES, short: ['Drama','Comedy','Horror','Romance','Animation','Documentary','Experimental','Social impact','Nollywood'], trailer: ['Drama','Action','Comedy','Horror','Romance','Documentary','Animation'], vod: ['Education','Documentary','Lifestyle','Entertainment','Business','Technology','Faith','Sports','Music'] };
@@ -96,6 +97,7 @@ const step3Schema = z.object({
 
 export default function StudioSubmit() {
   const { user } = useAuth();
+  const mediaUpload = useMultipartMediaUpload(user?.id);
   const runtime = useRuntimeConfig();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -121,7 +123,7 @@ export default function StudioSubmit() {
   const draftKey = `degametv:studio:create:${user?.id || 'guest'}`;
   const [uploadingPoster, setUploadingPoster] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
-  const [videoProgress, setVideoProgress] = useState(0);
+  const videoProgress = mediaUpload.progress;
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [form, setForm] = useState({
@@ -304,6 +306,10 @@ export default function StudioSubmit() {
       }
     }
 
+    if (mediaUpload.sessionId && mediaUpload.status !== 'QUARANTINED') {
+      toast.error('Pause or finish the current master upload before saving this production.');
+      return;
+    }
     setSubmitting(true);
 
     const { data: identity, error: identityError } = await supabase
@@ -384,8 +390,12 @@ export default function StudioSubmit() {
       return;
     }
     setCreatedContentId(contentId);
+    if (mediaUpload.sessionId && mediaUpload.status === 'QUARANTINED') {
+      try { await mediaUpload.attachToContent(contentId, mediaUpload.sessionId); }
+      catch (attachmentError) { toast.error(attachmentError instanceof Error ? attachmentError.message : 'The uploaded master could not be attached. Your draft remains saved.'); setSubmitting(false); return; }
+    }
 
-    if (form.project_type === 'live' || (form.poster_url && (form.video_url || ['series'].includes(form.project_type) || (form.project_type === 'trailer' && form.trailer_url)))) {
+    if (form.project_type === 'live' || (form.poster_url && (form.video_url || mediaUpload.status === 'QUARANTINED' || ['series'].includes(form.project_type) || (form.project_type === 'trailer' && form.trailer_url)))) {
       const needsScreening = form.project_type === 'live' || form.release_strategy === 'premiere';
       if (needsScreening) {
         if (!form.premiere_date) {
@@ -459,40 +469,19 @@ export default function StudioSubmit() {
   };
 
   const handleVideoUpload = async (file: File) => {
-    if (!user?.id) {
-      toast.error('Sign in again before uploading media.');
-      return;
-    }
-    const allowed = new Set(['video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska', 'video/mpeg']);
-    if (!allowed.has(file.type)) {
-      toast.error('Upload an MP4, MOV, WebM, MKV or MPEG master file.');
-      return;
-    }
-    if (file.size <= 0 || file.size > 2 * 1024 * 1024 * 1024) {
-      toast.error('Master video must be smaller than 2 GB.');
-      return;
-    }
     setUploadingVideo(true);
-    setVideoProgress(0);
-    const extension = file.name.split('.').pop()?.toLowerCase() || 'mp4';
-    const path = `${user.id}/masters/${crypto.randomUUID()}.${extension}`;
     try {
-      const { data, error } = await supabase.storage.from('creator-masters').upload(path, file, {
-        cacheControl: '0',
-        contentType: file.type,
-        upsert: false,
-      });
-      if (error) throw error;
-      setForm(current => ({ ...current, video_url: data.path }));
-      setVideoProgress(100);
-      toast.success('Private master uploaded to your creator vault. Publishing is enabled for approved creators when required assets and delivery checks pass.');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Private master upload failed.');
+      const result = await mediaUpload.upload(file);
+      if (result?.sessionId) {
+        setForm(current => ({ ...current, video_url: '' }));
+        toast.success('Master uploaded directly to private quarantine storage. Malware scanning and transcoding are queued.');
+      }
+    } catch (uploadError) {
+      toast.error(uploadError instanceof Error ? uploadError.message : 'Multipart master upload failed.');
     } finally {
       setUploadingVideo(false);
     }
   };
-
 
   const toggleGenre = (genre: string) => {
     setForm(f => ({
@@ -706,7 +695,8 @@ export default function StudioSubmit() {
                       <input aria-label="Master video file" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-matroska,video/mpeg" className="hidden" disabled={uploadingVideo} onChange={e => e.target.files?.[0] && handleVideoUpload(e.target.files[0])} />
                     </label>
                   </div>
-                  <p className="text-xs text-muted-foreground">Stored in a private, owner-scoped bucket. The master is never exposed through a public URL; playback remains disabled until a secure delivery provider is configured.</p>{videoProgress > 0 && <div className="h-1.5 rounded-full bg-secondary overflow-hidden"><div className="h-full bg-primary" style={{ width: `${videoProgress}%` }} /></div>}
+                  <p className="text-xs text-muted-foreground">Uploaded directly from this browser to the configured S3/R2-compatible quarantine bucket. Edge Functions never assemble or buffer the master file.</p>
+                  {(videoProgress > 0 || mediaUpload.status !== 'IDLE') && <div className="space-y-2"><div className="flex items-center justify-between text-xs"><span>{mediaUpload.fileName ?? 'Recovered upload'} · {mediaUpload.status}</span><span>{videoProgress}%</span></div><div className="h-2 rounded-full bg-secondary overflow-hidden"><div className="h-full bg-primary transition-all" style={{ width: `${videoProgress}%` }} /></div>{mediaUpload.error && <p className="text-xs text-destructive">{mediaUpload.error}</p>}<div className="flex flex-wrap gap-2">{mediaUpload.status === 'UPLOADING' && <Button type="button" size="sm" variant="outline" onClick={mediaUpload.pause}>Pause upload</Button>}{['PAUSED','ERROR'].includes(mediaUpload.status) && <span className="text-xs text-muted-foreground self-center">Select the same file again to resume missing parts.</span>}{['UPLOADING','PAUSED','ERROR','PREPARING'].includes(mediaUpload.status) && <Button type="button" size="sm" variant="destructive" onClick={()=>void mediaUpload.cancel().catch(e=>toast.error(e instanceof Error?e.message:'Cancel failed.'))}>Cancel upload</Button>}</div></div>}
                 </div>
                 <div className="space-y-2">
                   <Label>Trailer URL</Label>
