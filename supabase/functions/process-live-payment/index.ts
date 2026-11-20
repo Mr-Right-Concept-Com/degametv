@@ -83,17 +83,7 @@ serve(async(req:Request)=>{
   let baseAmount=ticketType==="live"?livePrice:ticketType==="replay"?replayPrice:livePrice+(screening.replay_access_model==="SEPARATE_PRICE"?replayPrice:0);
   let pricingCurrency=sourceCurrency;
   if(!/^[A-Z]{3}$/.test(sourceCurrency)||!Number.isFinite(baseAmount)||baseAmount<=0)return json(409,{error:"This ticket price is not configured in a supported currency."});
-  const reference="DTVL_"+crypto.randomUUID().replaceAll("-","");
-  let earlyBirdReserved=false;
-  if(["live","combo"].includes(ticketType)&&screening.early_bird_price!==null&&screening.early_bird_price!==undefined&&screening.early_bird_ends_at&&Date.now()<Date.parse(screening.early_bird_ends_at)&&Number(screening.early_bird_capacity)>0){
-   const earlyBirdAmount=Number(screening.early_bird_price);
-   const earlyBirdCurrency=String(screening.early_bird_currency||sourceCurrency).toUpperCase();
-   if(!Number.isFinite(earlyBirdAmount)||earlyBirdAmount<=0||earlyBirdAmount>livePrice||!/^[A-Z]{3}$/.test(earlyBirdCurrency))return json(409,{error:"The event early-bird price configuration is invalid."});
-   const {data:reserved,error:reserveError}=await db.rpc("reserve_event_early_bird_slot",{p_screening_id:screening.id,p_provider_reference:reference,p_expires_at:new Date(Date.now()+20*60*1000).toISOString()});
-   if(reserveError)return json(503,{error:"Early-bird ticket capacity could not be reserved safely. Please retry."});
-   earlyBirdReserved=reserved===true;
-   if(earlyBirdReserved){baseAmount=earlyBirdAmount;pricingCurrency=earlyBirdCurrency;}
-  }
+
 
   const {data:providers,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:"payments"});
   if(providerError||!Array.isArray(providers)||!providers.length)return json(503,{error:"No payment provider is enabled in Admin Provider Vault."});
@@ -113,6 +103,18 @@ serve(async(req:Request)=>{
   try{const site=new URL(siteUrl);if(siteError||siteSetting?.is_public!==true||site.protocol!=="https:"||site.username||site.password)throw new Error("invalid_site");siteOrigin=site.origin;}
   catch{return json(503,{error:"The canonical public return URL has not been published in God Mode."});}
 
+  const reference="DTVL_"+crypto.randomUUID().replaceAll("-","");
+  let earlyBirdReserved=false;
+  if(["live","combo"].includes(ticketType)&&screening.early_bird_price!==null&&screening.early_bird_price!==undefined&&screening.early_bird_ends_at&&Date.now()<Date.parse(screening.early_bird_ends_at)&&Number(screening.early_bird_capacity)>0){
+   const earlyBirdAmount=Number(screening.early_bird_price);
+   const earlyBirdCurrency=String(screening.early_bird_currency||sourceCurrency).toUpperCase();
+   if(!Number.isFinite(earlyBirdAmount)||earlyBirdAmount<=0||earlyBirdAmount>livePrice||!/^[A-Z]{3}$/.test(earlyBirdCurrency))return json(409,{error:"The event early-bird price configuration is invalid."});
+   const {data:reserved,error:reserveError}=await db.rpc("reserve_event_early_bird_slot",{p_screening_id:screening.id,p_provider_reference:reference,p_expires_at:new Date(Date.now()+20*60*1000).toISOString()});
+   if(reserveError)return json(503,{error:"Early-bird ticket capacity could not be reserved safely. Please retry."});
+   earlyBirdReserved=reserved===true;
+   if(earlyBirdReserved){baseAmount=earlyBirdAmount+(ticketType==="combo"&&screening.replay_access_model==="SEPARATE_PRICE"?replayPrice:0);pricingCurrency=earlyBirdCurrency;}
+  }
+
   const convertedAmount=await convertAmount(url,service,baseAmount,pricingCurrency,currency,countryCode);
   const fractionDigits=new Intl.NumberFormat("en",{style:"currency",currency}).resolvedOptions().maximumFractionDigits;
   const minor=Math.round(convertedAmount*Math.pow(10,fractionDigits));
@@ -121,7 +123,6 @@ serve(async(req:Request)=>{
   if(commissionError||!Number.isFinite(creatorCommissionRate)||creatorCommissionRate<0||creatorCommissionRate>0.5)return json(503,{error:"Creator commission policy is not configured safely."});
   const platformFeeMajor=Math.round(minor*creatorCommissionRate)/Math.pow(10,fractionDigits);
   if(!Number.isSafeInteger(minor)||minor<=0)return json(422,{error:"The converted ticket amount is invalid."});
-  const reference="DTVL_"+crypto.randomUUID().replaceAll("-","");
   const candidate=usable[0];
   const {error:insertError}=await db.from("live_payment_orders").insert({
    tenant_id:screening.tenant_id,user_id:user?.id??null,guest_checkout:!user,screening_id:screening.id,stream_id:stream.id,
