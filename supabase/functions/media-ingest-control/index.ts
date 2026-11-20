@@ -64,6 +64,7 @@ const Body=z.discriminatedUnion("action",[
  z.object({action:z.literal("complete_multipart"),...Common,parts:z.array(z.object({partNumber:z.number().int().min(1).max(10000),etag:z.string().min(1).max(200),checksumSha256:z.string().regex(/^[A-Za-z0-9+/]{43}=$/)}).strict()).min(1).max(10000)}).strict(),
  z.object({action:z.literal("abort_multipart"),...Common}).strict(),
  z.object({action:z.literal("recover"),...Common}).strict(),
+ z.object({action:z.literal("attach_content"),...Common,contentId:z.string().uuid()}).strict(),
  z.object({action:z.literal("cancel"),...Common}).strict(),
  z.object({action:z.literal("playback_url"),jobId:z.string().uuid(),path:z.string().min(1).max(1000)}).strict(),
 ]);
@@ -106,7 +107,21 @@ Deno.serve(async req=>{
  if(Date.parse(session.expires_at)<Date.now()&&session.status!=="READY")return json(410,{error:"Upload session expired."});
  if(p.action==="recover"){
   if(!session.storage_upload_id)return json(409,{error:"No active multipart storage session exists."});
-  try{const storage=await getStorage(db),res=await signedRequest(storage,session.object_path,"GET",{"uploadId":session.storage_upload_id});if(!res.ok)return json(502,{error:"Storage provider could not recover multipart parts.",providerStatus:res.status});const xml=await res.text(),parts=[...xml.matchAll(/<Part>([\s\S]*?)<\\/Part>/g)].map(m=>({partNumber:Number(xmlValue(m[1],"PartNumber")),etag:xmlValue(m[1],"ETag")?.replaceAll("&quot;","").replaceAll('"',""),checksumSha256:xmlValue(m[1],"ChecksumSHA256")})).filter(x=>Number.isInteger(x.partNumber)&&x.etag&&x.checksumSha256);return json(200,{sessionId:session.id,status:session.status,receivedSizeBytes:session.received_size_bytes,expectedSizeBytes:session.expected_size_bytes,partSizeBytes:session.chunk_size_bytes,parts,expiresAt:session.expires_at});}catch(e){return json(503,{error:e instanceof Error?e.message:"Multipart recovery failed."});}
+  try{const storage=await getStorage(db),res=await signedRequest(storage,session.object_path,"GET",{"uploadId":session.storage_upload_id});if(!res.ok)return json(502,{error:"Storage provider could not recover multipart parts.",providerStatus:res.status});const xml=await res.text(),parts=[...xml.matchAll(/<Part>([\s\S]*?)<\\/Part>/g)].map(m=>({partNumber:Number(xmlValue(m[1],"PartNumber")),etag:xmlValue(m[1],"ETag")?.replaceAll("&quot;","").replaceAll('"',""),checksumSha256:xmlValue(m[1],"ChecksumSHA256"),size:Number(xmlValue(m[1],"Size")??0)})).filter(x=>Number.isInteger(x.partNumber)&&x.etag&&x.checksumSha256);return json(200,{sessionId:session.id,status:session.status,receivedSizeBytes:session.received_size_bytes,expectedSizeBytes:session.expected_size_bytes,partSizeBytes:session.chunk_size_bytes,parts,expiresAt:session.expires_at});}catch(e){return json(503,{error:e instanceof Error?e.message:"Multipart recovery failed."});}
+ }
+ if(p.action==="attach_content"){
+  const {data:content,error:contentError}=await db.from("content").select("id,metadata").eq("id",p.contentId).eq("creator_id",user.id).maybeSingle();
+  if(contentError||!content)return json(404,{error:"Production not found or not owned by this creator."});
+  const {data:job,error:jobError}=await db.from("media_processing_jobs").select("id,status,quarantine_path,sha256").eq("upload_session_id",session.id).maybeSingle();
+  if(jobError||!job||!["QUARANTINED","SCANNING","PROMOTING","TRANSCODING","READY","RETRY_WAIT"].includes(job.status))return json(409,{error:"This upload has not completed multipart ingestion."});
+  const {error:sessionUpdate}=await db.from("media_upload_sessions").update({content_id:content.id,updated_at:new Date().toISOString()}).eq("id",session.id).eq("owner_id",user.id);
+  if(sessionUpdate)return json(503,{error:"Upload could not be linked to this production."});
+  const {error:jobUpdate}=await db.from("media_processing_jobs").update({content_id:content.id,updated_at:new Date().toISOString()}).eq("id",job.id);
+  if(jobUpdate)return json(503,{error:"Media job could not be linked to this production."});
+  const metadata={...(content.metadata??{}),media_ingestion:{status:job.status,job_id:job.id,master_object_path:session.object_path,sha256:job.sha256}};
+  const {error:contentUpdate}=await db.from("content").update({video_url:session.object_path,metadata}).eq("id",content.id).eq("creator_id",user.id);
+  if(contentUpdate)return json(503,{error:"Production was found but its master asset link could not be saved."});
+  return json(200,{success:true,contentId:content.id,jobId:job.id,status:job.status});
  }
  if(p.action==="sign_part"){
   if(session.status!=="UPLOADING"||!session.storage_upload_id)return json(409,{error:"Upload is not accepting parts."});
