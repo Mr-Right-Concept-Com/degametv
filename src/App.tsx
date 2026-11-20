@@ -58,6 +58,7 @@ const InvitedEvent = lazy(() => import("./pages/InvitedEvent"));
 const UserDashboard = lazy(() => import("./pages/UserDashboard"));
 const SupportCenter = lazy(() => import("./pages/SupportCenter"));
 const SupportAgentInbox = lazy(() => import("./pages/SupportAgentInbox"));
+const SupportKnowledgebase = lazy(() => import("./pages/admin/SupportKnowledgebase"));
 
 // Studio pages
 const StudioDashboard = lazy(() => import("./pages/studio/StudioDashboard"));
@@ -143,6 +144,7 @@ const App = () => (
               <Route path="/admin/sales" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.finance"><ProducerDashboard /></FeatureGate></ProtectedAdminRoute>} />
               <Route path="/admin/payouts" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.finance"><Payouts /></FeatureGate></ProtectedAdminRoute>} />
               <Route path="/admin/gifts" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.finance"><GiftCatalog /></FeatureGate></ProtectedAdminRoute>} />
+              <Route path="/admin/support/knowledgebase" element={<ProtectedAdminRoute><SupportKnowledgebase /></ProtectedAdminRoute>} />
               <Route path="/admin/godmode" element={<ProtectedAdminRoute><Godmode /></ProtectedAdminRoute>} />
               <Route path="/admin/filmmaker" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.verification"><FilmmakerPortal /></FeatureGate></ProtectedAdminRoute>} />
               <Route path="/admin/filmmaker-applications" element={<ProtectedAdminRoute><FeatureGate featureKey="admin.verification"><FilmmakerApplications /></FeatureGate></ProtectedAdminRoute>} />
