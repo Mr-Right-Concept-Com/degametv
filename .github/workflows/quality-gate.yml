@@ -61,11 +61,18 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked npm dependencies for Deno npm: specifiers
+        run: npm ci
       - name: Setup Deno
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - name: Type-check event and payment functions
+      - name: Type-check event, payment and Phase 2 functions
         run: |
           deno check \
             supabase/functions/process-live-payment/index.ts \
@@ -81,4 +88,10 @@ jobs:
             supabase/functions/validate-watch-code/index.ts \
             supabase/functions/get-playback-url/index.ts \
             supabase/functions/record-watch-heartbeat/index.ts \
-            supabase/functions/admin-provider-control/index.ts
+            supabase/functions/admin-provider-control/index.ts \
+            supabase/functions/creator-onboarding/index.ts \
+            supabase/functions/admin-creator-verification/index.ts \
+            supabase/functions/domain-control/index.ts \
+            supabase/functions/runtime-config/index.ts \
+            supabase/functions/media-ingest-control/index.ts \
+            supabase/functions/media-ingest-worker/index.ts
