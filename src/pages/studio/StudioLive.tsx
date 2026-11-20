@@ -66,24 +66,14 @@ export default function StudioLive() {
     if (!user?.id || !screeningId) { setBroadcastLifecycle(null); return; }
     let active = true;
     const refreshLifecycle = async () => {
-      const { data, error } = await supabase.from('live_streams')
-        .select('lifecycle_status,reconnect_grace_expires_at,actual_started_at,actual_ended_at')
-        .eq('creator_id', user.id)
-        .contains('metadata', { screening_id: screeningId })
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (active && !error) setBroadcastLifecycle(data);
+      const { data, error } = await (supabase as any).rpc('get_my_live_stream_lifecycle', { p_screening_id: screeningId });
+      if (active && !error) setBroadcastLifecycle(Array.isArray(data) ? (data[0] || null) : (data || null));
     };
     void refreshLifecycle();
     const timer = window.setInterval(refreshLifecycle, 5000);
-    const channel = supabase.channel(`creator-live-${screeningId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_streams', filter: `creator_id=eq.${user.id}` }, refreshLifecycle)
-      .subscribe();
     return () => {
       active = false;
       window.clearInterval(timer);
-      void supabase.removeChannel(channel);
     };
   }, [screeningId, user?.id]);
 
