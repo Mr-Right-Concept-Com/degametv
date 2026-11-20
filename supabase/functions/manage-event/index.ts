@@ -29,7 +29,8 @@ Deno.serve(async (req) => {
     const { data: s } = await admin.from("screenings").select("id, title, content_id, tenant_id").eq("id", p.screeningId).maybeSingle();
     if (!s) return json({ error: "Event not found" }, 404);
     const { data: c } = await admin.from("content").select("creator_id").eq("id", s.content_id).maybeSingle();
-    const { data: isAdmin } = await admin.rpc("is_super_admin", { _user_id: user.id });
+    const { data: adminRole, error: roleError } = await admin.from("user_roles").select("user_id").eq("user_id", user.id).eq("role", "super_admin").maybeSingle();
+    const isAdmin = !roleError && Boolean(adminRole);
     if (!isAdmin && c?.creator_id !== user.id) return json({ error: "Not allowed" }, 403);
 
     if (p.action !== "cancel") {
