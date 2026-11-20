@@ -18,7 +18,7 @@ const defaults:BrandConfig={
  accentColor:"#ffffff",backgroundColor:"#080808",fontFamily:"Inter",customDomain:"",supportEmail:"",
  logoUrl:"/brand/degametv-lockup.svg",faviconUrl:"/brand/degametv-icon.svg",
 };
-const call=async<T>(body:Record<string,unknown>)=>{
+const call=async<T,>(body:Record<string,unknown>)=>{
  const result=await invokeFn<{result:T}>("admin-godmode",body);
  if(!result.ok)throw new Error(result.error);
  return result.data?.result as T;
