@@ -9,7 +9,7 @@ begin
  select user_id into v_actor from public.user_roles where role='super_admin' limit 1;
  if v_actor is null then raise exception 'verified_super_admin_missing';end if;
  insert into public.withdrawal_requests(user_id,amount,currency,bank_name,account_number,account_name,bank_country,status)
- values(v_actor,1,'NGN','Phase1 test bank','1234567890','Phase1 Test','NG','pending')
+ values(v_actor,1,'NGN','Phase1 test bank',repeat('1',10),'Phase1 Test','NG','pending')
  returning id into v_request;
  v_result:=public.transition_withdrawal_request(v_request,'approve',v_actor,'Phase 1 approval test');
  if v_result ? 'account_number' then raise exception 'withdrawal_transition_returned_bank_account';end if;
