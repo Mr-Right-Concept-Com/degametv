@@ -101,7 +101,7 @@ Deno.serve(async (req) => {
       else pendingRefunds.push(ticket.id);
     }
 
-    const streamIds = (eventStreams || []).map((stream: any) => stream.id);
+    const streamIds = (eventStreams || []).map((stream: { id: string }) => stream.id);
     const { data: screeningContributions, error: contributionError } = await admin.from("event_contributions")
       .select("id,status")
       .eq("screening_id", s.id)
@@ -111,7 +111,10 @@ Deno.serve(async (req) => {
       ? await admin.from("event_contributions").select("id,status").in("live_stream_id", streamIds).eq("status", "paid")
       : { data: [], error: null };
     if (streamContributionError) return json({ error: "Live tips and gifts could not be loaded; cancellation is pending.", refunded, pendingRefunds }, 503);
-    const contributions = [...new Map([...(screeningContributions || []), ...(streamContributions || [])].map((item: any) => [item.id, item])).values()];
+    const contributionRows = [...(screeningContributions || []), ...(streamContributions || [])];
+    const contributions = [...new Map<string, { id: string; status: string }>(
+      contributionRows.map((item: { id: string; status: string }) => [item.id, item])
+    ).values()];
     if (contributions.length > 0 && (!serviceKey || !supabaseUrl)) return json({ error: "Refund service is unavailable; cancellation is pending.", refunded, pendingRefunds }, 503);
     for (const contribution of contributions) {
       const response = await fetch(supabaseUrl + "/functions/v1/process-refund", {
@@ -129,7 +132,7 @@ Deno.serve(async (req) => {
     if ((eventStreams || []).length > 0) {
       const { error: streamEndError } = await admin.from("live_streams")
         .update({ status: "cancelled", actual_ended_at: now, actual_end: now, updated_at: now })
-        .in("id", eventStreams.map((stream: any) => stream.id))
+        .in("id", eventStreams.map((stream: { id: string }) => stream.id))
         .in("status", ["scheduled", "live"]);
       if (streamEndError) return json({ error: "The live stream could not be closed; cancellation is pending.", refunded, pendingRefunds }, 503);
     }
@@ -151,7 +154,7 @@ Deno.serve(async (req) => {
         ? "Screening cancelled. Some refunds could not be confirmed and require reconciliation."
         : "Screening cancelled and all paid tickets were refunded by the payment provider.",
     });
-  } catch (e) {
-    return json({ error: (e as Error).message }, 500);
+  } catch (error: unknown) {
+    return json({ error: error instanceof Error ? error.message : "Event management failed." }, 500);
   }
 });
