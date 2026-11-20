@@ -11,6 +11,12 @@ begin
   if not exists(select 1 from public.platform_branding_registry where brand_key='platform.default' and is_public) then
     raise exception 'public_branding_registry_seed_missing';
   end if;
+  if has_table_privilege('anon','public.platform_branding_registry','update')
+     or has_table_privilege('authenticated','public.platform_branding_registry','update')
+     or has_function_privilege('authenticated','public.update_platform_branding(text,jsonb,boolean,integer,uuid,text)','execute')
+     or not has_function_privilege('service_role','public.update_platform_branding(text,jsonb,boolean,integer,uuid,text)','execute') then
+    raise exception 'branding_registry_write_privileges_invalid';
+  end if;
   if has_table_privilege('anon','public.service_provider_bindings','select')
      or has_table_privilege('authenticated','public.service_provider_bindings','select') then
     raise exception 'provider_registry_exposed_to_client_roles';
