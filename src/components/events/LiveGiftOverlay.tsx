@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Gift, Sparkles } from 'lucide-react';
 
-type GiftEvent={id:string;contribution_type:string;gift_catalog_key:string|null;amount_major:number;currency:string;contributor_name:string;message:string|null;gift_name:string|null;gift_emoji:string|null;gift_asset_url:string|null;gift_animation_url:string|null;animation_duration_ms:number|null};
+type GiftEvent={id:string;created_at:string;contribution_type:string;gift_catalog_key:string|null;amount_major:number;currency:string;contributor_name:string;message:string|null;gift_name:string|null;gift_emoji:string|null;gift_asset_url:string|null;gift_animation_url:string|null;animation_duration_ms:number|null};
 
 export function LiveGiftOverlay({streamId}:{streamId:string}){
  const [active,setActive]=useState<GiftEvent|null>(null);
