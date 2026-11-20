@@ -139,6 +139,8 @@ Deno.serve(async req=>{
  if(currencyError||!currency?.length)return json(422,{error:"The selected base currency is not supported by the active currency registry."});
  if(p.entityType==="INDIVIDUAL_CREATOR"&&!p.identityVerificationId)return json(422,{error:"Individual creators require an existing identity verification record."});
  if(p.entityType!=="INDIVIDUAL_CREATOR"&&!p.businessVerificationId)return json(422,{error:"Studio and business entities require an existing KYB evidence record."});
+ if(p.identityVerificationId){const {data:identity}=await db.from("identity_verifications").select("id,status").eq("id",p.identityVerificationId).eq("user_id",user.id).maybeSingle();if(!identity||identity.status!=="verified")return json(422,{error:"A verified identity record belonging to this account is required."});}
+ if(p.businessVerificationId){const {data:business}=await db.from("business_verifications").select("id,status").eq("id",p.businessVerificationId).eq("user_id",user.id).maybeSingle();if(!business||!["pending","processing","verified"].includes(business.status))return json(422,{error:"The KYB evidence record does not belong to this account or is not active."});}
  const {data:existing}=await db.from("creator_verification_cases").select("id,status").eq("user_id",user.id).in("status",["DRAFT","SUBMITTED","UNDER_REVIEW","ADDITIONAL_INFO_REQUIRED","APPEAL_PENDING"]).maybeSingle();
  if(existing)return json(409,{error:"An active creator application already exists.",caseId:existing.id,status:existing.status});
  const {error:accountError}=await db.rpc("submit_my_studio_account",{p_tier:p.entityType==="INDIVIDUAL_CREATOR"?"creator":"business"});
