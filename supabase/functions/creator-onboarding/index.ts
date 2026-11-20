@@ -6,6 +6,7 @@ const Apply=z.object({action:z.literal("apply"),entityType:z.enum(["INDIVIDUAL_C
 const Invite=z.object({action:z.literal("invite"),studioAccountId:z.string().uuid(),email:z.string().email().max(254).optional(),userId:z.string().uuid().optional(),role:z.enum(["ADMIN","PRODUCER","BROADCASTER","FINANCE_VIEWER","MODERATOR"])}).strict().refine(v=>Boolean(v.email)!==Boolean(v.userId));
 const InvitationAction=z.discriminatedUnion("action",[
  z.object({action:z.literal("list_invitations")}).strict(),
+ z.object({action:z.literal("list_my_cases")}).strict(),
  z.object({action:z.literal("list_team"),studioAccountId:z.string().uuid()}).strict(),
  z.object({action:z.literal("accept_invitation"),token:z.string().min(20).max(200).optional(),invitationId:z.string().uuid().optional()}).strict().refine(v=>Boolean(v.token)!==Boolean(v.invitationId)),
  z.object({action:z.literal("reject_invitation"),token:z.string().min(20).max(200).optional(),invitationId:z.string().uuid().optional()}).strict().refine(v=>Boolean(v.token)!==Boolean(v.invitationId)),
@@ -32,6 +33,10 @@ Deno.serve(async req=>{
   if(p.action==="list_invitations"){
    const {data,error}=await db.from("studio_invitations").select("id,studio_account_id,email,role,expires_at").eq("email",String(user.email??"").toLowerCase()).is("accepted_at",null).is("revoked_at",null).gt("expires_at",new Date().toISOString()).order("created_at",{ascending:false}).limit(50);
    return error?json(503,{error:"Pending invitations could not be loaded."}):json(200,{success:true,invitations:data??[]});
+  }
+  if(p.action==="list_my_cases"){
+   const {data,error}=await db.from("creator_verification_cases").select("id,entity_type,status,submitted_at,appeal_reason,reviewed_at,verification_reason").eq("user_id",user.id).order("submitted_at",{ascending:false}).limit(20);
+   return error?json(503,{error:"Creator applications could not be loaded."}):json(200,{success:true,cases:data??[]});
   }
   if(p.action==="list_team"||p.action==="update_member_role"||p.action==="revoke_member"){
    const studioAccountId=p.action==="list_team"?p.studioAccountId:undefined;
