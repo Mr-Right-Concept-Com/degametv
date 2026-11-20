@@ -288,7 +288,7 @@ export default function StudioSubmit() {
     const liveFormat:Record<string,string>={broadcast:'LIVE_SHOW',concert:'CONCERT',conference:'CONFERENCE',talk:'LIVE_SHOW',gaming:'OTHER',watch_party:'SCREENING',sports:'OTHER',worship:'OTHER',other:'OTHER'};
     const formatPayload:Record<string,unknown>={
       format,title:form.project_title,synopsis:form.description,logline:'',posterUrl:form.poster_url||'',
-      tags:[],genres:form.genres,originalLanguage:form.original_language||undefined,productionCountry:form.production_country||undefined,
+      tags:[],genres:form.genres,originalLanguage:/^[a-z]{2,3}(-[A-Z]{2})?$/.test(form.original_language)?form.original_language:undefined,productionCountry:form.production_country||undefined,
       runtimeMinutes:form.duration_minutes?Number(form.duration_minutes):undefined,releaseYear:form.release_year?Number(form.release_year):undefined,
       seasons:form.season_number?Number(form.season_number):undefined,seriesContentId:form.source_content_id||undefined,
       seasonNumber:form.season_number?Number(form.season_number):undefined,episodeNumber:form.episode_number?Number(form.episode_number):undefined,
