@@ -3,6 +3,17 @@ import { supabase } from '@/integrations/supabase/client';
 import { Gift, Sparkles } from 'lucide-react';
 
 type GiftEvent={id:string;created_at:string;contribution_type:string;gift_catalog_key:string|null;amount_major:number;currency:string;contributor_name:string;message:string|null;gift_name:string|null;gift_emoji:string|null;gift_asset_url:string|null;gift_animation_url:string|null;animation_duration_ms:number|null};
+const isGiftEvent = (value: unknown): value is GiftEvent => {
+ const row = typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null;
+ return row !== null && typeof row.id === 'string' && typeof row.created_at === 'string'
+  && typeof row.contribution_type === 'string' && (row.gift_catalog_key === null || typeof row.gift_catalog_key === 'string')
+  && typeof row.amount_major === 'number' && typeof row.currency === 'string'
+  && typeof row.contributor_name === 'string' && (row.message === null || typeof row.message === 'string')
+  && (row.gift_name === null || typeof row.gift_name === 'string') && (row.gift_emoji === null || typeof row.gift_emoji === 'string')
+  && (row.gift_asset_url === null || typeof row.gift_asset_url === 'string')
+  && (row.gift_animation_url === null || typeof row.gift_animation_url === 'string')
+  && (row.animation_duration_ms === null || typeof row.animation_duration_ms === 'number');
+};
 
 export function LiveGiftOverlay({streamId}:{streamId:string}){
  const [active,setActive]=useState<GiftEvent|null>(null);
@@ -13,9 +24,9 @@ export function LiveGiftOverlay({streamId}:{streamId:string}){
  useEffect(()=>{
   let alive=true;
   const poll=async()=>{
-   const {data,error}=await (supabase as any).rpc('get_event_contribution_feed',{p_screening_id:null,p_live_stream_id:streamId});
+   const {data,error}=await supabase.rpc('get_event_contribution_feed' as never,{p_screening_id:null,p_live_stream_id:streamId} as never);
    if(!alive||error||!Array.isArray(data))return;
-   const rows=data as GiftEvent[];
+   const rows=data.filter(isGiftEvent);
    if(!initialised.current){
     rows.forEach(item=>seenIds.current.add(item.id));
     initialised.current=true;
