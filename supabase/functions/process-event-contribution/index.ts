@@ -57,7 +57,7 @@ Deno.serve(async(req)=>{
   const currency=p.currency.toUpperCase();
   const {count:currencyCount}=await db.from("country_currency_rules").select("country_code",{count:"exact",head:true}).eq("currency_code",currency).eq("enabled",true);
   if(!currencyCount)return json(422,{error:"This contribution currency is not enabled."});
-  let tenantId:string,creatorId:string,screeningId:string|null=p.screeningId??null,liveStreamId:string|null=p.liveStreamId??null,contentId:string|null=p.contentId??null,eventTitle:string;
+  let tenantId:string,creatorId:string,eventTitle:string;const screeningId:string|null=p.screeningId??null,liveStreamId:string|null=p.liveStreamId??null,contentId:string|null=p.contentId??null;
   if(p.screeningId){
    const {data:event,error}=await db.from("screenings").select("id,tenant_id,content_id,title,status,lifecycle,event_visibility,invite_only").eq("id",p.screeningId).eq("status","published").maybeSingle();
    if(error||!event)return json(404,{error:"Event not found."});
