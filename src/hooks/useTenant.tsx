@@ -33,11 +33,7 @@ const tenantConfigRowSchema = z.object({
   updated_at: z.string(),
 });
 
-interface TenantRpcClient {
-  rpc(name: "get_my_tenant_config"): Promise<{ data: unknown; error: unknown }>;
-}
 
-const tenantRpc = supabase as unknown as TenantRpcClient;
 
 
 // Non-persisted platform context for public DeGameTV surfaces
@@ -103,7 +99,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         setUserRole(selectedRole?.role ?? 'viewer');
 
         if (rows.some((row) => row.tenant_id)) {
-          const { data: tenantRows, error: tenantError } = await tenantRpc.rpc('get_my_tenant_config');
+          const { data: tenantRows, error: tenantError } = await supabase.rpc('get_my_tenant_config');
           if (tenantError) throw new Error('Unable to load the current tenant configuration.');
           if (!active) return;
 
