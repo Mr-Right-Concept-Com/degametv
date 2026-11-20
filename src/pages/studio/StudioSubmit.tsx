@@ -292,7 +292,7 @@ export default function StudioSubmit() {
       runtimeMinutes:form.duration_minutes?Number(form.duration_minutes):undefined,releaseYear:form.release_year?Number(form.release_year):undefined,
       seasons:form.season_number?Number(form.season_number):undefined,seriesContentId:form.source_content_id||undefined,
       seasonNumber:form.season_number?Number(form.season_number):undefined,episodeNumber:form.episode_number?Number(form.episode_number):undefined,
-      parentContentId:form.source_content_id||undefined,artist:form.primary_artist||undefined,episodeNumber:form.episode_number?Number(form.episode_number):undefined,
+      parentContentId:form.source_content_id||undefined,artist:form.primary_artist||undefined,
       gameTitle:form.category_tag||undefined,sport:form.category_tag||undefined,competition:form.category_tag||undefined,
       subject:form.category_tag||undefined,eventFormat:liveFlow?liveFormat[form.live_event_format]??'OTHER':form.category_tag||'recorded_event',
       sourceContentId:form.source_content_id||undefined,
