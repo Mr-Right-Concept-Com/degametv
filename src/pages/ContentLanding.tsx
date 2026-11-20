@@ -33,8 +33,11 @@ export default function ContentLanding() {
   const [loading, setLoading] = useState(true);
   const [guestEmail, setGuestEmail] = useState('');
   const [currency, setCurrency] = useState<'NGN' | 'USD'>('NGN');
+  const [supportCurrency, setSupportCurrency] = useState('NGN');
   const [checkoutBusy, setCheckoutBusy] = useState<string | null>(null);
   usePageTitle(content?.title ? content.title + ' — DeGameTV' : 'DeGameTV');
+
+  useEffect(() => { if (!user) return; (supabase as any).from('profiles').select('preferred_currency').eq('user_id', user.id).maybeSingle().then(({data}:any) => { if (data?.preferred_currency && /^[A-Z]{3}$/.test(data.preferred_currency)) setSupportCurrency(data.preferred_currency); }); }, [user?.id]);
 
   useEffect(() => {
     let active = true;
@@ -111,7 +114,7 @@ export default function ContentLanding() {
         </div>
       </div>
       {content.type === 'live' && !user && <div className="mt-8 max-w-md space-y-2"><label htmlFor="live-ticket-email" className="text-sm font-medium">Email for ticket delivery</label><Input id="live-ticket-email" type="email" autoComplete="email" placeholder="you@example.com" value={guestEmail} onChange={e => setGuestEmail(e.target.value)} /><p className="text-xs text-muted-foreground">Your secure ticket claim link will be sent after payment is confirmed.</p></div>}
-      <section className="mt-8 space-y-4"><h2 className="text-xl font-semibold">Support this creator</h2><EventContribution contentId={content.id} currency={currency} /><EventContributionFeed contentId={content.id} /></section>
+      <section className="mt-8 space-y-4"><h2 className="text-xl font-semibold">Support this creator</h2><EventContribution contentId={content.id} currency={supportCurrency} /><EventContributionFeed contentId={content.id} /></section>
       <section className="mt-12 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold">Screenings & access</h2>
