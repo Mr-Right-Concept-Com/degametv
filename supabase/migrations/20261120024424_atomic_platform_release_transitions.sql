@@ -6,7 +6,7 @@ returns jsonb language plpgsql security definer set search_path=public,pg_temp
 as $$
 declare v_rollout public.platform_release_rollouts%rowtype;v_samples integer;v_latency_samples integer;v_error_rate numeric;v_p95 numeric;v_action text;
 begin
- if p_actor_id is null or not exists(select 1 from public.user_roles where user_id=p_actor_id and role='super_admin') then
+ if p_actor_id is null or not public.is_super_admin(p_actor_id) then
   raise exception 'super_admin_required' using errcode='42501';
  end if;
  if p_release_key is null or p_release_key !~ '^[a-z][a-z0-9_.-]{1,100}$' or p_reason is null or length(btrim(p_reason))<3 then
