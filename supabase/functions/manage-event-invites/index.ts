@@ -35,18 +35,22 @@ Deno.serve(async(req)=>{
   if(invite.status==="revoked"||invite.status==="expired"||(invite.expires_at&&Date.parse(invite.expires_at)<=Date.now()))return json(410,{error:"This invitation has expired or was revoked."});
   if(invite.status==="accepted")return json(200,{success:true,alreadyAccepted:true,screeningId:invite.screening_id});
   if(invite.invited_email.toLowerCase()!==user.email.toLowerCase())return json(403,{error:"Sign in with the email address that received this invitation."});
-  const {data:accepted,error:acceptError}=await admin.from("event_access_invites").update({status:"accepted",invited_user_id:user.id,accepted_at:new Date().toISOString()}).eq("id",invite.id).eq("status","pending").select("id").maybeSingle();
+  const {data:accepted,error:acceptError}=await admin.from("event_access_invites").update({status:"accepted",invited_user_id:user.id,accepted_at:new Date().toISOString()}).eq("id",invite.id).in("status",["pending","sent"]).select("id").maybeSingle();
   if(acceptError||!accepted)return json(409,{error:"Invitation could not be accepted. It may have already changed."});
   return json(200,{success:true,screeningId:invite.screening_id,liveStreamId:invite.live_stream_id});
  }
 
  if(p.action==="my_invitations"){
-  const {data:rows,error}=await admin.from("event_access_invites").select("id,screening_id,live_stream_id,invite_role,status,expires_at,accepted_at,created_at").or("invited_user_id.eq."+user.id+",invited_email.eq."+user.email.toLowerCase()).in("status",["pending","sent","accepted"]).order("created_at",{ascending:false}).limit(100);
-  if(error)return json(503,{error:"Your invitations could not be loaded."});
-  const ids=(rows||[]).map(r=>r.screening_id).filter(Boolean);
+  const [byUser,byEmail]=await Promise.all([
+   admin.from("event_access_invites").select("id,screening_id,live_stream_id,invite_role,status,expires_at,accepted_at,created_at").eq("invited_user_id",user.id).in("status",["pending","sent","accepted"]).order("created_at",{ascending:false}).limit(100),
+   admin.from("event_access_invites").select("id,screening_id,live_stream_id,invite_role,status,expires_at,accepted_at,created_at").eq("invited_email",user.email.toLowerCase()).in("status",["pending","sent","accepted"]).order("created_at",{ascending:false}).limit(100)
+  ]);
+  if(byUser.error||byEmail.error)return json(503,{error:"Your invitations could not be loaded."});
+  const rows=[...new Map([...(byUser.data||[]),...(byEmail.data||[])].map(r=>[r.id,r])).values()];
+  const ids=rows.map(r=>r.screening_id).filter(Boolean);
   const {data:events}=ids.length?await admin.from("screenings").select("id,title,slug,poster_url,screening_date,event_timezone,event_visibility").in("id",ids):{data:[]};
   const byId=new Map((events||[]).map(e=>[e.id,e]));
-  return json(200,{invitations:(rows||[]).map(r=>({...r,event:r.screening_id?byId.get(r.screening_id)||null:null}))});
+  return json(200,{invitations:rows.map(r=>({...r,event:r.screening_id?byId.get(r.screening_id)||null:null}))});
  }
 
  const {data:screening,error:screeningError}=await admin.from("screenings").select("id,tenant_id,title,slug,content_id,status").eq("id",p.screeningId).maybeSingle();
