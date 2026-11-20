@@ -35,9 +35,9 @@ Deno.serve(async req=>{
    .order("created_at",{ascending:false}).limit(200);
   if(error)return json({error:"Withdrawal requests could not be loaded."},503);
   const withdrawals=(data??[]).map(row=>{
-   const digits=String(row.account_number??"").replace(/\D/g,"");
+   const normalizedAccount=String(row.account_number??"").replace(/[^A-Za-z0-9]/g,"");
    const safe=Object.fromEntries(Object.entries(row).filter(([key])=>key!=="account_number"));
-   return {...safe,account_last4:digits.length>=4?digits.slice(-4):null};
+   return {...safe,account_last4:normalizedAccount.length>=4?normalizedAccount.slice(-4):null};
   });
   return json({withdrawals});
  }
