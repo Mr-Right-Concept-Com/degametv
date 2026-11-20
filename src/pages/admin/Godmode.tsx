@@ -48,7 +48,8 @@ export default function Godmode() {
   const [banners, setBanners] = useState<Tables<'promo_banners'>[]>([]);
   const [nb, setNb] = useState({ title: '', subtitle: '', image_url: '', link_url: '', placement: 'home' });
   const [busy, setBusy] = useState<string | null>(null);
-  const [q, setQ] = useState('');\n  const [auditQ, setAuditQ] = useState('');
+  const [q, setQ] = useState('');
+  const [auditQ, setAuditQ] = useState('');
   const [adj, setAdj] = useState({ userId: '', amount: '', currency: 'USD', reason: '' });
   const [currencyOptions, setCurrencyOptions] = useState<{ currency_code: string; currency_symbol: string | null }[]>([]);
 
@@ -134,7 +135,7 @@ export default function Godmode() {
   const exportAudit = () => {
     const fields = ['created_at','action','entity_type','entity_id','user_id'];
     const escape = (value: unknown) => '"' + String(value ?? '').replace(/"/g,'""') + '"';
-    const csv = [fields.join(','),...filteredAudit.map(row => fields.map(field => escape((row as Record<string,unknown>)[field])).join(','))].join('\\n');
+    const csv = [fields.join(','),...filteredAudit.map(row => fields.map(field => escape((row as Record<string,unknown>)[field])).join(','))].join('\n');
     const blob = new Blob([csv],{type:'text/csv;charset=utf-8'});
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
