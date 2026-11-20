@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +10,7 @@ import { toast } from "sonner";
 import { Gift, Heart, Loader2 } from "lucide-react";
 
 export function EventContribution({screeningId,liveStreamId,currency="NGN"}:{screeningId?:string;liveStreamId?:string;currency?:string}){
+ const {user}=useAuth();
  const [type,setType]=useState<"tip"|"gift">("tip");
  const [amount,setAmount]=useState("500");
  const [giftKey,setGiftKey]=useState("standard");
@@ -28,6 +31,7 @@ export function EventContribution({screeningId,liveStreamId,currency="NGN"}:{scr
   window.location.assign(data.checkoutUrl);
  };
  if(!screeningId&&!liveStreamId)return null;
+ if(!user)return <div className="rounded-xl border border-border/70 p-4"><p className="text-sm font-medium">Support this creator</p><p className="mt-1 text-xs text-muted-foreground">Sign in to send a tip or digital gift.</p><Button asChild size="sm" className="mt-3"><Link to={"/auth?redirectTo="+encodeURIComponent(window.location.pathname)}>Sign in to support</Link></Button></div>;
  return <details className="rounded-xl border border-border/70 p-4">
   <summary className="flex cursor-pointer list-none items-center gap-2 font-medium"><Heart className="h-4 w-4 text-primary"/> Support this creator <Badge variant="secondary">Optional</Badge></summary>
   <div className="mt-4 grid gap-3 sm:grid-cols-2">
