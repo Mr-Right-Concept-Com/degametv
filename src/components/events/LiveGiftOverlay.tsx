@@ -11,9 +11,10 @@ export function LiveGiftOverlay({streamId}:{streamId:string}){
   let alive=true;
   const poll=async()=>{
    const {data,error}=await (supabase as any).rpc('get_event_contribution_feed',{p_screening_id:null,p_live_stream_id:streamId});
-   if(!alive||error||!Array.isArray(data)||data.length===0)return;
-   const newest=data[0] as GiftEvent;
-   if(!initialised){lastSeen.current=newest.id;setInitialised(true);return;}
+   if(!alive||error)return;
+   const newest=Array.isArray(data)&&data.length>0?data[0] as GiftEvent:null;
+   if(!initialised){lastSeen.current=newest?.id??null;setInitialised(true);return;}
+   if(!newest)return;
    if(newest.id!==lastSeen.current){lastSeen.current=newest.id;if(newest.contribution_type==='gift')setActive(newest);}
   };
   void poll();const timer=setInterval(()=>void poll(),3500);
