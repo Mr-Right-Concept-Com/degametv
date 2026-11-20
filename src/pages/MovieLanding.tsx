@@ -15,6 +15,7 @@ import {
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { LifecycleBanner } from '@/components/cinema/LifecycleBanner';
 import { EventContribution } from '@/components/events/EventContribution';
+import { EventContributionFeed } from '@/components/events/EventContributionFeed';
 
 interface CastMember {
   name: string;
@@ -284,6 +285,7 @@ export default function MovieLanding() {
 
       <div className="container mx-auto px-4 py-8 space-y-12">
         <EventContribution screeningId={screening.id} currency={(screening as any).base_currency || "NGN"} />
+        <EventContributionFeed screeningId={screening.id} />
         {/* Synopsis */}
         {screening.description && (
           <section>
