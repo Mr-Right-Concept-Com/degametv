@@ -4,6 +4,21 @@ import { z } from "npm:zod@3";
 
 const jsonValue: z.ZodType<unknown> = z.lazy(() => z.union([z.string(), z.number().finite(), z.boolean(), z.null(), z.array(jsonValue), z.record(z.string(), jsonValue)]));
 
+const hexColor=z.string().regex(/^#[0-9a-f]{6}$/i);
+const safeAssetUrl=z.string().trim().min(1).max(2048).refine(value=>{
+  if(value.startsWith("/")&&!value.startsWith("//"))return true;
+  try{return new URL(value).protocol==="https:";}catch{return false;}
+});
+const BrandConfig=z.object({
+ platformName:z.string().trim().min(1).max(80),
+ tagline:z.string().trim().max(180),
+ primaryColor:hexColor,secondaryColor:hexColor,accentColor:hexColor,backgroundColor:hexColor,
+ fontFamily:z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9 ,'-]+$/),
+ customDomain:z.string().trim().max(253).refine(value=>value===""||(/^[a-z0-9.-]+$/i.test(value)&&!value.startsWith(".")&&!value.endsWith(".")&&!value.includes(".."))),
+ supportEmail:z.string().trim().max(254).refine(value=>value===""||z.string().email().safeParse(value).success),
+ logoUrl:safeAssetUrl,faviconUrl:safeAssetUrl,
+}).strict();
+
 const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("setting_update"), key: z.string().min(1).max(100), value: jsonValue }),
   z.object({ action: z.literal("wallet_adjust"), userId: z.string().uuid(), amount: z.number().refine((n) => n !== 0 && Math.abs(n) <= 100_000_000), currency: z.string().regex(/^[A-Z]{3}$/), reason: z.string().min(3).max(500) }),
@@ -11,6 +26,8 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("withdrawal_set"), id: z.string().uuid(), status: z.enum(["approved", "rejected"]), note: z.string().max(500).optional() }),
   z.object({ action: z.literal("impersonate"), userId: z.string().uuid(), redirectTo: z.string().url().optional() }),
   z.object({ action: z.literal("runtime_controls") }),
+  z.object({ action: z.literal("branding_get") }),
+  z.object({ action: z.literal("branding_set"), brandKey: z.literal("platform.default"), brandConfig: BrandConfig, isPublic: z.boolean(), expectedVersion: z.number().int().min(1), reason: z.string().trim().min(3).max(500) }),
   z.object({ action: z.literal("public_site_url_set"), url: z.string().url().refine(value => new URL(value).protocol === "https:"), published: z.boolean(), reason: z.string().min(3).max(500) }),
   z.object({ action: z.literal("country_currency_set"), countryCode: z.string().regex(/^[A-Z]{2}$/), currencyCode: z.string().regex(/^[A-Z]{3}$/), currencySymbol: z.string().max(12).nullable(), localeCode: z.string().min(2).max(24), timezoneName: z.string().max(100).nullable(), enabled: z.boolean(), reason: z.string().min(3).max(500) }),
   z.object({ action: z.literal("feature_control_set"), featureKey: z.string().regex(/^[a-z][a-z0-9_.-]{1,119}$/), enabled: z.boolean(), rolloutPercentage: z.number().int().min(0).max(100), releaseState: z.enum(["draft","canary","released","paused","rolled_back"]), config: z.record(z.string(), jsonValue), reason: z.string().min(3).max(500) }),
@@ -101,6 +118,29 @@ Deno.serve(async (req) => {
         if (countries.error || features.error) return json({error:"Runtime controls could not be loaded."},503);
         const {data:siteSetting} = await admin.from("platform_settings").select("setting_value,is_public").eq("setting_key","public_site_url").maybeSingle();
         result = { countries:countries.data ?? [], features:features.data ?? [], administratorId:user.id, webAppUrl:typeof siteSetting?.setting_value === "string" ? siteSetting.setting_value : "", webAppUrlPublished:siteSetting?.is_public === true };
+        break;
+      }
+      case "branding_get": {
+        const {data,error}=await admin.from("platform_branding_registry").select("brand_key,brand_config,is_public,version,updated_by,updated_at").eq("brand_key","platform.default").maybeSingle();
+        if(error)return json({error:"Branding registry could not be loaded."},503);
+        if(!data)return json({error:"The canonical platform branding record is missing."},404);
+        result=data;entityId=data.brand_key;
+        break;
+      }
+      case "branding_set": {
+        const {data:previous,error:readError}=await admin.from("platform_branding_registry").select("brand_config,is_public,version").eq("brand_key",p.brandKey).maybeSingle();
+        if(readError)return json({error:"Branding version could not be read."},503);
+        if(!previous)return json({error:"Canonical branding record not found."},404);
+        if(previous.version!==p.expectedVersion)return json({error:"Branding changed in another session. Reload before saving."},409);
+        const {data,error}=await admin.from("platform_branding_registry").update({
+          brand_config:p.brandConfig,is_public:p.isPublic,version:previous.version+1,updated_by:user.id,updated_at:new Date().toISOString(),
+        }).eq("brand_key",p.brandKey).eq("version",p.expectedVersion)
+          .select("brand_key,brand_config,is_public,version,updated_by,updated_at").maybeSingle();
+        if(error)return json({error:"Branding update could not be committed."},503);
+        if(!data)return json({error:"Branding version conflict. Reload before saving."},409);
+        result=data;entityId=p.brandKey;
+        await admin.from("audit_logs").insert({user_id:user.id,action:"platform_branding.updated",entity_type:"platform_branding",entity_id:null,
+          old_data:previous,new_data:{brand_key:p.brandKey,brand_config:p.brandConfig,is_public:p.isPublic,version:data.version,reason:p.reason}});
         break;
       }
       case "country_currency_set": {
