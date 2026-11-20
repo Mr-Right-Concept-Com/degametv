@@ -8,11 +8,15 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Search, MoreHorizontal, Ban, Check, Loader2, Building2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { z } from 'zod';
 
 type Tenant = {
  id:string;name:string;slug:string;custom_domain:string|null;tenant_type:string;
  is_active:boolean;created_at:string;user_count:number;content_count:number;published_content_count:number;
 };
+const tenantSchema=z.object({id:z.string().uuid(),name:z.string(),slug:z.string(),custom_domain:z.string().nullable(),tenant_type:z.string(),is_active:z.boolean(),created_at:z.string(),user_count:z.number(),content_count:z.number(),published_content_count:z.number()});
+type TenantAdminClient={rpc(name:'admin_list_tenants'):Promise<{data:unknown;error:{message:string}|null}>;rpc(name:'admin_set_tenant_status',args:{p_tenant_id:string;p_is_active:boolean}):Promise<{data:unknown;error:{message:string}|null}>};
+const tenantAdmin=supabase as unknown as TenantAdminClient;
 
 export default function TenantsPage() {
  const [searchQuery,setSearchQuery]=useState('');
@@ -20,14 +24,18 @@ export default function TenantsPage() {
  const [loading,setLoading]=useState(true);
  const [busyId,setBusyId]=useState<string|null>(null);
 
- const load=useCallback(async()=>{
+ const load=useCallback(async(isActive:()=>boolean=()=>true)=>{
   setLoading(true);
-  const {data,error}=await (supabase as any).rpc('admin_list_tenants');
-  if(error){toast.error('Tenant inventory could not be loaded.');setTenants([]);}
-  else setTenants((data||[]) as Tenant[]);
-  setLoading(false);
+  try{
+   const {data,error}=await tenantAdmin.rpc('admin_list_tenants');
+   if(error)throw new Error(error.message);
+   const parsed=tenantSchema.array().safeParse(data);
+   if(!parsed.success)throw new Error('Tenant inventory returned an invalid response.');
+   if(isActive())setTenants(parsed.data);
+  }catch(error:unknown){if(isActive()){toast.error(error instanceof Error?error.message:'Tenant inventory could not be loaded.');setTenants([]);}}
+  finally{if(isActive())setLoading(false);}
  },[]);
- useEffect(()=>{void load();},[load]);
+ useEffect(()=>{let active=true;void load(()=>active);return()=>{active=false;};},[load]);
 
  const filtered=useMemo(()=>{
   const q=searchQuery.trim().toLowerCase();
@@ -37,10 +45,9 @@ export default function TenantsPage() {
 
  const setStatus=async(tenant:Tenant,active:boolean)=>{
   setBusyId(tenant.id);
-  const {error}=await (supabase as any).rpc('admin_set_tenant_status',{p_tenant_id:tenant.id,p_is_active:active});
-  if(error)toast.error('Tenant status could not be changed.');
-  else{toast.success(active?'Tenant activated.':'Tenant suspended.');await load();}
-  setBusyId(null);
+  try{const {error}=await tenantAdmin.rpc('admin_set_tenant_status',{p_tenant_id:tenant.id,p_is_active:active});if(error)throw new Error(error.message);toast.success(active?'Tenant activated.':'Tenant suspended.');await load();}
+  catch(error:unknown){toast.error(error instanceof Error?error.message:'Tenant status could not be changed.');}
+  finally{setBusyId(null);}
  };
 
  return <AdminLayout title="Tenants" description="Manage real platform tenants. New tenants are provisioned through approved creator and business onboarding.">
