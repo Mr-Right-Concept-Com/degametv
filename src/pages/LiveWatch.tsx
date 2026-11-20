@@ -10,6 +10,7 @@ import { Loader2, ShieldCheck, AlertCircle } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { EventContribution } from '@/components/events/EventContribution';
 import { EventContributionFeed } from '@/components/events/EventContributionFeed';
+import { LiveGiftOverlay } from '@/components/events/LiveGiftOverlay';
 
 export default function LiveWatch() {
   usePageTitle('Watch Live Event');
@@ -72,6 +73,7 @@ export default function LiveWatch() {
       {error ? <Card><CardContent className="p-8 text-center space-y-3"><AlertCircle className="mx-auto h-10 w-10 text-destructive"/><p className="font-medium">{error}</p><Button asChild><Link to="/tickets">Return to My Tickets</Link></Button></CardContent></Card> :
         <div className="overflow-hidden rounded-2xl bg-black aspect-video relative">
           <video ref={videoRef} controls playsInline autoPlay className="h-full w-full" />
+          {mode === "live" && streamId && <LiveGiftOverlay streamId={streamId} />}
           {loading && <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black text-white"><Loader2 className="h-8 w-8 animate-spin"/><span className="text-sm">Checking ticket and authorizing playback…</span></div>}
         </div>}
       {!error && !loading && streamId && <EventContribution liveStreamId={streamId} currency={currency} />}
