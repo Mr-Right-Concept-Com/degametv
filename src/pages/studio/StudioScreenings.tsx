@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Calendar, Loader2, Film, BarChart3 } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { EventLifecycleControls } from '@/components/studio/EventLifecycleControls';
+import { EventInvitations } from '@/components/studio/EventInvitations';
 
 interface ScreeningRow {
   id: string;
@@ -104,6 +105,7 @@ export default function StudioScreenings() {
                     <Link to={`/studio/analytics/${s.id}`}><BarChart3 className="w-3 h-3 mr-1" /> Analytics</Link>
                   </Button>
                 </div>
+                <div className="w-full basis-full"><EventInvitations screeningId={s.id} /></div>
               </CardContent>
             </Card>
           ))}
