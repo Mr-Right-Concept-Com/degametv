@@ -35,7 +35,7 @@ Deno.serve(async req=>{
    return error?json(503,{error:"Pending invitations could not be loaded."}):json(200,{success:true,invitations:data??[]});
   }
   if(p.action==="list_my_cases"){
-   const {data,error}=await db.from("creator_verification_cases").select("id,entity_type,status,submitted_at,appeal_reason,reviewed_at,verification_reason").eq("user_id",user.id).order("submitted_at",{ascending:false}).limit(20);
+   const {data,error}=await db.from("creator_verification_cases").select("id,entity_type,status,submitted_at,appeal_reason,reviewed_at").eq("user_id",user.id).order("submitted_at",{ascending:false}).limit(20);
    return error?json(503,{error:"Creator applications could not be loaded."}):json(200,{success:true,cases:data??[]});
   }
   if(p.action==="list_team"||p.action==="update_member_role"||p.action==="revoke_member"){
