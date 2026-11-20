@@ -18,7 +18,7 @@ begin
  insert into public.platform_release_rollouts(release_key,release_version,state,traffic_percentage,config,health_window_seconds,minimum_samples,error_rate_threshold,latency_p95_threshold_ms)
  values('phase1.alert.'||txid_current()::text,'test','canary',5,'{"artifact_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","health_check_url":"https://example.org/healthz"}',300,3,0.02,3000);
  insert into public.platform_release_observations(rollout_id,release_key,subject_bucket,success,latency_ms,error_code)
- select r.id,r.release_key,gen_random_uuid(),false,8000,'health_check_failed'
+ select r.id,r.release_key,g,false,8000,'health_check_failed'
  from public.platform_release_rollouts r cross join generate_series(1,3) g
  where r.release_key='phase1.alert.'||txid_current()::text;
  if not exists(select 1 from public.platform_security_alerts a join public.platform_release_rollouts r on r.id=a.entity_id
