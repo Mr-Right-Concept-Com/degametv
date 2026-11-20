@@ -9,13 +9,27 @@ import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { EventContribution } from '@/components/events/EventContribution';
 import { EventContributionFeed } from '@/components/events/EventContributionFeed';
+import { z } from 'zod';
+
+const watchTicketSchema = z.object({
+  email: z.string().email().optional().nullable(),
+  movieTitle: z.string(),
+  expiresAt: z.string().datetime({ offset: true }),
+  contentId: z.string().uuid().optional().nullable(),
+  currency: z.string().optional().nullable(),
+  streamsRemaining: z.number().int().nonnegative().optional().nullable(),
+  maxStreams: z.number().int().positive().optional().nullable(),
+  country: z.string().optional().nullable(),
+}).passthrough();
+const watchValidationSchema = z.object({ success: z.literal(true), ticket: watchTicketSchema });
+const playbackGrantSchema = z.object({ success: z.literal(true), playbackUrl: z.string().url() });
 
 export default function WatchMovie() {
   usePageTitle('Watch');
   const { watchCode } = useParams();
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
-  const [ticket, setTicket] = useState<any>(null);
+  const [ticket, setTicket] = useState<z.infer<typeof watchTicketSchema> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
@@ -32,14 +46,16 @@ export default function WatchMovie() {
           body: { watchCode, email },
         });
         if (!active) return;
-        if (fnError || !data?.success || !data.ticket) {
-          setError(data?.error || 'Invalid or expired watch link. Please check your email for a valid link.');
+        const validation = watchValidationSchema.safeParse(data as unknown);
+        if (fnError || !validation.success) {
+          setError('Invalid or expired watch link. Please check your email for a valid link.');
           return;
         }
+        const validatedTicket = validation.data.ticket;
         if (searchParams.get('checkin') === '1') toast.success('Checked in — enjoy the show! Your pass is saved under My Tickets.');
-        setTicket(data.ticket);
+        setTicket(validatedTicket);
 
-        const playbackEmail = String(data.ticket.email || email || '').trim().toLowerCase();
+        const playbackEmail = String(validatedTicket.email || email || '').trim().toLowerCase();
         if (!playbackEmail) {
           setPlaybackError('The ticket email is missing. Open the original secure ticket link or contact support.');
           return;
@@ -57,11 +73,12 @@ export default function WatchMovie() {
           body: { watchCode, email: playbackEmail, sessionId: currentSession },
         });
         if (!active) return;
-        if (grantError || !grant?.success || typeof grant.playbackUrl !== 'string') {
-          setPlaybackError(grant?.error || grantError?.message || 'Secure playback could not be authorized. Your ticket remains valid; please retry or contact support.');
+        const playbackGrant = playbackGrantSchema.safeParse(grant as unknown);
+        if (grantError || !playbackGrant.success) {
+          setPlaybackError(grantError?.message || 'Secure playback could not be authorized. Your ticket remains valid; please retry or contact support.');
           return;
         }
-        setPlaybackUrl(grant.playbackUrl);
+        setPlaybackUrl(playbackGrant.data.playbackUrl);
         setPlaybackError(null);
       } catch {
         if (active) setError('Unable to validate your ticket. Please try again.');
