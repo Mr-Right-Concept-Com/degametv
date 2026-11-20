@@ -32,7 +32,10 @@ export function LifecycleBanner(p: Props) {
   const [joining, setJoining] = useState(false);
   const mounted = useRef(true);
 
-  useEffect(() => () => { mounted.current = false; }, []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   const join = async () => {
     if (joining) return;
