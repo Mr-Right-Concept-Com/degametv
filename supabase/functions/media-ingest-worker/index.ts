@@ -65,9 +65,10 @@ Deno.serve(async req=>{
   const metadata={...(content?.metadata??{}),media_ingestion:{status:"READY",job_id:job.id,master_object_path:job.clean_master_path,ready_at:new Date().toISOString()}};
   const {error:jobUpdate}=await db.from("media_processing_jobs").update({status:"READY",stage:"complete",renditions:p.renditions,subtitles:p.subtitles,locked_at:null,locked_by:null,last_error:null,updated_at:new Date().toISOString()}).eq("id",job.id);
   if(jobUpdate)return json(503,{error:"Media job could not be finalized."});
-  if(job.content_id){const {error:contentUpdate}=await db.from("content").update({video_url:job.clean_master_path,hls_manifest_url:hls,dash_manifest_url:dash,poster_url:poster,preview_url:preview??null,captions:p.subtitles,metadata}).eq("id",job.content_id).eq("creator_id",session?.owner_id);if(contentUpdate)return json(503,{error:"Renditions are ready but content playback metadata requires reconciliation."});}
   const {error:sessionUpdate}=await db.from("media_upload_sessions").update({status:"READY",updated_at:new Date().toISOString()}).eq("id",job.upload_session_id);
-  return sessionUpdate?json(503,{error:"Media is ready but upload state requires reconciliation."}):json(200,{success:true,status:"READY"});
+  if(job.content_id){const {error:contentUpdate}=await db.from("content").update({video_url:job.clean_master_path,hls_manifest_url:hls,dash_manifest_url:dash,poster_url:poster,preview_url:preview??null,captions:p.subtitles,metadata}).eq("id",job.content_id).eq("creator_id",session?.owner_id);if(contentUpdate)return json(503,{error:"Renditions are ready but content playback metadata requires reconciliation."});}
+  await requestS3(storage,job.quarantine_path,"DELETE");
+  return json(200,{success:true,status:"READY"});
  }
  let scanner:Binding,transcoder:Binding;
  try{[scanner,transcoder]=await Promise.all([binding(db,"media_scanner"),binding(db,"media_transcoder")]);}catch(e){return json(503,{error:e instanceof Error?e.message:"Scanner and transcoder must both be configured. Quarantine is fail-closed."});}
