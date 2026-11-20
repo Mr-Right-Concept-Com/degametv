@@ -134,7 +134,9 @@ Deno.serve(async req => {
     const base=safeBaseUrl(binding.base_url);const target=new URL(healthPath,base);
     if(target.origin!==new URL(binding.base_url).origin)return json({error:"Provider health endpoint must remain on the configured host."},400);
     try{
-      const authHeader=typeof binding.settings?.credential_header==="string"?binding.settings.credential_header:typeof binding.settings?.auth_header==="string"?binding.settings.auth_header:"Authorization";\n      const authPrefix=typeof binding.settings?.credential_prefix==="string"?binding.settings.credential_prefix:typeof binding.settings?.auth_prefix==="string"?binding.settings.auth_prefix:"Bearer ";\n      const response=await fetch(target,{method:"GET",headers:{[authHeader]:authPrefix+credential,Accept:"application/json"},redirect:"manual",signal:AbortSignal.timeout(10000)});
+      const authHeader=typeof binding.settings?.credential_header==="string"?binding.settings.credential_header:typeof binding.settings?.auth_header==="string"?binding.settings.auth_header:"Authorization";
+      const authPrefix=typeof binding.settings?.credential_prefix==="string"?binding.settings.credential_prefix:typeof binding.settings?.auth_prefix==="string"?binding.settings.auth_prefix:"Bearer ";
+      const response=await fetch(target,{method:"GET",headers:{[authHeader]:authPrefix+credential,Accept:"application/json"},redirect:"manual",signal:AbortSignal.timeout(10000)});
       const body=await response.json().catch(()=>null);
       if(!response.ok||(body?.ok!==true&&body?.status!==true)){
         const message="Provider health check failed.";
@@ -163,7 +165,9 @@ Deno.serve(async req => {
     try{
       const base=safeBaseUrl(p.baseUrl);const target=new URL(healthPath,base);
       if(target.origin!==new URL(p.baseUrl).origin)return json({error:"Provider health endpoint must remain on the configured host."},400);
-      const authHeader=typeof p.settings.credential_header==="string"?p.settings.credential_header:typeof p.settings.auth_header==="string"?p.settings.auth_header:"Authorization";\n      const authPrefix=typeof p.settings.credential_prefix==="string"?p.settings.credential_prefix:typeof p.settings.auth_prefix==="string"?p.settings.auth_prefix:"Bearer ";\n      const response=await fetch(target,{method:"GET",headers:{[authHeader]:authPrefix+credential,Accept:"application/json"},redirect:"manual",signal:AbortSignal.timeout(10000)});
+      const authHeader=typeof p.settings.credential_header==="string"?p.settings.credential_header:typeof p.settings.auth_header==="string"?p.settings.auth_header:"Authorization";
+      const authPrefix=typeof p.settings.credential_prefix==="string"?p.settings.credential_prefix:typeof p.settings.auth_prefix==="string"?p.settings.auth_prefix:"Bearer ";
+      const response=await fetch(target,{method:"GET",headers:{[authHeader]:authPrefix+credential,Accept:"application/json"},redirect:"manual",signal:AbortSignal.timeout(10000)});
       const body=await response.json().catch(()=>null);
       if(!response.ok||(body?.ok!==true&&body?.status!==true)){
         await admin.from("service_provider_bindings").update({health_status:"unhealthy",health_checked_at:new Date().toISOString(),health_error:"Provider health check failed."}).eq("capability",p.capability).eq("provider_key",p.providerKey).is("removed_at",null);
