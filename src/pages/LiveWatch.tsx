@@ -11,6 +11,13 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 import { EventContribution } from '@/components/events/EventContribution';
 import { EventContributionFeed } from '@/components/events/EventContributionFeed';
 import { LiveGiftOverlay } from '@/components/events/LiveGiftOverlay';
+import { z } from 'zod';
+
+const livePlaybackGrantSchema = z.object({
+  success: z.literal(true),
+  playbackUrl: z.string().url(),
+  expiresAt: z.string().datetime({ offset: true }).optional(),
+});
 
 export default function LiveWatch() {
   usePageTitle('Watch Live Event');
@@ -28,8 +35,11 @@ export default function LiveWatch() {
   useEffect(() => {
     if (!user?.id) return;
     let active = true;
-    supabase.from('profiles').select('preferred_currency').eq('user_id', user.id).maybeSingle()
-      .then(({ data }) => { if (active && data?.preferred_currency) setCurrency(data.preferred_currency); });
+    void supabase.from('profiles').select('preferred_currency').eq('user_id', user.id).maybeSingle()
+      .then(({ data, error: profileError }) => {
+        if (active && !profileError && data?.preferred_currency) setCurrency(data.preferred_currency);
+      })
+      .catch(() => { /* Keep the default currency when the profile lookup fails. */ });
     return () => { active = false; };
   }, [user?.id]);
 
@@ -38,33 +48,51 @@ export default function LiveWatch() {
     const authorize = async () => {
       if (!user) { setError('Sign in to access your purchased event.'); setLoading(false); return; }
       if (!streamId) { setError('The event link is invalid.'); setLoading(false); return; }
-      const { data, error: invokeError } = await supabase.functions.invoke('authorize-live-playback', { body: { streamId, mode } });
-      if (!active) return;
-      if (invokeError || !data?.success || typeof data.playbackUrl !== 'string') {
-        setError(data?.error || invokeError?.message || 'Your ticket could not authorize playback.');
-        setLoading(false);
-        return;
-      }
+      try {
+        const { data, error: invokeError } = await supabase.functions.invoke('authorize-live-playback', { body: { streamId, mode } });
+        if (!active) return;
+        const grant = livePlaybackGrantSchema.safeParse(data as unknown);
+        if (invokeError || !grant.success) {
+          setError(invokeError?.message || 'Your ticket could not authorize playback.');
+          setLoading(false);
+          return;
+        }
       const video = videoRef.current;
       if (!video) { setError('Video player is unavailable.'); setLoading(false); return; }
-      setExpiresAt(data.expiresAt);
+      setExpiresAt(grant.data.expiresAt ?? '');
       if (Hls.isSupported()) {
         const hls = new Hls({ enableWorker: true, lowLatencyMode: mode === 'live' });
         hlsRef.current = hls;
-        hls.loadSource(data.playbackUrl);
+        hls.loadSource(grant.data.playbackUrl);
         hls.attachMedia(video);
         hls.on(Hls.Events.ERROR, (_event, detail) => {
           if (detail.fatal && active) setError('The secure stream could not be loaded. Please refresh and try again.');
         });
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = data.playbackUrl;
+        video.src = grant.data.playbackUrl;
       } else {
         setError('This browser does not support secure HLS playback.');
       }
       setLoading(false);
+      } catch {
+        if (active) {
+          setError('Playback authorization could not be completed. Please retry.');
+          setLoading(false);
+        }
+      }
     };
     void authorize();
-    return () => { active = false; hlsRef.current?.destroy(); hlsRef.current = null; };
+    return () => {
+      active = false;
+      hlsRef.current?.destroy();
+      hlsRef.current = null;
+      const video = videoRef.current;
+      if (video) {
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+      }
+    };
   }, [streamId, mode, user?.id]);
 
   return <MainLayout>
