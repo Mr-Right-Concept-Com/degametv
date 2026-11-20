@@ -11,29 +11,46 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
-import { BookOpen, Loader2, Plus, Save } from 'lucide-react';
+import { BookOpen, Loader2, Plus, Save, UserPlus, Users } from 'lucide-react';
 import { z } from 'zod';
 
 type Category={id:string;slug:string;title:string;description:string|null;sort_order:number;is_published:boolean};
 type Article={id:string;category_id:string|null;slug:string;title:string;summary:string|null;body_markdown:string;audience:string;is_published:boolean;published_at:string|null};
+type Agent={user_id:string;display_name:string|null;department:string;is_active:boolean;created_at:string};
 const articleSchema=z.object({slug:z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(120),title:z.string().trim().min(3).max(180),summary:z.string().max(500),body_markdown:z.string().trim().min(20).max(50000),audience:z.enum(['all','viewer','creator','studio','technical'])});
 const categorySchema=z.object({slug:z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(80),title:z.string().trim().min(2).max(100),description:z.string().max(500),sort_order:z.number().int().min(0)});
 
 export default function SupportKnowledgebaseAdmin(){
  const {user}=useAuth();usePageTitle('Knowledgebase Management');
- const [categories,setCategories]=useState<Category[]>([]),[articles,setArticles]=useState<Article[]>([]);
+ const [categories,setCategories]=useState<Category[]>([]),[articles,setArticles]=useState<Article[]>([]),[agents,setAgents]=useState<Agent[]>([]);
+ const [agentUserId,setAgentUserId]=useState(''),[agentName,setAgentName]=useState(''),[agentDepartment,setAgentDepartment]=useState('general');
  const [loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[editing,setEditing]=useState<string|null>(null);
  const [categoryForm,setCategoryForm]=useState({slug:'',title:'',description:'',sort_order:'0'});
  const [form,setForm]=useState({category_id:'none',slug:'',title:'',summary:'',body_markdown:'',audience:'all' as Article['audience'],is_published:false});
- const load=async()=>{setLoading(true);const [c,a]=await Promise.all([(supabase as any).from('knowledgebase_categories').select('*').order('sort_order'),(supabase as any).from('knowledgebase_articles').select('*').order('updated_at',{ascending:false})]);if(c.error)toast.error(c.error.message);else setCategories(c.data||[]);if(a.error)toast.error(a.error.message);else setArticles(a.data||[]);setLoading(false);};
+ const load=async()=>{setLoading(true);const [c,a,g]=await Promise.all([(supabase as any).from('knowledgebase_categories').select('*').order('sort_order'),(supabase as any).from('knowledgebase_articles').select('*').order('updated_at',{ascending:false}),(supabase as any).from('support_agents').select('*').order('created_at',{ascending:false})]);if(c.error)toast.error(c.error.message);else setCategories(c.data||[]);if(a.error)toast.error(a.error.message);else setArticles(a.data||[]);if(g.error)toast.error(g.error.message);else setAgents(g.data||[]);setLoading(false);};
  useEffect(()=>{void load();},[]);
  const reset=()=>{setEditing(null);setForm({category_id:'none',slug:'',title:'',summary:'',body_markdown:'',audience:'all',is_published:false});};
+ const saveAgent=async()=>{
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(agentUserId.trim())){toast.error('Enter the account user UUID.');return;}
+  setSaving(true);
+  const {error}=await (supabase as any).from('support_agents').upsert({user_id:agentUserId.trim(),display_name:agentName.trim()||null,department:agentDepartment,is_active:true},{onConflict:'user_id'});
+  setSaving(false);
+  if(error)toast.error(error.message);else{toast.success('Support agent access enabled.');setAgentUserId('');setAgentName('');await load();}
+ };
+ const toggleAgent=async(agent:Agent,enabled:boolean)=>{
+  const {error}=await (supabase as any).from('support_agents').update({is_active:enabled,updated_at:new Date().toISOString()}).eq('user_id',agent.user_id);
+  if(error)toast.error(error.message);else{toast.success(enabled?'Agent enabled.':'Agent access suspended.');await load();}
+ };
  const saveCategory=async()=>{const parsed=categorySchema.safeParse({...categoryForm,sort_order:Number(categoryForm.sort_order)});if(!parsed.success){toast.error(parsed.error.issues[0]?.message||'Check category details.');return;}setSaving(true);const {error}=await (supabase as any).from('knowledgebase_categories').insert({...parsed.data,description:parsed.data.description||null,is_published:true});setSaving(false);if(error)toast.error(error.message);else{toast.success('Knowledgebase category created.');setCategoryForm({slug:'',title:'',description:'',sort_order:'0'});await load();}};
  const edit=(a:Article)=>{setEditing(a.id);setForm({category_id:a.category_id||'none',slug:a.slug,title:a.title,summary:a.summary||'',body_markdown:a.body_markdown,audience:a.audience as Article['audience'],is_published:a.is_published});};
  const saveArticle=async()=>{if(!user)return;const parsed=articleSchema.safeParse(form);if(!parsed.success){toast.error(parsed.error.issues[0]?.message||'Check article details.');return;}setSaving(true);const now=new Date().toISOString();const payload={...parsed.data,summary:parsed.data.summary||null,category_id:form.category_id==='none'?null:form.category_id,is_published:form.is_published,published_at:form.is_published?(articles.find(a=>a.id===editing)?.published_at||now):null,updated_by:user.id,...(!editing?{created_by:user.id}:{})};const q=editing?(supabase as any).from('knowledgebase_articles').update(payload).eq('id',editing):(supabase as any).from('knowledgebase_articles').insert(payload);const {error}=await q;setSaving(false);if(error)toast.error(error.message);else{toast.success(form.is_published?'Article saved and published.':'Article saved as draft.');reset();await load();}};
  const togglePublish=async(a:Article,published:boolean)=>{const {error}=await (supabase as any).from('knowledgebase_articles').update({is_published:published,published_at:published?(a.published_at||new Date().toISOString()):null,updated_by:user?.id}).eq('id',a.id);if(error)toast.error(error.message);else{toast.success(published?'Article published.':'Article unpublished.');await load();}};
  return <AdminLayout><div className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6">
   <div><p className="text-xs font-semibold tracking-widest text-primary">CUSTOMER EXPERIENCE</p><h1 className="text-2xl font-bold">Help Centre Knowledgebase</h1><p className="mt-1 text-sm text-muted-foreground">Create, edit, publish and retire help articles without a code deployment.</p></div>
+  <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Users className="h-4 w-4"/>Support agents</CardTitle></CardHeader><CardContent className="space-y-4">
+   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><div><Label>User UUID</Label><Input value={agentUserId} onChange={e=>setAgentUserId(e.target.value)} placeholder="Auth user UUID"/></div><div><Label>Display name</Label><Input value={agentName} onChange={e=>setAgentName(e.target.value)} placeholder="Support agent"/></div><div><Label>Department</Label><Select value={agentDepartment} onValueChange={setAgentDepartment}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{['general','billing','technical','creator','trust_safety'].map(v=><SelectItem key={v} value={v}>{v.replaceAll('_',' ')}</SelectItem>)}</SelectContent></Select></div><div className="flex items-end"><Button onClick={()=>void saveAgent()} disabled={saving}><UserPlus className="mr-2 h-4 w-4"/>Enable agent</Button></div></div>
+   <div className="space-y-2">{agents.length===0?<p className="text-sm text-muted-foreground">No support agents configured.</p>:agents.map(agent=><div key={agent.user_id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"><div><p className="font-medium text-sm">{agent.display_name||agent.user_id}</p><p className="text-xs text-muted-foreground">{agent.department} · {agent.user_id}</p></div><div className="flex items-center gap-2"><Badge variant={agent.is_active?'default':'secondary'}>{agent.is_active?'Active':'Suspended'}</Badge><Switch checked={agent.is_active} onCheckedChange={v=>void toggleAgent(agent,v)}/></div></div>)}</div>
+  </CardContent></Card>
   <Card><CardHeader><CardTitle className="text-base">Create category</CardTitle></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><div><Label>Slug</Label><Input value={categoryForm.slug} onChange={e=>setCategoryForm({...categoryForm,slug:e.target.value.toLowerCase().replace(/\s+/g,'-')})} placeholder="viewer-wallet"/></div><div><Label>Title</Label><Input value={categoryForm.title} onChange={e=>setCategoryForm({...categoryForm,title:e.target.value})}/></div><div><Label>Description</Label><Input value={categoryForm.description} onChange={e=>setCategoryForm({...categoryForm,description:e.target.value})}/></div><div><Label>Sort order</Label><Input type="number" min="0" value={categoryForm.sort_order} onChange={e=>setCategoryForm({...categoryForm,sort_order:e.target.value})}/></div><div className="sm:col-span-2 lg:col-span-4"><Button onClick={()=>void saveCategory()} disabled={saving}><Plus className="mr-2 h-4 w-4"/>Add category</Button></div></CardContent></Card>
   <Card><CardHeader><CardTitle className="text-base flex items-center gap-2"><BookOpen className="h-4 w-4"/>{editing?'Edit article':'New article'}</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2">
    <div><Label>Title</Label><Input value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/></div><div><Label>Slug</Label><Input value={form.slug} onChange={e=>setForm({...form,slug:e.target.value.toLowerCase().replace(/\s+/g,'-')})}/></div>
