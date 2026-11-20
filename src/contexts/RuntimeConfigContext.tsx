@@ -7,6 +7,8 @@ type RuntimeConfig = {
  webAppUrl?:string|null;
  geo:{countryCode:string|null;source:string};
  locale:string;
+ language:string;
+ timezone:string;
  currency:string;
  baseCurrency:string;
  currencySymbol:string|null;
@@ -20,9 +22,15 @@ type RuntimeConfig = {
 type RuntimeState = {config:RuntimeConfig|null;loading:boolean;refresh:()=>Promise<void>};
 const RuntimeContext=createContext<RuntimeState>({config:null,loading:true,refresh:async()=>undefined});
 function visitorId(){
- if(typeof window==="undefined")return "server-render";
+ if(typeof window==="undefined")return "00000000-0000-4000-8000-000000000000";
  let id=window.localStorage.getItem("degame_runtime_visitor");
- if(!id){id=typeof crypto.randomUUID==="function"?crypto.randomUUID():`visitor-${Date.now()}-${Math.random().toString(36).slice(2)}`;window.localStorage.setItem("degame_runtime_visitor",id);}
+ if(!id||! /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)){
+  const bytes=crypto.getRandomValues(new Uint8Array(16));
+  bytes[6]=(bytes[6]&0x0f)|0x40;bytes[8]=(bytes[8]&0x3f)|0x80;
+  const hex=Array.from(bytes,b=>b.toString(16).padStart(2,"0")).join("");
+  id=`${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+  window.localStorage.setItem("degame_runtime_visitor",id);
+ }
  return id;
 }
 export function RuntimeConfigProvider({children}:{children:ReactNode}){
