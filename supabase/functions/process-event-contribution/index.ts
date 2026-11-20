@@ -52,7 +52,7 @@ Deno.serve(async(req)=>{
     if(existing.status==="pending"&&existing.provider_mode==="wallet"){
      const {data:spent,error:spendError}=await db.rpc("spend_personal_wallet_for_contribution",{p_contribution_id:existing.id});
      if(!spendError)return json(200,{success:true,paid:true,reference:existing.provider_reference,contributionType:existing.contribution_type,reused:true,balanceMinor:spent?.balance_minor});
-     return json(spendError.message.includes("insufficient_personal_wallet_funds")?402:409,{error:spendError.message.includes("insufficient_personal_wallet_funds")?"Insufficient Personal Wallet balance. Top up your wallet or use external checkout.":"The wallet contribution could not be completed. Please retry."});
+     return json(spendError.message.includes("insufficient_personal_wallet_funds")?402:409,{error:spendError.message.includes("insufficient_personal_wallet_funds")?"Insufficient Personal Wallet balance. Top up your wallet or use external checkout.":"The wallet contribution could not be completed. Please retry.",retryable:!spendError.message.includes("insufficient_personal_wallet_funds")});
     }
     if(["failed","refunded"].includes(existing.status))return json(409,{error:"The previous attempt did not complete. Start a new contribution attempt.",retryable:true});
     return json(409,{error:"This contribution request is already being processed. Please wait before retrying."});
