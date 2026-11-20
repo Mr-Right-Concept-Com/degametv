@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
     let rate = cached ? Number(cached.rate) : 0;
     let provider = cached?.provider_key ?? null;
     let retrievedAt = cached?.retrieved_at ?? null;
-    let cache: "hit" | "miss" = cached ? "hit" : "miss";
+    const cache: "hit" | "miss" = cached ? "hit" : "miss";
 
     if (!cached) {
       const { data: bindings, error: bindingError } = await db.from("service_provider_bindings")
