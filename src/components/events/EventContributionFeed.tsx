@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Gift, Heart, MessageCircle } from "lucide-react";
 
 type Item={id:string;contribution_type:"tip"|"gift";amount_major:number;currency:string;contributor_name:string;message:string|null;created_at:string};
+const formatMoney=(amount:number,currency:string)=>{try{return new Intl.NumberFormat(undefined,{style:"currency",currency,maximumFractionDigits:2}).format(Number(amount||0));}catch{return Number(amount||0).toFixed(2)+" "+currency;}};
 export function EventContributionFeed({screeningId,liveStreamId}:{screeningId?:string;liveStreamId?:string}){
  const [items,setItems]=useState<Item[]>([]);
  useEffect(()=>{
@@ -23,7 +24,7 @@ export function EventContributionFeed({screeningId,liveStreamId}:{screeningId?:s
   <div className="space-y-2">{items.map(item=><div key={item.id} className="flex items-start gap-3 rounded-lg bg-muted/40 p-3">
    <div className="mt-0.5 rounded-full bg-primary/10 p-2">{item.contribution_type==="gift"?<Gift className="h-4 w-4 text-primary"/>:<Heart className="h-4 w-4 text-primary"/>}</div>
    <div className="min-w-0 flex-1"><p className="text-sm font-medium">{item.contributor_name} sent a {item.contribution_type}</p>{item.message&&<p className="mt-1 flex items-start gap-1 text-xs text-muted-foreground"><MessageCircle className="mt-0.5 h-3 w-3 shrink-0"/>{item.message}</p>}</div>
-   <Badge variant="outline">{new Intl.NumberFormat(undefined,{style:"currency",currency:item.currency,maximumFractionDigits:2}).format(Number(item.amount_major||0))}</Badge>
+   <Badge variant="outline">{formatMoney(Number(item.amount_major||0),item.currency)}</Badge>
   </div>)}</div>
  </section>;
 }
