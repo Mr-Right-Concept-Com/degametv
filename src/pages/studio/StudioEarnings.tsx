@@ -41,6 +41,7 @@ export default function StudioEarnings() {
   const [balances, setBalances] = useState<Bal[]>([]);
   const [reqs, setReqs] = useState<WR[]>([]);
   const [contributions, setContributions] = useState<Contribution[]>([]);
+  const [refundBusyId, setRefundBusyId] = useState<string | null>(null);
   const [form, setForm] = useState({ amount: '', currency: '', bank_country: '', bank_name: '', account_number: '', account_name: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -86,6 +87,22 @@ export default function StudioEarnings() {
     await load();
   };
 
+  const refundContribution = async (item: Contribution) => {
+    if (item.status !== 'paid' || !window.confirm('Refund this contribution through its original payment provider?')) return;
+    setRefundBusyId(item.id);
+    const { data, error } = await supabase.functions.invoke('creator-request-refund', {
+      body: { contributionId: item.id, reason: 'Creator-authorized refund' },
+    });
+    setRefundBusyId(null);
+    if (error || !data?.success) {
+      toast.error(data?.error || 'Refund could not be completed or is awaiting provider confirmation.');
+      return;
+    }
+    toast.success('Contribution refund confirmed.');
+    setContributions(rows => rows.map(row => row.id === item.id ? { ...row, status: 'refunded' } : row));
+    await load();
+  };
+
   const statusCls: Record<string, string> = {
     pending: 'bg-accent/15 text-accent-foreground', approved: 'bg-primary/15 text-primary',
     paid: 'bg-success/15 text-success', rejected: 'bg-destructive/15 text-destructive',
@@ -125,7 +142,7 @@ export default function StudioEarnings() {
               {contributions.length === 0 ? <p className="text-sm text-muted-foreground">No tips or gifts received yet.</p> : contributions.map(item => (
                 <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-border py-3 last:border-0">
                   <div className="min-w-0"><p className="font-medium text-sm">{item.contribution_type === 'tip' ? 'Tip' : 'Digital gift'} · {item.event_title}</p><p className="text-xs text-muted-foreground">{item.contributor_name}{item.message ? ' · "' + item.message + '"' : ''}</p><p className="text-[10px] text-muted-foreground">{item.paid_at ? new Date(item.paid_at).toLocaleString() : 'Awaiting payment'}</p></div>
-                  <div className="text-right"><p className="font-semibold">{money(Number(item.amount_major ?? 0), item.currency)}</p><Badge variant={item.status === 'paid' ? 'default' : item.status === 'failed' ? 'destructive' : 'secondary'}>{item.status}</Badge></div>
+                  <div className="flex items-center gap-2"><div className="text-right"><p className="font-semibold">{money(Number(item.amount_major ?? 0), item.currency)}</p><Badge variant={item.status === 'paid' ? 'default' : item.status === 'failed' ? 'destructive' : 'secondary'}>{item.status}</Badge></div>{item.status === 'paid' && <Button size="sm" variant="outline" disabled={refundBusyId===item.id} onClick={() => void refundContribution(item)}>{refundBusyId===item.id?'Refunding…':'Refund'}</Button>}</div>
                 </div>
               ))}
             </CardContent>
