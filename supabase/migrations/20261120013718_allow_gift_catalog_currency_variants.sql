@@ -1,0 +1,3 @@
+alter table public.creator_gift_catalog drop constraint if exists creator_gift_catalog_gift_key_key;
+alter table public.creator_gift_catalog drop constraint if exists creator_gift_catalog_key_currency_unique;
+alter table public.creator_gift_catalog add constraint creator_gift_catalog_key_currency_unique unique(gift_key,currency);
