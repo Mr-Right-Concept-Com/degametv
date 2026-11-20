@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,7 +18,7 @@ export function EventContribution({screeningId,liveStreamId,contentId,currency="
  const [selectedGift,setSelectedGift]=useState("");
  const [message,setMessage]=useState("");
  const [anonymous,setAnonymous]=useState(false);
- const [busy,setBusy]=useState(false);
+ const [busy,setBusy]=useState(false);\n const idempotencyKey=useRef(crypto.randomUUID());
  const [loadingGifts,setLoadingGifts]=useState(false);
  const targetCount=[screeningId,liveStreamId,contentId].filter(Boolean).length;
  const selected=useMemo(()=>giftItems.find(g=>g.gift_key===selectedGift),[giftItems,selectedGift]);
@@ -38,11 +38,11 @@ export function EventContribution({screeningId,liveStreamId,contentId,currency="
   setBusy(true);
   const {data,error}=await supabase.functions.invoke("process-event-contribution",{body:{
    ...(screeningId?{screeningId}:{}),...(liveStreamId?{liveStreamId}:{}),...(contentId?{contentId}:{}),
-   contributionType:type,...(type==="tip"?{amount:Number(amount)}:{giftCatalogKey:selected!.gift_key}),
+   contributionType:type,idempotencyKey:idempotencyKey.current,...(type==="tip"?{amount:Number(amount)}:{giftCatalogKey:selected!.gift_key}),
    currency:currency.toUpperCase(),message:message.trim()||undefined,isAnonymous:anonymous
   }});
   setBusy(false);
-  if(error||!data?.success||!data?.checkoutUrl){toast.error(data?.error||"Contribution checkout could not be started.");return;}
+  if(error||!data?.success||!data?.checkoutUrl){if(data?.retryable)idempotencyKey.current=crypto.randomUUID();toast.error(data?.error||"Contribution checkout could not be started.");return;}
   window.location.assign(data.checkoutUrl);
  };
  if(targetCount!==1)return null;
