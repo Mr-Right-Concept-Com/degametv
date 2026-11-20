@@ -142,7 +142,7 @@ export default function WatchMovie() {
           {playbackUrl && ticket.contentId && <EventContribution contentId={ticket.contentId} currency={ticket.currency || 'NGN'} overlay />}
         </div>
         {playbackError && playbackUrl && <p role="status" className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-muted-foreground">{playbackError}</p>}
-        {ticket.contentId && <section className="space-y-3"><h2 className="text-lg font-semibold">Support this title while watching</h2><EventContribution contentId={ticket.contentId} currency={ticket.currency || 'NGN'} /><EventContributionFeed contentId={ticket.contentId}/></section>}
+        {ticket.contentId && <section className="space-y-3"><h2 className="text-lg font-semibold">Support this title while watching</h2>{!playbackUrl && <EventContribution contentId={ticket.contentId} currency={ticket.currency || "NGN"} />}<EventContributionFeed contentId={ticket.contentId}/></section>}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             {icon:Mail,label:'Email',value:ticket.email,color:'text-primary'},
