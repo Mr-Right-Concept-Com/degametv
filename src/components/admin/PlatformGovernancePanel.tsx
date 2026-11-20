@@ -29,23 +29,23 @@ export function PlatformGovernancePanel(){
    setRollouts(r.rollouts);setPolicies(a.policies);setPolicyDraft(Object.fromEntries(a.policies.map(p=>[p.workflow_key,p])));
    const p=await invokeFn<{providers:Provider[]}>("admin-provider-control",{action:"list"});
    if(p.ok)setProviders((p.data?.providers??[]) as Provider[]);
-  }catch(e){toast.error((e as Error).message);}finally{setBusy(false);}
+  }catch(e){toast.error(e instanceof Error ? e.message : 'Operation failed');}finally{setBusy(false);}
  },[]);
  useEffect(()=>{void load();},[load]);
  const saveRelease=async()=>{
   if(!release.releaseKey.trim()||!release.releaseVersion.trim()||!/^sha256:[a-f0-9]{64}$/.test(release.artifactDigest)||!/^https:\/\//i.test(release.healthUrl)){toast.error("Enter a release key, version, SHA-256 artifact digest and HTTPS health endpoint.");return;}
-  setBusy(true);try{await control({action:"release_save",releaseKey:release.releaseKey.trim(),releaseVersion:release.releaseVersion.trim(),config:{artifact_digest:release.artifactDigest,health_check_url:release.healthUrl}});toast.success("Draft release saved.");await load();}catch(e){toast.error((e as Error).message);}finally{setBusy(false);}
+  setBusy(true);try{await control({action:"release_save",releaseKey:release.releaseKey.trim(),releaseVersion:release.releaseVersion.trim(),config:{artifact_digest:release.artifactDigest,health_check_url:release.healthUrl}});toast.success("Draft release saved.");await load();}catch(e){toast.error(e instanceof Error ? e.message : 'Operation failed');}finally{setBusy(false);}
  };
  const transition=async(key:string,transitionName:string,reason:string,trafficPercentage?:number)=>{
-  setBusy(true);try{await control({action:"release_transition",releaseKey:key,transition:transitionName,reason,trafficPercentage});toast.success("Release state updated.");await load();}catch(e){toast.error((e as Error).message);}finally{setBusy(false);}
+  setBusy(true);try{await control({action:"release_transition",releaseKey:key,transition:transitionName,reason,trafficPercentage});toast.success("Release state updated.");await load();}catch(e){toast.error(e instanceof Error ? e.message : 'Operation failed');}finally{setBusy(false);}
  };
  const probe=async(key:string,samples:number)=>{
-  setBusy(true);try{const r=await control<{success:boolean;samples:number;successfulSamples:number;errorRate:number;p95LatencyMs:number}>({action:"release_probe_batch",releaseKey:key,samples});toast[r.success?"success":"error"]("Canary probe window: "+r.successfulSamples+"/"+r.samples+" healthy; error rate "+(r.errorRate*100).toFixed(1)+"%; p95 "+r.p95LatencyMs+" ms.");await load();}catch(e){toast.error((e as Error).message);}finally{setBusy(false);}
+  setBusy(true);try{const r=await control<{success:boolean;samples:number;successfulSamples:number;errorRate:number;p95LatencyMs:number}>({action:"release_probe_batch",releaseKey:key,samples});toast[r.success?"success":"error"]("Canary probe window: "+r.successfulSamples+"/"+r.samples+" healthy; error rate "+(r.errorRate*100).toFixed(1)+"%; p95 "+r.p95LatencyMs+" ms.");await load();}catch(e){toast.error(e instanceof Error ? e.message : 'Operation failed');}finally{setBusy(false);}
  };
  const updatePolicy=(key:string,patch:Partial<Policy>)=>setPolicyDraft(current=>({...current,[key]:{...current[key],...patch}}));
  const savePolicy=async(key:string)=>{
   const p=policyDraft[key];if(!p)return;
-  setBusy(true);try{await control({action:"ai_policy_update",workflowKey:key,enabled:p.enabled,providerAllowlist:p.provider_allowlist,modelKey:p.model_key,maxInputChars:p.max_input_chars,maxOutputTokens:p.max_output_tokens,allowedDataClasses:p.allowed_data_classes,requiresHumanReview:p.requires_human_review,systemPolicy:p.system_policy});toast.success("AI workflow policy saved.");await load();}catch(e){toast.error((e as Error).message);}finally{setBusy(false);}
+  setBusy(true);try{await control({action:"ai_policy_update",workflowKey:key,enabled:p.enabled,providerAllowlist:p.provider_allowlist,modelKey:p.model_key,maxInputChars:p.max_input_chars,maxOutputTokens:p.max_output_tokens,allowedDataClasses:p.allowed_data_classes,requiresHumanReview:p.requires_human_review,systemPolicy:p.system_policy});toast.success("AI workflow policy saved.");await load();}catch(e){toast.error(e instanceof Error ? e.message : 'Operation failed');}finally{setBusy(false);}
  };
  const providersFor=(policy:Policy)=>providers.filter(p=>p.capability===policy.capability&&p.enabled&&!p.removed_at);
  return <div className="space-y-5">
