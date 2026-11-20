@@ -16,6 +16,8 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 import { useRuntimeConfig } from '@/contexts/RuntimeConfigContext';
 
 const emailSchema = z.string().trim().email('Please enter a valid email');
+const freeClaimSchema = z.object({ claimed: z.boolean(), stream_id: z.string().uuid(), already_claimed: z.boolean().optional() });
+const paymentMethodsSchema = z.object({ methods: z.array(z.object({ id: z.string(), name: z.string(), mode: z.string(), available: z.boolean(), supportedCurrencies: z.array(z.string()) })) });
 
 interface Screening {
   id: string;
@@ -88,7 +90,8 @@ export default function BuyTicket() {
   useEffect(() => {
     let active = true;
     void supabase.functions.invoke('list-payment-methods', { method: 'GET' }).then(({ data, error }) => {
-      if (active) setPaymentMethods(!error && Array.isArray(data?.methods) ? data.methods : []);
+      const parsed = paymentMethodsSchema.safeParse(data as unknown);
+      if (active) setPaymentMethods(!error && parsed.success ? parsed.data.methods : []);
     });
     return () => { active = false; };
   }, []);
@@ -236,13 +239,15 @@ export default function BuyTicket() {
     setFreeClaimBusy(true);
     try {
       const { data, error } = await supabase.rpc(isReplay ? 'claim_free_replay_ticket' : 'claim_free_live_ticket', { p_screening_id: screening.id });
-      const claim = data as { claimed?: boolean; stream_id?: string; already_claimed?: boolean } | null;
-      if (error || !claim?.claimed || typeof claim.stream_id !== 'string') {
+      const parsedClaim = freeClaimSchema.safeParse(data as unknown);
+      if (error || !parsedClaim.success || !parsedClaim.data.claimed) {
         toast.error(error?.message || 'Free admission could not be claimed.');
         return;
       }
-      setFreeStreamId(claim.stream_id);
-      toast.success(claim.already_claimed ? 'Your free pass is already active.' : 'Your free event pass is ready.');
+      setFreeStreamId(parsedClaim.data.stream_id);
+      toast.success(parsedClaim.data.already_claimed ? 'Your free pass is already active.' : 'Your free event pass is ready.');
+    } catch {
+      toast.error('Free admission could not be claimed. Please retry.');
     } finally {
       setFreeClaimBusy(false);
     }
