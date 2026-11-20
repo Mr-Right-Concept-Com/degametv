@@ -23,8 +23,8 @@ function storageConfig(p:Binding):Storage{
 }
 function objectUrl(c:Storage,key:string,bucket=c.bucket){const u=new URL(c.endpoint.toString());if(c.pathStyle)u.pathname=u.pathname.replace(/\/$/,"")+"/"+encode(bucket)+"/"+key.split("/").map(encode).join("/");else{u.hostname=bucket+"."+u.hostname;u.pathname=u.pathname.replace(/\/$/,"")+"/"+key.split("/").map(encode).join("/");}return u;}
 async function keyFor(c:Storage,date:string){return hmac(await hmac(await hmac(await hmac("AWS4"+c.secretAccessKey,date),c.region),"s3"),"aws4_request");}
-async function requestS3(c:Storage,key:string,method:string,headers:Record<string,string>={},body?:string){
- const u=objectUrl(c,key),now=stamp(),day=now.slice(0,8),payload=await hash(body??"");
+async function requestS3(c:Storage,key:string,method:string,headers:Record<string,string>={},body?:string,bucket=c.bucket){
+ const u=objectUrl(c,key,bucket),now=stamp(),day=now.slice(0,8),payload=await hash(body??"");
  const all={host:u.host,"x-amz-content-sha256":payload,"x-amz-date":now,...(c.sessionToken?{"x-amz-security-token":c.sessionToken}:{}),...headers};
  const canonicalHeaders=Object.entries(all).map(([k,v])=>[k.toLowerCase(),v.trim()] as const).sort(([a],[b])=>a.localeCompare(b)),signed=canonicalHeaders.map(([k])=>k).join(";");
  const canonical=method+"\n"+u.pathname+"\n"+query(u)+"\n"+canonicalHeaders.map(([k,v])=>k+":"+v+"\n").join("")+"\n"+signed+"\n"+payload;
@@ -32,8 +32,8 @@ async function requestS3(c:Storage,key:string,method:string,headers:Record<strin
  const auth="AWS4-HMAC-SHA256 Credential="+c.accessKeyId+"/"+scope+", SignedHeaders="+signed+", Signature="+sig;
  const {host:_host,...wireHeaders}=all;return fetch(u,{method,headers:{...wireHeaders,...headers,Authorization:auth},body:body??undefined,signal:AbortSignal.timeout(30000)});
 }
-async function presign(c:Storage,key:string,method:"GET"|"PUT",contentType?:string){
- const u=objectUrl(c,key),now=stamp(),day=now.slice(0,8),scope=day+"/"+c.region+"/s3/aws4_request";
+async function presign(c:Storage,key:string,method:"GET"|"PUT",contentType?:string,bucket=c.bucket){
+ const u=objectUrl(c,key,bucket),now=stamp(),day=now.slice(0,8),scope=day+"/"+c.region+"/s3/aws4_request";
  const headers=contentType?"content-type;host":"host";
  const params:Record<string,string>={"X-Amz-Algorithm":"AWS4-HMAC-SHA256","X-Amz-Credential":c.accessKeyId+"/"+scope,"X-Amz-Date":now,"X-Amz-Expires":"900","X-Amz-SignedHeaders":headers};
  if(c.sessionToken)params["X-Amz-Security-Token"]=c.sessionToken;for(const [k,v] of Object.entries(params))u.searchParams.set(k,v);
