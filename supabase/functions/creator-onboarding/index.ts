@@ -26,7 +26,7 @@ Deno.serve(async req=>{
   const p=x.data;
   if(p.action==="accept_invitation"||p.action==="reject_invitation"){
    const tokenHash=await hash(p.token);
-   const {data:inv,error}=await db.from("studio_invitations").select("id,studio_account_id,email,invited_user_id,role,expires_at,accepted_at,revoked_at").eq("token_hash",tokenHash).maybeSingle();
+   const {data:inv,error}=await db.from("studio_invitations").select("id,studio_account_id,email,invited_user_id,role,invited_by,expires_at,accepted_at,revoked_at").eq("token_hash",tokenHash).maybeSingle();
    if(error||!inv||inv.revoked_at||inv.accepted_at||Date.parse(inv.expires_at)<Date.now())return json(404,{error:"Invitation is invalid, expired, or already used."});
    if(inv.invited_user_id&&inv.invited_user_id!==user.id)return json(403,{error:"This invitation belongs to another account."});
    if(inv.email.toLowerCase()!==String(user.email??"").toLowerCase())return json(403,{error:"Sign in using the invited email address."});
@@ -35,7 +35,7 @@ Deno.serve(async req=>{
     return updateError?json(503,{error:"Invitation could not be declined."}):json(200,{success:true,status:"DECLINED"});
    }
    const now=new Date().toISOString();
-   const {error:memberError}=await db.from("studio_memberships").upsert({studio_account_id:inv.studio_account_id,user_id:user.id,role:inv.role,invited_by:null,accepted_at:now,revoked_at:null},{onConflict:"studio_account_id,user_id"});
+   const {error:memberError}=await db.from("studio_memberships").upsert({studio_account_id:inv.studio_account_id,user_id:user.id,role:inv.role,invited_by:inv.invited_by,accepted_at:now,revoked_at:null},{onConflict:"studio_account_id,user_id"});
    if(memberError)return json(503,{error:"Studio membership could not be created."});
    const {error:updateError}=await db.from("studio_invitations").update({invited_user_id:user.id,accepted_at:now}).eq("id",inv.id).is("accepted_at",null).is("revoked_at",null);
    if(updateError){await db.from("studio_memberships").update({revoked_at:now}).eq("studio_account_id",inv.studio_account_id).eq("user_id",user.id);return json(503,{error:"Invitation acceptance could not be finalized."});}
