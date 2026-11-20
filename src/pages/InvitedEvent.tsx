@@ -28,7 +28,7 @@ export default function InvitedEvent(){
  const buy=async()=>{
   if(!event||!user)return;setBuying(true);
   if(event.access_model==="FREE"){
-   const {data,error:claimError}=await supabase.rpc("claim_free_live_ticket" as never,{p_screening_id:event.id} as never);
+   const {data:claim,error:claimError}=await supabase.rpc("claim_free_live_ticket" as never,{p_screening_id:event.id} as never);
    setBuying(false);
    if(claimError){toast.error(claimError.message||"Free admission could not be claimed.");return;}
    const result=claim as {stream_id?:string}|null;
