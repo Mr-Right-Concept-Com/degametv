@@ -10,14 +10,14 @@ import { invokeFn } from '@/lib/invokeFn';
 import { toast } from 'sonner';
 import { Loader2, RefreshCw, Trash2 } from 'lucide-react';
 
-type Capability = 'payments'|'identity'|'bank_verification'|'video_delivery'|'email'|'live_streaming'|'fx_rates'|'storage'|'cdn'|'drm'|'sms'|'push'|'geolocation'|'analytics';
+type Capability = 'payments'|'identity'|'bank_verification'|'video_delivery'|'email'|'live_streaming'|'fx_rates'|'storage'|'cdn'|'drm'|'sms'|'push'|'geolocation'|'analytics'|'ai_text'|'ai_moderation'|'ai_embeddings';
 type Provider = { id:string; capability:Capability; provider_key:string; enabled:boolean; is_live:boolean; base_url:string|null; endpoints:Record<string,unknown>; settings:Record<string,unknown>; updated_at:string; removed_at:string|null; priority:number; hasTestCredential:boolean; hasLiveCredential:boolean; hasTestWebhookSecret:boolean; hasLiveWebhookSecret:boolean; health_status:'unknown'|'healthy'|'unhealthy'; health_checked_at:string|null; health_error:string|null };
 const capabilities: {value:Capability;label:string}[] = [
   {value:'payments',label:'Payments'},{value:'identity',label:'Identity & liveness'},
   {value:'bank_verification',label:'Bank verification'},{value:'video_delivery',label:'Video delivery'},
   {value:'email',label:'Email delivery'},{value:'live_streaming',label:'Live streaming'},{value:'fx_rates',label:'Foreign exchange (FX)'},
   {value:'storage',label:'Object storage'},{value:'cdn',label:'Content delivery network'},{value:'drm',label:'Digital rights management'},
-  {value:'sms',label:'SMS delivery'},{value:'push',label:'Push notifications'},{value:'geolocation',label:'Geolocation'},{value:'analytics',label:'Analytics'},
+  {value:'sms',label:'SMS delivery'},{value:'push',label:'Push notifications'},{value:'geolocation',label:'Geolocation'},{value:'analytics',label:'Analytics'},\n  {value:'ai_text',label:'AI text generation'},{value:'ai_moderation',label:'AI moderation'},{value:'ai_embeddings',label:'AI embeddings'},
 ];
 export function ProviderRegistryPanel({initialCapability='payments'}:{initialCapability?:Capability}){
   const [rows,setRows]=useState<Provider[]>([]);
