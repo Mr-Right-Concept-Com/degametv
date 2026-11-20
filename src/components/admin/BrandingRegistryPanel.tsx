@@ -65,7 +65,7 @@ export function BrandingRegistryPanel(){
     {colorField("accentColor","Accent colour")}
     {colorField("backgroundColor","Background colour")}
     <div className="space-y-2"><Label>Font family</Label><Input value={brand.fontFamily} maxLength={100} onChange={e=>update("fontFamily",e.target.value)}/></div>
-    <div className="space-y-2"><Label>Verified custom domain</Label><Input value={brand.customDomain} maxLength={253} onChange={e=>update("customDomain",e.target.value.toLowerCase())} placeholder="degametv.com"/></div>
+    <div className="space-y-2"><Label>Brand display domain (DNS provisioning is separate)</Label><Input value={brand.customDomain} maxLength={253} onChange={e=>update("customDomain",e.target.value.toLowerCase())} placeholder="degametv.com"/></div>
     <div className="space-y-2"><Label>Support email</Label><Input type="email" value={brand.supportEmail} maxLength={254} onChange={e=>update("supportEmail",e.target.value)}/></div>
     <div className="space-y-2"><Label>Logo URL or same-origin path</Label><Input value={brand.logoUrl} maxLength={2048} onChange={e=>update("logoUrl",e.target.value)}/></div>
     <div className="space-y-2"><Label>Favicon URL or same-origin path</Label><Input value={brand.faviconUrl} maxLength={2048} onChange={e=>update("faviconUrl",e.target.value)}/></div>
