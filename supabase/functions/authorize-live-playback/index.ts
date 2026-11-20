@@ -22,8 +22,9 @@ if(import.meta.main)serve(async(req:Request)=>{
   if(streamError||!stream)return json(404,{error:"Stream not found"});
   const screeningId=typeof stream.metadata?.screening_id==="string"?stream.metadata.screening_id:null;
   if(!screeningId)return json(409,{error:"This stream is not linked to a canonical screening"});
-  const {data:screening,error:screeningError}=await db.from("screenings").select("id,status,live_recording_status,live_replay_ready_at,replay_access_model").eq("id",screeningId).eq("tenant_id",stream.tenant_id).maybeSingle();
+  const {data:screening,error:screeningError}=await db.from("screenings").select("id,status,lifecycle,live_recording_status,live_replay_ready_at,replay_access_model").eq("id",screeningId).eq("tenant_id",stream.tenant_id).maybeSingle();
   if(screeningError||!screening)return json(404,{error:"Screening not found"});
+  if(screening.status!=="published"||screening.lifecycle==="cancelled"||screening.lifecycle==="archived")return json(410,{error:"This event has been cancelled or is no longer available"});
   if(input.data.mode==="live"&&stream.status!=="live")return json(409,{error:"This stream is not live"});
   if(input.data.mode==="replay"&&(screening.live_recording_status!=="ready"||!screening.live_replay_ready_at))return json(409,{error:"Replay is not ready"});
   const {data:tickets,error:ticketError}=await db.from("tickets").select("id,ticket_type,valid_from,valid_until,revoked_at,stream_count").eq("stream_id",stream.id).eq("user_id",user.id).is("revoked_at",null).lte("valid_from",new Date().toISOString()).gt("valid_until",new Date().toISOString()).order("created_at",{ascending:false});
