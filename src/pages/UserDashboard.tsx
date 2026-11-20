@@ -288,7 +288,7 @@ export default function UserDashboard() {
             ) : invitations.map(invite => (
               <Card key={invite.id}><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div className="min-w-0"><p className="font-semibold">{invite.event?.title || "Private event"}</p><p className="text-xs text-muted-foreground">{invite.invite_role} · {invite.event?.screening_date ? new Date(invite.event.screening_date).toLocaleString() : "Date to be announced"}</p><p className="text-xs text-muted-foreground">{invite.expires_at ? "Invitation expires " + new Date(invite.expires_at).toLocaleDateString() : "No expiry"}</p></div>
-                <Badge variant={invite.status === "accepted" ? "default" : invite.status === "revoked" || invite.status === "expired" ? "destructive" : "secondary"}>{invite.status}</Badge>
+                <div className="flex items-center gap-2"><Badge variant={invite.status === "accepted" ? "default" : invite.status === "revoked" || invite.status === "expired" ? "destructive" : "secondary"}>{invite.status}</Badge>{invite.status === "accepted" && invite.screening_id && <Button asChild size="sm"><Link to={`/invited/${invite.screening_id}`}>Open event</Link></Button>}</div>
               </CardContent></Card>
             ))}
           </TabsContent>
