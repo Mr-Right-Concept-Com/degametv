@@ -10,19 +10,55 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { z } from 'zod';
 import { EventContribution } from '@/components/events/EventContribution';
 import { EventContributionFeed } from '@/components/events/EventContributionFeed';
 
-interface PublicContent {
-  id: string; title: string; description: string | null; type: string;
-  poster_url: string | null; trailer_url: string | null; duration: number | null;
-  release_date: string | null; genres: string[] | null;
-}
-interface PublicScreening {
-  id: string; title: string; slug: string; screening_date: string | null;
-  live_price_ngn: number | null; live_price_usd: number | null;
-  replay_price_ngn: number | null; replay_price_usd: number | null;
-  live_replay_ready_at: string | null; live_recording_status: string | null;
+const publicContentSchema = z.object({
+  id: z.string(), title: z.string(), description: z.string().nullable(), type: z.string(),
+  poster_url: z.string().nullable(), trailer_url: z.string().nullable(), duration: z.number().nullable(),
+  release_date: z.string().nullable(), genres: z.array(z.string()).nullable(),
+});
+const publicScreeningSchema = z.object({
+  id: z.string(), title: z.string(), slug: z.string(), screening_date: z.string().nullable(),
+  live_price_ngn: z.number().nullable(), live_price_usd: z.number().nullable(),
+  replay_price_ngn: z.number().nullable(), replay_price_usd: z.number().nullable(),
+  live_replay_ready_at: z.string().nullable(), live_recording_status: z.string().nullable(),
+});
+const checkoutResponseSchema = z.object({
+  success: z.boolean(),
+  checkoutUrl: z.string().url().optional(),
+  error: z.string().optional(),
+});
+type PublicContent = z.infer<typeof publicContentSchema>;
+type PublicScreening = z.infer<typeof publicScreeningSchema>;
+
+async function fetchPublicView<T>(
+  view: string,
+  parameters: Record<string, string>,
+  schema: z.ZodType<T>,
+  signal: AbortSignal,
+): Promise<T[]> {
+  const baseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  if (!baseUrl || !publishableKey) throw new Error('Public catalogue service is not configured.');
+  const url = new URL('/rest/v1/' + view, baseUrl);
+  Object.entries(parameters).forEach(([key, value]) => url.searchParams.set(key, value));
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+  const response = await fetch(url, {
+    signal,
+    headers: {
+      apikey: publishableKey,
+      Authorization: 'Bearer ' + (sessionData.session?.access_token ?? publishableKey),
+      Accept: 'application/json',
+    },
+  });
+  if (!response.ok) throw new Error('Public catalogue request failed (' + response.status + ').');
+  const payload: unknown = await response.json();
+  const parsed = z.array(schema).safeParse(payload);
+  if (!parsed.success) throw new Error('Public catalogue response did not match its expected shape.');
+  return parsed.data;
 }
 
 export default function ContentLanding() {
@@ -37,28 +73,77 @@ export default function ContentLanding() {
   const [checkoutBusy, setCheckoutBusy] = useState<string | null>(null);
   usePageTitle(content?.title ? content.title + ' — DeGameTV' : 'DeGameTV');
 
-  useEffect(() => { if (!user) return; (supabase as any).from('profiles').select('preferred_currency').eq('user_id', user.id).maybeSingle().then(({data}:any) => { if (data?.preferred_currency && /^[A-Z]{3}$/.test(data.preferred_currency)) setSupportCurrency(data.preferred_currency); }); }, [user?.id]);
+  useEffect(() => {
+    if (!user?.id) return;
+    let active = true;
+    const loadCurrencyPreference = async () => {
+      try {
+        const { data, error } = await supabase.from('profiles')
+          .select('preferred_currency').eq('user_id', user.id).maybeSingle();
+        if (error) throw error;
+        if (active && data?.preferred_currency && /^[A-Z]{3}$/.test(data.preferred_currency)) {
+          setSupportCurrency(data.preferred_currency);
+        }
+      } catch {
+        if (active) toast.error('Your preferred support currency could not be loaded.');
+      }
+    };
+    void loadCurrencyPreference();
+    return () => { active = false; };
+  }, [user?.id]);
 
   useEffect(() => {
+    const controller = new AbortController();
     let active = true;
     const load = async () => {
-      if (!id) { setLoading(false); return; }
-      const { data, error } = await (supabase as any).from('public_content_catalog')
-        .select('id,title,description,type,poster_url,trailer_url,duration,release_date,genres')
-        .eq('id', id).maybeSingle();
-      if (!active) return;
-      if (error || !data) { setContent(null); setLoading(false); return; }
-      setContent(data as PublicContent);
-      const { data: events, error: eventError } = await (supabase as any).from('public_screenings_catalog')
-        .select('id,title,slug,screening_date,live_price_ngn,live_price_usd,replay_price_ngn,replay_price_usd,live_replay_ready_at,live_recording_status')
-        .eq('content_id', id).eq('status', 'published').order('screening_date', { ascending: true });
-      if (!active) return;
-      if (eventError) toast.error('Screening details could not be loaded. Please refresh.');
-      setScreenings((events ?? []) as PublicScreening[]);
-      setLoading(false);
+      if (!id) {
+        setContent(null);
+        setScreenings([]);
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+      try {
+        const contentRows = await fetchPublicView(
+          'public_content_catalog',
+          { select: 'id,title,description,type,poster_url,trailer_url,duration,release_date,genres', id: 'eq.' + id, limit: '1' },
+          publicContentSchema,
+          controller.signal,
+        );
+        if (!active) return;
+        const selectedContent = contentRows[0] ?? null;
+        setContent(selectedContent);
+        if (!selectedContent) {
+          setScreenings([]);
+          return;
+        }
+        const eventRows = await fetchPublicView(
+          'public_screenings_catalog',
+          {
+            select: 'id,title,slug,screening_date,live_price_ngn,live_price_usd,replay_price_ngn,replay_price_usd,live_replay_ready_at,live_recording_status',
+            content_id: 'eq.' + id,
+            status: 'eq.published',
+            order: 'screening_date.asc',
+          },
+          publicScreeningSchema,
+          controller.signal,
+        );
+        if (active) setScreenings(eventRows);
+      } catch {
+        if (active && !controller.signal.aborted) {
+          setContent(null);
+          setScreenings([]);
+          toast.error('This title or its screening details could not be loaded. Please refresh.');
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
     };
     void load();
-    return () => { active = false; };
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, [id]);
 
   const purchase = async (event: PublicScreening, ticketType: 'live' | 'replay') => {
@@ -71,11 +156,18 @@ export default function ContentLanding() {
       const { data, error } = await supabase.functions.invoke('process-live-payment', {
         body: { screeningId: event.id, ticketType, currency, ...(!user ? { email: guestEmail.trim() } : {}) },
       });
-      if (error || !data?.success || !data.checkoutUrl) {
-        toast.error(data?.error || error?.message || 'Checkout could not be started.');
+      if (error) {
+        toast.error(error.message || 'Checkout could not be started.');
         return;
       }
-      window.location.assign(data.checkoutUrl);
+      const parsed = checkoutResponseSchema.safeParse(data);
+      if (!parsed.success || !parsed.data.success || !parsed.data.checkoutUrl) {
+        toast.error(parsed.success ? parsed.data.error || 'Checkout could not be started.' : 'The checkout response was invalid.');
+        return;
+      }
+      window.location.assign(parsed.data.checkoutUrl);
+    } catch {
+      toast.error('Checkout could not be started. Please try again.');
     } finally { setCheckoutBusy(null); }
   };
 
