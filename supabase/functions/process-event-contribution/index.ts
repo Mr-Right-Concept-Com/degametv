@@ -100,7 +100,7 @@ Deno.serve(async(req)=>{
   if(creatorId===user.id)return json(403,{error:"You cannot send a gift or tip to your own content."});
   let giftAmount:number|undefined;
   if(p.contributionType==="gift"){
-   const {data:gift,error:giftError}=await db.from("creator_gift_catalog").select("gift_key,amount_minor,currency,is_enabled").eq("gift_key",p.giftCatalogKey).eq("currency",currency).eq("is_enabled",true).maybeSingle();
+   const {data:gift,error:giftError}=await db.from("creator_gift_catalog").select("gift_key,amount_minor,currency,is_enabled").eq("gift_key",p.giftCatalogKey).eq("is_enabled",true).maybeSingle();
    if(giftError||!gift||gift.currency!==currency)return json(422,{error:"This gift is unavailable in the selected currency."});
    giftAmount=Number(gift.amount_minor)/minorScale(currency);
   }
