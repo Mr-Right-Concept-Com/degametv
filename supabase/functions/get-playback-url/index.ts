@@ -85,7 +85,8 @@ if(import.meta.main)serve(async(req:Request)=>{
   if(sessionError||!session){
    const message=String(sessionError?.message||"playback_session_denied");
    const code=message.includes("ticket_already_streaming")?"TICKET_ALREADY_STREAMING":
-    message.includes("ticket_stream_limit_reached")?"TICKET_STREAM_LIMIT_REACHED":\n    message.includes("screening_concurrency_limit_reached")?"SCREENING_CONCURRENCY_LIMIT_REACHED":
+    message.includes("ticket_stream_limit_reached")?"TICKET_STREAM_LIMIT_REACHED":
+    message.includes("screening_concurrency_limit_reached")?"SCREENING_CONCURRENCY_LIMIT_REACHED":
     message.includes("territory_not_permitted")?"TERRITORY_NOT_PERMITTED":
     message.includes("viewing_window_expired")?"VIEWING_WINDOW_EXPIRED":
     message.includes("screening_unavailable")?"SCREENING_UNAVAILABLE":"PLAYBACK_SESSION_DENIED";
