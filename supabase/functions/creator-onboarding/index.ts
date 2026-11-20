@@ -121,7 +121,7 @@ Deno.serve(async req=>{
   return json(202,{success:true,status:"APPEAL_PENDING",caseId:caseRow.id});
  }
  if(i.success){
-  const p=i.data,{data:studio,error}=await db.from("studio_accounts").select("id,user_id,status").eq("id",p.studioAccountId).maybeSingle();
+  const p=i.data,{data:studio,error}=await db.from("studio_accounts").select("id,user_id,status,seats").eq("id",p.studioAccountId).maybeSingle();
   if(error||!studio)return json(404,{error:"Studio account not found."});
   const {data:membership}=await db.from("studio_memberships").select("role").eq("studio_account_id",studio.id).eq("user_id",user.id).is("revoked_at",null).not("accepted_at","is",null).maybeSingle();
   if(studio.user_id!==user.id&&!["OWNER","ADMIN"].includes(membership?.role))return json(403,{error:"Only a studio owner or administrator can invite members."});
@@ -129,6 +129,14 @@ Deno.serve(async req=>{
   let invitedUserId=p.userId??null,email=p.email?.toLowerCase()??null;
   if(invitedUserId){const {data:target,error:targetError}=await db.auth.admin.getUserById(invitedUserId);if(targetError||!target.user?.email)return json(404,{error:"The invited account could not be found."});email=target.user.email.toLowerCase();}
   else if(email){const {data:users}=await db.auth.admin.listUsers({page:1,perPage:1000});invitedUserId=users?.users.find(u=>u.email?.toLowerCase()===email)?.id??null;}
+  if(!email)return json(422,{error:"A valid invitee email is required."});
+  const {data:duplicate}=await db.from("studio_invitations").select("id").eq("studio_account_id",studio.id).eq("email",email).is("accepted_at",null).is("revoked_at",null).gt("expires_at",new Date().toISOString()).maybeSingle();
+  if(duplicate)return json(409,{error:"A pending invitation already exists for this email."});
+  const [{count:memberCount},{count:pendingCount}]=await Promise.all([
+   db.from("studio_memberships").select("id",{count:"exact",head:true}).eq("studio_account_id",studio.id).is("revoked_at",null).not("accepted_at","is",null),
+   db.from("studio_invitations").select("id",{count:"exact",head:true}).eq("studio_account_id",studio.id).is("accepted_at",null).is("revoked_at",null).gt("expires_at",new Date().toISOString())
+  ]);
+  if(Number(memberCount??0)+Number(pendingCount??0)+1>=Number(studio.seats??1))return json(409,{error:"The studio has no unallocated team seats. Upgrade its seat allowance before inviting another member."});
   const token=crypto.randomUUID()+"."+crypto.randomUUID(),tokenHash=await hash(token);
   const {data:invite,error:inviteError}=await db.from("studio_invitations").insert({studio_account_id:studio.id,email,invited_user_id:invitedUserId,role:p.role,token_hash:tokenHash,invited_by:user.id,expires_at:new Date(Date.now()+7*86400000).toISOString()}).select("id,email,role,expires_at").single();
   if(inviteError)return json(409,{error:"Invitation could not be created."});
