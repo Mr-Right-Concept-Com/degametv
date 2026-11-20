@@ -99,10 +99,12 @@ export async function createSupportChat() {
 export async function reopenSupportTicket(ticketId: string) {
   const result = await client.rpc('reopen_support_ticket', { p_ticket_id: ticketId });
   throwIfError(result.error);
+  z.object({ id: z.string().uuid(), ticket_number: z.number(), status: z.literal('open') }).parse(result.data);
 }
 export async function rateSupportTicket(ticketId: string, rating: number) {
   const result = await client.rpc('rate_support_ticket', { p_ticket_id: ticketId, p_rating: rating });
   throwIfError(result.error);
+  z.object({ ticket_id: z.string().uuid(), rating: z.number().int().min(1).max(5) }).parse(result.data);
 }
 export async function claimSupportTicket(ticketId: string, agentId: string) {
   const result = await client.from('support_tickets').update({ assigned_agent_id: agentId, status: 'in_progress' }).eq('id', ticketId).is('assigned_agent_id', null);
