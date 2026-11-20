@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,8 @@ export function EventCommerceSettings({ screeningId }: { screeningId: string }) 
   const [earlyEnd, setEarlyEnd] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   useEffect(() => {
     let active = true;
@@ -109,7 +111,7 @@ export function EventCommerceSettings({ screeningId }: { screeningId: string }) 
     } catch {
       toast.error("Event settings could not be saved.");
     } finally {
-      setSaving(false);
+      if (mounted.current) setSaving(false);
     }
   };
 
@@ -125,7 +127,7 @@ export function EventCommerceSettings({ screeningId }: { screeningId: string }) 
       <div className="space-y-1"><Label>Early-bird ends</Label><Input type="datetime-local" value={earlyEnd} onChange={event => setEarlyEnd(event.target.value)} /></div>
       <div className="space-y-1"><Label>Early-bird ticket capacity</Label><Input type="number" min="1" step="1" value={value.early_bird_capacity ?? ""} onChange={event => update("early_bird_capacity", event.target.value === "" ? null : Number(event.target.value))} placeholder="Maximum discounted tickets" /></div>
       <div className="space-y-1"><Label>Event discovery</Label><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={value.event_visibility} onChange={event => { const parsed = z.enum(["public", "unlisted", "private"]).safeParse(event.target.value); if (parsed.success) update("event_visibility", parsed.data); }}><option value="public">Public</option><option value="unlisted">Unlisted</option><option value="private">Private</option></select></div>
-      <div className="space-y-1"><Label>Creator settlement hold</Label><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={value.settlement_hold_hours} onChange={event => { const parsed = z.union([z.literal("24"), z.literal("48"), z.literal("72")]).safeParse(event.target.value); if (parsed.success) update("settlement_hold_hours", Number(parsed.data) as Settings["settlement_hold_hours"]); }}><option value="24">24 hours</option><option value="48">48 hours (default)</option><option value="72">72 hours</option></select></div>
+      <div className="space-y-1"><Label>Creator settlement hold</Label><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={value.settlement_hold_hours} onChange={event => { const parsed = z.union([z.literal("24"), z.literal("48"), z.literal("72")]).safeParse(event.target.value); if (parsed.success) { const hours = { "24": 24, "48": 48, "72": 72 } as const; update("settlement_hold_hours", hours[parsed.data]); } }}><option value="24">24 hours</option><option value="48">48 hours (default)</option><option value="72">72 hours</option></select></div>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={value.presale_enabled} onChange={event => update("presale_enabled", event.target.checked)} /> Enable advance ticket sales</label>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={value.invite_only} onChange={event => update("invite_only", event.target.checked)} /> Invite-only access</label>
       <div className="sm:col-span-2"><Button onClick={save} disabled={saving} size="sm"><Save className="mr-2 h-4 w-4" />{saving ? "Saving…" : "Save event settings"}</Button></div>
