@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     if (!parsed.success) return json({ error: parsed.error.flatten().fieldErrors }, 400);
     const p = parsed.data;
 
-    const { data: s } = await admin.from("screenings").select("id, title, content_id").eq("id", p.screeningId).maybeSingle();
+    const { data: s } = await admin.from("screenings").select("id, title, content_id, tenant_id").eq("id", p.screeningId).maybeSingle();
     if (!s) return json({ error: "Event not found" }, 404);
     const { data: c } = await admin.from("content").select("creator_id").eq("id", s.content_id).maybeSingle();
     const { data: isAdmin } = await admin.rpc("is_super_admin", { _user_id: user.id });
@@ -96,6 +96,18 @@ Deno.serve(async (req) => {
     }
 
     const now = new Date().toISOString();
+    const { data: eventStreams, error: streamLookupError } = await admin.from("live_streams")
+      .select("id,status")
+      .eq("tenant_id", s.tenant_id || "")
+      .contains("metadata", { screening_id: s.id });
+    if (streamLookupError) return json({ error: "Event stream state could not be reconciled; cancellation is pending.", refunded, pendingRefunds }, 503);
+    if ((eventStreams || []).length > 0) {
+      const { error: streamEndError } = await admin.from("live_streams")
+        .update({ status: "ended", ended_at: now })
+        .in("id", eventStreams.map((stream: any) => stream.id))
+        .in("status", ["scheduled", "starting", "live"]);
+      if (streamEndError) return json({ error: "The live stream could not be closed; cancellation is pending.", refunded, pendingRefunds }, 503);
+    }
     const { error: cancelError } = await admin.from("screenings")
       .update({ lifecycle: "cancelled", cancelled_at: now }).eq("id", s.id);
     if (cancelError) return json({
