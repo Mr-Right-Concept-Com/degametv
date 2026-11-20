@@ -2,7 +2,8 @@ import { AdminLayout } from '@/components/admin/AdminLayout';
 import { ModuleCard } from '@/components/admin/ModuleCard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTenant } from '@/hooks/useTenant';
-import { MODULE_DEFINITIONS, ModuleId, Module, getModulesByCategory } from '@/types/modules';
+import { MODULE_DEFINITIONS, getModulesByCategory } from '@/types/modules';
+import type { Module, ModuleId } from '@/types/modules';
 
 export default function ModulesPage() {
   const { isModuleEnabled, enableModule, disableModule } = useTenant();
