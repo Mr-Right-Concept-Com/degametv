@@ -9,14 +9,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { BookOpen, LifeBuoy, MessageCircle, Plus, Search, Send, TicketCheck } from 'lucide-react';
+import { BookOpen, LifeBuoy, MessageCircle, Plus, Search, Send, TicketCheck, Paperclip } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 type SupportTicket = {
   id: string; ticket_number: number; subject: string; category: string;
   priority: string; status: string; description: string; created_at: string; channel?: string;
 };
-type SupportMessage = { id: string; sender_id: string; body: string; created_at: string };
+type SupportMessage = { id: string; sender_id: string; body: string; created_at: string; attachment_paths?: string[]; attachmentUrls?: string[] };
 type Article = { id: string; slug: string; title: string; summary: string | null; body_markdown: string };
 
 const categories = [
@@ -37,6 +37,7 @@ export default function SupportCenter() {
   const [category, setCategory] = useState('other');
   const [description, setDescription] = useState('');
   const [reply, setReply] = useState('');
+  const [attachment, setAttachment] = useState<File | null>(null);
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('requests');
@@ -67,9 +68,16 @@ export default function SupportCenter() {
     const channel = supabase.channel(`support-ticket-${selected.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'support_messages', filter: `ticket_id=eq.${selected.id}` }, async () => {
         const { data } = await (supabase as any).from('support_messages')
-          .select('id,sender_id,body,created_at').eq('ticket_id', selected.id)
+          .select('id,sender_id,body,created_at,attachment_paths').eq('ticket_id', selected.id)
           .eq('is_internal', false).order('created_at', { ascending: true });
-        setMessages(data || []);
+        const rows = await Promise.all((data || []).map(async (m: any) => {
+          const urls = await Promise.all((m.attachment_paths || []).map(async (path: string) => {
+            const { data: signed } = await supabase.storage.from('support-attachments').createSignedUrl(path, 600);
+            return signed?.signedUrl || null;
+          }));
+          return { ...m, attachmentUrls: urls.filter(Boolean) as string[] };
+        }));
+        setMessages(rows);
       })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
@@ -78,10 +86,19 @@ export default function SupportCenter() {
   const loadMessages = useCallback(async (ticket: SupportTicket) => {
     setSelected(ticket);
     const { data, error } = await (supabase as any).from('support_messages')
-      .select('id,sender_id,body,created_at').eq('ticket_id', ticket.id)
+      .select('id,sender_id,body,created_at,attachment_paths').eq('ticket_id', ticket.id)
       .eq('is_internal', false).order('created_at', { ascending: true });
     if (error) toast.error('Unable to load this conversation.');
-    else setMessages(data || []);
+    else {
+      const rows = await Promise.all((data || []).map(async (m: any) => {
+        const urls = await Promise.all((m.attachment_paths || []).map(async (path: string) => {
+          const { data: signed } = await supabase.storage.from('support-attachments').createSignedUrl(path, 600);
+          return signed?.signedUrl || null;
+        }));
+        return { ...m, attachmentUrls: urls.filter(Boolean) as string[] };
+      }));
+      setMessages(rows);
+    }
   }, []);
 
   const createTicket = async () => {
@@ -122,12 +139,24 @@ export default function SupportCenter() {
   const sendReply = async () => {
     if (!user || !selected || !reply.trim()) return;
     const body = reply.trim();
+    let attachmentPaths: string[] = [];
+    if (attachment) {
+      if (attachment.size > 15 * 1024 * 1024 || !['image/jpeg','image/png','image/webp','application/pdf','text/plain'].includes(attachment.type)) {
+        toast.error('Attach a JPG, PNG, WebP, PDF or text file up to 15 MB.');
+        return;
+      }
+      const safeName = attachment.name.replace(/[^A-Za-z0-9._-]/g, '_').slice(-150);
+      const path = `${selected.id}/${user.id}/${crypto.randomUUID()}-${safeName}`;
+      const { error: uploadError } = await supabase.storage.from('support-attachments').upload(path, attachment, { contentType: attachment.type, upsert: false });
+      if (uploadError) { toast.error('Attachment upload failed.'); return; }
+      attachmentPaths = [path];
+    }
     const { error } = await (supabase as any).from('support_messages').insert({
-      ticket_id: selected.id, sender_id: user.id, body, is_internal: false,
+      ticket_id: selected.id, sender_id: user.id, body, is_internal: false, attachment_paths: attachmentPaths,
     });
     if (error) toast.error('Could not send your reply.');
     else {
-      setReply('');
+      setReply(''); setAttachment(null);
       await loadMessages(selected);
       await loadTickets();
     }
@@ -161,10 +190,10 @@ export default function SupportCenter() {
               {!selected ? <p className="text-sm text-muted-foreground py-8">Select a request to view its conversation.</p> : <>
                 <div className="rounded-xl bg-muted/50 p-3 text-sm">{selected.description}</div>
                 <div className="max-h-80 space-y-3 overflow-y-auto">
-                  {messages.map(m => <div key={m.id} className={`max-w-[85%] rounded-xl p-3 text-sm ${m.sender_id === user?.id ? 'ml-auto bg-primary text-primary-foreground' : 'bg-muted'}`}><p>{m.body}</p><p className="mt-1 text-[10px] opacity-70">{new Date(m.created_at).toLocaleString()}</p></div>)}
+                  {messages.map(m => <div key={m.id} className={`max-w-[85%] rounded-xl p-3 text-sm ${m.sender_id === user?.id ? 'ml-auto bg-primary text-primary-foreground' : 'bg-muted'}`}><p>{m.body}</p>{m.attachmentUrls?.map((url,i)=><a key={url} href={url} target="_blank" rel="noopener noreferrer" className="mt-2 block underline text-xs">Attachment {i+1}</a>)}<p className="mt-1 text-[10px] opacity-70">{new Date(m.created_at).toLocaleString()}</p></div>)}
                 </div>
                 {selected.status !== 'closed' && {(selected.status === 'closed' || selected.status === 'resolved') && <Button variant="outline" size="sm" onClick={async()=>{const {error}=await (supabase as any).rpc('reopen_support_ticket',{p_ticket_id:selected.id});if(error)toast.error('This request cannot be reopened.');else{toast.success('Support request reopened.');const next={...selected,status:'open'};setSelected(next);await loadTickets();}}}>Reopen request</Button>}
-                <div className="flex gap-2"><Input value={reply} onChange={e=>setReply(e.target.value)} placeholder="Write a reply…" maxLength={12000}/><Button onClick={()=>void sendReply()} disabled={!reply.trim()}><Send className="h-4 w-4"/></Button></div>}
+                <div className="flex flex-wrap items-center gap-2"><Input value={reply} onChange={e=>setReply(e.target.value)} placeholder="Write a reply…" maxLength={12000} className="min-w-0 flex-1"/><label className="flex h-10 cursor-pointer items-center gap-1 rounded-md border px-3 text-xs"><Paperclip className="h-4 w-4"/>{attachment?attachment.name.slice(0,18):'Attach'}<input type="file" className="sr-only" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain" onChange={e=>setAttachment(e.target.files?.[0]||null)}/></label><Button onClick={()=>void sendReply()} disabled={!reply.trim()&&!attachment}><Send className="h-4 w-4"/></Button></div>}
               </>}
             </CardContent></Card>
           </TabsContent>
