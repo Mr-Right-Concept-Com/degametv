@@ -8,6 +8,8 @@ const Body=z.discriminatedUnion("action",[
  z.object({action:z.literal("register_custom_domain"),contentId:z.string().uuid(),hostname:z.string().trim().toLowerCase().min(4).max(253)}).strict(),
  z.object({action:z.literal("verify_dns"),domainId:z.string().uuid()}).strict(),
  z.object({action:z.literal("resolve"),hostname:z.string().min(1).max(253)}).strict(),
+ z.object({action:z.literal("admin_list")}).strict(),
+ z.object({action:z.literal("admin_suspend"),domainId:z.string().uuid(),reason:z.string().trim().min(5).max(1000)}).strict(),
  z.object({action:z.literal("ssl_sync"),domainId:z.string().uuid(),state:z.enum(["PROVISIONING_SSL","ACTIVE","FAILED","SUSPENDED"]),certificateExpiresAt:z.string().datetime().optional(),error:z.string().max(500).optional()}).strict(),
 ]);
 const hash=async(v:string)=>[...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v)))].map(x=>x.toString(16).padStart(2,"0")).join("");
@@ -33,6 +35,18 @@ Deno.serve(async req=>{
  if(!auth?.startsWith("Bearer "))return json(401,{error:"Authentication required."});
  const caller=createClient(url,anon,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});
  const {data:{user},error:authError}=await caller.auth.getUser();if(authError||!user)return json(401,{error:"Invalid session."});
+ if(p.action==="admin_list"||p.action==="admin_suspend"){
+  const {data:roles}=await db.from("user_roles").select("role").eq("user_id",user.id).in("role",["super_admin","platform_admin"]).limit(1);
+  if(!roles?.length)return json(403,{error:"God Mode administrator permission is required."});
+  if(p.action==="admin_list"){
+   const {data,error}=await db.from("release_domains").select("id,content_id,hostname,domain_kind,status,verification_status,ssl_status,verified_at,ssl_certificate_expires_at,verification_error,updated_at").order("updated_at",{ascending:false}).limit(200);
+   return error?json(503,{error:"Domain registry could not be loaded."}):json(200,{success:true,domains:data??[]});
+  }
+  const {error}=await db.from("release_domains").update({status:"suspended",verification_status:"SUSPENDED",ssl_status:"suspended",verification_error:p.reason,updated_at:new Date().toISOString()}).eq("id",p.domainId);
+  if(error)return json(503,{error:"Domain suspension could not be saved."});
+  await db.from("audit_logs").insert({user_id:user.id,action:"production.domain.suspended",entity_type:"release_domain",entity_id:p.domainId,new_data:{reason:p.reason}});
+  return json(200,{success:true,status:"SUSPENDED"});
+ }
  if(p.action==="resolve"){
   const {data,error}=await db.rpc("resolve_release_domain",{p_hostname:p.hostname.toLowerCase().replace(/:\d+$/,"")});
   if(error)return json(503,{error:"Hostname resolution failed."});
