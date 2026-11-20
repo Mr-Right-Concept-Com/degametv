@@ -89,7 +89,7 @@ Deno.serve(async(req)=>{
  const idempotencyKey="event-invite-"+invite.id;
  const {error:outboxError}=await admin.from("event_notification_outbox").insert({
   tenant_id:screening.tenant_id,screening_id:screening.id,recipient_email:normalizedEmail,
-  notification_type:"event_invitation",idempotency_key:idempotencyKey,
+  notification_type:"private_invitation",idempotency_key:idempotencyKey,
   payload:{invite_id:invite.id,subject,html,text:"Accept your DeGameTV invitation: "+acceptUrl},
   scheduled_for:new Date().toISOString(),status:"pending"
  });
