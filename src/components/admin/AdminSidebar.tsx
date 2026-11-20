@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { 
   LayoutDashboard, Users, Film, Tag, TrendingUp, CreditCard, Building2,
-  Palette, Mail, Upload, ExternalLink, LogOut, Ticket, ShieldAlert
+  Palette, Mail, Upload, ExternalLink, LogOut, Ticket, ShieldAlert, LifeBuoy, BookOpen
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -46,6 +46,13 @@ const sections: { title: string; items: NavItem[] }[] = [
       { label: 'Sales Dashboard', href: '/admin/sales', icon: TrendingUp },
       { label: 'Payouts & Tiers', href: '/admin/payouts', icon: CreditCard },
       { label: 'Payment Gateways', href: '/admin/settings/payment-gateways', icon: CreditCard },
+    ],
+  },
+  {
+    title: 'Customer Support',
+    items: [
+      { label: 'Support Inbox', href: '/support/agent', icon: LifeBuoy },
+      { label: 'Knowledgebase & Agents', href: '/admin/support/knowledgebase', icon: BookOpen },
     ],
   },
   {
