@@ -8,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
 
-type WR = { id: string; user_id: string; amount: number; currency: string; bank_name: string; account_number: string; account_name: string; bank_country: string | null; status: string; created_at: string };
+type WR = { id: string; user_id: string; amount: number; currency: string; bank_name: string; account_last4: string | null; account_name: string; bank_country: string | null; status: string; admin_note: string | null; created_at: string };
 type SA = { id: string; user_id: string; tier: string; status: string; company_name: string | null; cac_number: string | null; tax_id: string | null; seats: number; created_at: string };
 
 export default function Payouts() {
@@ -18,21 +18,29 @@ export default function Payouts() {
 
   const load = async () => {
     const [w, a] = await Promise.all([
-      supabase.from('withdrawal_requests').select('id,user_id,amount,currency,bank_name,account_number,account_name,bank_country,status,created_at').order('created_at', { ascending: false }),
-      supabase.from('studio_accounts').select('*').order('created_at', { ascending: false }),
+      supabase.functions.invoke('admin-payouts', { body: { action: 'list' } }),
+      supabase.from('studio_accounts').select('id,user_id,tier,status,company_name,cac_number,tax_id,seats,created_at').order('created_at', { ascending: false }),
     ]);
-    setWrs((w.data as WR[]) || []);
+    if (w.error || w.data?.error) toast.error(w.error?.message || w.data?.error || 'Unable to load payout queue.');
+    if (a.error) toast.error(a.error.message);
+    setWrs((w.data?.withdrawals as WR[]) || []);
     setAccts((a.data as SA[]) || []);
   };
   useEffect(() => { load(); }, []);
 
   const setW = async (id: string, status: string) => {
-    const { error } = await supabase.from('withdrawal_requests').update({ status }).eq('id', id);
-    if (error) {
-      toast.error(error.message);
+    const transition = status === 'approved' ? 'approve' : status === 'rejected' ? 'reject' : null;
+    if (!transition) return;
+    const adminNote = transition === 'reject' ? window.prompt('Enter the rejection reason (minimum 5 characters):') : undefined;
+    if (transition === 'reject' && (!adminNote || adminNote.trim().length < 5)) return;
+    const { data, error } = await supabase.functions.invoke('admin-payouts', {
+      body: { action: 'transition', id, transition, adminNote: adminNote?.trim() },
+    });
+    if (error || data?.error) {
+      toast.error(error?.message || data?.error || 'Withdrawal transition failed.');
       return;
     }
-    toast.success(`Marked ${status}`);
+    toast.success(transition === 'approve' ? 'Withdrawal approved. Payment is not yet confirmed.' : 'Withdrawal rejected.');
     await load();
   };
   const setA = async (id: string, status: string) => {
@@ -49,7 +57,7 @@ export default function Payouts() {
     <AdminLayout title="Payouts & Studio Tiers" description="Approve withdrawals and Creator/Business verifications">
       <div className="space-y-6">
         <Card>
-          <CardHeader><CardTitle>Withdrawal requests</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Withdrawal requests</CardTitle><p className="text-sm text-muted-foreground">Approval is not payment confirmation. Only a verified payout-provider callback can mark a withdrawal paid.</p></CardHeader>
           <CardContent className="overflow-x-auto">
             <Table>
               <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Amount</TableHead><TableHead>Bank</TableHead><TableHead>Status</TableHead><TableHead>Action</TableHead></TableRow></TableHeader>
@@ -59,11 +67,11 @@ export default function Payouts() {
                   <TableRow key={w.id}>
                     <TableCell>{new Date(w.created_at).toLocaleDateString()}</TableCell>
                     <TableCell>{w.currency} {Number(w.amount).toLocaleString()}</TableCell>
-                    <TableCell className="text-xs">{w.bank_name} · {w.bank_country || '—'}<br />Account ending ····{String(w.account_number || '').replace(/\D/g, '').slice(-4) || 'unavailable'}<br />{w.account_name}</TableCell>
+                    <TableCell className="text-xs">{w.bank_name} · {w.bank_country || '—'}<br />Account ending ····{w.account_last4 || 'unavailable'}<br />{w.account_name}</TableCell>
                     <TableCell><Badge variant="secondary">{w.status}</Badge></TableCell>
                     <TableCell className="space-x-1 whitespace-nowrap">
                       {w.status === 'pending' && <><Button size="sm" onClick={() => setW(w.id, 'approved')}>Approve</Button><Button size="sm" variant="outline" onClick={() => setW(w.id, 'rejected')}>Reject</Button></>}
-                      {w.status === 'approved' && <Button size="sm" onClick={() => setW(w.id, 'paid')}>Mark paid</Button>}
+                      {w.status === 'approved' && <span className="text-xs text-muted-foreground">Awaiting payout provider confirmation</span>}
                     </TableCell>
                   </TableRow>
                 ))}
