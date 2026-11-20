@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
-const Body=z.object({ticketId:z.string().uuid(),reason:z.string().trim().min(3).max(500)}).strict();
+const Body=z.object({ticketId:z.string().uuid(),reason:z.string().trim().min(3).max(500),requestedBy:z.string().uuid().optional()}).strict();
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS","Content-Type":"application/json","Cache-Control":"no-store"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:cors});
 Deno.serve(async(req)=>{
@@ -10,12 +10,20 @@ Deno.serve(async(req)=>{
  if(!url||!anon||!service||!authorization?.startsWith("Bearer "))return json({error:"Authentication required."},401);
  const parsed=Body.safeParse(await req.json().catch(()=>null));
  if(!parsed.success)return json({error:"A ticket id and refund reason are required."},400);
- const caller=createClient(url,anon,{global:{headers:{Authorization:authorization}},auth:{persistSession:false,autoRefreshToken:false}});
- const {data:{user},error:authError}=await caller.auth.getUser();
- if(authError||!user)return json({error:"Your session has expired."},401);
+ const internal=authorization==="Bearer "+service;
  const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
- const {data:isAdmin,error:roleError}=await admin.rpc("is_super_admin",{_user_id:user.id});
- if(roleError||!isAdmin)return json({error:"Super administrator access is required."},403);
+ let actorId:string;
+ if(internal){
+  if(!parsed.data.requestedBy)return json({error:"Internal refund actor is required."},400);
+  actorId=parsed.data.requestedBy;
+ }else{
+  const caller=createClient(url,anon,{global:{headers:{Authorization:authorization}},auth:{persistSession:false,autoRefreshToken:false}});
+  const {data:{user},error:authError}=await caller.auth.getUser();
+  if(authError||!user)return json({error:"Your session has expired."},401);
+  const {data:isAdmin,error:roleError}=await admin.rpc("is_super_admin",{_user_id:user.id});
+  if(roleError||!isAdmin)return json({error:"Super administrator access is required."},403);
+  actorId=user.id;
+ }
  try{
   let ticket:any=null,liveTicket:any=null,order:any=null,liveOrder=false;
   const screeningTicket=await admin.from("screening_tickets").select("id,screening_id,payment_status,refunded_at,price,currency").eq("id",parsed.data.ticketId).maybeSingle();
@@ -59,7 +67,7 @@ Deno.serve(async(req)=>{
    const {data:refund,error:refundError}=await admin.from("payment_refunds").insert({
     ticket_id:ticket?.id??null,live_ticket_id:liveTicket?.id??null,payment_reference:order.provider_reference,
     provider:order.provider,provider_mode:order.provider_mode,amount_minor:order.amount_minor,currency:order.currency,
-    reason:parsed.data.reason,requested_by:user.id,status:"pending",
+    reason:parsed.data.reason,requested_by:actorId,status:"pending",
    }).select("id").single();
    if(refundError||!refund)return json({error:"The refund request could not be recorded."},409);
    refundId = refund.id;
