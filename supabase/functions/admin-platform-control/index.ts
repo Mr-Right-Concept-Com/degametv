@@ -12,7 +12,6 @@ const Body = z.discriminatedUnion("action",[
   z.object({action:z.literal("ai_policy_update"),workflowKey:z.string(),enabled:z.boolean(),providerAllowlist:z.array(z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/)).max(10),modelKey:z.string().trim().max(120).nullable(),maxInputChars:z.number().int().min(1).max(200000),maxOutputTokens:z.number().int().min(1).max(16000),allowedDataClasses:z.array(z.enum(["public","user_content","user_generated_content","support_knowledge","aggregate_metrics","operational_telemetry"])).min(1),requiresHumanReview:z.boolean(),systemPolicy:z.string().min(20).max(12000)}),
 ]);
 const respond=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers});
-const p95=(values:number[])=>{if(!values.length)return 0;const sorted=[...values].sort((a,b)=>a-b);return sorted[Math.min(sorted.length-1,Math.ceil(sorted.length*.95)-1)];};
 const safeHealthUrl=(value:unknown)=>{
   const target=new URL(String(value));
   const host=target.hostname.toLowerCase();
@@ -57,62 +56,47 @@ Deno.serve(async req=>{
       return respond({rollouts:data??[]});
     }
     if(p.action==="release_save"){
-      const {data:existing,error:readError}=await admin.from("platform_release_rollouts").select("id,state").eq("release_key",p.releaseKey).maybeSingle();
+      const {data:existing,error:readError}=await admin.from("platform_release_rollouts")
+        .select("id,state").eq("release_key",p.releaseKey).maybeSingle();
       if(readError)return respond({error:"Release state could not be read."},503);
       if(existing&&existing.state!=="draft")return respond({error:"Only draft releases can be edited. Create a new release key/version for a validated or active release."},409);
-      const {data,error}=await admin.from("platform_release_rollouts").upsert({
-        release_key:p.releaseKey,release_version:p.releaseVersion,state:"draft",traffic_percentage:0,
-        config:p.config,created_by:user.id,updated_at:new Date().toISOString(),
-      },{onConflict:"release_key"}).select().single();
-      if(error)return respond({error:error.message},400);
-      await admin.from("platform_release_audit").insert({rollout_id:data.id,actor_id:user.id,action:existing?"created":"created",details:{reason:"Draft release saved",releaseVersion:p.releaseVersion}});
+      const draft={release_version:p.releaseVersion,state:"draft",traffic_percentage:0,config:p.config,updated_at:new Date().toISOString()};
+      let data:Record<string,unknown>|null=null;
+      let error:unknown=null;
+      if(existing){
+        const result=await admin.from("platform_release_rollouts").update(draft).eq("id",existing.id).eq("state","draft").select().maybeSingle();
+        data=result.data as Record<string,unknown>|null;error=result.error;
+        if(!error&&!data)return respond({error:"Release changed concurrently. Reload before editing."},409);
+      }else{
+        const result=await admin.from("platform_release_rollouts").insert({...draft,release_key:p.releaseKey,created_by:user.id}).select().single();
+        data=result.data as Record<string,unknown>|null;error=result.error;
+      }
+      if(error||!data)return respond({error:"Draft release could not be saved. The release key may already exist."},409);
+      await admin.from("platform_release_audit").insert({rollout_id:data.id,actor_id:user.id,action:"created",details:{reason:"Draft release saved",releaseVersion:p.releaseVersion}});
       await admin.from("audit_logs").insert({user_id:user.id,action:"release.draft.saved",entity_type:"platform_release",entity_id:data.id,new_data:{release_key:p.releaseKey,release_version:p.releaseVersion}});
       return respond({rollout:data});
     }
     if(p.action==="release_transition"){
-      const {data:rollout,error:readError}=await admin.from("platform_release_rollouts").select("*").eq("release_key",p.releaseKey).single();
+      const {data:rollout,error:readError}=await admin.from("platform_release_rollouts")
+        .select("state,config").eq("release_key",p.releaseKey).maybeSingle();
       if(readError||!rollout)return respond({error:"Release was not found."},404);
-      let patch:Record<string,unknown>={updated_at:new Date().toISOString()};
-      let auditAction:"validated"|"canary_started"|"traffic_changed"|"approved"|"paused"|"rolled_back";
       if(p.transition==="validate"){
-        if(rollout.state!=="draft")return respond({error:"Only draft releases can be validated."},409);
         const digest=rollout.config?.artifact_digest;
-        const healthUrl=rollout.config?.health_check_url;
         if(typeof digest!=="string"||!/^sha256:[a-f0-9]{64}$/.test(digest))return respond({error:"A SHA-256 artifact_digest is required before validation."},400);
-        try{safeHealthUrl(healthUrl);}catch{return respond({error:"A valid public HTTPS health_check_url is required."},400);}
-        patch.state="validated";patch.traffic_percentage=0;auditAction="validated";
-      }else if(p.transition==="start_canary"){
-        if(rollout.state!=="validated")return respond({error:"Release must pass validation before canary."},409);
-        const percentage=p.trafficPercentage??5;
-        patch.state="canary";patch.traffic_percentage=percentage;auditAction="canary_started";
-      }else if(p.transition==="set_traffic"){
-        if(rollout.state!=="canary"||p.trafficPercentage===undefined)return respond({error:"Traffic can only be changed on an active canary."},409);
-        patch.traffic_percentage=p.trafficPercentage;auditAction="traffic_changed";
-      }else if(p.transition==="approve"){
-        if(rollout.state!=="canary")return respond({error:"Only an active canary can be approved."},409);
-        const since=new Date(Date.now()-rollout.health_window_seconds*1000).toISOString();
-        const {data:observations,error:metricsError}=await admin.from("platform_release_observations").select("success,latency_ms")
-          .eq("release_key",p.releaseKey).gte("observed_at",since);
-        if(metricsError)return respond({error:"Canary health telemetry is unavailable."},503);
-        const samples=observations??[];
-        if(samples.length<rollout.minimum_samples)return respond({error:"Canary has insufficient verified health samples.",required:rollout.minimum_samples,observed:samples.length},409);
-        const errors=samples.filter(row=>!row.success).length;
-        const errorRate=errors/samples.length;
-        const latency=p95(samples.filter(row=>row.latency_ms!==null).map(row=>Number(row.latency_ms)).filter(Number.isFinite));
-        if(errorRate>Number(rollout.error_rate_threshold)||latency>rollout.latency_p95_threshold_ms)
-          return respond({error:"Canary health thresholds were not met. Keep traffic limited or roll back.",samples:samples.length,errorRate,p95LatencyMs:latency},409);
-        patch.state="approved";patch.traffic_percentage=100;patch.approved_by=user.id;patch.approved_at=new Date().toISOString();auditAction="approved";
-      }else if(p.transition==="pause"){
-        if(!["validated","canary"].includes(rollout.state))return respond({error:"Only validated or canary releases can be paused."},409);
-        patch.state="paused";patch.traffic_percentage=0;auditAction="paused";
-      }else{
-        if(!["validated","canary","paused"].includes(rollout.state))return respond({error:"This release state cannot be rolled back."},409);
-        patch.state="rolled_back";patch.traffic_percentage=0;patch.rolled_back_by=user.id;patch.rolled_back_at=new Date().toISOString();auditAction="rolled_back";
+        try{safeHealthUrl(rollout.config?.health_check_url);}catch{return respond({error:"A valid public HTTPS health_check_url is required."},400);}
       }
-      const {data,error}=await admin.from("platform_release_rollouts").update(patch).eq("id",rollout.id).select().single();
-      if(error)return respond({error:error.message},400);
-      await admin.from("platform_release_audit").insert({rollout_id:rollout.id,actor_id:user.id,action:auditAction,details:{reason:p.reason,previous_state:rollout.state,new_state:data.state,traffic_percentage:data.traffic_percentage}});
-      await admin.from("audit_logs").insert({user_id:user.id,action:"release."+auditAction,entity_type:"platform_release",entity_id:rollout.id,old_data:{state:rollout.state,traffic_percentage:rollout.traffic_percentage},new_data:{state:data.state,traffic_percentage:data.traffic_percentage,reason:p.reason}});
+      const {data,error}=await admin.rpc("transition_platform_release",{
+        p_release_key:p.releaseKey,
+        p_expected_state:rollout.state,
+        p_transition:p.transition,
+        p_actor_id:user.id,
+        p_reason:p.reason,
+        p_traffic_percentage:p.transition==="start_canary"?(p.trafficPercentage??5):p.trafficPercentage??null,
+      });
+      if(error){
+        const conflict=["release_state_conflict","canary_insufficient_verified_samples","canary_health_thresholds_failed","release_not_in_canary","release_cannot_be_paused","release_cannot_be_rolled_back"].some(code=>error.message?.includes(code));
+        return respond({error:conflict?"Release state or health conditions changed. Refresh and review the latest canary telemetry.":"Release transition was rejected.",code:error.message},conflict?409:400);
+      }
       return respond({rollout:data});
     }
     if(p.action==="ai_policy_list"){
