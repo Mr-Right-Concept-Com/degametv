@@ -45,10 +45,12 @@ export default function WatchMovie() {
           return;
         }
         const sessionKey = 'degame:watch-session:' + String(watchCode);
-        let currentSession = sessionStorage.getItem(sessionKey);
-        if (!currentSession) {
-          currentSession = crypto.randomUUID();
+        let currentSession: string;
+        try {
+          currentSession = sessionStorage.getItem(sessionKey) || crypto.randomUUID();
           sessionStorage.setItem(sessionKey, currentSession);
+        } catch {
+          currentSession = crypto.randomUUID();
         }
         setSessionId(currentSession);
         const { data: grant, error: grantError } = await supabase.functions.invoke('get-playback-url', {
