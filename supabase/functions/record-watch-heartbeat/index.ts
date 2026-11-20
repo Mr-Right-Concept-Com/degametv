@@ -1,70 +1,51 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, cf-ipcountry',
-};
+const corsHeaders={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type, cf-ipcountry","Content-Type":"application/json"};
+const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:corsHeaders});
+const sha256=async(value:string)=>Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value))),b=>b.toString(16).padStart(2,"0")).join("");
 
-if (import.meta.main) {
-  serve(async (req: Request) => {
-    if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
+if(import.meta.main)serve(async(req:Request)=>{
+ if(req.method==="OPTIONS")return new Response(null,{headers:corsHeaders});
+ if(req.method!=="POST")return json(405,{success:false,error:"Method not allowed"});
+ try{
+  const url=Deno.env.get("SUPABASE_URL"),service=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if(!url||!service)return json(503,{success:false,error:"Playback session service unavailable."});
+  const body=await req.json().catch(()=>null);
+  const watchCode=typeof body?.watchCode==="string"?body.watchCode.trim():"";
+  const email=typeof body?.email==="string"?body.email.trim().toLowerCase():"";
+  const sessionId=typeof body?.sessionId==="string"?body.sessionId.trim():"";
+  const release=body?.release===true;
+  if(!watchCode||!email||!sessionId)return json(400,{success:false,error:"Missing playback session fields."});
+  const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
+  const tokenHash=await sha256(sessionId);
+  const country=(req.headers.get("cf-ipcountry")||"").toUpperCase().slice(0,2)||null;
+  const {data:ticket,error}=await db.from("screening_tickets")
+   .select("id,screening_id,active_session_token,active_session_expires_at,payment_status,refunded_at,expires_at")
+   .eq("watch_code",watchCode).eq("email",email).maybeSingle();
+  if(error)return json(503,{success:false,error:"Playback session could not be checked."});
+  if(!ticket||ticket.payment_status!=="completed"||ticket.refunded_at||!ticket.expires_at||new Date(ticket.expires_at).getTime()<=Date.now())
+   return json(403,{success:false,error:"Ticket is no longer valid."});
+  if(ticket.active_session_token!==tokenHash)return json(403,{success:false,error:"This playback session is no longer active."});
+  if(!release&&(!ticket.active_session_expires_at||new Date(ticket.active_session_expires_at).getTime()<=Date.now()))
+   return json(403,{success:false,error:"Playback session expired. Reopen your ticket to resume."});
 
-    try {
-      const supabase = createClient(
-        Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-      );
+  const now=new Date().toISOString();
+  const update=release
+   ? await db.from("screening_tickets").update({active_session_token:null,active_session_started_at:null,active_session_expires_at:null}).eq("id",ticket.id).eq("active_session_token",tokenHash)
+   : await db.from("screening_tickets").update({active_session_started_at:now,last_country:country}).eq("id",ticket.id).eq("active_session_token",tokenHash);
+  if(update.error)return json(503,{success:false,error:"Playback session could not be refreshed."});
 
-      const { watchCode, email, sessionId, deltaSeconds, position } = await req.json();
-      if (!watchCode || !email || !sessionId) {
-        return new Response(JSON.stringify({ error: 'Missing fields' }), { status: 400, headers: corsHeaders });
-      }
-
-      const country = (req.headers.get('cf-ipcountry') || '').toUpperCase() || null;
-
-      const { data: ticket } = await supabase
-        .from('screening_tickets')
-        .select('id, screening_id, active_session_token')
-        .eq('watch_code', watchCode)
-        .eq('email', email)
-        .maybeSingle();
-
-      if (!ticket) return new Response(JSON.stringify({ error: 'Invalid ticket' }), { status: 404, headers: corsHeaders });
-
-      // Refresh active session timestamp (keeps lock alive)
-      await supabase.from('screening_tickets')
-        .update({ active_session_started_at: new Date().toISOString() })
-        .eq('id', ticket.id)
-        .eq('active_session_token', sessionId);
-
-      // Upsert-style watch_history record per session
-      const { data: existing } = await supabase
-        .from('watch_history')
-        .select('id, watch_duration_seconds')
-        .eq('session_id', sessionId)
-        .maybeSingle();
-
-      if (existing) {
-        await supabase.from('watch_history').update({
-          watch_duration_seconds: (existing.watch_duration_seconds || 0) + Math.max(0, Math.round(deltaSeconds || 0)),
-          watch_position: Math.round(position || 0),
-          last_watched_at: new Date().toISOString(),
-          country,
-        }).eq('id', existing.id);
-      } else {
-        await supabase.from('watch_history').insert({
-          screening_id: ticket.screening_id,
-          session_id: sessionId,
-          watch_duration_seconds: Math.max(0, Math.round(deltaSeconds || 0)),
-          watch_position: Math.round(position || 0),
-          country,
-        });
-      }
-
-      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    } catch (error) {
-      return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
-    }
-  });
-}
+  if(!release){
+   const delta=Math.max(0,Math.min(90,Math.round(Number(body?.deltaSeconds)||0)));
+   const position=Math.max(0,Math.round(Number(body?.position)||0));
+   const {data:existing}=await db.from("watch_history").select("id,watch_duration_seconds").eq("session_id",sessionId).maybeSingle();
+   if(existing){
+    await db.from("watch_history").update({watch_duration_seconds:(existing.watch_duration_seconds||0)+delta,watch_position:position,last_watched_at:now,country}).eq("id",existing.id);
+   }else{
+    await db.from("watch_history").insert({screening_id:ticket.screening_id,session_id:sessionId,watch_duration_seconds:delta,watch_position:position,last_watched_at:now,country});
+   }
+  }
+  return json(200,{success:true,released:release});
+ }catch(error){console.error("record-watch-heartbeat",error);return json(500,{success:false,error:"Playback session update failed."});}
+});
