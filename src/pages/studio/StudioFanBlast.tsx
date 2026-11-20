@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { StudioLayout } from '@/components/studio/StudioLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { Loader2, Send } from 'lucide-react';
+import type { Tables } from '@/integrations/supabase/types';
 
 const TEMPLATES: Record<string, { subject: string; message: string; label: string }> = {
   starting_soon: { label: 'Event starting soon', subject: '{title} starts soon', message: 'Get ready — {title} begins shortly. Grab your ticket and join us live.' },
@@ -32,11 +33,11 @@ export default function StudioFanBlast() {
   usePageTitle('Fan Blast — Studio');
   const { user } = useAuth();
   const [events, setEvents] = useState<{ id: string; title: string }[]>([]);
-  const [history, setHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<Tables<'fan_blasts'>[]>([]);
   const [form, setForm] = useState({ screeningId: '', template: 'starting_soon', audience: 'all', subject: '', message: '' });
   const [sending, setSending] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!user) return;
     const { data: content } = await supabase.from('content').select('id').eq('creator_id', user.id);
     const ids = (content || []).map(c => c.id);
@@ -44,8 +45,8 @@ export default function StudioFanBlast() {
     setEvents(s || []);
     const { data: h } = await supabase.from('fan_blasts').select('*').order('created_at', { ascending: false }).limit(50);
     setHistory(h || []);
-  };
-  useEffect(() => { load(); }, [user]);
+  }, [user?.id]);
+  useEffect(() => { void load(); }, [load]);
 
   const applyTemplate = (template: string, screeningId = form.screeningId) => {
     const title = events.find(e => e.id === screeningId)?.title || 'our event';
@@ -62,7 +63,7 @@ export default function StudioFanBlast() {
     else if (r.data.sent < r.data.total) toast.warning(`Sent to ${r.data.sent} of ${r.data.total} fans — some emails were not accepted.`);
     else toast.success(`Sent to ${r.data.sent} fans`);
     setSending(false);
-    load();
+    void load();
   };
 
   return (
