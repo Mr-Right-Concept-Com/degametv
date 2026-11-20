@@ -22,7 +22,7 @@ export function SecurityAlertsPanel(){
  const load=useCallback(async()=>{
   setBusy(true);
   try{const result=await control<{alerts:AlertRow[]}>({action:"security_alert_list",unresolvedOnly});setAlerts(result.alerts??[]);}
-  catch(e){toast.error((e as Error).message);}finally{setBusy(false);}
+  catch(e){toast.error(e instanceof Error ? e.message : 'Operation failed');}finally{setBusy(false);}
  },[unresolvedOnly]);
  useEffect(()=>{void load();},[load]);
  const resolve=async(alertId:string)=>{
@@ -30,7 +30,7 @@ export function SecurityAlertsPanel(){
   if(!note||note.trim().length<5)return;
   setBusy(true);
   try{await control({action:"security_alert_resolve",alertId,resolutionNote:note.trim()});toast.success("Security alert resolved and audited.");await load();}
-  catch(e){toast.error((e as Error).message);}finally{setBusy(false);}
+  catch(e){toast.error(e instanceof Error ? e.message : 'Operation failed');}finally{setBusy(false);}
  };
  return <Card>
   <CardHeader><CardTitle className="flex items-center gap-2 text-base"><AlertTriangle className="h-4 w-4"/>Platform security alerts</CardTitle>
