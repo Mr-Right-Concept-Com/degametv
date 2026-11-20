@@ -74,4 +74,7 @@ jobs:
             supabase/functions/manage-event-invites/index.ts \
             supabase/functions/manage-event-settings/index.ts \
             supabase/functions/process-event-contribution/index.ts \
-            supabase/functions/dispatch-event-notifications/index.ts
+            supabase/functions/dispatch-event-notifications/index.ts \
+            supabase/functions/process-refund/index.ts \
+            supabase/functions/manage-event/index.ts \
+            supabase/functions/authorize-live-playback/index.ts
