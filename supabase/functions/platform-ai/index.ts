@@ -71,12 +71,18 @@ Deno.serve(async req => {
       decisionAuthority:"none",
       sources:[],
     });
-    knowledgeSources = articles.map(article=>({slug:article.slug,title:article.title}));
-    const sourceText = articles.map((article,index)=>[
-      "SOURCE "+(index+1)+": "+article.title,
-      article.summary ?? "",
-      article.body_markdown.slice(0,5000),
-    ].filter(Boolean).join("\n")).join("\n\n");
+    const sourceBudget = Math.max(0,policy.max_input_chars-request.input.length-600);
+    let remainingSourceChars = sourceBudget;
+    const sourceBlocks: string[] = [];
+    for (const article of articles) {
+      if (remainingSourceChars <= 0) break;
+      const block = ("SOURCE: "+article.title+"\n"+(article.summary ?? "")+"\n"+article.body_markdown).slice(0,remainingSourceChars);
+      if (!block.trim()) continue;
+      sourceBlocks.push(block);
+      knowledgeSources.push({slug:article.slug,title:article.title});
+      remainingSourceChars -= block.length;
+    }
+    const sourceText = sourceBlocks.join("\n\n");
     effectiveInput = "Customer question:\n"+request.input+"\n\nApproved knowledgebase sources (the only factual support material you may use):\n"+sourceText+
       "\n\nAnswer only what these sources support. If they do not answer the question, say so and recommend human support. Do not claim payment, refund, payout, identity, KYC, or account status.";
   }
