@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
     if (streamContributionError) return json({ error: "Live tips and gifts could not be loaded; cancellation is pending.", refunded, pendingRefunds }, 503);
     const contributionRows = [...(screeningContributions || []), ...(streamContributions || [])];
     const contributions = [...new Map<string, { id: string; status: string }>(
-      contributionRows.map((item: { id: string; status: string }) => [item.id, item])
+      contributionRows.map((item: { id: string; status: string }) => [item.id, item] as const)
     ).values()];
     if (contributions.length > 0 && (!serviceKey || !supabaseUrl)) return json({ error: "Refund service is unavailable; cancellation is pending.", refunded, pendingRefunds }, 503);
     for (const contribution of contributions) {
