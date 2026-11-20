@@ -34,6 +34,11 @@ Deno.serve(async req => {
     try { new Intl.DateTimeFormat("en", { timeZone: p.timezone }).format(); }
     catch { return respond({ error: "Timezone must be a valid IANA timezone." }, 400); }
   }
+  let canonicalLocale: string | null | undefined = p.locale;
+  if (p.locale) {
+    try { canonicalLocale = Intl.getCanonicalLocales(p.locale)[0]; }
+    catch { return respond({ error: "Locale must be a valid BCP 47 language tag." }, 400); }
+  }
   if (p.country) {
     const { data, error } = await db.from("country_currency_rules").select("country_code").eq("country_code", p.country).eq("enabled", true).maybeSingle();
     if (error || !data) return respond({ error: "Selected country is not enabled for platform transactions." }, 422);
@@ -46,7 +51,7 @@ Deno.serve(async req => {
   if (p.country !== undefined) patch.preferred_country = p.country;
   if (p.currency !== undefined) patch.preferred_currency = p.currency;
   if (p.language !== undefined) patch.language = p.language;
-  if (p.locale !== undefined) { patch.locale_code = p.locale; patch.preferred_locale = p.locale; }
+  if (p.locale !== undefined) { patch.locale_code = canonicalLocale ?? null; patch.preferred_locale = canonicalLocale ?? null; }
   if (p.timezone !== undefined) patch.timezone = p.timezone;
   patch.updated_at = new Date().toISOString();
   const { data, error } = await db.from("profiles").update(patch).eq("user_id", user.id)
