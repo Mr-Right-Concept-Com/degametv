@@ -20,8 +20,8 @@ Deno.serve(async(req)=>{
   const caller=createClient(url,anon,{global:{headers:{Authorization:authorization}},auth:{persistSession:false,autoRefreshToken:false}});
   const {data:{user},error:authError}=await caller.auth.getUser();
   if(authError||!user)return json({error:"Your session has expired."},401);
-  const {data:isAdmin,error:roleError}=await admin.rpc("is_super_admin",{_user_id:user.id});
-  if(roleError||!isAdmin)return json({error:"Super administrator access is required."},403);
+  const {data:adminRole,error:roleError}=await admin.from("user_roles").select("user_id").eq("user_id",user.id).eq("role","super_admin").maybeSingle();
+  if(roleError||!adminRole)return json({error:"Super administrator access is required."},403);
   actorId=user.id;
  }
  try{
