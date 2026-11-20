@@ -132,7 +132,7 @@ Deno.serve(async (req) => {
     const now = new Date().toISOString();
     const { error: cancelError } = await admin.from("screenings")
       .update({ lifecycle: "cancelled", cancelled_at: now }).eq("id", s.id);
-    if (cancelError) return json(503, {
+    if (cancelError) return json({
       error: "Refund processing finished but the screening cancellation state needs reconciliation.",
       refunded, pendingRefunds,
     });
