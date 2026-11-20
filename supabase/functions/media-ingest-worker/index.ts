@@ -9,7 +9,7 @@ const encode=(v:string)=>encodeURIComponent(v).replace(/[!'()*]/g,c=>"%"+c.charC
 const query=(u:URL)=>[...u.searchParams.entries()].sort(([a,av],[b,bv])=>a.localeCompare(b)||av.localeCompare(bv)).map(([k,v])=>encode(k)+"="+encode(v)).join("&");
 const stamp=()=>new Date().toISOString().replace(/[:-]|\.\d{3}/g,"");
 type Binding={id:string;provider_key:string;base_url:string|null;endpoints:Record<string,string>;settings:Record<string,unknown>;credential:string;webhook_secret:string|null;};
-type Storage={endpoint:URL;bucket:string;region:string;accessKeyId:string;secretAccessKey:string;sessionToken?:string;pathStyle:boolean;};
+type Storage={endpoint:URL;bucket:string;deliveryBucket:string;region:string;accessKeyId:string;secretAccessKey:string;sessionToken?:string;pathStyle:boolean;};
 async function binding(db:ReturnType<typeof createClient>,capability:string):Promise<Binding>{
  const {data,error}=await db.rpc("get_service_provider_runtime_config",{p_capability:capability});
  if(error||!Array.isArray(data)||!data.length)throw new Error("No enabled "+capability+" provider binding is configured.");
@@ -17,11 +17,11 @@ async function binding(db:ReturnType<typeof createClient>,capability:string):Pro
 }
 function storageConfig(p:Binding):Storage{
  let c:Record<string,unknown>;try{c=JSON.parse(p.credential) as Record<string,unknown>;}catch{throw new Error("The media_storage Vault credential must contain S3 accessKeyId and secretAccessKey.");}
- const endpoint=String(p.base_url??p.settings.endpoint??""),bucket=String(p.settings.bucket??"");
- if(!endpoint||!bucket||typeof c.accessKeyId!=="string"||typeof c.secretAccessKey!=="string")throw new Error("The media_storage provider is missing its endpoint, bucket or S3 credentials.");
- return {endpoint:new URL(endpoint),bucket,region:String(p.settings.region??"auto"),accessKeyId:c.accessKeyId,secretAccessKey:c.secretAccessKey,sessionToken:typeof c.sessionToken==="string"?c.sessionToken:undefined,pathStyle:p.settings.pathStyle!==false};
+ const endpoint=String(p.base_url??p.settings.endpoint??""),bucket=String(p.settings.quarantineBucket??p.settings.bucket??""),deliveryBucket=String(p.settings.deliveryBucket??"");
+ if(!endpoint||!bucket||!deliveryBucket||bucket===deliveryBucket||typeof c.accessKeyId!=="string"||typeof c.secretAccessKey!=="string")throw new Error("The media_storage provider is missing its endpoint, bucket or S3 credentials.");
+ return {endpoint:new URL(endpoint),bucket,deliveryBucket,region:String(p.settings.region??"auto"),accessKeyId:c.accessKeyId,secretAccessKey:c.secretAccessKey,sessionToken:typeof c.sessionToken==="string"?c.sessionToken:undefined,pathStyle:p.settings.pathStyle!==false};
 }
-function objectUrl(c:Storage,key:string){const u=new URL(c.endpoint.toString());if(c.pathStyle)u.pathname=u.pathname.replace(/\/$/,"")+"/"+encode(c.bucket)+"/"+key.split("/").map(encode).join("/");else{u.hostname=c.bucket+"."+u.hostname;u.pathname=u.pathname.replace(/\/$/,"")+"/"+key.split("/").map(encode).join("/");}return u;}
+function objectUrl(c:Storage,key:string,bucket=c.bucket){const u=new URL(c.endpoint.toString());if(c.pathStyle)u.pathname=u.pathname.replace(/\/$/,"")+"/"+encode(bucket)+"/"+key.split("/").map(encode).join("/");else{u.hostname=bucket+"."+u.hostname;u.pathname=u.pathname.replace(/\/$/,"")+"/"+key.split("/").map(encode).join("/");}return u;}
 async function keyFor(c:Storage,date:string){return hmac(await hmac(await hmac(await hmac("AWS4"+c.secretAccessKey,date),c.region),"s3"),"aws4_request");}
 async function requestS3(c:Storage,key:string,method:string,headers:Record<string,string>={},body?:string){
  const u=objectUrl(c,key),now=stamp(),day=now.slice(0,8),payload=await hash(body??"");
@@ -58,7 +58,7 @@ Deno.serve(async req=>{
   if(p.status==="failed"){const attempts=Number(job.attempts??1),dead=attempts>=Number(job.max_attempts??8),delay=Math.min(3600,Math.pow(2,attempts)*15);const {error:updateError}=await db.from("media_processing_jobs").update({status:dead?"DEAD_LETTER":"RETRY_WAIT",available_at:new Date(Date.now()+delay*1000).toISOString(),dead_lettered_at:dead?new Date().toISOString():null,last_error:p.error??"transcode_failed",locked_at:null,locked_by:null,updated_at:new Date().toISOString()}).eq("id",job.id);return updateError?json(503,{error:"Transcode failure could not be persisted."}):json(200,{success:true,status:dead?"DEAD_LETTER":"RETRY_WAIT"});}
   if(!p.renditions.some(r=>r.kind==="hls")||!p.renditions.some(r=>r.kind==="dash")||!p.renditions.some(r=>r.kind==="thumbnail"))return json(422,{error:"HLS, DASH and thumbnail renditions are mandatory."});
   if(p.renditions.some(r=>!r.path.startsWith("jobs/"+job.id+"/")))return json(422,{error:"Rendition path is outside this job's output namespace."});
-  for(const r of p.renditions){const head=await requestS3(storage,r.path,"HEAD");if(!head.ok)return json(422,{error:"A transcoder rendition is not present in the configured delivery bucket.",path:r.path,status:head.status});}
+  for(const r of p.renditions){const head=await requestS3(storage,r.path,"HEAD",{},undefined,storage.deliveryBucket);if(!head.ok)return json(422,{error:"A transcoder rendition is not present in the configured delivery bucket.",path:r.path,status:head.status});}
   const hls=p.renditions.find(r=>r.kind==="hls")!.path,dash=p.renditions.find(r=>r.kind==="dash")!.path,poster=p.renditions.find(r=>r.kind==="thumbnail")!.path,preview=p.renditions.find(r=>r.kind==="preview")?.path;
   const {data:session}=await db.from("media_upload_sessions").select("owner_id").eq("id",job.upload_session_id).maybeSingle();
   const {data:content}=job.content_id?await db.from("content").select("metadata").eq("id",job.content_id).maybeSingle():{data:null};
@@ -85,7 +85,7 @@ Deno.serve(async req=>{
    if(job.provenance?.expected_sha256&&String(job.provenance.expected_sha256).toLowerCase()!==scan.data.sha256.toLowerCase())throw new Error("whole_file_sha256_mismatch");
    if(!scan.data.clean){await db.from("media_processing_jobs").update({status:"FAILED",stage:"malware_scan",last_error:"malware_detected:"+scan.data.findings.join(","),locked_at:null,locked_by:null,updated_at:new Date().toISOString()}).eq("id",job.id);await db.from("media_upload_sessions").update({status:"FAILED",updated_at:new Date().toISOString()}).eq("id",job.upload_session_id);await requestS3(storage,job.quarantine_path,"DELETE");results.push({jobId:job.id,status:"REJECTED_MALWARE"});continue;}
    const masterPath="masters/"+job.id+"/source";
-   const copy=await requestS3(storage,masterPath,"PUT",{"x-amz-copy-source":"/"+storage.bucket+"/"+job.quarantine_path});
+   const copy=await requestS3(storage,masterPath,"PUT",{"x-amz-copy-source":"/"+storage.bucket+"/"+job.quarantine_path},undefined,storage.deliveryBucket);
    if(!copy.ok)throw new Error("server_side_clean_master_copy_failed_"+copy.status);
    const outputPrefix="jobs/"+job.id+"/",outputs=[
     {kind:"hls",path:outputPrefix+"master.m3u8",mimeType:"application/vnd.apple.mpegurl"},
@@ -94,10 +94,10 @@ Deno.serve(async req=>{
     {kind:"preview",path:outputPrefix+"preview.mp4",mimeType:"video/mp4"},
     {kind:"caption",path:outputPrefix+"captions.vtt",mimeType:"text/vtt"}
    ];
-   const uploadTargets=await Promise.all(outputs.map(async o=>({...o,uploadUrl:await presign(storage,o.path,"PUT",o.mimeType)})));
+   const uploadTargets=await Promise.all(outputs.map(async o=>({...o,uploadUrl:await presign(storage,o.path,"PUT",o.mimeType,storage.deliveryBucket)})));
    const transcodeUrl=new URL(transcoder.endpoints.transcode??"/transcode",transcoder.base_url??undefined).toString();
    const callbackUrl=Deno.env.get("MEDIA_TRANSCODE_CALLBACK_URL");if(!callbackUrl)throw new Error("MEDIA_TRANSCODE_CALLBACK_URL is not configured.");
-   const transcodeResponse=await fetch(transcodeUrl,{method:"POST",headers:{"Authorization":"Bearer "+transcoder.credential,"Content-Type":"application/json","Idempotency-Key":"transcode:"+job.id},body:JSON.stringify({jobId:job.id,sourceUrl:await presign(storage,masterPath,"GET"),sourceSha256:scan.data.sha256,outputFormat:"fmp4-single-file",outputs:uploadTargets,packaging:{hls:"byte-range",dash:"SegmentBase"},callbackUrl,callbackSecret:Deno.env.get("MEDIA_WORKER_SECRET")}),signal:AbortSignal.timeout(30000)});
+   const transcodeResponse=await fetch(transcodeUrl,{method:"POST",headers:{"Authorization":"Bearer "+transcoder.credential,"Content-Type":"application/json","Idempotency-Key":"transcode:"+job.id},body:JSON.stringify({jobId:job.id,sourceUrl:await presign(storage,masterPath,"GET",undefined,storage.deliveryBucket),sourceSha256:scan.data.sha256,outputFormat:"fmp4-single-file",outputs:uploadTargets,packaging:{hls:"byte-range",dash:"SegmentBase"},callbackUrl,callbackSecret:Deno.env.get("MEDIA_WORKER_SECRET")}),signal:AbortSignal.timeout(30000)});
    if(!transcodeResponse.ok)throw new Error("transcoder_http_"+transcodeResponse.status);
    const parsed=Transcode.safeParse(await transcodeResponse.json());if(!parsed.success||parsed.data.jobId!==job.id)throw new Error("transcoder_response_invalid");
 
