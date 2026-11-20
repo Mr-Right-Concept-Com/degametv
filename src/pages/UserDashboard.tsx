@@ -32,6 +32,14 @@ export default function UserDashboard() {
   const [loyalty, setLoyalty] = useState<any[]>([]);
   const [walletBalances, setWalletBalances] = useState<any[]>([]);
   const [walletActivity, setWalletActivity] = useState<any[]>([]);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawCurrency, setWithdrawCurrency] = useState('');
+  const [bankCountry, setBankCountry] = useState('NG');
+  const [bankName, setBankName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [accountName, setAccountName] = useState('');
+  const [requestingWithdrawal, setRequestingWithdrawal] = useState(false);
+
   const [invitations, setInvitations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
@@ -110,6 +118,29 @@ export default function UserDashboard() {
       setPreferredLocale(profileRes.data.locale_code || runtimeConfig?.locale || '');
     }
     setLoading(false);
+  };
+
+  const submitWithdrawalRequest = async () => {
+    if (!user?.id) return;
+    const amount = Number(withdrawAmount);
+    if (!Number.isFinite(amount) || amount <= 0 || !/^[A-Z]{3}$/.test(withdrawCurrency) ||
+        !/^[A-Z]{2}$/.test(bankCountry) || bankName.trim().length < 2 ||
+        accountName.trim().length < 2 || !/^[A-Za-z0-9 -]{4,34}$/.test(accountNumber.trim())) {
+      toast.error('Enter a valid amount, currency and bank account details.');
+      return;
+    }
+    setRequestingWithdrawal(true);
+    const { error } = await (supabase as any).rpc('request_wallet_withdrawal', {
+      p_amount: amount, p_currency: withdrawCurrency, p_bank_country: bankCountry,
+      p_bank_name: bankName.trim(), p_account_number: accountNumber.trim(), p_account_name: accountName.trim(),
+    });
+    if (error) toast.error(error.message || 'Unable to submit withdrawal request.');
+    else {
+      toast.success('Withdrawal request submitted for review.');
+      setWithdrawAmount(''); setBankName(''); setAccountNumber(''); setAccountName('');
+      await fetchAll();
+    }
+    setRequestingWithdrawal(false);
   };
 
   const saveProfile = async () => {
@@ -255,6 +286,18 @@ export default function UserDashboard() {
                 <p className="text-sm text-muted-foreground">Your earnings are shown by their original transaction currency. Pending settlement is not withdrawable; only verified settled funds appear as available.</p>
                 {walletBalances.length === 0 ? <div className="rounded-xl border border-dashed p-8 text-center"><Wallet className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40"/><p className="font-medium">No creator earnings yet</p><p className="mt-1 text-xs text-muted-foreground">When you earn from ticket sales, tips or gifts as an approved creator, your balances will appear here.</p></div> : walletBalances.map((balance:any) => <div key={balance.currency} className="grid gap-3 rounded-xl border p-4 sm:grid-cols-3"><div><p className="text-xs text-muted-foreground">Currency</p><p className="text-lg font-bold">{balance.currency}</p></div><div><p className="text-xs text-muted-foreground">Pending settlement</p><p className="text-lg font-semibold">{Number(balance.escrow || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</p></div><div><p className="text-xs text-muted-foreground">Available to withdraw</p><p className="text-lg font-semibold text-primary">{Number(balance.withdrawable || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</p></div></div>)}
                 <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">Creator earnings are tracked separately from personal stored-value funds. This history includes your sent and received tips and gifts; it does not imply that a personal cash wallet or top-up balance is enabled.</div>
+                <Card className="border-primary/20">
+                  <CardHeader><CardTitle className="text-base">Request a creator payout</CardTitle></CardHeader>
+                  <CardContent className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1"><Label htmlFor="withdraw-amount">Amount</Label><Input id="withdraw-amount" type="number" min="0.01" step="0.01" value={withdrawAmount} onChange={e=>setWithdrawAmount(e.target.value)} placeholder="0.00"/></div>
+                    <div className="space-y-1"><Label htmlFor="withdraw-currency">Earnings currency</Label><select id="withdraw-currency" value={withdrawCurrency} onChange={e=>setWithdrawCurrency(e.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select currency</option>{walletBalances.map((b:any)=><option key={b.currency} value={b.currency}>{b.currency} · available {Number(b.withdrawable||0).toLocaleString()}</option>)}</select></div>
+                    <div className="space-y-1"><Label htmlFor="bank-country">Bank country (ISO code)</Label><Input id="bank-country" value={bankCountry} onChange={e=>setBankCountry(e.target.value.toUpperCase().slice(0,2))} maxLength={2}/></div>
+                    <div className="space-y-1"><Label htmlFor="bank-name">Bank name</Label><Input id="bank-name" value={bankName} onChange={e=>setBankName(e.target.value)} maxLength={120}/></div>
+                    <div className="space-y-1"><Label htmlFor="account-number">Account number</Label><Input id="account-number" value={accountNumber} onChange={e=>setAccountNumber(e.target.value)} maxLength={34} autoComplete="off"/></div>
+                    <div className="space-y-1"><Label htmlFor="account-name">Account holder name</Label><Input id="account-name" value={accountName} onChange={e=>setAccountName(e.target.value)} maxLength={120}/></div>
+                    <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-muted-foreground">Requests are checked against settled earnings and reserved balances. Submission does not guarantee approval or immediate payment.</p><Button onClick={()=>void submitWithdrawalRequest()} disabled={requestingWithdrawal||walletBalances.length===0}>{requestingWithdrawal?'Submitting…':'Request payout'}</Button></div>
+                  </CardContent>
+                </Card>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-3"><h3 className="font-semibold">All wallet activity</h3><Badge variant="outline">{walletActivity.length} recent</Badge></div>
                   {walletActivity.length===0 ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">Your ticket purchases, tips, gifts and payout activity will appear here.</p> :
