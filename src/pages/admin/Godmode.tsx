@@ -19,7 +19,7 @@ import { Loader2 } from 'lucide-react';
 import { ProviderRegistryPanel } from '@/components/admin/ProviderRegistryPanel';
 import { RuntimeControlPanel } from '@/components/admin/RuntimeControlPanel';
 import { PlatformGovernancePanel } from '@/components/admin/PlatformGovernancePanel';
-import { BrandingRegistryPanel } from '@/components/admin/BrandingRegistryPanel';
+import { BrandingRegistryPanel } from '@/components/admin/BrandingRegistryPanel';\nimport { SecurityAlertsPanel } from '@/components/admin/SecurityAlertsPanel';
 
 async function god(body: Record<string, unknown>) {
   const r = await invokeFn<{ result?: unknown }>('admin-godmode', body);
@@ -157,7 +157,7 @@ export default function Godmode() {
           <TabsTrigger value="tiers">Tiers</TabsTrigger>
           <TabsTrigger value="events">Events</TabsTrigger>
           <TabsTrigger value="banners">Banners</TabsTrigger>
-          <TabsTrigger value="audit">Audit log</TabsTrigger>
+          <TabsTrigger value="audit">Audit log</TabsTrigger>\n          <TabsTrigger value="security">Security alerts</TabsTrigger>
         </TabsList>
 
         <TabsContent value="settings" className="mt-4 space-y-4">
@@ -310,7 +310,7 @@ export default function Godmode() {
           </div>
         </TabsContent>
 
-        <TabsContent value="audit" className="mt-4 space-y-3">
+        <TabsContent value="security" className="mt-4 space-y-3"><SecurityAlertsPanel /></TabsContent>\n\n        <TabsContent value="audit" className="mt-4 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <Input value={auditQ} onChange={e=>setAuditQ(e.target.value)} placeholder="Search action, entity or actor" className="max-w-sm" aria-label="Search audit log"/>
             <Button variant="outline" size="sm" onClick={exportAudit} disabled={!filteredAudit.length}>Export filtered CSV</Button>
