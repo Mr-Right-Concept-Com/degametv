@@ -2,103 +2,48 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, cf-ipcountry',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, cf-ipcountry",
+  "Content-Type": "application/json",
 };
+const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:corsHeaders});
 
-if (import.meta.main) {
-  serve(async (req: Request) => {
-    if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
-
-    try {
-      const supabase = createClient(
-        Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-      );
-
-      const { watchCode, email } = await req.json();
-      if (!watchCode) {
-        return new Response(JSON.stringify({ error: 'Watch code is required' }), { status: 400, headers: corsHeaders });
-      }
-
-      const country = (req.headers.get('cf-ipcountry') || '').toUpperCase() || null;
-      const ip = req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
-
-      const { data: ticket, error } = await supabase
-        .from('screening_tickets')
-        .select(`*, screening:screenings(*)`)
-        .eq('watch_code', watchCode)
-        .eq('payment_status', 'completed')
-        .maybeSingle();
-
-      if (error || !ticket) {
-        return new Response(JSON.stringify({ error: 'Invalid or expired watch link' }), { status: 404, headers: corsHeaders });
-      }
-      if (email && ticket.email !== email) {
-        return new Response(JSON.stringify({ error: 'Email does not match ticket' }), { status: 403, headers: corsHeaders });
-      }
-      if (ticket.refunded_at) {
-        return new Response(JSON.stringify({ error: 'This ticket was refunded and is no longer valid' }), { status: 403, headers: corsHeaders });
-      }
-      if (new Date(ticket.expires_at) < new Date()) {
-        return new Response(JSON.stringify({ error: 'Ticket has expired' }), { status: 403, headers: corsHeaders });
-      }
-
-      // Timed entitlement: window starts at first play
-      if (ticket.first_played_at && ticket.access_hours) {
-        const ends = new Date(ticket.first_played_at).getTime() + ticket.access_hours * 3600000;
-        if (Date.now() > ends) {
-          return new Response(JSON.stringify({ error: `Your ${ticket.access_hours}-hour viewing window has ended` }), { status: 403, headers: corsHeaders });
-        }
-      }
-
-      const s = ticket.screening;
-      // Geo enforcement
-      if (country) {
-        if (Array.isArray(s.blocked_countries) && s.blocked_countries.includes(country)) {
-          return new Response(JSON.stringify({ error: `This premiere is not available in ${country}` }), { status: 451, headers: corsHeaders });
-        }
-        if (Array.isArray(s.allowed_countries) && s.allowed_countries.length > 0 && !s.allowed_countries.includes(country)) {
-          return new Response(JSON.stringify({ error: `This premiere is not available in ${country}` }), { status: 451, headers: corsHeaders });
-        }
-      }
-
-      // Do not consume first-play access or expose media until a provider can
-      // enforce short-lived, signed playback delivery at the origin.
-      return new Response(JSON.stringify({ error: 'Secure streaming is not configured for this screening. Your viewing window has not started.' }), {
-        status: 503,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-
-      // Stream cap
-      const maxStreams = s.max_streams_per_ticket ?? 5;
-      const streamsRemaining = Math.max(0, maxStreams - (ticket.stream_count || 0));
-
-      await supabase.from('screening_tickets').update({
-        used_at: new Date().toISOString(),
-        ...(ticket.first_played_at ? {} : { first_played_at: new Date().toISOString() }),
-        last_ip: ip,
-        last_country: country,
-      }).eq('id', ticket.id);
-
-      return new Response(JSON.stringify({
-        success: true,
-        ticket: {
-          id: ticket.id,
-          watchCode: ticket.watch_code,
-          movieTitle: s.title,
-          moviePoster: s.poster_url,
-          expiresAt: ticket.expires_at,
-          location: ticket.location,
-          email: ticket.email,
-          streamsRemaining,
-          maxStreams,
-          maxConcurrent: s.max_concurrent_streams ?? 1,
-          country,
-        },
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    } catch (error) {
-      return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
-    }
-  });
-}
+if(import.meta.main)serve(async(req:Request)=>{
+ if(req.method==="OPTIONS")return new Response(null,{headers:corsHeaders});
+ if(req.method!=="POST")return json(405,{success:false,error:"Method not allowed"});
+ try{
+  const url=Deno.env.get("SUPABASE_URL"),service=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if(!url||!service)return json(503,{success:false,error:"Ticket validation is temporarily unavailable."});
+  const body=await req.json().catch(()=>null);
+  const watchCode=typeof body?.watchCode==="string"?body.watchCode.trim():"";
+  const email=typeof body?.email==="string"?body.email.trim().toLowerCase():"";
+  if(!watchCode)return json(400,{success:false,error:"Watch code is required."});
+  const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
+  const country=(req.headers.get("cf-ipcountry")||"").toUpperCase().slice(0,2)||null;
+  const {data:ticket,error}=await db.from("screening_tickets")
+   .select("id,watch_code,email,payment_status,refunded_at,expires_at,screening_id,location,currency,price,stream_count,first_played_at,access_hours,screening:screenings(id,content_id,title,poster_url,status,lifecycle,allowed_countries,blocked_countries,max_streams_per_ticket,max_concurrent_streams)")
+   .eq("watch_code",watchCode).maybeSingle();
+  if(error)return json(503,{success:false,error:"Ticket validation could not be completed. Please retry."});
+  if(!ticket||ticket.payment_status!=="completed")return json(404,{success:false,error:"Invalid or unpaid watch link."});
+  if(email&&String(ticket.email||"").toLowerCase()!==email)return json(403,{success:false,error:"Email does not match this ticket."});
+  if(ticket.refunded_at)return json(403,{success:false,error:"This ticket has been refunded."});
+  if(!ticket.expires_at||new Date(ticket.expires_at).getTime()<=Date.now())return json(403,{success:false,error:"This ticket has expired."});
+  const s:any=ticket.screening;
+  if(!s||s.status!=="published"||["cancelled","archived"].includes(s.lifecycle))return json(410,{success:false,error:"This screening is no longer available."});
+  if(country){
+   if(Array.isArray(s.blocked_countries)&&s.blocked_countries.includes(country))return json(451,{success:false,error:"This screening is not available in your territory."});
+   if(Array.isArray(s.allowed_countries)&&s.allowed_countries.length>0&&!s.allowed_countries.includes(country))return json(451,{success:false,error:"This screening is not available in your territory."});
+  }
+  if(ticket.first_played_at&&ticket.access_hours){
+   const windowEnd=new Date(ticket.first_played_at).getTime()+Number(ticket.access_hours)*3600000;
+   if(Date.now()>windowEnd)return json(403,{success:false,error:"Your viewing window has ended."});
+  }
+  const maxStreams=Number(s.max_streams_per_ticket??5);
+  return json(200,{success:true,ticket:{
+   id:ticket.id,watchCode:ticket.watch_code,email:ticket.email,movieTitle:s.title,moviePoster:s.poster_url,
+   expiresAt:ticket.expires_at,location:ticket.location,currency:ticket.currency||"NGN",price:ticket.price,
+   screeningId:ticket.screening_id,contentId:s.content_id,country,streamsRemaining:Math.max(0,maxStreams-Number(ticket.stream_count||0)),
+   maxStreams,maxConcurrent:Number(s.max_concurrent_streams??1)
+  }});
+ }catch(error){console.error("validate-watch-code",error);return json(500,{success:false,error:"Ticket validation failed safely."});}
+});
