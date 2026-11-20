@@ -349,7 +349,7 @@ export default function StudioSubmit() {
       }
     }
 
-    if (mediaUpload.sessionId && !['QUARANTINED','READY'].includes(mediaUpload.status)) {
+    if (mediaUpload.sessionId && !['QUARANTINED','SCANNING','TRANSCODING','READY'].includes(mediaUpload.status)) {
       toast.error('Pause or finish the current master upload before saving this production.');
       return;
     }
