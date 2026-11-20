@@ -4,7 +4,7 @@ import { z } from "npm:zod@3";
 const headers = { "Access-Control-Allow-Origin":"*", "Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods":"POST, OPTIONS", "Content-Type":"application/json", "Cache-Control":"no-store" };
 const object = z.record(z.string(),z.unknown());
 const Body = z.discriminatedUnion("action",[
-  z.object({action:z.literal("release_list")}),
+  z.object({action:z.literal("release_list")}),\n  z.object({action:z.literal("release_probe"),releaseKey:z.string()}),
   z.object({action:z.literal("release_save"),releaseKey:z.string().regex(/^[a-z][a-z0-9_.-]{1,100}$/),releaseVersion:z.string().min(1).max(80),config:object}),
   z.object({action:z.literal("release_transition"),releaseKey:z.string(),transition:z.enum(["validate","start_canary","set_traffic","approve","pause","rollback"]),trafficPercentage:z.number().int().min(1).max(99).optional(),reason:z.string().min(3).max(500)}),
   z.object({action:z.literal("ai_policy_list")}),
@@ -27,7 +27,7 @@ Deno.serve(async req=>{
   if(!parsed.success)return respond({error:"Invalid platform control request.",issues:parsed.error.flatten()},400);
   const p=parsed.data;
   try{
-    if(p.action==="release_list"){
+    if(p.action==="release_probe"){\n      const {data:rollout,error}=await admin.from("platform_release_rollouts").select("id,release_key,state,config").eq("release_key",p.releaseKey).single();\n      if(error||!rollout)return respond({error:"Release was not found."},404);\n      if(rollout.state!=="canary")return respond({error:"Only active canary releases can be probed."},409);\n      const target=new URL(String(rollout.config?.health_check_url));\n      if(target.protocol!=="https:"||target.username||target.password)return respond({error:"Release health endpoint is not a valid HTTPS URL."},400);\n      const started=performance.now();let success=false;let errorCode:string|null=null;\n      try{const probe=await fetch(target,{headers:{Accept:"application/json"},signal:AbortSignal.timeout(8000)});const body=await probe.json().catch(()=>null);success=probe.ok&&(body?.ok===true||body?.status===true);if(!success)errorCode="health_check_failed";}catch{errorCode="health_check_unreachable";}\n      const latency=Math.max(0,Math.round(performance.now()-started));\n      const {error:writeError}=await admin.from("platform_release_observations").insert({rollout_id:rollout.id,release_key:rollout.release_key,success,latency_ms:latency,error_code:errorCode});\n      if(writeError)return respond({error:"Health probe result could not be recorded."},503);\n      return respond({success,latencyMs:latency,errorCode,releaseKey:rollout.release_key});\n    }\n    if(p.action==="release_list"){
       const {data,error}=await admin.from("platform_release_rollouts").select("*").order("updated_at",{ascending:false});
       if(error)return respond({error:"Release rollouts could not be loaded."},503);
       return respond({rollouts:data??[]});
