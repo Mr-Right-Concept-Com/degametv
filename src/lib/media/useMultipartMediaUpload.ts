@@ -1,6 +1,6 @@
 import {useCallback,useEffect,useRef,useState} from "react";
 import {invokeFn} from "@/lib/invokeFn";
-type Part={partNumber:number;etag:string;checksumSha256:string};
+type Part={partNumber:number;etag:string;checksumSha256:string;size?:number};
 type Recovery={sessionId:string;status:string;expectedSizeBytes:number;partSizeBytes:number;parts:Part[]};
 type Init={sessionId:string;partSizeBytes:number;totalParts:number;status:string};
 type Signed={uploadUrl:string;headers:Record<string,string>};
@@ -10,7 +10,7 @@ async function checksum(filePart:Blob){const digest=await crypto.subtle.digest("
 export function useMultipartMediaUpload(userId:string|undefined){
  const [status,setStatus]=useState<UploadState>("IDLE"),[progress,setProgress]=useState(0),[sessionId,setSessionId]=useState<string|null>(null),[error,setError]=useState<string|null>(null),[fileName,setFileName]=useState<string|null>(null),[recovery,setRecovery]=useState<Recovery|null>(null);
  const paused=useRef(false),activeFile=useRef<File|null>(null);
- useEffect(()=>{if(!userId)return;const id=localStorage.getItem(STORAGE_KEY(userId));if(!id)return;setSessionId(id);void invokeFn<Recovery>("media-ingest-control",{action:"recover",sessionId:id}).then(r=>{if(r.ok&&r.data){setRecovery(r.data);setStatus(r.data.status==="QUARANTINED"||r.data.status==="READY"?"QUARANTINED":"PAUSED");setProgress(r.data.expectedSizeBytes?Math.min(100,Math.round((r.data.parts.reduce((n,p)=>n,0)/r.data.expectedSizeBytes)*100)):0);}});},[userId]);
+ useEffect(()=>{if(!userId)return;const id=localStorage.getItem(STORAGE_KEY(userId));if(!id)return;setSessionId(id);void invokeFn<Recovery>("media-ingest-control",{action:"recover",sessionId:id}).then(r=>{if(r.ok&&r.data){setRecovery(r.data);setStatus(r.data.status==="QUARANTINED"||r.data.status==="READY"?"QUARANTINED":"PAUSED");setProgress(r.data.expectedSizeBytes?Math.min(100,Math.round((r.data.parts.reduce((n,p)=>n+(p.size??0),0)/r.data.expectedSizeBytes)*100)):0);}});},[userId]);
  const upload=useCallback(async(file:File,contentId?:string)=>{
   if(!userId)throw new Error("Sign in before uploading a master file.");
   if(file.size<=0||file.size>20*1024*1024*1024)throw new Error("Master files must be between 1 byte and 20 GiB.");
@@ -29,10 +29,10 @@ export function useMultipartMediaUpload(userId:string|undefined){
     const signed=await invokeFn<Signed>("media-ingest-control",{action:"sign_part",sessionId:id,partNumber,checksumSha256:sum});if(!signed.ok||!signed.data)throw new Error(signed.error??"Could not sign upload part "+partNumber+".");
     const response=await fetch(signed.data.uploadUrl,{method:"PUT",headers:signed.data.headers,body:blob});if(!response.ok)throw new Error("Storage rejected upload part "+partNumber+" ("+response.status+").");
     const etag=response.headers.get("ETag")?.replaceAll('"',"");if(!etag)throw new Error("Storage CORS must expose the ETag response header before uploads can complete.");
-    const part={partNumber,etag,checksumSha256:sum};done.set(partNumber,part);sent+=blob.size;setRecovery(v=>v?({...v,parts:[...done.values()]}):v);setProgress(Math.min(100,Math.round(sent/file.size*100)));
+    const part={partNumber,etag,checksumSha256:sum,size:blob.size};done.set(partNumber,part);sent+=blob.size;setRecovery(v=>v?({...v,parts:[...done.values()]}):v);setProgress(Math.min(100,Math.round(sent/file.size*100)));
    }
    if(paused.current){setStatus("PAUSED");return;}
-   setStatus("COMPLETING");const completed=await invokeFn<{job:{id:string};status:string}>("media-ingest-control",{action:"complete_multipart",sessionId:id,parts:[...done.values()].sort((a,b)=>a.partNumber-b.partNumber)});
+   setStatus("COMPLETING");const completed=await invokeFn<{job:{id:string};status:string}>("media-ingest-control",{action:"complete_multipart",sessionId:id,parts:[...done.values()].sort((a,b)=>a.partNumber-b.partNumber).map(({partNumber,etag,checksumSha256})=>({partNumber,etag,checksumSha256}))});
    if(!completed.ok)throw new Error(completed.error??"Multipart completion failed.");
    setStatus("QUARANTINED");setProgress(100);setRecovery(v=>v?({...v,status:"QUARANTINED"}):v);return {sessionId:id,jobId:completed.data?.job?.id};
   }catch(e){setError(e instanceof Error?e.message:"Multipart upload failed.");setStatus("ERROR");throw e;}
