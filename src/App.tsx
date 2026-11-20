@@ -29,6 +29,8 @@ const Contact = lazy(() => import("./pages/Contact"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Producers = lazy(() => import("./pages/Producers"));
 const ApplyFilmmaker = lazy(() => import("./pages/ApplyFilmmaker"));
+const CreatorOnboarding = lazy(() => import("./pages/studio/CreatorOnboarding"));
+const ProductionStorefront = lazy(() => import("./pages/storefront/ProductionStorefront"));
 
 // Admin pages
 const Dashboard = lazy(() => import("./pages/admin/Dashboard"));
@@ -95,6 +97,8 @@ const App = () => (
               <Route path="/movie/:slug" element={<FeatureGate featureKey="cinema.catalogue"><MovieLanding /></FeatureGate>} />
               <Route path="/content/:id" element={<FeatureGate featureKey="cinema.catalogue"><ContentLanding /></FeatureGate>} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/creator/onboarding" element={<ProtectedRoute><CreatorOnboarding /></ProtectedRoute>} />
+              <Route path="/production" element={<ProductionStorefront />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               
               {/* Static Pages */}
