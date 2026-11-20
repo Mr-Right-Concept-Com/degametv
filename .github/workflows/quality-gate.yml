@@ -80,4 +80,5 @@ jobs:
             supabase/functions/authorize-live-playback/index.ts \
             supabase/functions/validate-watch-code/index.ts \
             supabase/functions/get-playback-url/index.ts \
-            supabase/functions/record-watch-heartbeat/index.ts
+            supabase/functions/record-watch-heartbeat/index.ts \
+            supabase/functions/admin-provider-control/index.ts
