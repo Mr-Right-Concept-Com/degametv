@@ -53,80 +53,23 @@ Deno.serve(async (req) => {
       .is("refunded_at", null);
     if (ticketError) return json({ error: "Paid tickets could not be loaded; cancellation was not applied." }, 503);
 
-    const { data: paymentConfigs, error: configError } = await admin.rpc(
-      "get_service_provider_runtime_config",
-      { p_capability: "payments" },
-    );
-    const paymentProvider = Array.isArray(paymentConfigs) ? paymentConfigs[0] : null;
-    const refundPath = paymentProvider?.endpoints?.refund;
-    const canRefund = !configError && typeof paymentProvider?.credential === "string" &&
-      paymentProvider.credential.length > 0 && typeof refundPath === "string" &&
-      refundPath.startsWith("/") && !refundPath.startsWith("//");
-
     let refunded = 0;
     const pendingRefunds: string[] = [];
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    if ((tickets || []).length > 0 && (!serviceKey || !supabaseUrl)) {
+      return json({ error: "Refund service is unavailable; cancellation was not applied." }, 503);
+    }
     for (const ticket of tickets || []) {
-      const { data: order, error: orderError } = await admin.from("guest_payment_orders")
-        .select("provider, provider_reference, provider_transaction_id, amount_minor, currency, status")
-        .eq("ticket_id", ticket.id)
-        .eq("status", "paid")
-        .maybeSingle();
-      if (orderError || !order || order.provider !== paymentProvider?.provider_key || !canRefund ||
-          (!order.provider_transaction_id && !order.provider_reference)) {
-        pendingRefunds.push(ticket.id);
-        continue;
-      }
-
-      const refundUrl = new URL(refundPath, paymentProvider.base_url);
-      if (refundUrl.origin !== new URL(paymentProvider.base_url).origin) {
-        pendingRefunds.push(ticket.id);
-        continue;
-      }
-      const settings = paymentProvider.settings || {};
-      const authHeader = typeof settings.credential_header === "string" ? settings.credential_header : "Authorization";
-      const authPrefix = typeof settings.credential_prefix === "string" ? settings.credential_prefix : "Bearer ";
-      const refundResponse = await fetch(refundUrl, {
+      const response = await fetch(supabaseUrl + "/functions/v1/process-refund", {
         method: "POST",
-        headers: { [authHeader]: authPrefix + paymentProvider.credential, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          transaction_id: order.provider_transaction_id || order.provider_reference,
-          reference: order.provider_reference,
-          amount_minor: Number(order.amount_minor),
-          currency: order.currency,
-          reason: p.reason || "Event cancelled",
-        }),
-        signal: AbortSignal.timeout(15000),
-      });
-      const refundResult = await refundResponse.json().catch(() => null);
-      if (!refundResponse.ok || refundResult?.accepted !== true || refundResult?.status !== "processed") {
-        pendingRefunds.push(ticket.id);
-        continue;
-      }
-
-      const now = new Date().toISOString();
-      const { data: updatedTicket, error: updateError } = await admin.from("screening_tickets")
-        .update({ refunded_at: now, refund_reason: p.reason || "Event cancelled", payment_status: "refunded" })
-        .eq("id", ticket.id).eq("payment_status", "completed").is("refunded_at", null)
-        .select("id").maybeSingle();
-      if (updateError || !updatedTicket) {
-        // Provider accepted the refund; leave an explicit reconciliation item rather
-        // than claiming the local ticket state was updated.
-        pendingRefunds.push(ticket.id);
-        continue;
-      }
-
-      const { data: ledger } = await admin.from("wallet_ledger")
-        .select("user_id, gross, fee, net")
-        .eq("ticket_id", ticket.id).eq("kind", "sale").maybeSingle();
-      if (ledger) {
-        const { error: ledgerError } = await admin.from("wallet_ledger").insert({
-          user_id: ledger.user_id, ticket_id: ticket.id, screening_id: s.id,
-          gross: -ledger.gross, fee: -ledger.fee, net: -ledger.net,
-          currency: ticket.currency || "NGN", kind: "refund", settles_at: now,
-        });
-        if (ledgerError) pendingRefunds.push(ticket.id);
-      }
-      refunded++;
+        headers: { Authorization: "Bearer " + serviceKey, apikey: serviceKey, "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId: ticket.id, reason: p.reason || "Event cancelled", requestedBy: user.id }),
+        signal: AbortSignal.timeout(25000),
+      }).catch(() => null);
+      const result = response ? await response.json().catch(() => null) : null;
+      if (response?.ok && result?.success === true) refunded++;
+      else pendingRefunds.push(ticket.id);
     }
 
     // Refund canonical live tickets through their original provider adapters.
@@ -137,8 +80,6 @@ Deno.serve(async (req) => {
       .filter("metadata->>screening_id", "eq", s.id)
       .is("revoked_at", null);
     if (liveTicketError) return json({ error: "Live tickets could not be loaded; cancellation was not applied.", refunded, pendingRefunds }, 503);
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
     if ((liveTickets || []).length > 0 && (!serviceKey || !supabaseUrl)) {
       return json({ error: "Refund service is unavailable; cancellation was not applied.", refunded, pendingRefunds }, 503);
     }
