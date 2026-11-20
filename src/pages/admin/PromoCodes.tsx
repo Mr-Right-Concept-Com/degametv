@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
+import type { Tables } from '@/integrations/supabase/types';
 import { Tag, Loader2, Plus, Trash2, Power } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -24,19 +25,7 @@ const promoSchema = z.object({
   valid_until: z.string().nullable(),
 });
 
-interface PromoCode {
-  id: string;
-  code: string;
-  discount_type: string;
-  discount_value: number;
-  max_uses: number | null;
-  current_uses: number;
-  is_active: boolean;
-  valid_from: string | null;
-  valid_until: string | null;
-  created_at: string;
-}
-
+type PromoCode = Tables<'promo_codes'>;
 export default function PromoCodesPage() {
   const [codes, setCodes] = useState<PromoCode[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,14 +42,15 @@ export default function PromoCodesPage() {
     valid_until: '',
   });
 
-  const fetchCodes = async () => {
+  const fetchCodes = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('promo_codes').select('*').order('created_at', { ascending: false });
-    setCodes(data || []);
+    const { data, error } = await supabase.from('promo_codes').select('*').order('created_at', { ascending: false });
+    if (error) toast.error('Failed to load promo codes: ' + error.message);
+    else setCodes(data ?? []);
     setLoading(false);
-  };
+  }, []);
 
-  useEffect(() => { fetchCodes(); }, []);
+  useEffect(() => { void fetchCodes(); }, [fetchCodes]);
 
   const handleCreate = async () => {
     const parsed = promoSchema.safeParse({
@@ -92,7 +82,7 @@ export default function PromoCodesPage() {
       toast.success('Promo code created');
       setDialogOpen(false);
       setForm({ code: '', discount_type: 'percentage', discount_value: '', max_uses: '', valid_until: '' });
-      fetchCodes();
+      void fetchCodes();
     }
     setSaving(false);
   };
@@ -139,7 +129,7 @@ export default function PromoCodesPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Type</Label>
-                  <Select value={form.discount_type} onValueChange={v => setForm(f => ({ ...f, discount_type: v as any }))}>
+                  <Select value={form.discount_type} onValueChange={v => { if (v === 'percentage' || v === 'fixed') setForm(f => ({ ...f, discount_type: v })); }}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="percentage">Percentage (%)</SelectItem>
