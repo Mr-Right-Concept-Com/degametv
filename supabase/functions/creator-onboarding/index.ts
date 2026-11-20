@@ -5,9 +5,15 @@ const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.string
 const Apply=z.object({action:z.literal("apply"),entityType:z.enum(["INDIVIDUAL_CREATOR","STUDIO","PRODUCTION_COMPANY","BUSINESS"]),displayName:z.string().trim().min(2).max(180),legalName:z.string().trim().min(2).max(240),countryCode:z.string().regex(/^[A-Z]{2}$/),baseCurrency:z.string().regex(/^[A-Z]{3}$/),bio:z.string().trim().max(4000).optional(),rightsDeclaration:z.record(z.unknown()),identityVerificationId:z.string().uuid().optional(),businessVerificationId:z.string().uuid().optional(),taxIdentifier:z.string().trim().min(4).max(64).optional(),bankAccountNumber:z.string().trim().min(4).max(34).optional(),bankName:z.string().trim().min(2).max(180).optional(),bankCountry:z.string().regex(/^[A-Z]{2}$/).optional(),bankAccountName:z.string().trim().min(2).max(180).optional()}).strict();
 const Invite=z.object({action:z.literal("invite"),studioAccountId:z.string().uuid(),email:z.string().email().max(254).optional(),userId:z.string().uuid().optional(),role:z.enum(["ADMIN","PRODUCER","BROADCASTER","FINANCE_VIEWER","MODERATOR"])}).strict().refine(v=>Boolean(v.email)!==Boolean(v.userId));
 const InvitationAction=z.discriminatedUnion("action",[
+ z.object({action:z.literal("list_invitations")}).strict(),
+ z.object({action:z.literal("list_team"),studioAccountId:z.string().uuid()}).strict(),
  z.object({action:z.literal("accept_invitation"),token:z.string().min(20).max(200)}).strict(),
+ z.object({action:z.literal("accept_invitation"),invitationId:z.string().uuid()}).strict(),
  z.object({action:z.literal("reject_invitation"),token:z.string().min(20).max(200)}).strict(),
+ z.object({action:z.literal("reject_invitation"),invitationId:z.string().uuid()}).strict(),
  z.object({action:z.literal("revoke_invitation"),invitationId:z.string().uuid()}).strict(),
+ z.object({action:z.literal("update_member_role"),membershipId:z.string().uuid(),role:z.enum(["ADMIN","PRODUCER","BROADCASTER","FINANCE_VIEWER","MODERATOR"])}).strict(),
+ z.object({action:z.literal("revoke_member"),membershipId:z.string().uuid()}).strict(),
  z.object({action:z.literal("submit_appeal"),caseId:z.string().uuid(),reason:z.string().trim().min(20).max(4000)}).strict(),
 ]);
 const hash=async(v:string)=>[...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v)))].map(x=>x.toString(16).padStart(2,"0")).join("");
@@ -24,9 +30,45 @@ Deno.serve(async req=>{
  const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
  if(x.success){
   const p=x.data;
+  if(p.action==="list_invitations"){
+   const {data,error}=await db.from("studio_invitations").select("id,studio_account_id,email,role,expires_at").eq("email",String(user.email??"").toLowerCase()).is("accepted_at",null).is("revoked_at",null).gt("expires_at",new Date().toISOString()).order("created_at",{ascending:false}).limit(50);
+   return error?json(503,{error:"Pending invitations could not be loaded."}):json(200,{success:true,invitations:data??[]});
+  }
+  if(p.action==="list_team"||p.action==="update_member_role"||p.action==="revoke_member"){
+   const studioAccountId=p.action==="list_team"?p.studioAccountId:undefined;
+   let membershipQuery=db.from("studio_memberships").select("id,studio_account_id,user_id,role,accepted_at,revoked_at");
+   if(p.action!=="list_team")membershipQuery=membershipQuery.eq("id",p.membershipId);
+   const {data:membershipRows}=await membershipQuery;
+   const target=p.action==="list_team"?null:membershipRows?.[0];
+   const targetStudio=studioAccountId??target?.studio_account_id;
+   if(!targetStudio)return json(404,{error:"Studio membership not found."});
+   const {data:studio}=await db.from("studio_accounts").select("id,user_id").eq("id",targetStudio).maybeSingle();
+   const {data:actorMembership}=await db.from("studio_memberships").select("role").eq("studio_account_id",targetStudio).eq("user_id",user.id).is("revoked_at",null).not("accepted_at","is",null).maybeSingle();
+   if(studio?.user_id!==user.id&&![ "OWNER","ADMIN" ].includes(actorMembership?.role))return json(403,{error:"Studio owner or administrator permission is required."});
+   if(p.action==="list_team"){
+    const [{data:members,error:membersError},{data:invitations,error:invitationError}]=await Promise.all([
+     db.from("studio_memberships").select("id,user_id,role,accepted_at,revoked_at,created_at").eq("studio_account_id",targetStudio).is("revoked_at",null).not("accepted_at","is",null).order("created_at",{ascending:true}),
+     db.from("studio_invitations").select("id,email,role,expires_at,created_at").eq("studio_account_id",targetStudio).is("accepted_at",null).is("revoked_at",null).gt("expires_at",new Date().toISOString()).order("created_at",{ascending:false})
+    ]);
+    if(membersError||invitationError)return json(503,{error:"Studio team could not be loaded."});
+    return json(200,{success:true,members:members??[],invitations:invitations??[]});
+   }
+   if(!target||target.role==="OWNER")return json(409,{error:"The studio owner membership cannot be changed."});
+   if(p.action==="update_member_role"){
+    const {error}=await db.from("studio_memberships").update({role:p.role}).eq("id",target.id).eq("studio_account_id",targetStudio).is("revoked_at",null);
+    if(error)return json(503,{error:"Studio member role could not be updated."});
+    await db.from("audit_logs").insert({user_id:user.id,action:"studio.member.role_updated",entity_type:"studio_membership",entity_id:target.id,new_data:{role:p.role}});
+    return json(200,{success:true,status:"UPDATED",role:p.role});
+   }
+   const {error}=await db.from("studio_memberships").update({revoked_at:new Date().toISOString()}).eq("id",target.id).eq("studio_account_id",targetStudio).is("revoked_at",null);
+   if(error)return json(503,{error:"Studio membership could not be revoked."});
+   await db.from("audit_logs").insert({user_id:user.id,action:"studio.member.revoked",entity_type:"studio_membership",entity_id:target.id});
+   return json(200,{success:true,status:"REVOKED"});
+  }
   if(p.action==="accept_invitation"||p.action==="reject_invitation"){
-   const tokenHash=await hash(p.token);
-   const {data:inv,error}=await db.from("studio_invitations").select("id,studio_account_id,email,invited_user_id,role,invited_by,expires_at,accepted_at,revoked_at").eq("token_hash",tokenHash).maybeSingle();
+   let invitationQuery=db.from("studio_invitations").select("id,studio_account_id,email,invited_user_id,role,invited_by,expires_at,accepted_at,revoked_at");
+   if("token" in p)invitationQuery=invitationQuery.eq("token_hash",await hash(p.token));else invitationQuery=invitationQuery.eq("id",p.invitationId);
+   const {data:inv,error}=await invitationQuery.maybeSingle();
    if(error||!inv||inv.revoked_at||inv.accepted_at||Date.parse(inv.expires_at)<Date.now())return json(404,{error:"Invitation is invalid, expired, or already used."});
    if(inv.invited_user_id&&inv.invited_user_id!==user.id)return json(403,{error:"This invitation belongs to another account."});
    if(inv.email.toLowerCase()!==String(user.email??"").toLowerCase())return json(403,{error:"Sign in using the invited email address."});
