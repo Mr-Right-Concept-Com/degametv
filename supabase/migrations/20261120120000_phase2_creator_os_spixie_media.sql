@@ -510,32 +510,3 @@ revoke all on function public.store_creator_vault_material(uuid,text,text) from 
 grant execute on function public.store_creator_vault_material(uuid,text,text) to service_role;
 
 commit;
- then
-      raise exception 'invalid_bank_account_number' using errcode='22023';
-    end if;
-    v_bank_suffix:=right(regexp_replace(btrim(p_bank_account_number),'[^A-Za-z0-9]','','g'),4);
-    v_bank_ref:=vault.create_secret(btrim(p_bank_account_number),'creator-payout-'||p_user_id::text||'-'||gen_random_uuid()::text,'Creator payout account',null);
-  end if;
-  if nullif(btrim(coalesce(p_tax_identifier,'')),'') is not null then
-    if length(btrim(p_tax_identifier)) not between 4 and 64 then
-      raise exception 'invalid_tax_identifier' using errcode='22023';
-    end if;
-    v_tax_suffix:=right(regexp_replace(btrim(p_tax_identifier),'[^A-Za-z0-9]','','g'),4);
-    v_tax_ref:=vault.create_secret(btrim(p_tax_identifier),'creator-tax-'||p_user_id::text||'-'||gen_random_uuid()::text,'Creator tax identifier',null);
-  end if;
-  update public.studio_accounts set
-    payout_bank_secret_ref=coalesce(v_bank_ref,payout_bank_secret_ref),
-    payout_bank_suffix=coalesce(v_bank_suffix,payout_bank_suffix),
-    tax_secret_ref=coalesce(v_tax_ref,tax_secret_ref),
-    tax_identifier_suffix=coalesce(v_tax_suffix,tax_identifier_suffix),
-    updated_at=now()
-  where user_id=p_user_id;
-  if not found then raise exception 'studio_account_not_found' using errcode='P0002'; end if;
-  return jsonb_build_object('bank_masked_suffix',case when v_bank_suffix is null then null else '****'||v_bank_suffix end,
-    'tax_masked_suffix',case when v_tax_suffix is null then null else '****'||v_tax_suffix end,
-    'bank_stored',v_bank_ref is not null,'tax_stored',v_tax_ref is not null);
-end $$;
-revoke all on function public.store_creator_vault_material(uuid,text,text) from public,anon,authenticated;
-grant execute on function public.store_creator_vault_material(uuid,text,text) to service_role;
-
-commit;
