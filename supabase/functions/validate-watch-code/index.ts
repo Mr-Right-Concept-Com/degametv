@@ -31,8 +31,7 @@ if(import.meta.main)serve(async(req:Request)=>{
 
   if(ticket.refunded_at)return json(403,{success:false,error:"This ticket has been refunded."});
   if(!ticket.expires_at||new Date(ticket.expires_at).getTime()<=Date.now())return json(403,{success:false,error:"This ticket has expired."});
-  const screeningValue:unknown=ticket.screening;
-  const s=Array.isArray(screeningValue)?screeningValue[0]:screeningValue;
+  const s:unknown=ticket.screening;
   if(!isRecord(s)||s.status!=="published"||(typeof s.lifecycle==="string"&&["cancelled","archived"].includes(s.lifecycle)))return json(410,{success:false,error:"This screening is no longer available."});
   if(country){
    if(isStringArray(s.blocked_countries)&&s.blocked_countries.includes(country))return json(451,{success:false,error:"This screening is not available in your territory."});
