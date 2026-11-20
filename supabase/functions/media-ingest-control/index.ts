@@ -144,10 +144,10 @@ Deno.serve(async req=>{
  if(Date.parse(session.expires_at)<Date.now()&&session.status!=="READY")return json(410,{error:"Upload session expired."});
  if(p.action==="recover"){
   if(["QUARANTINED","SCANNING","PROMOTING","TRANSCODING","READY","FAILED","CANCELLED","DEAD_LETTER"].includes(session.status)){
-   return json(200,{sessionId:session.id,status:session.status,receivedSizeBytes:session.received_size_bytes,expectedSizeBytes:session.expected_size_bytes,partSizeBytes:session.chunk_size_bytes,parts:session.chunk_manifest??[],expiresAt:session.expires_at});
+   return json(200,{sessionId:session.id,status:session.status,receivedSizeBytes:Number(session.received_size_bytes),expectedSizeBytes:Number(session.expected_size_bytes),partSizeBytes:Number(session.chunk_size_bytes),originalFilename:session.original_filename,parts:session.chunk_manifest??[],expiresAt:session.expires_at});
   }
   if(!session.storage_upload_id)return json(409,{error:"No active multipart storage session exists."});
-  try{const storage=await getStorage(db),parts=await listMultipartParts(storage,session.object_path,session.storage_upload_id);return json(200,{sessionId:session.id,status:session.status,receivedSizeBytes:session.received_size_bytes,expectedSizeBytes:session.expected_size_bytes,partSizeBytes:session.chunk_size_bytes,parts,expiresAt:session.expires_at});}catch(e){return json(503,{error:e instanceof Error?e.message:"Multipart recovery failed."});}
+  try{const storage=await getStorage(db),parts=await listMultipartParts(storage,session.object_path,session.storage_upload_id);return json(200,{sessionId:session.id,status:session.status,receivedSizeBytes:Number(session.received_size_bytes),expectedSizeBytes:Number(session.expected_size_bytes),partSizeBytes:Number(session.chunk_size_bytes),originalFilename:session.original_filename,parts,expiresAt:session.expires_at});}catch(e){return json(503,{error:e instanceof Error?e.message:"Multipart recovery failed."});}
  }
  if(p.action==="attach_content"){
   const {data:content,error:contentError}=await db.from("content").select("id,metadata").eq("id",p.contentId).eq("creator_id",user.id).maybeSingle();
