@@ -60,8 +60,9 @@ Deno.serve(async req => {
   const parsed=schema.safeParse(await req.json().catch(()=>null));
   if(!parsed.success)return json({error:"Invalid provider control request.",details:parsed.error.flatten()},400);
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
-  const {data:isAdmin,error:roleError}=await admin.rpc("is_super_admin",{_user_id:user.id});
-  if(roleError||!isAdmin)return json({error:"Super administrator access required."},403);
+  const {data:adminRole,error:roleError}=await admin.from("user_roles").select("user_id")
+    .eq("user_id",user.id).eq("role","super_admin").maybeSingle();
+  if(roleError||!adminRole)return json({error:"Super administrator access required."},403);
   const p=parsed.data;
   if(p.action==="configure"&&p.enabled){
     const endpoint=(key:string)=>typeof p.endpoints[key]==="string"&&(p.endpoints[key] as string).startsWith("/")&&!(p.endpoints[key] as string).startsWith("//");
