@@ -622,7 +622,7 @@ export default function StudioSubmit() {
                     {aiSuggestion&&<span className="text-xs text-muted-foreground">AI suggestion inserted for your review; it is not a rights or policy certification.</span>}
                   </div>}
                 </div>
-                {!liveFlow && form.preset_type === 'MUSIC_VIDEO' && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <details className={liveFlow ? 'hidden' : 'rounded-xl border p-4'}><summary className="cursor-pointer font-medium">Advanced Metadata</summary><div className="mt-4 space-y-4">\n                {!liveFlow && form.preset_type === 'MUSIC_VIDEO' && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>Primary artist</Label><Input value={form.primary_artist} onChange={e=>setForm(f=>({...f,primary_artist:e.target.value}))} placeholder="Artist name"/></div>
                   <div className="space-y-2"><Label>Featured artists</Label><Input value={form.featured_artists} onChange={e=>setForm(f=>({...f,featured_artists:e.target.value}))} placeholder="Optional"/></div>
                   <div className="space-y-2"><Label>Music genre</Label><Input value={form.music_genre} onChange={e=>setForm(f=>({...f,music_genre:e.target.value}))} placeholder="Afrobeats, Gospel, Hip-hop…"/></div>
@@ -673,6 +673,7 @@ export default function StudioSubmit() {
                   <Label>Cast & Crew</Label>
                   <Textarea value={form.cast_crew_text} onChange={e => setForm(f => ({ ...f, cast_crew_text: e.target.value }))} rows={3} placeholder={'Name — Role, one person per line'} />
                 </div>}
+                </div></details>
                 <div className="flex gap-3">
                   <Button type="button" className="flex-1 rounded-full" onClick={() => { if (validateStep2()) setStep(3); }}>
                     {liveFlow ? 'Continue to event setup' : 'Next'} <ArrowRight className="w-4 h-4 ml-2" />
@@ -739,22 +740,18 @@ export default function StudioSubmit() {
                   <Input value={form.screener_url} onChange={e => setForm(f => ({ ...f, screener_url: e.target.value }))} placeholder="https://vimeo.com/..." />
                   {errors.screener_url && <p className="text-xs text-destructive">{errors.screener_url}</p>}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Budget Range</Label>
-                    <Select value={form.budget_range} onValueChange={v => setForm(f => ({ ...f, budget_range: v }))}>
-                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>{BUDGET_RANGES.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Rights Declaration <span className="text-destructive">*</span></Label>
-                    <Select value={form.distribution_rights} onValueChange={v => setForm(f => ({ ...f, distribution_rights: v }))}>
-                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>{RIGHTS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-2">
+                  <Label>Budget Range</Label>
+                  <Select value={form.budget_range} onValueChange={v => setForm(f => ({ ...f, budget_range: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                    <SelectContent>{BUDGET_RANGES.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
+                  </Select>
                 </div>
+                <details className="rounded-xl border p-4"><summary className="cursor-pointer font-medium">Rights, Territories & Prior Screenings</summary><div className="mt-4 space-y-3">
+                  <div className="space-y-2"><Label>Rights Declaration <span className="text-destructive">*</span></Label><Select value={form.distribution_rights} onValueChange={v => setForm(f => ({ ...f, distribution_rights: v }))}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{RIGHTS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Rights Territories</Label><Input value={form.rights_territories} onChange={e => setForm(f => ({ ...f, rights_territories: e.target.value }))} placeholder="NG, GH, GB, US or leave blank for worldwide rights" /></div>
+                  <div className="space-y-2"><Label>Prior Screenings</Label><Textarea value={form.prior_screenings} onChange={e => setForm(f => ({ ...f, prior_screenings: e.target.value }))} rows={2} placeholder="Festivals, cinemas, or previous digital releases" /></div>
+                </div></details>
                 {form.project_type === 'live' && <div className="space-y-4 rounded-xl border p-4">
                   <label className="flex items-start gap-3 text-sm">
                     <input type="checkbox" checked={form.auto_convert_to_vod} onChange={e=>setForm(f=>({...f,auto_convert_to_vod:e.target.checked}))} className="mt-1"/>
@@ -790,11 +787,7 @@ export default function StudioSubmit() {
                   </div>}
                   {(form.project_type !== 'live' || form.admission_model === 'TICKETED') && <div className="space-y-2"><Label>Admission price ({creatorBaseCurrency || "base currency"})</Label><Input inputMode="decimal" required value={form.base_price} onChange={e => setForm(f => ({ ...f, base_price: e.target.value }))} placeholder="Enter ticket price"/>{errors.base_price && <p className="text-xs text-destructive">{errors.base_price}</p>}<p className="text-xs text-muted-foreground">Viewers see an automatically converted price in their supported local currency. Your creator price remains in the platform base currency.</p></div>}
                 </div> : null}
-                <div className="space-y-2"><Label>Rights Territories</Label><Input value={form.rights_territories} onChange={e => setForm(f => ({ ...f, rights_territories: e.target.value }))} placeholder="NG, GH, GB, US" /></div>
-                <div className="space-y-2">
-                  <Label>Prior Screenings</Label>
-                  <Textarea value={form.prior_screenings} onChange={e => setForm(f => ({ ...f, prior_screenings: e.target.value }))} rows={2} placeholder="Festivals, cinemas, or previous digital releases" />
-                </div>
+
                 <div className="flex gap-3">
                   <Button type="button" variant="outline" className="flex-1 rounded-full" onClick={() => setStep(2)}>Back</Button>
                   <Button type="submit" className="flex-1 rounded-full" disabled={submitting}>
