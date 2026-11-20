@@ -69,11 +69,8 @@ export function TenantProvider({ children }: { children: ReactNode }) {
           
           // If user has a tenant_id, fetch that tenant
           if (roleData.tenant_id) {
-            const { data: tenantData } = await supabase
-              .from('tenants')
-              .select('*')
-              .eq('id', roleData.tenant_id)
-              .maybeSingle();
+            const { data: tenantRows } = await (supabase as any).rpc('get_my_tenant_config');
+            const tenantData = Array.isArray(tenantRows) ? tenantRows[0] : tenantRows;
 
             if (tenantData) {
               setTenant({
