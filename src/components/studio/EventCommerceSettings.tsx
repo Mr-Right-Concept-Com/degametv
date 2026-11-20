@@ -13,7 +13,7 @@ type Settings={
  early_bird_capacity:number|null;event_visibility:"public"|"unlisted"|"private";invite_only:boolean;
  presale_enabled:boolean;settlement_hold_hours:number;
 };
-const localValue=(v:string|null)=>v?new Date(v).toISOString().slice(0,16):"";
+const localValue=(v:string|null)=>{if(!v)return "";const d=new Date(v);const pad=(n:number)=>String(n).padStart(2,"0");return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+"T"+pad(d.getHours())+":"+pad(d.getMinutes());};
 const isoValue=(v:string)=>v?new Date(v).toISOString():null;
 const defaults:Settings={screening_date:null,event_timezone:"UTC",sales_open_at:null,sales_close_at:null,early_bird_price:null,early_bird_currency:"NGN",early_bird_ends_at:null,early_bird_capacity:null,event_visibility:"public",invite_only:false,presale_enabled:true,settlement_hold_hours:48};
 
