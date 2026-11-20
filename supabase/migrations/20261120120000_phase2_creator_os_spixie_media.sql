@@ -22,6 +22,13 @@ do $$ begin
     ('INITIALIZED','UPLOADING','UPLOADED','QUARANTINED','SCANNING','PROMOTING','TRANSCODING','READY','RETRY_WAIT','DEAD_LETTER','CANCELLED','FAILED');
 exception when duplicate_object then null; end $$;
 
+-- Private buckets: quarantine objects are never public; playback is issued only through short-lived signed URLs.
+insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
+values
+ ('media-quarantine','media-quarantine',false,21474836480,array['video/mp4','video/quicktime','video/webm','audio/mpeg','audio/mp4','audio/wav','image/jpeg','image/png','image/webp','application/pdf']),
+ ('media-delivery','media-delivery',false,21474836480,array['video/mp4','application/vnd.apple.mpegurl','application/dash+xml','image/jpeg','image/png','text/vtt','application/x-subrip'])
+on conflict (id) do update set public=false,file_size_limit=excluded.file_size_limit,allowed_mime_types=excluded.allowed_mime_types;
+
 -- The approved studio account remains the creator identity. Base currency is write-once.
 alter table public.studio_accounts
   add column if not exists entity_type public.creator_entity_type not null default 'INDIVIDUAL_CREATOR',
