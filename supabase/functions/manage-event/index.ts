@@ -103,9 +103,9 @@ Deno.serve(async (req) => {
     if (streamLookupError) return json({ error: "Event stream state could not be reconciled; cancellation is pending.", refunded, pendingRefunds }, 503);
     if ((eventStreams || []).length > 0) {
       const { error: streamEndError } = await admin.from("live_streams")
-        .update({ status: "ended", actual_ended_at: now, actual_end: now, updated_at: now })
+        .update({ status: "cancelled", actual_ended_at: now, actual_end: now, updated_at: now })
         .in("id", eventStreams.map((stream: any) => stream.id))
-        .in("status", ["scheduled", "starting", "live"]);
+        .in("status", ["scheduled", "live"]);
       if (streamEndError) return json({ error: "The live stream could not be closed; cancellation is pending.", refunded, pendingRefunds }, 503);
     }
     const { error: cancelError } = await admin.from("screenings")
