@@ -34,8 +34,8 @@ const safeBaseUrl = (value:string):URL => {
   const url=new URL(value),host=url.hostname.toLowerCase();
   if(url.protocol!=="https:"||url.username||url.password||!host.includes(".")||
     host==="localhost"||host.endsWith(".localhost")||host.endsWith(".local")||host.endsWith(".internal")||
-    host.startsWith("[")||/^(127|10|0|224|240)\\./.test(host)||/^192\\.168\\./.test(host)||
-    /^169\\.254\\./.test(host)||/^172\\.(1[6-9]|2[0-9]|3[01])\\./.test(host)||/^100\\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\\./.test(host)) {
+    host.startsWith("[")||/^(127|10|0|224|240)\./.test(host)||/^192\.168\./.test(host)||
+    /^169\.254\./.test(host)||/^172\.(1[6-9]|2[0-9]|3[01])\./.test(host)||/^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\./.test(host)) {
     throw new Error("Provider base URL must be a public HTTPS origin.");
   }
   return url;
