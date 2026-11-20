@@ -115,14 +115,23 @@ Deno.serve(async req=>{
  if(p.action==="attach_content"){
   const {data:content,error:contentError}=await db.from("content").select("id,metadata").eq("id",p.contentId).eq("creator_id",user.id).maybeSingle();
   if(contentError||!content)return json(404,{error:"Production not found or not owned by this creator."});
-  const {data:job,error:jobError}=await db.from("media_processing_jobs").select("id,status,quarantine_path,sha256").eq("upload_session_id",session.id).maybeSingle();
+  const {data:job,error:jobError}=await db.from("media_processing_jobs").select("id,status,quarantine_path,clean_master_path,sha256,renditions,subtitles").eq("upload_session_id",session.id).maybeSingle();
   if(jobError||!job||!["QUARANTINED","SCANNING","PROMOTING","TRANSCODING","READY","RETRY_WAIT"].includes(job.status))return json(409,{error:"This upload has not completed multipart ingestion."});
   const {error:sessionUpdate}=await db.from("media_upload_sessions").update({content_id:content.id,updated_at:new Date().toISOString()}).eq("id",session.id).eq("owner_id",user.id);
   if(sessionUpdate)return json(503,{error:"Upload could not be linked to this production."});
   const {error:jobUpdate}=await db.from("media_processing_jobs").update({content_id:content.id,updated_at:new Date().toISOString()}).eq("id",job.id);
   if(jobUpdate)return json(503,{error:"Media job could not be linked to this production."});
-  const metadata={...(content.metadata??{}),media_ingestion:{status:job.status,job_id:job.id,master_object_path:session.object_path,sha256:job.sha256}};
-  const {error:contentUpdate}=await db.from("content").update({video_url:session.object_path,metadata}).eq("id",content.id).eq("creator_id",user.id);
+  const renditions=(job.renditions??[]) as Array<{path:string;kind:string}>;
+  const metadata={...(content.metadata??{}),media_ingestion:{status:job.status,job_id:job.id,master_object_path:job.clean_master_path??session.object_path,sha256:job.sha256}};
+  const playback=job.status==="READY"?{
+   video_url:job.clean_master_path,
+   hls_manifest_url:renditions.find(r=>r.kind==="hls")?.path??null,
+   dash_manifest_url:renditions.find(r=>r.kind==="dash")?.path??null,
+   poster_url:renditions.find(r=>r.kind==="thumbnail")?.path??undefined,
+   preview_url:renditions.find(r=>r.kind==="preview")?.path??null,
+   captions:job.subtitles??[],
+  }:{video_url:session.object_path};
+  const {error:contentUpdate}=await db.from("content").update({...playback,metadata}).eq("id",content.id).eq("creator_id",user.id);
   if(contentUpdate)return json(503,{error:"Production was found but its master asset link could not be saved."});
   return json(200,{success:true,contentId:content.id,jobId:job.id,status:job.status});
  }
