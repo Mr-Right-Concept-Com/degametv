@@ -5,7 +5,7 @@ const headers = { "Access-Control-Allow-Origin":"*", "Access-Control-Allow-Heade
 const object = z.record(z.string(),z.unknown());
 const Body = z.discriminatedUnion("action",[
   z.object({action:z.literal("release_list")}),
-  z.object({action:z.literal("release_probe"),releaseKey:z.string()}),
+  z.object({action:z.literal("release_probe"),releaseKey:z.string()}),\n  z.object({action:z.literal("release_probe_batch"),releaseKey:z.string(),samples:z.number().int().min(1).max(50)}),
   z.object({action:z.literal("release_save"),releaseKey:z.string().regex(/^[a-z][a-z0-9_.-]{1,100}$/),releaseVersion:z.string().min(1).max(80),config:object}),
   z.object({action:z.literal("release_transition"),releaseKey:z.string(),transition:z.enum(["validate","start_canary","set_traffic","approve","pause","rollback"]),trafficPercentage:z.number().int().min(1).max(99).optional(),reason:z.string().min(3).max(500)}),
   z.object({action:z.literal("ai_policy_list")}),
@@ -38,17 +38,29 @@ Deno.serve(async req=>{
   if(!parsed.success)return respond({error:"Invalid platform control request.",issues:parsed.error.flatten()},400);
   const p=parsed.data;
   try{
-    if(p.action==="release_probe"){
+    if(p.action==="release_probe"||p.action==="release_probe_batch"){
       const {data:rollout,error}=await admin.from("platform_release_rollouts").select("id,release_key,state,config").eq("release_key",p.releaseKey).single();
       if(error||!rollout)return respond({error:"Release was not found."},404);
       if(rollout.state!=="canary")return respond({error:"Only active canary releases can be probed."},409);
       let target:URL;try{target=safeHealthUrl(rollout.config?.health_check_url);}catch{return respond({error:"Release health endpoint must be a public HTTPS URL."},400);}
-      const started=performance.now();let success=false;let errorCode:string|null=null;
-      try{const probe=await fetch(target,{headers:{Accept:"application/json"},redirect:"manual",signal:AbortSignal.timeout(8000)});const body=await probe.json().catch(()=>null);success=probe.ok&&(body?.ok===true||body?.status===true);if(!success)errorCode="health_check_failed";}catch{errorCode="health_check_unreachable";}
-      const latency=Math.max(0,Math.round(performance.now()-started));
-      const {error:writeError}=await admin.from("platform_release_observations").insert({rollout_id:rollout.id,release_key:rollout.release_key,success,latency_ms:latency,error_code:errorCode});
-      if(writeError)return respond({error:"Health probe result could not be recorded."},503);
-      return respond({success,latencyMs:latency,errorCode,releaseKey:rollout.release_key});
+      const sampleCount=p.action==="release_probe_batch"?p.samples:1;
+      const observations:Array<{rollout_id:string;release_key:string;subject_bucket:string;success:boolean;latency_ms:number;error_code:string|null}>=[];
+      let cursor=0;
+      const probeWorker=async()=>{
+        while(true){
+          const index=cursor++;if(index>=sampleCount)return;
+          const started=performance.now();let success=false;let errorCode:string|null=null;
+          try{const probe=await fetch(target,{headers:{Accept:"application/json"},redirect:"manual",signal:AbortSignal.timeout(8000)});const body=await probe.json().catch(()=>null);success=probe.ok&&(body?.ok===true||body?.status===true);if(!success)errorCode="health_check_failed";}catch{errorCode="health_check_unreachable";}
+          observations[index]={rollout_id:rollout.id,release_key:rollout.release_key,subject_bucket:crypto.randomUUID(),success,latency_ms:Math.max(0,Math.round(performance.now()-started)),error_code:errorCode};
+        }
+      };
+      await Promise.all(Array.from({length:Math.min(5,sampleCount)},()=>probeWorker()));
+      const {error:writeError}=await admin.from("platform_release_observations").insert(observations);
+      if(writeError)return respond({error:"Health probe results could not be recorded."},503);
+      const latencies=observations.map(row=>row.latency_ms).sort((a,b)=>a-b);
+      const errorCount=observations.filter(row=>!row.success).length;
+      return respond({success:errorCount===0,samples:sampleCount,successfulSamples:sampleCount-errorCount,errorRate:errorCount/sampleCount,
+        p95LatencyMs:latencies[Math.min(latencies.length-1,Math.ceil(latencies.length*.95)-1)],releaseKey:rollout.release_key});
     }
     if(p.action==="release_list"){
       const {data,error}=await admin.from("platform_release_rollouts").select("*").order("updated_at",{ascending:false});
