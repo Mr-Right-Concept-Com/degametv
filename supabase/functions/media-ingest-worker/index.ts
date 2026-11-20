@@ -53,7 +53,7 @@ Deno.serve(async req=>{
  try{storage=storageConfig(await binding(db,"media_storage"));}catch(e){return json(503,{error:e instanceof Error?e.message:"Storage provider unavailable."});}
  if(body?.action==="transcode_callback"){
   const parsed=Callback.safeParse(body);if(!parsed.success)return json(400,{error:"Invalid transcoder callback."});const p=parsed.data;
-  const {data:job,error}=await db.from("media_processing_jobs").select("id,upload_session_id,content_id,status,attempts,max_attempts,clean_master_path").eq("id",p.jobId).maybeSingle();
+  const {data:job,error}=await db.from("media_processing_jobs").select("id,upload_session_id,content_id,status,attempts,max_attempts,clean_master_path,quarantine_path").eq("id",p.jobId).maybeSingle();
   if(error||!job||job.status!=="TRANSCODING")return json(404,{error:"Active transcode job not found."});
   if(p.status==="failed"){const attempts=Number(job.attempts??1),dead=attempts>=Number(job.max_attempts??8),delay=Math.min(3600,Math.pow(2,attempts)*15);const {error:updateError}=await db.from("media_processing_jobs").update({status:dead?"DEAD_LETTER":"RETRY_WAIT",available_at:new Date(Date.now()+delay*1000).toISOString(),dead_lettered_at:dead?new Date().toISOString():null,last_error:p.error??"transcode_failed",locked_at:null,locked_by:null,updated_at:new Date().toISOString()}).eq("id",job.id);return updateError?json(503,{error:"Transcode failure could not be persisted."}):json(200,{success:true,status:dead?"DEAD_LETTER":"RETRY_WAIT"});}
   if(!p.renditions.some(r=>r.kind==="hls")||!p.renditions.some(r=>r.kind==="dash")||!p.renditions.some(r=>r.kind==="thumbnail"))return json(422,{error:"HLS, DASH and thumbnail renditions are mandatory."});
