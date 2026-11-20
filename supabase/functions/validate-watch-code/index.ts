@@ -22,9 +22,10 @@ if(import.meta.main)serve(async(req:Request)=>{
   const country=(req.headers.get("cf-ipcountry")||"").toUpperCase().slice(0,2)||null;
   const {data:ticket,error}=await db.from("screening_tickets")
    .select("id,watch_code,email,payment_status,refunded_at,expires_at,screening_id,location,currency,price,stream_count,first_played_at,access_hours,screening:screenings(id,content_id,title,poster_url,status,lifecycle,allowed_countries,blocked_countries,max_streams_per_ticket,max_concurrent_streams)")
-   .eq("watch_code",watchCode).eq("email",email).maybeSingle();
+   .eq("watch_code",watchCode).maybeSingle();
   if(error)return json(503,{success:false,error:"Ticket validation could not be completed. Please retry."});
   if(!ticket||ticket.payment_status!=="completed")return json(404,{success:false,error:"Invalid or unpaid watch link."});
+  if(String(ticket.email||"").trim().toLowerCase()!==email)return json(403,{success:false,error:"Email does not match this ticket."});
 
   if(ticket.refunded_at)return json(403,{success:false,error:"This ticket has been refunded."});
   if(!ticket.expires_at||new Date(ticket.expires_at).getTime()<=Date.now())return json(403,{success:false,error:"This ticket has expired."});
