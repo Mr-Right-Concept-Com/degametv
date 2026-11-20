@@ -18,7 +18,8 @@ export function EventContribution({screeningId,liveStreamId,contentId,currency="
  const [selectedGift,setSelectedGift]=useState("");
  const [message,setMessage]=useState("");
  const [anonymous,setAnonymous]=useState(false);
- const [busy,setBusy]=useState(false);\n const idempotencyKey=useRef(crypto.randomUUID());
+ const [busy,setBusy]=useState(false);
+ const idempotencyKey=useRef(crypto.randomUUID());
  const [loadingGifts,setLoadingGifts]=useState(false);
  const targetCount=[screeningId,liveStreamId,contentId].filter(Boolean).length;
  const selected=useMemo(()=>giftItems.find(g=>g.gift_key===selectedGift),[giftItems,selectedGift]);
