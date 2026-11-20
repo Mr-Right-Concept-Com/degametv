@@ -203,11 +203,11 @@ Deno.serve(async req => {
         if (protocol !== "openai_compatible") throw new Error("Embedding adapter requires the openai_compatible protocol.");
         payload = {model,input:request.input};
       } else if (protocol === "anthropic_messages") {
-        payload = {model,max_tokens:policy.max_output_tokens,system:policy.system_policy,
+        payload = {model,max_tokens:policy.max_output_tokens,system:policy.system_policy+"\n\nNON-OVERRIDABLE PLATFORM SAFETY: You are advisory only. Never assert or decide payment, refund, chargeback, payout, bank, identity, KYC, KYB, age-verification, or account status. Never execute actions. State uncertainty and require authorized human review.",
           messages:[{role:"user",content:effectiveInput}]};
       } else if (protocol === "openai_compatible") {
         payload = {model,max_tokens:policy.max_output_tokens,
-          messages:[{role:"system",content:policy.system_policy+"\\n\\nNON-OVERRIDABLE PLATFORM SAFETY: You are advisory only. Never assert or decide payment, refund, chargeback, payout, bank, identity, KYC, KYB, age-verification, or account status. Never execute actions. State uncertainty and require authorized human review."},{role:"user",content:effectiveInput}]};
+          messages:[{role:"system",content:policy.system_policy+"\n\nNON-OVERRIDABLE PLATFORM SAFETY: You are advisory only. Never assert or decide payment, refund, chargeback, payout, bank, identity, KYC, KYB, age-verification, or account status. Never execute actions. State uncertainty and require authorized human review."},{role:"user",content:effectiveInput}]};
       } else {
         throw new Error("Provider protocol is not supported by the configured adapter.");
       }
