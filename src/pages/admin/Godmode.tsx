@@ -63,7 +63,7 @@ export default function Godmode() {
       supabase.from('audit_logs').select('id,user_id,action,entity_type,entity_id,created_at').order('created_at', { ascending: false }).limit(100),
       supabase.from('country_currency_rules').select('currency_code,currency_symbol').eq('enabled', true).order('currency_code'),
     ]);
-    const editableSettings = (s.data || []).filter(item => !['email_provider','currency_rates'].includes(item.setting_key));
+    const editableSettings = (s.data || []).filter(item => !['email_provider','currency_rates','escrow_hold_days'].includes(item.setting_key));
     setSettings(editableSettings);
     setDrafts(Object.fromEntries(editableSettings.map(x => [x.setting_key, JSON.stringify(x.setting_value, null, 2)])));
     setProfiles((p.data as Profile[]) || []);
