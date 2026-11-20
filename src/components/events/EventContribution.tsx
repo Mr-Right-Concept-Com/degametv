@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { Gift, Heart, Loader2, Sparkles } from "lucide-react";
 
 type GiftItem={id:string;gift_key:string;name:string;description:string|null;emoji:string|null;asset_url:string|null;animation_url:string|null;currency:string;amount_minor:number;animation_duration_ms:number};
-export function EventContribution({screeningId,liveStreamId,contentId,currency="NGN"}:{screeningId?:string;liveStreamId?:string;contentId?:string;currency?:string}){
+export function EventContribution({screeningId,liveStreamId,contentId,currency="NGN",overlay=false}:{screeningId?:string;liveStreamId?:string;contentId?:string;currency?:string;overlay?:boolean}){
  const {user}=useAuth();
  const [type,setType]=useState<"tip"|"gift">("tip");
  const [amount,setAmount]=useState("500");
@@ -47,7 +47,7 @@ export function EventContribution({screeningId,liveStreamId,contentId,currency="
  };
  if(targetCount!==1)return null;
  if(!user)return <div className="rounded-xl border border-border/70 p-4"><p className="text-sm font-medium">Support this creator</p><p className="mt-1 text-xs text-muted-foreground">Sign in to send a tip or digital gift.</p><Button asChild size="sm" className="mt-3"><Link to={"/auth?redirectTo="+encodeURIComponent(window.location.pathname)}>Sign in to support</Link></Button></div>;
- return <details className="rounded-xl border border-border/70 p-4">
+ return <details className={overlay ? "absolute bottom-3 left-3 z-40 w-[min(24rem,90%)] rounded-xl border border-white/20 bg-background/95 p-3 shadow-2xl backdrop-blur-md" : "rounded-xl border border-border/70 p-4"}>
   <summary className="flex cursor-pointer list-none items-center gap-2 font-medium"><Heart className="h-4 w-4 text-primary"/> Support this creator <Badge variant="secondary">Optional</Badge></summary>
   <div className="mt-4 grid gap-3 sm:grid-cols-2">
    <div className="space-y-1"><Label>Support type</Label><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={type} onChange={e=>setType(e.target.value as "tip"|"gift")}><option value="tip">Send a tip</option><option value="gift">Send a virtual gift</option></select></div>
