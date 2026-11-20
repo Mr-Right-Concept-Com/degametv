@@ -146,7 +146,10 @@ if (import.meta.main) serve(async (req: Request) => {
     if (orderError || !ticketId) return json(503, { success: false, error: "A secure ticket order could not be created. No charge was made." });
 
     const checkoutUrl = new URL(checkoutEndpoint, config.base_url);
-    if (checkoutUrl.origin !== new URL(config.base_url).origin) throw new Error("invalid_payment_endpoint");
+    if (checkoutUrl.origin !== new URL(config.base_url).origin) {
+      await admin.from("service_provider_bindings").update({health_status:"unhealthy",health_checked_at:new Date().toISOString(),health_error:"Checkout endpoint host mismatch."}).eq("capability","payments").eq("provider_key",config.provider_key);
+      throw new Error("invalid_payment_endpoint");
+    }
     const authHeader = typeof config.settings?.credential_header === "string" ? config.settings.credential_header : "Authorization";
     const authPrefix = typeof config.settings?.credential_prefix === "string" ? config.settings.credential_prefix : "Bearer ";
     const callback = new URL("/buy/" + encodeURIComponent(screening.slug), siteOrigin).toString();
@@ -195,6 +198,7 @@ if (import.meta.main) serve(async (req: Request) => {
       providerCheckoutId = typeof result.provider_checkout_id === "string" ? result.provider_checkout_id : null;
     }
     if (!response.ok || !providerCheckoutUrl) {
+      await admin.from("service_provider_bindings").update({health_status:"unhealthy",health_checked_at:new Date().toISOString(),health_error:"Checkout initialization failed."}).eq("capability","payments").eq("provider_key",config.provider_key);
       await admin.from("guest_payment_orders").update({ status: "failed" }).eq("provider_reference", reference);
       await admin.from("screening_tickets").update({ payment_status: "failed" }).eq("id", ticketId);
       return json(502, { success: false, error: "The payment provider could not start checkout. You have not been charged." });
@@ -202,7 +206,11 @@ if (import.meta.main) serve(async (req: Request) => {
     const returnedCheckout = new URL(providerCheckoutUrl);
     if (returnedCheckout.protocol !== "https:") throw new Error("invalid_checkout_url");
     const allowedCheckoutOrigins = Array.isArray(config.settings?.allowed_checkout_origins) ? config.settings.allowed_checkout_origins : [];
-    if (!allowedCheckoutOrigins.includes(returnedCheckout.origin)) throw new Error("untrusted_checkout_origin");
+    if (!allowedCheckoutOrigins.includes(returnedCheckout.origin)) {
+      await admin.from("service_provider_bindings").update({health_status:"unhealthy",health_checked_at:new Date().toISOString(),health_error:"Provider returned an untrusted checkout URL."}).eq("capability","payments").eq("provider_key",config.provider_key);
+      throw new Error("untrusted_checkout_origin");
+    }
+    await admin.from("service_provider_bindings").update({health_status:"healthy",health_checked_at:new Date().toISOString(),health_error:null}).eq("capability","payments").eq("provider_key",config.provider_key);
     await admin.from("guest_payment_orders").update({ checkout_url: returnedCheckout.toString(), provider_checkout_id: providerCheckoutId, app_origin: siteOrigin }).eq("provider_reference", reference);
     return json(200, { success: true, authorizationUrl: returnedCheckout.toString(), reference, screeningTitle: screening.title, amount: convertedMajor, currency, provider: config.provider_key });
   } catch {
