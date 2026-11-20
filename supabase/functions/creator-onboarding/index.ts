@@ -66,7 +66,7 @@ Deno.serve(async req=>{
   }
   if(p.action==="accept_invitation"||p.action==="reject_invitation"){
    let invitationQuery=db.from("studio_invitations").select("id,studio_account_id,email,invited_user_id,role,invited_by,expires_at,accepted_at,revoked_at");
-   if("token" in p)invitationQuery=invitationQuery.eq("token_hash",await hash(p.token));else invitationQuery=invitationQuery.eq("id",p.invitationId);
+   if(p.token)invitationQuery=invitationQuery.eq("token_hash",await hash(p.token));else if(p.invitationId)invitationQuery=invitationQuery.eq("id",p.invitationId);else return json(400,{error:"Invitation token or ID is required."});
    const {data:inv,error}=await invitationQuery.maybeSingle();
    if(error||!inv||inv.revoked_at||inv.accepted_at||Date.parse(inv.expires_at)<Date.now())return json(404,{error:"Invitation is invalid, expired, or already used."});
    if(inv.invited_user_id&&inv.invited_user_id!==user.id)return json(403,{error:"This invitation belongs to another account."});
