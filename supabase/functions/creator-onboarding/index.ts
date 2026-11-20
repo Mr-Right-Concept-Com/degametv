@@ -4,6 +4,12 @@ const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"au
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
 const Apply=z.object({action:z.literal("apply"),entityType:z.enum(["INDIVIDUAL_CREATOR","STUDIO","PRODUCTION_COMPANY","BUSINESS"]),displayName:z.string().trim().min(2).max(180),legalName:z.string().trim().min(2).max(240),countryCode:z.string().regex(/^[A-Z]{2}$/),baseCurrency:z.string().regex(/^[A-Z]{3}$/),bio:z.string().trim().max(4000).optional(),rightsDeclaration:z.record(z.unknown()),identityVerificationId:z.string().uuid().optional(),businessVerificationId:z.string().uuid().optional(),taxIdentifier:z.string().trim().min(4).max(64).optional(),bankAccountNumber:z.string().trim().min(4).max(34).optional(),bankName:z.string().trim().min(2).max(180).optional(),bankCountry:z.string().regex(/^[A-Z]{2}$/).optional(),bankAccountName:z.string().trim().min(2).max(180).optional()}).strict();
 const Invite=z.object({action:z.literal("invite"),studioAccountId:z.string().uuid(),email:z.string().email().max(254).optional(),userId:z.string().uuid().optional(),role:z.enum(["ADMIN","PRODUCER","BROADCASTER","FINANCE_VIEWER","MODERATOR"])}).strict().refine(v=>Boolean(v.email)!==Boolean(v.userId));
+const InvitationAction=z.discriminatedUnion("action",[
+ z.object({action:z.literal("accept_invitation"),token:z.string().min(20).max(200)}).strict(),
+ z.object({action:z.literal("reject_invitation"),token:z.string().min(20).max(200)}).strict(),
+ z.object({action:z.literal("revoke_invitation"),invitationId:z.string().uuid()}).strict(),
+ z.object({action:z.literal("submit_appeal"),caseId:z.string().uuid(),reason:z.string().trim().min(20).max(4000)}).strict(),
+]);
 const hash=async(v:string)=>[...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v)))].map(x=>x.toString(16).padStart(2,"0")).join("");
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
@@ -13,9 +19,48 @@ Deno.serve(async req=>{
  const caller=createClient(url,anon,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});
  const {data:{user},error:authError}=await caller.auth.getUser();
  if(authError||!user)return json(401,{error:"Your session is invalid."});
- const input=await req.json().catch(()=>null),a=Apply.safeParse(input),i=Invite.safeParse(input);
- if(!a.success&&!i.success)return json(400,{error:"Invalid creator onboarding request.",issues:a.error.flatten()});
+ const input=await req.json().catch(()=>null),a=Apply.safeParse(input),i=Invite.safeParse(input),x=InvitationAction.safeParse(input);
+ if(!a.success&&!i.success&&!x.success)return json(400,{error:"Invalid creator onboarding request.",issues:a.error.flatten()});
  const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
+ if(x.success){
+  const p=x.data;
+  if(p.action==="accept_invitation"||p.action==="reject_invitation"){
+   const tokenHash=await hash(p.token);
+   const {data:inv,error}=await db.from("studio_invitations").select("id,studio_account_id,email,invited_user_id,role,expires_at,accepted_at,revoked_at").eq("token_hash",tokenHash).maybeSingle();
+   if(error||!inv||inv.revoked_at||inv.accepted_at||Date.parse(inv.expires_at)<Date.now())return json(404,{error:"Invitation is invalid, expired, or already used."});
+   if(inv.invited_user_id&&inv.invited_user_id!==user.id)return json(403,{error:"This invitation belongs to another account."});
+   if(inv.email.toLowerCase()!==String(user.email??"").toLowerCase())return json(403,{error:"Sign in using the invited email address."});
+   if(p.action==="reject_invitation"){
+    const {error:updateError}=await db.from("studio_invitations").update({revoked_at:new Date().toISOString()}).eq("id",inv.id).is("accepted_at",null).is("revoked_at",null);
+    return updateError?json(503,{error:"Invitation could not be declined."}):json(200,{success:true,status:"DECLINED"});
+   }
+   const now=new Date().toISOString();
+   const {error:memberError}=await db.from("studio_memberships").upsert({studio_account_id:inv.studio_account_id,user_id:user.id,role:inv.role,invited_by:null,accepted_at:now,revoked_at:null},{onConflict:"studio_account_id,user_id"});
+   if(memberError)return json(503,{error:"Studio membership could not be created."});
+   const {error:updateError}=await db.from("studio_invitations").update({invited_user_id:user.id,accepted_at:now}).eq("id",inv.id).is("accepted_at",null).is("revoked_at",null);
+   if(updateError){await db.from("studio_memberships").update({revoked_at:now}).eq("studio_account_id",inv.studio_account_id).eq("user_id",user.id);return json(503,{error:"Invitation acceptance could not be finalized."});}
+   return json(200,{success:true,status:"ACCEPTED",studioAccountId:inv.studio_account_id,role:inv.role});
+  }
+  if(p.action==="revoke_invitation"){
+   const {data:inv}=await db.from("studio_invitations").select("id,studio_account_id").eq("id",p.invitationId).is("accepted_at",null).is("revoked_at",null).maybeSingle();
+   if(!inv)return json(404,{error:"Pending invitation not found."});
+   const {data:studio}=await db.from("studio_accounts").select("user_id").eq("id",inv.studio_account_id).maybeSingle();
+   const {data:membership}=await db.from("studio_memberships").select("role").eq("studio_account_id",inv.studio_account_id).eq("user_id",user.id).is("revoked_at",null).not("accepted_at","is",null).maybeSingle();
+   if(studio?.user_id!==user.id&&!["OWNER","ADMIN"].includes(membership?.role))return json(403,{error:"Studio owner or administrator permission is required."});
+   const {error}=await db.from("studio_invitations").update({revoked_at:new Date().toISOString()}).eq("id",inv.id);
+   return error?json(503,{error:"Invitation could not be revoked."}):json(200,{success:true,status:"REVOKED"});
+  }
+  const {data:caseRow}=await db.from("creator_verification_cases").select("id,user_id,status").eq("id",p.caseId).eq("user_id",user.id).maybeSingle();
+  if(!caseRow||!["REJECTED","SUSPENDED"].includes(caseRow.status))return json(409,{error:"Only rejected or suspended creator cases can be appealed."});
+  const now=new Date().toISOString();
+  const {error:updateError}=await db.from("creator_verification_cases").update({status:"APPEAL_PENDING",appeal_reason:p.reason,updated_at:now}).eq("id",caseRow.id).eq("user_id",user.id);
+  if(updateError)return json(503,{error:"Appeal could not be submitted."});
+  const {error:studioError}=await db.from("studio_accounts").update({verification_status:"APPEAL_PENDING"}).eq("user_id",user.id);
+  if(studioError)return json(503,{error:"Appeal was saved but creator account status needs reconciliation."});
+  const {error:auditError}=await db.from("creator_verification_audit").insert({case_id:caseRow.id,actor_id:user.id,action:"appeal_submitted",from_status:caseRow.status,to_status:"APPEAL_PENDING",details:{reason:p.reason}});
+  if(auditError)return json(503,{error:"Appeal saved but audit append failed."});
+  return json(202,{success:true,status:"APPEAL_PENDING",caseId:caseRow.id});
+ }
  if(i.success){
   const p=i.data,{data:studio,error}=await db.from("studio_accounts").select("id,user_id,status").eq("id",p.studioAccountId).maybeSingle();
   if(error||!studio)return json(404,{error:"Studio account not found."});
