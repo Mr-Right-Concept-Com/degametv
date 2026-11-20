@@ -5,11 +5,23 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
+import type { Tables } from '@/integrations/supabase/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
 
 type WR = { id: string; user_id: string; amount: number; currency: string; bank_name: string; account_last4: string | null; account_name: string; bank_country: string | null; status: string; admin_note: string | null; created_at: string };
-type SA = { id: string; user_id: string; tier: string; status: string; company_name: string | null; cac_number: string | null; tax_id: string | null; seats: number; created_at: string };
+type SA = Pick<Tables<'studio_accounts'>, 'id' | 'user_id' | 'tier' | 'status' | 'company_name' | 'cac_number' | 'tax_id' | 'seats' | 'created_at'>;
+
+function isWithdrawalRow(value: unknown): value is WR {
+  if (typeof value !== 'object' || value === null) return false;
+  const row = value as Record<string, unknown>;
+  return typeof row.id === 'string' && typeof row.user_id === 'string'
+    && typeof row.amount === 'number' && typeof row.currency === 'string'
+    && typeof row.bank_name === 'string' && (typeof row.account_last4 === 'string' || row.account_last4 === null)
+    && typeof row.account_name === 'string' && (typeof row.bank_country === 'string' || row.bank_country === null)
+    && typeof row.status === 'string' && (typeof row.admin_note === 'string' || row.admin_note === null)
+    && typeof row.created_at === 'string';
+}
 
 export default function Payouts() {
   usePageTitle('Admin: Payouts & Studio Tiers');
@@ -23,8 +35,9 @@ export default function Payouts() {
     ]);
     if (w.error || w.data?.error) toast.error(w.error?.message || w.data?.error || 'Unable to load payout queue.');
     if (a.error) toast.error(a.error.message);
-    setWrs((w.data?.withdrawals as WR[]) || []);
-    setAccts((a.data as SA[]) || []);
+    const withdrawals: unknown = w.data && typeof w.data === 'object' && 'withdrawals' in w.data ? w.data.withdrawals : undefined;
+    setWrs(Array.isArray(withdrawals) ? withdrawals.filter(isWithdrawalRow) : []);
+    setAccts(a.data || []);
   };
   useEffect(() => { load(); }, []);
 
