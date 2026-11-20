@@ -15,6 +15,7 @@ const InvitationAction=z.discriminatedUnion("action",[
  z.object({action:z.literal("update_member_role"),membershipId:z.string().uuid(),role:z.enum(["ADMIN","PRODUCER","BROADCASTER","FINANCE_VIEWER","MODERATOR"])}).strict(),
  z.object({action:z.literal("revoke_member"),membershipId:z.string().uuid()}).strict(),
  z.object({action:z.literal("submit_appeal"),caseId:z.string().uuid(),reason:z.string().trim().min(20).max(4000)}).strict(),
+ z.object({action:z.literal("record_content_rights"),contentId:z.string().uuid(),declaration:z.object({rightsType:z.string().min(1).max(120),territories:z.array(z.string().regex(/^(WORLD|[A-Z]{2})$/)).max(250),contentFormat:z.string().min(1).max(40),attestedAt:z.string().datetime(),statement:z.string().trim().min(10).max(4000)}).strict()}).strict(),
 ]);
 const hash=async(v:string)=>[...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v)))].map(x=>x.toString(16).padStart(2,"0")).join("");
 Deno.serve(async req=>{
@@ -91,6 +92,19 @@ Deno.serve(async req=>{
    if(studio?.user_id!==user.id&&!["OWNER","ADMIN"].includes(membership?.role))return json(403,{error:"Studio owner or administrator permission is required."});
    const {error}=await db.from("studio_invitations").update({revoked_at:new Date().toISOString()}).eq("id",inv.id);
    return error?json(503,{error:"Invitation could not be revoked."}):json(200,{success:true,status:"REVOKED"});
+  }
+  if(p.action==="record_content_rights"){
+   const {data:content,error:contentError}=await db.from("content").select("id,creator_id,metadata").eq("id",p.contentId).eq("creator_id",user.id).maybeSingle();
+   if(contentError||!content)return json(404,{error:"Production not found or not owned by this creator."});
+   const {data:studio}=await db.from("studio_accounts").select("base_currency,status").eq("user_id",user.id).eq("status","approved").maybeSingle();
+   if(!studio?.base_currency)return json(403,{error:"An approved creator account with an immutable base currency is required."});
+   const declarationHash=await hash(JSON.stringify({rightsType:p.declaration.rightsType,territories:[...p.declaration.territories].sort(),contentFormat:p.declaration.contentFormat,attestedAt:p.declaration.attestedAt,statement:p.declaration.statement}));
+   const {error:insertError}=await db.from("content_rights_declarations").insert({content_id:content.id,creator_id:user.id,declaration:p.declaration,declaration_hash:declarationHash});
+   if(insertError)return json(409,{error:"Immutable rights declaration could not be recorded."});
+   const metadata={...(content.metadata??{}),creator_rights:p.declaration};
+   const {error:updateError}=await db.from("content").update({creator_base_currency:studio.base_currency,content_format:p.declaration.contentFormat,territory_rights:{territories:p.declaration.territories,rightsType:p.declaration.rightsType},rights_status:"DECLARED",metadata}).eq("id",content.id).eq("creator_id",user.id);
+   if(updateError)return json(503,{error:"Rights declaration was recorded but content metadata requires reconciliation."});
+   return json(200,{success:true,rightsStatus:"DECLARED",baseCurrency:studio.base_currency,declarationHash});
   }
   const {data:caseRow}=await db.from("creator_verification_cases").select("id,user_id,status").eq("id",p.caseId).eq("user_id",user.id).maybeSingle();
   if(!caseRow||!["REJECTED","SUSPENDED"].includes(caseRow.status))return json(409,{error:"Only rejected or suspended creator cases can be appealed."});
