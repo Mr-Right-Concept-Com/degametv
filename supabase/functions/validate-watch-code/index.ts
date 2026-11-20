@@ -38,7 +38,7 @@ if(import.meta.main)serve(async(req:Request)=>{
    const windowEnd=new Date(ticket.first_played_at).getTime()+Number(ticket.access_hours)*3600000;
    if(Date.now()>windowEnd)return json(403,{success:false,error:"Your viewing window has ended."});
   }
-  const maxStreams=Number(s.max_streams_per_ticket??5);
+  const configuredMaxStreams=Number(s.max_streams_per_ticket??5);\n  const maxStreams=configuredMaxStreams>0?configuredMaxStreams:null;
   return json(200,{success:true,ticket:{
    id:ticket.id,watchCode:ticket.watch_code,email:ticket.email,movieTitle:s.title,moviePoster:s.poster_url,
    expiresAt:ticket.expires_at,location:ticket.location,currency:ticket.currency||"NGN",price:ticket.price,
