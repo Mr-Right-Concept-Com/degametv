@@ -1,4 +1,5 @@
 import {useEffect,useState} from 'react';
+import {z} from 'zod';
 import {Link,useSearchParams} from 'react-router-dom';
 import {MainLayout} from '@/components/layout/MainLayout';
 import {Card,CardContent} from '@/components/ui/card';
@@ -8,20 +9,45 @@ import {supabase} from '@/integrations/supabase/client';
 import {useAuth} from '@/hooks/useAuth';
 import {CheckCircle,Clock,AlertCircle,Loader2,Ticket} from 'lucide-react';
 import {usePageTitle} from '@/hooks/usePageTitle';
+
+const paymentStatusResponseSchema=z.object({status:z.string(),email:z.string().email().optional()}).passthrough();
 export default function PaymentReturn(){
  usePageTitle('Payment confirmation');
  const [params]=useSearchParams();const reference=params.get('reference')||'';
  const {user}=useAuth();const [status,setStatus]=useState<'checking'|'pending'|'paid'|'failed'|'unknown'>('checking');const [email,setEmail]=useState('');
- useEffect(()=>{let active=true;let checks=0;let timer:ReturnType<typeof setTimeout>|undefined;
-  const check=async()=>{if(!/^DTV(?:L|G)?_[A-Za-z0-9]+$/.test(reference)){setStatus('unknown');return;}
-   const {data,error}=await supabase.functions.invoke('payment-status',{body:{reference}});
-   if(!active)return;
-   if(error||!data){setStatus('pending');}
-   else{setEmail(data.email||'');setStatus(data.status==='paid'?'paid':data.status==='failed'?'failed':'pending');}
+ useEffect(()=>{
+  let active=true;
+  let checks=0;
+  let timer:ReturnType<typeof setTimeout>|undefined;
+  const check=async()=>{
+   if(!/^DTV(?:L|G)?_[A-Za-z0-9]+$/.test(reference)||reference.length<20||reference.length>80){
+    if(active)setStatus('unknown');
+    return;
+   }
+   try{
+    const {data,error}=await supabase.functions.invoke('payment-status',{body:{reference}});
+    if(!active)return;
+    if(error||data===null||data===undefined){
+     setStatus('pending');
+    }else{
+     const payload:unknown=data;
+     const parsed=paymentStatusResponseSchema.safeParse(payload);
+     if(!parsed.success){
+      console.error('payment_status_invalid_response',parsed.error);
+      setStatus('pending');
+     }else{
+      setEmail(parsed.data.email??'');
+      setStatus(parsed.data.status==='paid'?'paid':parsed.data.status==='failed'?'failed':'pending');
+     }
+    }
+   }catch(error){
+    if(active){console.error('payment_status_check_failed',error);setStatus('pending');}
+   }
    checks+=1;
-   if(active&&checks<20&&data?.status!=='paid'&&data?.status!=='failed')timer=setTimeout(check,3000);
+   if(active&&checks<20)timer=setTimeout(()=>{void check();},3000);
   };
-  void check();return()=>{active=false;if(timer)clearTimeout(timer);};
+  void check();
+  return()=>{active=false;if(timer)clearTimeout(timer);};
  },[reference]);
  const live=reference.startsWith('DTVL_');
  const contribution=reference.startsWith('DTVG_');
