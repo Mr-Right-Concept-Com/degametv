@@ -8,7 +8,7 @@ import "./index.css";
   const parts = hostname.split('.');
   // Only trigger on production domains (e.g., sub.degametv.net)
   const productionTLDs = ['degametv.net', 'degametv.com'];
-  const isProductionDomain = productionTLDs.some(tld => hostname.endsWith(tld));
+  const isProductionDomain = productionTLDs.some(tld => hostname === tld || hostname.endsWith(`.${tld}`));
   if (!isProductionDomain) return; // Skip on preview/staging/localhost
 
   const reserved = ['www', 'app', 'admin', 'api', 'mail', 'smtp'];
@@ -23,4 +23,6 @@ import "./index.css";
   }
 })();
 
-createRoot(document.getElementById("root")!).render(<App />);
+const rootElement = document.getElementById("root");
+if (!rootElement) throw new Error('The application root element "#root" was not found.');
+createRoot(rootElement).render(<App />);
