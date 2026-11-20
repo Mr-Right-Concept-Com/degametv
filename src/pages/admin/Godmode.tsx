@@ -48,7 +48,7 @@ export default function Godmode() {
   const [banners, setBanners] = useState<Tables<'promo_banners'>[]>([]);
   const [nb, setNb] = useState({ title: '', subtitle: '', image_url: '', link_url: '', placement: 'home' });
   const [busy, setBusy] = useState<string | null>(null);
-  const [q, setQ] = useState('');
+  const [q, setQ] = useState('');\n  const [auditQ, setAuditQ] = useState('');
   const [adj, setAdj] = useState({ userId: '', amount: '', currency: 'USD', reason: '' });
   const [currencyOptions, setCurrencyOptions] = useState<{ currency_code: string; currency_symbol: string | null }[]>([]);
 
@@ -130,6 +130,17 @@ export default function Godmode() {
   const rolesOf = (id: string) => roles.filter(r => r.user_id === id).map(r => r.role);
   const nameOf = (id: string) => profiles.find(p => p.user_id === id)?.email || id.slice(0, 8);
   const filtered = profiles.filter(p => !q || (p.email || '').toLowerCase().includes(q.toLowerCase()) || (p.full_name || '').toLowerCase().includes(q.toLowerCase()));
+  const filteredAudit = audit.filter(row => !auditQ || [row.action,row.entity_type,row.entity_id,row.user_id].some(value => String(value ?? '').toLowerCase().includes(auditQ.toLowerCase())));
+  const exportAudit = () => {
+    const fields = ['created_at','action','entity_type','entity_id','user_id'];
+    const escape = (value: unknown) => '"' + String(value ?? '').replace(/"/g,'""') + '"';
+    const csv = [fields.join(','),...filteredAudit.map(row => fields.map(field => escape((row as Record<string,unknown>)[field])).join(','))].join('\\n');
+    const blob = new Blob([csv],{type:'text/csv;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href=url;anchor.download='degametv-audit-'+new Date().toISOString().slice(0,10)+'.csv';
+    anchor.click();URL.revokeObjectURL(url);
+  };
 
   return (
     <AdminLayout title="Godmode" description="Platform-wide control: settings, roles, wallets, tiers, events and audit trail">
@@ -298,10 +309,15 @@ export default function Godmode() {
           </div>
         </TabsContent>
 
-        <TabsContent value="audit" className="mt-4">
+        <TabsContent value="audit" className="mt-4 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Input value={auditQ} onChange={e=>setAuditQ(e.target.value)} placeholder="Search action, entity or actor" className="max-w-sm" aria-label="Search audit log"/>
+            <Button variant="outline" size="sm" onClick={exportAudit} disabled={!filteredAudit.length}>Export filtered CSV</Button>
+            <span className="text-xs text-muted-foreground">{filteredAudit.length} of {audit.length} loaded entries · newest 100</span>
+          </div>
           <Card><CardContent className="p-0 divide-y divide-border">
-            {audit.length === 0 && <p className="p-4 text-sm text-muted-foreground">No audit entries yet.</p>}
-            {audit.map(a => (
+            {filteredAudit.length === 0 && <p className="p-4 text-sm text-muted-foreground">No matching audit entries.</p>}
+            {filteredAudit.map(a => (
               <div key={a.id} className="p-3 text-xs flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span><span className="font-mono">{a.action}</span> by {a.user_id ? nameOf(a.user_id) : 'system'}</span>
                 <span className="text-muted-foreground">{new Date(a.created_at).toLocaleString()}</span>
