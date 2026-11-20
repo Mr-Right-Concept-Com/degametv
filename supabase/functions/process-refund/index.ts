@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
-const Body=z.object({ticketId:z.string().uuid(),reason:z.string().trim().min(3).max(500),requestedBy:z.string().uuid().optional()}).strict();
+const Body=z.object({ticketId:z.string().uuid().optional(),contributionId:z.string().uuid().optional(),reason:z.string().trim().min(3).max(500),requestedBy:z.string().uuid().optional()}).strict().refine(v=>Boolean(v.ticketId)!==Boolean(v.contributionId));
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS","Content-Type":"application/json","Cache-Control":"no-store"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:cors});
 Deno.serve(async(req)=>{
@@ -25,9 +25,17 @@ Deno.serve(async(req)=>{
   actorId=user.id;
  }
  try{
-  let ticket:any=null,liveTicket:any=null,order:any=null,liveOrder=false;
-  const screeningTicket=await admin.from("screening_tickets").select("id,screening_id,payment_status,refunded_at,price,currency").eq("id",parsed.data.ticketId).maybeSingle();
-  if(screeningTicket.data){
+  let ticket:any=null,liveTicket:any=null,contribution:any=null,order:any=null,liveOrder=false,contributionOrder=false;
+  if(parsed.data.contributionId){
+   const found=await admin.from("event_contributions").select("id,amount_minor,amount_major,currency,status,provider_key,provider_reference,provider_transaction_id,provider_mode,contribution_type").eq("id",parsed.data.contributionId).maybeSingle();
+   contribution=found.data;contributionOrder=true;
+   if(found.error||!contribution)return json({error:"Contribution not found."},404);
+   order={provider:contribution.provider_key,provider_mode:contribution.provider_mode,provider_reference:contribution.provider_reference,provider_transaction_id:contribution.provider_transaction_id,amount_minor:contribution.amount_minor,amount_major:contribution.amount_major,currency:contribution.currency,status:contribution.status};
+  }
+  const screeningTicket=contributionOrder?{data:null}:await admin.from("screening_tickets").select("id,screening_id,payment_status,refunded_at,price,currency").eq("id",parsed.data.ticketId).maybeSingle();
+  if(contributionOrder){
+   if(contribution.status!=="paid")return json({error:"Only paid contributions can be refunded."},409);
+  }else if(screeningTicket.data){
    ticket=screeningTicket.data;
    if(ticket.refunded_at||ticket.payment_status==="refunded")return json({error:"This ticket has already been refunded."},409);
    if(ticket.payment_status!=="completed")return json({error:"Only completed ticket payments can be refunded."},409);
@@ -65,7 +73,7 @@ Deno.serve(async(req)=>{
   if(existing?.status==="pending")refundId=existing.id;
   else{
    const {data:refund,error:refundError}=await admin.from("payment_refunds").insert({
-    ticket_id:ticket?.id??null,live_ticket_id:liveTicket?.id??null,payment_reference:order.provider_reference,
+    ticket_id:ticket?.id??null,live_ticket_id:liveTicket?.id??null,contribution_id:contribution?.id??null,payment_reference:order.provider_reference,
     provider:order.provider,provider_mode:order.provider_mode,amount_minor:order.amount_minor,currency:order.currency,
     reason:parsed.data.reason,requested_by:actorId,status:"pending",
    }).select("id").single();
@@ -80,10 +88,10 @@ Deno.serve(async(req)=>{
   if(target.origin!==new URL(binding.base_url).origin){await admin.from("payment_refunds").update({status:"failed",error_code:"refund_host_mismatch"}).eq("id",refundId);return json({error:"Refund endpoint host mismatch."},400);}
   const header=typeof binding.settings?.credential_header==="string"?binding.settings.credential_header:"Authorization";
   const prefix=typeof binding.settings?.credential_prefix==="string"?binding.settings.credential_prefix:"Bearer ";
-  const amountMajor=liveOrder?Number(order.amount_major??(Number(order.amount_minor)/100)):Number(ticket.price);
+  const amountMajor=contributionOrder?Number(contribution.amount_major??(Number(order.amount_minor)/100)):liveOrder?Number(order.amount_major??(Number(order.amount_minor)/100)):Number(ticket.price);
   let requestBody:Record<string,unknown>;
   if(adapter==="paystack")requestBody={transaction:transactionId,amount:order.amount_minor,customer_note:parsed.data.reason};
-  else if(adapter==="stripe")requestBody={payment_intent:transactionId,amount:order.amount_minor,reason:"requested_by_customer",metadata:{degame_ticket_id:parsed.data.ticketId,reason:parsed.data.reason}};
+  else if(adapter==="stripe")requestBody={payment_intent:transactionId,amount:order.amount_minor,reason:"requested_by_customer",metadata:{degame_ticket_id:parsed.data.ticketId??null,degame_contribution_id:parsed.data.contributionId??null,reason:parsed.data.reason}};
   else if(adapter==="flutterwave")requestBody={amount:amountMajor,reason:parsed.data.reason};
   else requestBody={reference:order.provider_reference,transaction_id:transactionId,amount_minor:order.amount_minor,currency:order.currency,reason:parsed.data.reason};
   const response=await fetch(target,{method:"POST",headers:{[header]:prefix+credential,"Content-Type":"application/json",Accept:"application/json","Idempotency-Key":refundId},body:JSON.stringify(requestBody),signal:AbortSignal.timeout(20000)}).catch(()=>null);
