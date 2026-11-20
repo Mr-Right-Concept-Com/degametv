@@ -63,7 +63,13 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 comment on column public.studio_accounts.tax_secret_ref is 'Vault secret reference only. Raw tax identifiers are never stored in public columns.';
 comment on column public.studio_accounts.payout_bank_secret_ref is 'Vault secret reference only. Browser roles cannot decrypt or retrieve payout account numbers.';
-revoke select (tax_secret_ref,payout_bank_secret_ref) on table public.studio_accounts from anon,authenticated;
+-- Remove table-wide browser grants before re-granting a safe, explicit projection.
+-- Legacy plaintext columns remain for backwards-compatible migrations but are never browser-readable or writable.
+revoke select,insert,update,delete on public.studio_accounts from anon,authenticated;
+grant select (id,user_id,tier,company_name,cac_number,cac_doc_path,bank_name,bank_account_name,rights_declared,seats,status,created_at,updated_at,review_notes,reviewed_by,reviewed_at,entity_type,country_code,base_currency,verification_status,rights_declaration,tax_country,tax_identifier_suffix,payout_bank_suffix,payout_bank_country,payout_bank_name,payout_account_name,verification_submitted_at,verification_reviewed_at,verification_reviewed_by,verification_reason)
+on public.studio_accounts to authenticated;
+revoke select (bank_account_number,tax_id,tax_secret_ref,payout_bank_secret_ref) on table public.studio_accounts from anon,authenticated;
+revoke update (bank_account_number,tax_id,tax_secret_ref,payout_bank_secret_ref) on table public.studio_accounts from anon,authenticated;
 comment on table public.studio_accounts is E'@graphql({"description":"Canonical creator/studio identity and verification state. Sensitive tax and payout values are Vault references only; private fields are not exposed to browser roles."})';
 
 create or replace function public.prevent_creator_base_currency_change()
@@ -210,7 +216,11 @@ alter table public.content
   add column if not exists territory_rights jsonb not null default '{}'::jsonb,
   add column if not exists rights_status text not null default 'DECLARED',
   add column if not exists rights_reviewed_at timestamptz,
-  add column if not exists lifecycle_updated_at timestamptz not null default now();
+  add column if not exists lifecycle_updated_at timestamptz not null default now(),
+  add column if not exists hls_manifest_url text,
+  add column if not exists dash_manifest_url text,
+  add column if not exists preview_url text,
+  add column if not exists captions jsonb not null default '[]'::jsonb;
 do $$ begin
   alter table public.content add constraint content_creator_base_currency_check
     check (creator_base_currency is null or creator_base_currency ~ '^[A-Z]{3}$');
@@ -289,6 +299,7 @@ create table if not exists public.media_upload_sessions (
   original_filename text not null,
   mime_type text not null,
   expected_size_bytes bigint not null check (expected_size_bytes>0),
+  chunk_size_bytes bigint not null default 16777216 check (chunk_size_bytes between 5242880 and 536870912),
   expected_sha256 text check (expected_sha256 is null or expected_sha256 ~ '^[a-f0-9]{64}$'),
   received_size_bytes bigint not null default 0 check (received_size_bytes>=0),
   storage_upload_id text,
