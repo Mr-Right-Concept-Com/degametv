@@ -70,7 +70,7 @@ Deno.serve(async req=>{
    const hostname=p.slug+".degametv.com";
    const {data:collision}=await db.from("release_domains").select("id").eq("hostname",hostname).neq("content_id",p.contentId).maybeSingle();
    if(collision)return json(409,{error:"This production slug is already reserved."});
-   const {data:domain,error:saveError}=await db.from("release_domains").upsert({tenant_id:content.tenant_id,content_id:content.id,subdomain:p.slug,hostname,domain_kind:"platform_subdomain",status:"active",verification_status:"ACTIVE",ssl_status:"managed",branding:p.branding??{},seo_metadata:p.seo??{},updated_at:new Date().toISOString()},{onConflict:"content_id"}).select("id,hostname,status,verification_status").single();
+   const {data:domain,error:saveError}=await db.from("release_domains").upsert({tenant_id:content.tenant_id,content_id:content.id,subdomain:p.slug,hostname,domain_kind:"platform_subdomain",status:"active",verification_status:"ACTIVE",ssl_status:"managed",branding:p.branding??{},seo_metadata:p.seo??{},updated_at:new Date().toISOString()},{onConflict:"content_id,domain_kind"}).select("id,hostname,status,verification_status").single();
    return saveError?json(409,{error:"Slug could not be reserved."}):json(200,{success:true,domain});
   }
   const host=p.hostname.toLowerCase().replace(/\.$/,"");
@@ -80,7 +80,7 @@ Deno.serve(async req=>{
   const dnsTarget=Deno.env.get("DEGAMETV_CUSTOM_DOMAIN_TARGET")??(typeof domainProvider?.settings?.cnameTarget==="string"?domainProvider.settings.cnameTarget:null);
   if(!dnsTarget)return json(503,{error:"Custom domain routing target is not configured in the domain_ssl provider binding."});
   const token=crypto.randomUUID()+"."+crypto.randomUUID(),tokenHash=await hash(token);
-  const {data:domain,error:saveError}=await db.from("release_domains").upsert({tenant_id:content.tenant_id,content_id:content.id,subdomain:content.slug,hostname:host,domain_kind:"custom_domain",status:"pending_dns",verification_status:"PENDING_DNS",verification_token_hash:tokenHash,dns_target:dnsTarget,ssl_status:"not_requested",updated_at:new Date().toISOString()},{onConflict:"content_id"}).select("id,hostname,verification_status,dns_target").single();
+  const {data:domain,error:saveError}=await db.from("release_domains").upsert({tenant_id:content.tenant_id,content_id:content.id,subdomain:content.slug,hostname:host,domain_kind:"custom_domain",status:"pending_dns",verification_status:"PENDING_DNS",verification_token_hash:tokenHash,dns_target:dnsTarget,ssl_status:"not_requested",updated_at:new Date().toISOString()},{onConflict:"content_id,domain_kind"}).select("id,hostname,verification_status,dns_target").single();
   if(saveError)return json(409,{error:"Custom domain could not be registered."});
   return json(201,{success:true,domain,verificationRecord:{type:"TXT",name:"_degametv-verification."+host,value:token},routingRecord:{type:"CNAME",name:host,value:domain.dns_target}});
  }
