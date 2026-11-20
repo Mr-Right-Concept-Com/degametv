@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { z } from 'zod';
 import { useParams, Link } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -7,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
+import { fetchCatalogRows } from '@/integrations/supabase/catalog';
 import { toast } from 'sonner';
 import {
   Star, Clock, Calendar, Play, Ticket, Bell, Send,
@@ -17,31 +19,23 @@ import { LifecycleBanner } from '@/components/cinema/LifecycleBanner';
 import { EventContribution } from '@/components/events/EventContribution';
 import { EventContributionFeed } from '@/components/events/EventContributionFeed';
 
-interface CastMember {
-  name: string;
-  character: string;
-  photo_url?: string;
-}
-
-interface Screening {
-  id: string;
-  title: string;
-  slug: string;
-  description: string;
-  poster_url: string;
-  banner_url: string;
-  trailer_url: string;
-  screening_date: string;
-  release_date: string;
-  duration: number;
-  location_pricing: { nigeria: number; international: number };
-  status: string;
-  cast_crew: CastMember[];
-  gallery_images: string[];
-  age_rating: string;
-  star_rating: number;
-  review_count: number;
-}
+const castMemberSchema = z.object({ name: z.string(), character: z.string().optional().default(''), photo_url: z.string().optional() }).passthrough();
+const screeningRowSchema = z.object({
+ id:z.string(), title:z.string(), slug:z.string(), description:z.string().nullable().optional(),
+ poster_url:z.string().nullable().optional(), banner_url:z.string().nullable().optional(), trailer_url:z.string().nullable().optional(),
+ screening_date:z.string().nullable().optional(), release_date:z.string().nullable().optional(), duration:z.number().nullable().optional(),
+ location_pricing:z.unknown().nullable().optional(), status:z.string(), cast_crew:z.unknown().nullable().optional(),
+ gallery_images:z.unknown().nullable().optional(), age_rating:z.string().nullable().optional(), star_rating:z.number().nullable().optional(),
+ review_count:z.number().nullable().optional(), lifecycle:z.string().nullable().optional(), replay_price_ngn:z.number().nullable().optional(),
+ replay_price_usd:z.number().nullable().optional(), replay_access_hours:z.number().nullable().optional(), base_currency:z.string().nullable().optional(),
+}).passthrough();
+type Screening = {
+ id:string; title:string; slug:string; description:string; poster_url:string; banner_url:string; trailer_url:string;
+ screening_date:string; release_date:string; duration:number; location_pricing:{nigeria:number;international:number};
+ status:string; cast_crew:z.infer<typeof castMemberSchema>[]; gallery_images:string[]; age_rating:string; star_rating:number;
+ review_count:number; lifecycle?:string; replay_price_ngn?:number|null; replay_price_usd?:number|null;
+ replay_access_hours?:number|null; base_currency?:string|null;
+};
 
 interface Comment {
   id: string;
@@ -62,84 +56,87 @@ export default function MovieLanding() {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [trailerOpen, setTrailerOpen] = useState(false);
 
+  const mountedRef = useRef(true);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+
   useEffect(() => {
-    const fetch = async () => {
-      // Subdomain resolution: e.g. `agabaidu.degametv.com` resolves to slug "agabaidu"
-      let resolvedSlug = slug;
-      if (!resolvedSlug && typeof window !== 'undefined') {
-        const host = window.location.hostname;
-        const parts = host.split('.');
-        const reserved = ['www', 'app', 'admin', 'studio', 'api', 'localhost', 'preview', 'lovable'];
-        if (parts.length >= 3 && !reserved.includes(parts[0])) resolvedSlug = parts[0];
-      }
-      if (!resolvedSlug) { setLoading(false); return; }
-      const { data } = await (supabase as any)
-        .from('public_screenings_catalog')
-        .select('id,content_id,title,slug,description,poster_url,banner_url,trailer_url,release_date,screening_date,duration,location_pricing,status,event_type,lifecycle,live_price_ngn,live_price_usd,base_price,base_currency,live_recording_status,live_started_at,live_ended_at,live_replay_ready_at,replay_price_ngn,replay_price_usd,replay_access_hours,refund_policy,cast_crew,gallery_images,age_rating,star_rating,review_count,allowed_countries,blocked_countries,cancelled_at,event_visibility,invite_only,sales_open_at,sales_close_at,early_bird_price,early_bird_currency,early_bird_ends_at,early_bird_capacity,release_access_at,event_timezone,presale_enabled,created_at,updated_at')
-        .eq('slug', resolvedSlug)
-        .maybeSingle();
-
-      if (data) {
-        const pricing = typeof data.location_pricing === 'string'
-          ? JSON.parse(data.location_pricing as string)
-          : data.location_pricing;
-        setScreening({
-          ...data,
-          location_pricing: pricing,
-          cast_crew: (data.cast_crew as unknown as CastMember[]) || [],
-          gallery_images: (data.gallery_images as string[]) || [],
-          age_rating: (data as any).age_rating || '',
-          star_rating: (data as any).star_rating || 0,
-          review_count: (data as any).review_count || 0,
-        } as Screening);
-
-        // Fetch comments
-        const { data: commentsData } = await supabase
-          .from('screening_comments')
-          .select('*')
-          .eq('screening_id', data.id)
-          .order('created_at', { ascending: false })
-          .limit(50);
-        if (commentsData) setComments(commentsData);
-      }
-      setLoading(false);
+    const controller = new AbortController();
+    let active = true;
+    const load = async () => {
+      try {
+        let resolvedSlug = slug;
+        if (!resolvedSlug && typeof window !== 'undefined') {
+          const parts = window.location.hostname.split('.');
+          const reserved = ['www', 'app', 'admin', 'studio', 'api', 'localhost', 'preview', 'lovable'];
+          if (parts.length >= 3 && !reserved.includes(parts[0])) resolvedSlug = parts[0];
+        }
+        if (!resolvedSlug) return;
+        const rows = await fetchCatalogRows({
+          view: 'public_screenings_catalog',
+          select: 'id,title,slug,description,poster_url,banner_url,trailer_url,release_date,screening_date,duration,location_pricing,status,lifecycle,replay_price_ngn,replay_price_usd,replay_access_hours,base_currency,cast_crew,gallery_images,age_rating,star_rating,review_count',
+          filters: { slug: `eq.${resolvedSlug}` }, signal: controller.signal,
+        }, screeningRowSchema);
+        const data = rows[0];
+        if (!data) return;
+        const parseJson = (value: unknown): unknown => {
+          if (typeof value !== 'string') return value;
+          try { return JSON.parse(value) as unknown; } catch { return null; }
+        };
+        const pricingValue = z.object({ nigeria: z.number().optional(), international: z.number().optional() }).passthrough().safeParse(parseJson(data.location_pricing));
+        const castValue = z.array(castMemberSchema).safeParse(parseJson(data.cast_crew));
+        const galleryValue = z.array(z.string().url()).safeParse(parseJson(data.gallery_images));
+        const normalized: Screening = {
+          id:data.id,title:data.title,slug:data.slug,description:data.description??'',poster_url:data.poster_url??'',
+          banner_url:data.banner_url??'',trailer_url:data.trailer_url??'',screening_date:data.screening_date??'',
+          release_date:data.release_date??'',duration:data.duration??0,
+          location_pricing:pricingValue.success?{nigeria:pricingValue.data.nigeria??0,international:pricingValue.data.international??0}:{nigeria:0,international:0},
+          status:data.status,cast_crew:castValue.success?castValue.data:[],gallery_images:galleryValue.success?galleryValue.data:[],
+          age_rating:data.age_rating??'',star_rating:data.star_rating??0,review_count:data.review_count??0,
+          lifecycle:data.lifecycle??undefined,replay_price_ngn:data.replay_price_ngn,replay_price_usd:data.replay_price_usd,
+          replay_access_hours:data.replay_access_hours,base_currency:data.base_currency,
+        };
+        if (!active) return;
+        setScreening(normalized);
+        const { data: commentsData, error: commentsError } = await supabase.from('screening_comments')
+          .select('id,nickname,comment,created_at').eq('screening_id', data.id)
+          .order('created_at', { ascending: false }).limit(50);
+        if (commentsError) console.error('screening_comments_load_failed', commentsError);
+        if (active && commentsData) setComments(commentsData);
+      } catch (error) {
+        if (active && !(error instanceof DOMException && error.name === 'AbortError')) {
+          console.error('movie_landing_load_failed', error);
+          toast.error('This screening could not be loaded.');
+        }
+      } finally { if (active) setLoading(false); }
     };
-    fetch();
+    void load();
+    return () => { active = false; controller.abort(); };
   }, [slug]);
 
   const handleSubmitComment = async () => {
     if (!screening || !newComment.nickname.trim() || !newComment.comment.trim()) return;
     setSubmittingComment(true);
-    const { error } = await supabase.from('screening_comments').insert({
-      screening_id: screening.id,
-      nickname: newComment.nickname.trim(),
-      comment: newComment.comment.trim(),
-    });
-    if (!error) {
-      setComments(prev => [{ id: crypto.randomUUID(), nickname: newComment.nickname, comment: newComment.comment, created_at: new Date().toISOString() }, ...prev]);
+    try {
+      const { error } = await supabase.from('screening_comments').insert({
+        screening_id: screening.id, nickname: newComment.nickname.trim(), comment: newComment.comment.trim(),
+      });
+      if (error) throw error;
+      if (!mountedRef.current) return;
+      setComments(prev => [{ id: crypto.randomUUID(), nickname: newComment.nickname.trim(), comment: newComment.comment.trim(), created_at: new Date().toISOString() }, ...prev]);
       setNewComment({ nickname: '', comment: '' });
       toast.success('Comment posted!');
-    } else {
-      toast.error('Failed to post comment');
-    }
-    setSubmittingComment(false);
+    } catch (error) { if (mountedRef.current) { console.error('screening_comment_submit_failed', error); toast.error('Failed to post comment'); } }
+    finally { if (mountedRef.current) setSubmittingComment(false); }
   };
 
   const handleNotifyMe = async () => {
     if (!screening || !notifyEmail.includes('@')) return;
-    const { error } = await supabase.from('screening_notifications').insert({
-      screening_id: screening.id,
-      email: notifyEmail.trim(),
-    });
-    if (!error) {
-      setNotifySubmitted(true);
-      toast.success("We'll notify you when it's available!");
-    } else if (error.code === '23505') {
-      toast.info("You're already subscribed!");
-      setNotifySubmitted(true);
-    } else {
-      toast.error('Something went wrong');
-    }
+    try {
+      const { error } = await supabase.from('screening_notifications').insert({ screening_id: screening.id, email: notifyEmail.trim() });
+      if (error?.code === '23505') { if (mountedRef.current) { toast.info("You're already subscribed!"); setNotifySubmitted(true); } return; }
+      if (error) throw error;
+      if (mountedRef.current) { setNotifySubmitted(true); toast.success("We'll notify you when it's available!"); }
+    } catch (error) { if (mountedRef.current) { console.error('screening_notification_submit_failed', error); toast.error('Something went wrong'); } }
   };
 
   if (loading) {
@@ -166,7 +163,7 @@ export default function MovieLanding() {
     );
   }
 
-  const lifecycle = (screening as any).lifecycle as string | undefined;
+  const lifecycle = screening.lifecycle;
   const isOnSale = lifecycle
     ? ['upcoming', 'live', 'replay'].includes(lifecycle)
     : screening.status === 'published';
@@ -274,15 +271,15 @@ export default function MovieLanding() {
       <LifecycleBanner
         screeningId={screening.id}
         slug={screening.slug}
-        lifecycle={(screening as any).lifecycle || 'upcoming'}
+        lifecycle={screening.lifecycle || 'upcoming'}
         screeningDate={screening.screening_date}
-        replayPriceNgn={(screening as any).replay_price_ngn}
-        replayPriceUsd={(screening as any).replay_price_usd}
-        replayAccessHours={(screening as any).replay_access_hours}
+        replayPriceNgn={screening.replay_price_ngn}
+        replayPriceUsd={screening.replay_price_usd}
+        replayAccessHours={screening.replay_access_hours}
       />
 
       <div className="container mx-auto px-4 py-8 space-y-12">
-        <EventContribution screeningId={screening.id} currency={(screening as any).base_currency || "NGN"} />
+        <EventContribution screeningId={screening.id} currency={screening.base_currency || "NGN"} />
         <EventContributionFeed screeningId={screening.id} />
         {/* Synopsis */}
         {screening.description && (
