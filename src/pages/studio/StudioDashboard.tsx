@@ -15,19 +15,20 @@ type ContentRow=Pick<Tables<'content'>,'id'|'title'|'type'|'status'|'created_at'
 type EventRow=Pick<Tables<'screenings'>,'id'|'title'|'screening_date'|'event_type'|'status'>;
 export default function StudioDashboard(){
  usePageTitle('Studio: Dashboard');const {user}=useAuth();
+ const userId=user?.id;
  const [items,setItems]=useState<ContentRow[]>([]);const [events,setEvents]=useState<EventRow[]>([]);
  const [earnings,setEarnings]=useState<Record<string,number>>({});const [loading,setLoading]=useState(true);
- useEffect(()=>{if(!user?.id){setLoading(false);return;}let active=true;
+ useEffect(()=>{if(!userId){setLoading(false);return;}let active=true;
   (async()=>{const [content,ledger]=await Promise.all([
-   supabase.from('content').select('id,title,type,status,created_at,view_count').eq('creator_id',user.id).order('created_at',{ascending:false}).limit(100),
-   supabase.from('wallet_ledger').select('net,currency').eq('user_id',user.id).eq('kind','sale')
+   supabase.from('content').select('id,title,type,status,created_at,view_count').eq('creator_id',userId).order('created_at',{ascending:false}).limit(100),
+   supabase.from('wallet_ledger').select('net,currency').eq('user_id',userId).eq('kind','sale')
   ]);
   if(!active)return;
   const titles=content.data ?? [];setItems(titles);
   const ids=titles.map(item=>item.id);
   if(ids.length){const {data:screenings}=await supabase.from('screenings').select('id,title,screening_date,event_type,status').in('content_id',ids).order('screening_date',{ascending:true}).limit(10);if(active)setEvents(screenings ?? []);}else setEvents([]);
   setEarnings((ledger.data||[]).reduce((a,row)=>{const currency=String(row.currency||'').toUpperCase();if(/^[A-Z]{3}$/.test(currency))a[currency]=(a[currency]||0)+(Number(row.net)||0);return a;},{} as Record<string,number>));setLoading(false);
-  })();return()=>{active=false;};},[user?.id]);
+  })();return()=>{active=false;};},[userId]);
  const published=items.filter(x=>x.status==='published').length;
  const views=items.reduce((n,x)=>n+(x.view_count||0),0);
  const earningsLabel=Object.entries(earnings).sort(([a],[b])=>a.localeCompare(b)).map(([currency,amount])=>{try{return new Intl.NumberFormat(undefined,{style:'currency',currency,maximumFractionDigits:2}).format(amount);}catch{return currency+' '+amount.toLocaleString();}}).join(' · ')||'—';
