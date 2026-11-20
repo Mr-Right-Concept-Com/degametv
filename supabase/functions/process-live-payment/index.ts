@@ -58,8 +58,9 @@ serve(async(req:Request)=>{
   const {count:currencyCount}=await db.from("country_currency_rules").select("country_code",{count:"exact",head:true}).eq("currency_code",currency).eq("enabled",true);
   if(!currencyCount)return json(422,{error:"The selected transaction currency is not enabled."});
 
-  const {data:screening,error}=await db.from("screenings").select("id,tenant_id,content_id,title,slug,status,live_price_ngn,live_price_usd,replay_price_ngn,replay_price_usd,base_price,base_currency,replay_base_price,replay_access_hours,replay_access_model,access_model,live_recording_status,live_replay_ready_at,screening_date,sales_open_at,sales_close_at,early_bird_price,early_bird_currency,early_bird_ends_at,early_bird_capacity,event_visibility,invite_only,presale_enabled").eq("id",screeningId).eq("status","published").maybeSingle();
+  const {data:screening,error}=await db.from("screenings").select("id,tenant_id,content_id,title,slug,status,lifecycle,live_price_ngn,live_price_usd,replay_price_ngn,replay_price_usd,base_price,base_currency,replay_base_price,replay_access_hours,replay_access_model,access_model,live_recording_status,live_replay_ready_at,screening_date,sales_open_at,sales_close_at,early_bird_price,early_bird_currency,early_bird_ends_at,early_bird_capacity,event_visibility,invite_only,presale_enabled").eq("id",screeningId).eq("status","published").maybeSingle();
   if(error||!screening)return json(404,{error:"Published event not found."});
+  if(screening.lifecycle==="cancelled"||screening.lifecycle==="archived")return json(410,{error:"This event is no longer accepting purchases."});
   const now=Date.now();
   if(["live","combo"].includes(ticketType)){
    if(screening.sales_open_at&&now<Date.parse(screening.sales_open_at))return json(409,{error:"Ticket sales have not opened yet."});
