@@ -17,6 +17,7 @@ const Body=z.object({
 }).strict().refine(v=>[v.screeningId,v.liveStreamId,v.contentId].filter(Boolean).length===1,"Choose exactly one support target.").refine(v=>v.contributionType==="tip"?v.amount!==undefined:Boolean(v.giftCatalogKey),"Tips require an amount; gifts require a catalogue item.");
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, x-client-info, content-type, cf-ipcountry","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
+const markProviderHealth=async(db:any,id:string,status:'healthy'|'unhealthy',error:string|null=null)=>{await db.from('service_provider_bindings').update({health_status:status,health_checked_at:new Date().toISOString(),health_error:error}).eq('id',id);};
 const minorScale=(currency:string)=>["BIF","CLP","DJF","GNF","ISK","JPY","KMF","KRW","PYG","RWF","UGX","VND","VUV","XAF","XOF","XPF"].includes(currency)?1:["BHD","IQD","JOD","KWD","LYD","OMR","TND"].includes(currency)?1000:100;
 async function convert(base:string,service:string,amount:number,from:string,to:string,country:string){
  if(from===to)return amount;
@@ -133,7 +134,7 @@ Deno.serve(async(req)=>{
   let checkoutUrl:string|null=null,selected:any=null,checkoutId:string|null=null;
   for(const provider of usable){
    try{
-    const target=new URL(provider.endpoints.checkout_initialize,provider.base_url);if(target.origin!==new URL(provider.base_url).origin)continue;
+    const target=new URL(provider.endpoints.checkout_initialize,provider.base_url);if(target.origin!==new URL(provider.base_url).origin){await markProviderHealth(db,provider.id,"unhealthy","Checkout endpoint host mismatch.");continue;}
     const header=provider.settings?.credential_header||"Authorization",prefix=provider.settings?.credential_prefix??"Bearer ";
     const callback=new URL("/payment/return?reference="+reference,origin).toString();
     const adapter=String(provider.settings?.checkout_adapter??provider.settings?.adapter??provider.provider_key).toLowerCase();
@@ -155,9 +156,9 @@ Deno.serve(async(req)=>{
     else if(adapter==="stripe"&&response.ok){candidateUrl=result?.url??null;candidateId=result?.id??null;}
     else if(adapter==="flutterwave"&&response.ok&&result?.status==="success"){candidateUrl=result.data?.link??null;candidateId=result.data?.id?String(result.data.id):null;}
     else if(adapter==="generic"&&response.ok&&result?.authorized===true){candidateUrl=result.checkout_url??null;candidateId=result.provider_checkout_id??null;}
-    if(!response.ok||typeof candidateUrl!=="string")continue;
+    if(!response.ok||typeof candidateUrl!=="string"){await markProviderHealth(db,provider.id,"unhealthy","Checkout initialization failed.");continue;}
     const checkout=new URL(candidateUrl),allowed=provider.settings?.allowed_checkout_origins;
-    if(checkout.protocol!=="https:"||!Array.isArray(allowed)||!allowed.includes(checkout.origin))continue;
+    if(checkout.protocol!=="https:"||!Array.isArray(allowed)||!allowed.includes(checkout.origin)){await markProviderHealth(db,provider.id,"unhealthy","Provider returned an untrusted checkout URL.");continue;}
     checkoutUrl=checkout.toString();selected=provider;checkoutId=candidateId;break;
    }catch{continue;}
   }
