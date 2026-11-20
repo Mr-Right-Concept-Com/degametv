@@ -139,12 +139,13 @@ Deno.serve(async (req) => {
       refunded, pendingRefunds,
     }, 503);
 
+    const { data: notificationsQueued, error: notificationError } = await admin.rpc("enqueue_event_cancellation_notifications", { p_screening_id: s.id });
     await admin.from("audit_logs").insert({
       user_id: user.id, action: "event_cancel_refund", entity_type: "screening", entity_id: s.id,
-      new_data: { refunded, pending_refund_ticket_ids: pendingRefunds, reason: p.reason || null },
+      new_data: { refunded, pending_refund_ticket_ids: pendingRefunds, notifications_queued: notificationsQueued ?? 0, notification_error: Boolean(notificationError), reason: p.reason || null },
     });
     return json({
-      success: true, refunded, pendingRefunds,
+      success: true, refunded, pendingRefunds, notificationsQueued: notificationsQueued ?? 0, notificationWarning: Boolean(notificationError),
       message: pendingRefunds.length
         ? "Screening cancelled. Some refunds could not be confirmed and require reconciliation."
         : "Screening cancelled and all paid tickets were refunded by the payment provider.",
