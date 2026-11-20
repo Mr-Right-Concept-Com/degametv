@@ -14,7 +14,7 @@ const InvitationAction=z.discriminatedUnion("action",[
  z.object({action:z.literal("update_member_role"),membershipId:z.string().uuid(),role:z.enum(["ADMIN","PRODUCER","BROADCASTER","FINANCE_VIEWER","MODERATOR"])}).strict(),
  z.object({action:z.literal("revoke_member"),membershipId:z.string().uuid()}).strict(),
  z.object({action:z.literal("submit_appeal"),caseId:z.string().uuid(),reason:z.string().trim().min(20).max(4000)}).strict(),
- z.object({action:z.literal("record_content_rights"),contentId:z.string().uuid(),declaration:z.object({rightsType:z.string().min(1).max(120),territories:z.array(z.string().regex(/^(WORLD|[A-Z]{2})$/)).max(250),contentFormat:z.string().min(1).max(40),attestedAt:z.string().datetime(),statement:z.string().trim().min(10).max(4000)}).strict()}).strict(),
+ z.object({action:z.literal("record_content_rights"),contentId:z.string().uuid(),declaration:z.object({rightsType:z.string().min(1).max(120),ownershipType:z.enum(["SOLE_OWNER","CO_OWNED","LICENSED","PUBLIC_DOMAIN","COMMISSIONED"]),rightsHolder:z.string().trim().min(2).max(240),exclusivity:z.enum(["EXCLUSIVE","NON_EXCLUSIVE"]),distributionScope:z.string().min(1).max(120),territories:z.array(z.string().regex(/^(WORLD|[A-Z]{2})$/)).max(250),contentFormat:z.string().min(1).max(40),attestedAt:z.string().datetime(),statement:z.string().trim().min(10).max(4000)}).strict()}).strict(),
 ]);
 const hash=async(v:string)=>[...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v)))].map(x=>x.toString(16).padStart(2,"0")).join("");
 Deno.serve(async req=>{
@@ -101,7 +101,7 @@ Deno.serve(async req=>{
    if(contentError||!content)return json(404,{error:"Production not found or not owned by this creator."});
    const {data:studio}=await db.from("studio_accounts").select("base_currency,status").eq("user_id",user.id).eq("status","approved").maybeSingle();
    if(!studio?.base_currency)return json(403,{error:"An approved creator account with an immutable base currency is required."});
-   const declarationHash=await hash(JSON.stringify({rightsType:p.declaration.rightsType,territories:[...p.declaration.territories].sort(),contentFormat:p.declaration.contentFormat,attestedAt:p.declaration.attestedAt,statement:p.declaration.statement}));
+   const declarationHash=await hash(JSON.stringify({...p.declaration,territories:[...p.declaration.territories].sort()}));
    const {error:insertError}=await db.from("content_rights_declarations").insert({content_id:content.id,creator_id:user.id,declaration:p.declaration,declaration_hash:declarationHash});
    if(insertError)return json(409,{error:"Immutable rights declaration could not be recorded."});
    const metadata={...(content.metadata??{}),creator_rights:p.declaration};
