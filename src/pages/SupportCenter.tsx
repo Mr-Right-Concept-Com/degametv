@@ -137,7 +137,7 @@ export default function SupportCenter() {
   };
 
   const sendReply = async () => {
-    if (!user || !selected || !reply.trim()) return;
+    if (!user || !selected || (!reply.trim() && !attachment)) return;
     const body = reply.trim();
     let attachmentPaths: string[] = [];
     if (attachment) {
