@@ -19,7 +19,11 @@ const respond = (body: unknown, status=200) => new Response(JSON.stringify(body)
 
 function readPath(value: unknown, path: string): unknown {
   return path.split(".").reduce<unknown>((current, key) => {
-    if (!current || typeof current !== "object" || Array.isArray(current)) return undefined;
+    if (Array.isArray(current)) {
+      const index = Number(key);
+      return Number.isInteger(index) && index >= 0 ? current[index] : undefined;
+    }
+    if (!current || typeof current !== "object") return undefined;
     return (current as Record<string, unknown>)[key];
   }, value);
 }
@@ -28,9 +32,15 @@ function currencyDigits(currency: string): number {
   catch { return 2; }
 }
 function endpointFor(baseUrl: string, path: string): URL {
+  const base = new URL(baseUrl);
+  if (base.protocol !== "https:" || base.username || base.password
+    || base.hostname === "localhost" || base.hostname.endsWith(".localhost")
+    || base.hostname.endsWith(".local") || base.hostname.endsWith(".internal")) {
+    throw new Error("FX provider base URL must be a public HTTPS origin.");
+  }
   if (!path.startsWith("/") || path.startsWith("//")) throw new Error("FX endpoint must be a relative path.");
-  const target = new URL(path, baseUrl);
-  if (target.origin !== new URL(baseUrl).origin) throw new Error("FX endpoint host mismatch.");
+  const target = new URL(path, base);
+  if (target.origin !== base.origin) throw new Error("FX endpoint host mismatch.");
   return target;
 }
 
@@ -68,10 +78,15 @@ Deno.serve(async (req) => {
           .eq("country_code", countryCode).eq("enabled", true).maybeSingle()
       : { data: null, error: null };
     if (countryRule.error) return respond({ error: "Country currency policy is unavailable." }, 503);
+    if (countryCode && !countryRule.data) return respond({ error: "Selected country is not enabled for platform transactions." }, 422);
 
     const from = (parsed.data.fromCurrency ?? configuredBase).toUpperCase();
     const to = (parsed.data.toCurrency ?? parsed.data.currency ?? countryRule.data?.currency_code ?? "").toUpperCase();
     if (!/^[A-Z]{3}$/.test(to)) return respond({ error: "Provide a target currency or a supported country so its currency can be resolved." }, 400);
+    const {data:currencyRows,error:currencyError}=await db.from("country_currency_rules").select("currency_code").eq("enabled",true);
+    if(currencyError)return respond({error:"Enabled currency policy is unavailable."},503);
+    const supportedCurrencies=new Set((currencyRows??[]).map(row=>row.currency_code));
+    if(!supportedCurrencies.has(from)||!supportedCurrencies.has(to))return respond({error:"Source and target currencies must both be enabled ISO 4217 currencies."},422);
     if (from === to) {
       return respond({ country: countryCode ?? null, fromCurrency: from, toCurrency: to, original: parsed.data.amount,
         converted: parsed.data.amount, rate: 1, rateBase: from, provider: null, retrievedAt: new Date().toISOString(), cache: "identity" });
