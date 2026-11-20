@@ -55,6 +55,7 @@ const PaymentReturn = lazy(() => import("./pages/PaymentReturn"));
 const EventInviteAccept = lazy(() => import("./pages/EventInviteAccept"));
 const InvitedEvent = lazy(() => import("./pages/InvitedEvent"));
 const UserDashboard = lazy(() => import("./pages/UserDashboard"));
+const SupportCenter = lazy(() => import("./pages/SupportCenter"));
 
 // Studio pages
 const StudioDashboard = lazy(() => import("./pages/studio/StudioDashboard"));
@@ -112,6 +113,7 @@ const App = () => (
               <Route path="/invited/:screeningId" element={<ProtectedRoute><InvitedEvent /></ProtectedRoute>} />
               <Route path="/tickets" element={<FeatureGate featureKey="cinema.ticketing"><ProtectedRoute><Navigate to="/dashboard?tab=tickets" replace /></ProtectedRoute></FeatureGate>} />
               <Route path="/dashboard" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
+              <Route path="/support" element={<ProtectedRoute><SupportCenter /></ProtectedRoute>} />
               <Route path="/filmmaker" element={<Navigate to="/apply-filmmaker" replace />} />
               
               {/* ============ STUDIO (Protected - Approved Filmmakers Only) ============ */}
