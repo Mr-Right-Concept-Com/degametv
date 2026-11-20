@@ -46,7 +46,7 @@ export default function LiveWatch() {
   useEffect(() => {
     let active = true;
     const authorize = async () => {
-      if (!user) { setError('Sign in to access your purchased event.'); setLoading(false); return; }
+      if (!user?.id) { setError('Sign in to access your purchased event.'); setLoading(false); return; }
       if (!streamId) { setError('The event link is invalid.'); setLoading(false); return; }
       try {
         const { data, error: invokeError } = await supabase.functions.invoke('authorize-live-playback', { body: { streamId, mode } });
