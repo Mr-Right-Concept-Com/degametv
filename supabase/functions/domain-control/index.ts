@@ -87,7 +87,8 @@ Deno.serve(async req=>{
  const {data:domain,error:domainError}=await db.from("release_domains").select("id,content_id,hostname,verification_token_hash,dns_target,domain_kind").eq("id",p.domainId).maybeSingle();
  if(domainError||!domain)return json(404,{error:"Domain registration not found."});
  const {data:owned}=await db.from("content").select("id").eq("id",domain.content_id).eq("creator_id",user.id).maybeSingle();
- if(!owned)return json(403,{error:"You cannot verify another creator's domain."});
+ const {data:adminRoles}=await db.from("user_roles").select("role").eq("user_id",user.id).in("role",["super_admin","platform_admin"]).limit(1);
+ if(!owned&&!adminRoles?.length)return json(403,{error:"You cannot verify another creator's domain."});
  if(domain.domain_kind!=="custom_domain"||!domain.verification_token_hash)return json(409,{error:"This domain does not require custom DNS verification."});
  try{
   const [txt,cnames,ips]=await Promise.all([dns("_degametv-verification."+domain.hostname,"TXT"),dns(domain.hostname,"CNAME"),dns(domain.hostname,"A")]);
