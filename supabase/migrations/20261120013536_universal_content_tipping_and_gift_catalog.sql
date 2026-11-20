@@ -52,7 +52,7 @@ begin
    case when l.recording_enabled and l.settlement_delivery_required then case when l.vod_replay_asset_url is not null then l.actual_ended_at else null end else l.actual_ended_at end,
    l.settlement_hold_hours into v_creator,v_tenant,v_event_end,v_delivered,v_hours from public.live_streams l where l.id=new.live_stream_id;
  else
-  select c.creator_id,c.tenant_id,now(),case when c.status='published' then now() else null end,new.hold_hours
+  select c.creator_id,c.tenant_id,now(),case when c.status='published' and c.video_url is not null then now() else null end,new.hold_hours
   into v_creator,v_tenant,v_event_end,v_delivered,v_hours from public.content c where c.id=new.content_id;
  end if;
  if v_creator is null or v_creator<>new.creator_id or v_tenant<>new.tenant_id then raise exception 'settlement_target_owner_mismatch' using errcode='42501';end if;
