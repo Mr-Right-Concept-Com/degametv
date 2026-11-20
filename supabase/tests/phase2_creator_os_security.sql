@@ -62,6 +62,9 @@ begin
   if not exists(select 1 from pg_indexes where schemaname='public' and tablename='release_domains' and indexdef ilike '%unique%hostname%') then
     raise exception 'release_domains hostname uniqueness index is required to prevent slug races';
   end if;
+  if not exists(select 1 from pg_indexes where schemaname='public' and tablename='release_domains' and indexname='release_domains_content_kind_unique') then
+    raise exception 'a production must support one platform subdomain and one custom hostname';
+  end if;
   select pg_get_functiondef('public.enforce_creator_content_lifecycle()'::regprocedure) into v_def;
   if position('invalid_content_lifecycle_transition' in v_def)=0 then raise exception 'content lifecycle guard is missing'; end if;
   if not exists(select 1 from pg_proc where proname='claim_media_processing_jobs' and prosecdef) then
