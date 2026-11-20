@@ -20,6 +20,20 @@ const provisionSchema = z.object({
   description: z.string().trim().max(2000).optional(),
 });
 type EncoderGrant = { streamId: string; ingestUrl: string; streamKey: string; playbackUrl?: string | null; ingestProtocol: string; provider: string };
+type BroadcastLifecycle = {
+  lifecycle_status: string;
+  reconnect_grace_expires_at: string | null;
+  actual_started_at: string | null;
+  actual_ended_at: string | null;
+};
+const isBroadcastLifecycle = (value: unknown): value is BroadcastLifecycle => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const row = value as Record<string, unknown>;
+  return typeof row.lifecycle_status === 'string'
+    && (row.reconnect_grace_expires_at === null || typeof row.reconnect_grace_expires_at === 'string')
+    && (row.actual_started_at === null || typeof row.actual_started_at === 'string')
+    && (row.actual_ended_at === null || typeof row.actual_ended_at === 'string');
+};
 
 export default function StudioLive() {
   usePageTitle('Go Live — Studio');
@@ -32,7 +46,7 @@ export default function StudioLive() {
   const [grant, setGrant] = useState<EncoderGrant | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<'idle' | 'scheduled' | 'ended'>('idle');
-  const [broadcastLifecycle, setBroadcastLifecycle] = useState<{ lifecycle_status: string; reconnect_grace_expires_at: string | null; actual_started_at: string | null; actual_ended_at: string | null } | null>(null);
+  const [broadcastLifecycle, setBroadcastLifecycle] = useState<BroadcastLifecycle | null>(null);
   const [replayDraftId, setReplayDraftId] = useState<string | null>(null);
   const [basePrice, setBasePrice] = useState('');
   const [replayBasePrice, setReplayBasePrice] = useState('');
@@ -66,8 +80,11 @@ export default function StudioLive() {
     if (!user?.id || !screeningId) { setBroadcastLifecycle(null); return; }
     let active = true;
     const refreshLifecycle = async () => {
-      const { data, error } = await (supabase as any).rpc('get_my_live_stream_lifecycle', { p_screening_id: screeningId });
-      if (active && !error) setBroadcastLifecycle(Array.isArray(data) ? (data[0] || null) : (data || null));
+      const { data, error } = await supabase.rpc('get_my_live_stream_lifecycle' as never, { p_screening_id: screeningId } as never);
+      if (active && !error) {
+        const row: unknown = Array.isArray(data) ? data[0] : data;
+        setBroadcastLifecycle(isBroadcastLifecycle(row) ? row : null);
+      }
     };
     void refreshLifecycle();
     const timer = window.setInterval(refreshLifecycle, 5000);
