@@ -105,7 +105,8 @@ Deno.serve(async req=>{
    ];
    const uploadTargets=await Promise.all(outputs.map(async o=>({...o,uploadUrl:await presign(storage,o.path,"PUT",o.mimeType,storage.deliveryBucket,86400)})));
    const transcodeUrl=new URL(transcoder.endpoints.transcode??"/transcode",transcoder.base_url??undefined).toString();
-   const callbackUrl=Deno.env.get("MEDIA_TRANSCODE_CALLBACK_URL")??(url+"/functions/v1/media-ingest-worker");\n   const {data:callbackSecret,error:callbackSecretError}=await db.rpc("get_media_transcoder_callback_secret");if(callbackSecretError||typeof callbackSecret!=="string"||!callbackSecret)throw new Error("transcoder_callback_secret_unavailable");
+   const callbackUrl=Deno.env.get("MEDIA_TRANSCODE_CALLBACK_URL")??(url+"/functions/v1/media-ingest-worker");
+   const {data:callbackSecret,error:callbackSecretError}=await db.rpc("get_media_transcoder_callback_secret");if(callbackSecretError||typeof callbackSecret!=="string"||!callbackSecret)throw new Error("transcoder_callback_secret_unavailable");
    const transcodeResponse=await fetch(transcodeUrl,{method:"POST",headers:{"Authorization":"Bearer "+transcoder.credential,"Content-Type":"application/json","Idempotency-Key":"transcode:"+job.id},body:JSON.stringify({jobId:job.id,sourceUrl:await presign(storage,masterPath,"GET",undefined,storage.deliveryBucket,21600),sourceSha256:scan.data.sha256,outputFormat:"fmp4-single-file",outputs:uploadTargets,packaging:{hls:"byte-range",dash:"SegmentBase"},callbackUrl,callbackSecret}),signal:AbortSignal.timeout(30000)});
    if(!transcodeResponse.ok)throw new Error("transcoder_http_"+transcodeResponse.status);
    const parsed=Transcode.safeParse(await transcodeResponse.json());if(!parsed.success||parsed.data.jobId!==job.id)throw new Error("transcoder_response_invalid");
