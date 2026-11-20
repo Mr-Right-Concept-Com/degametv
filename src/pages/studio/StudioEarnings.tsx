@@ -50,7 +50,7 @@ export default function StudioEarnings() {
   const load = useCallback(async () => {
     if (!userId) return;
     const [b, w, c] = await Promise.all([
-      supabase.rpc('wallet_balance_by_currency', { _user_id: user.id }),
+      supabase.rpc('wallet_balance_by_currency', { _user_id: userId }),
       supabase.from('withdrawal_requests').select('id, amount, currency, bank_country, status, created_at, bank_name').eq('user_id', userId).order('created_at', { ascending: false }),
     ]);
     if (b.error) toast.error('Wallet balances could not be loaded.');
