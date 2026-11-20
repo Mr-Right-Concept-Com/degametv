@@ -16,7 +16,7 @@ const screeningSchema = z.object({
   duration: z.number().nullable().optional(), location_pricing: z.unknown().nullable().optional(),
   status: z.string(),
 }).passthrough();
-type Screening = z.infer<typeof screeningSchema>;
+type Screening = Omit<z.infer<typeof screeningSchema>, 'location_pricing'> & { location_pricing: { nigeria?: number | string } | null };
 
 export default function Index() {
   usePageTitle('Virtual Cinema Premieres');
