@@ -136,7 +136,7 @@ Deno.serve(async req=>{
    db.from("studio_memberships").select("id",{count:"exact",head:true}).eq("studio_account_id",studio.id).is("revoked_at",null).not("accepted_at","is",null),
    db.from("studio_invitations").select("id",{count:"exact",head:true}).eq("studio_account_id",studio.id).is("accepted_at",null).is("revoked_at",null).gt("expires_at",new Date().toISOString())
   ]);
-  if(Number(memberCount??0)+Number(pendingCount??0)+1>=Number(studio.seats??1))return json(409,{error:"The studio has no unallocated team seats. Upgrade its seat allowance before inviting another member."});
+  if(Number(memberCount??0)+Number(pendingCount??0)>=Number(studio.seats??1))return json(409,{error:"The studio has no unallocated team seats. Upgrade its seat allowance before inviting another member."});
   const token=crypto.randomUUID()+"."+crypto.randomUUID(),tokenHash=await hash(token);
   const {data:invite,error:inviteError}=await db.from("studio_invitations").insert({studio_account_id:studio.id,email,invited_user_id:invitedUserId,role:p.role,token_hash:tokenHash,invited_by:user.id,expires_at:new Date(Date.now()+7*86400000).toISOString()}).select("id,email,role,expires_at").single();
   if(inviteError)return json(409,{error:"Invitation could not be created."});
