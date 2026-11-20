@@ -431,10 +431,14 @@ export default function StudioSubmit() {
       contentId,
       declaration:{
         rightsType:form.distribution_rights,
+        ownershipType:form.rights_ownership_type,
+        rightsHolder:form.rights_holder||form.submitter_name,
+        exclusivity:form.rights_exclusivity,
+        distributionScope:form.distribution_rights,
         territories:territories.length?territories:["WORLD"],
         contentFormat:liveFlow?"LIVE_PRODUCTION":form.preset_type,
         attestedAt:new Date().toISOString(),
-        statement:"I confirm that I hold or am authorized to grant the distribution rights declared for this production and the listed territories."
+        statement:"I confirm that I hold or am authorized to grant the declared "+form.distribution_rights+" rights for this production and the listed territories."
       }
     });
     if (!rightsResult.ok) { toast.error(rightsResult.error ?? "Rights declaration could not be recorded. Your production remains a draft."); setSubmitting(false); return; }
