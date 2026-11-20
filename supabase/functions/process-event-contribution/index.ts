@@ -159,8 +159,8 @@ Deno.serve(async(req)=>{
     if(!response.ok||typeof candidateUrl!=="string"){await markProviderHealth(db,provider.id,"unhealthy","Checkout initialization failed.");continue;}
     const checkout=new URL(candidateUrl),allowed=provider.settings?.allowed_checkout_origins;
     if(checkout.protocol!=="https:"||!Array.isArray(allowed)||!allowed.includes(checkout.origin)){await markProviderHealth(db,provider.id,"unhealthy","Provider returned an untrusted checkout URL.");continue;}
-    checkoutUrl=checkout.toString();selected=provider;checkoutId=candidateId;break;
-   }catch{continue;}
+    checkoutUrl=checkout.toString();selected=provider;checkoutId=candidateId;await markProviderHealth(db,provider.id,'healthy',null);break;
+   }catch{await markProviderHealth(db,provider.id,'unhealthy','Checkout provider did not respond.');continue;}
   }
   if(!selected||!checkoutUrl){await db.from("event_contributions").update({status:"failed"}).eq("provider_reference",reference);return json(502,{error:"Payment provider did not accept this contribution. No charge was made."});}
   const {error:updateError}=await db.from("event_contributions").update({provider_key:selected.provider_key,provider_checkout_id:checkoutId,checkout_url:checkoutUrl}).eq("provider_reference",reference);
