@@ -29,8 +29,10 @@ export default function Contact() {
       return;
     }
     setErrors({});
-    toast.success('Message sent! We\'ll get back to you soon.');
-    setForm({ name: '', email: '', message: '' });
+    const subject = encodeURIComponent(`DeGameTV contact request from ${result.data.name}`);
+    const body = encodeURIComponent(`Name: ${result.data.name}\nEmail: ${result.data.email}\n\n${result.data.message}`);
+    window.location.href = `mailto:support@degametv.net?subject=${subject}&body=${body}`;
+    toast.info('Your email app is opening. Send the message there to complete your request.');
   };
 
   return (
