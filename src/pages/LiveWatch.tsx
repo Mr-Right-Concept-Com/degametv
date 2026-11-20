@@ -74,9 +74,9 @@ export default function LiveWatch() {
         <div className="overflow-hidden rounded-2xl bg-black aspect-video relative">
           <video ref={videoRef} controls playsInline autoPlay className="h-full w-full" />
           {mode === "live" && streamId && <LiveGiftOverlay streamId={streamId} />}
+          {mode === "live" && streamId && <EventContribution liveStreamId={streamId} currency={currency} overlay />}
           {loading && <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black text-white"><Loader2 className="h-8 w-8 animate-spin"/><span className="text-sm">Checking ticket and authorizing playback…</span></div>}
         </div>}
-      {!error && !loading && streamId && <EventContribution liveStreamId={streamId} currency={currency} />}
       {!error && !loading && streamId && <EventContributionFeed liveStreamId={streamId} />}
       {!error && !loading && <p className="flex items-center gap-2 text-xs text-muted-foreground"><ShieldCheck className="h-4 w-4 text-green-600"/> Playback is protected by your ticket. This temporary playback grant expires {expiresAt ? new Date(expiresAt).toLocaleTimeString() : 'soon'}.</p>}
       <Button variant="outline" asChild><Link to="/tickets">Back to My Tickets</Link></Button>
