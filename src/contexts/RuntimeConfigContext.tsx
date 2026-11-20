@@ -12,7 +12,8 @@ type RuntimeConfig = {
  currencySymbol:string|null;
  countryCurrency:RuntimeCountry|null;
  countries:RuntimeCountry[];
- features:Array<{key:string;enabled:boolean}>;\n releases:Array<{key:string;version:string;rolloutId:string}>;
+ features:Array<{key:string;enabled:boolean}>;
+ releases:Array<{key:string;version:string;rolloutId:string}>;
  generatedAt:string;
  cohortId:string;
 };
