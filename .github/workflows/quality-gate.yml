@@ -3,8 +3,6 @@ name: DeGameTV Quality Gate
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -19,6 +17,15 @@ jobs:
     name: Typecheck, lint, build, accessibility and E2E
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      DEGAMETV_E2E_CREATOR_EMAIL: ${{ secrets.DEGAMETV_E2E_CREATOR_EMAIL }}
+      DEGAMETV_E2E_CREATOR_PASSWORD: ${{ secrets.DEGAMETV_E2E_CREATOR_PASSWORD }}
+      DEGAMETV_E2E_ADMIN_EMAIL: ${{ secrets.DEGAMETV_E2E_ADMIN_EMAIL }}
+      DEGAMETV_E2E_ADMIN_PASSWORD: ${{ secrets.DEGAMETV_E2E_ADMIN_PASSWORD }}
+      DEGAMETV_E2E_IDENTITY_VERIFICATION_ID: ${{ secrets.DEGAMETV_E2E_IDENTITY_VERIFICATION_ID }}
+      DEGAMETV_E2E_STOREFRONT_HOST: ${{ secrets.DEGAMETV_E2E_STOREFRONT_HOST }}
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -95,3 +102,28 @@ jobs:
             supabase/functions/runtime-config/index.ts \
             supabase/functions/media-ingest-control/index.ts \
             supabase/functions/media-ingest-worker/index.ts
+
+  database-security:
+    name: Linked Supabase migration and SQL security tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: ${{ secrets.SUPABASE_ACCESS_TOKEN != '' && secrets.SUPABASE_DB_PASSWORD != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Link production project
+        run: supabase link --project-ref dxijsbbdtwtbwdaajiyn --password "$SUPABASE_DB_PASSWORD"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      - name: Run linked database security tests
+        run: supabase test db --linked
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
