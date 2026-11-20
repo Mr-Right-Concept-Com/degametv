@@ -33,7 +33,9 @@ Deno.serve(async req=>{
    }
    await db.from("media_processing_jobs").update({stage:"promotion",provenance:{...job.provenance,malware_scan:{engine:scan.data.engine,signatureVersion:scan.data.signatureVersion,scannedAt:new Date().toISOString(),clean:true}}}).eq("id",job.id);
    const masterPath="masters/"+job.id+"/source";
-   const {error:copyError}=await db.storage.from(bucket).copy(job.quarantine_path,masterPath,{destinationBucket:delivery});
+   const {data:quarantined,error:downloadError}=await db.storage.from(bucket).download(job.quarantine_path);
+   if(downloadError||!quarantined)throw new Error("quarantine_master_download_failed");
+   const {error:copyError}=await db.storage.from(delivery).upload(masterPath,quarantined,{contentType:"application/octet-stream",upsert:true});
    if(copyError)throw new Error("clean_master_promotion_failed");
    const {data:master,error:masterError}=await db.storage.from(delivery).createSignedUrl(masterPath,900);
    if(masterError||!master?.signedUrl)throw new Error("master_signed_url_failed");
