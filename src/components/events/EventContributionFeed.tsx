@@ -3,6 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Gift, Heart, MessageCircle, Sparkles } from "lucide-react";
 
+interface FeedRpcClient {
+ rpc(name:"get_event_contribution_feed",args:{p_screening_id:string|null;p_live_stream_id:string|null}):Promise<{data:unknown;error:{message:string}|null}>;
+ rpc(name:"get_content_support_feed",args:{p_content_id:string}):Promise<{data:unknown;error:{message:string}|null}>;
+}
+const feedRpc=supabase as unknown as FeedRpcClient;
 type Item={
  id:string;contribution_type:"tip"|"gift";gift_catalog_key?:string|null;gift_name?:string|null;
  gift_emoji?:string|null;gift_asset_url?:string|null;gift_animation_url?:string|null;
@@ -40,13 +45,14 @@ export function EventContributionFeed({screeningId,liveStreamId,contentId}:{scre
   const load=async()=>{
    let data: unknown = null;
    if(contentId){
-    const result=await supabase.rpc("get_content_support_feed" as never,{p_content_id:contentId} as never);
+    const result=await feedRpc.rpc("get_content_support_feed",{p_content_id:contentId});
     data=result.data;
    }else{
-    const result=await supabase.rpc("get_event_contribution_feed" as never,{p_screening_id:screeningId??null,p_live_stream_id:liveStreamId??null} as never);
+    const result=await feedRpc.rpc("get_event_contribution_feed",{p_screening_id:screeningId??null,p_live_stream_id:liveStreamId??null});
     data=result.data;
    }
-   if(!active||!Array.isArray(data))return;
+   if(!active)return;
+   if(!Array.isArray(data))return;
    const rows=data.filter(isItem);
    const newest=rows[0];
    if(latestSeen.current===null){latestSeen.current=newest?.id??null;}
