@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,20 +18,39 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { useRuntimeConfig } from '@/contexts/RuntimeConfigContext';
+import type { Database, Tables } from '@/integrations/supabase/types';
 
 
 const displayNameSchema = z.string().trim().min(2, 'Name must be at least 2 characters').max(50, 'Name must be under 50 characters');
+const invitationListSchema = z.array(z.object({
+  id: z.string(),
+  event: z.object({
+    title: z.string().nullable().optional(),
+    screening_date: z.string().nullable().optional(),
+  }).nullable().optional(),
+  invite_role: z.string(),
+  expires_at: z.string().nullable().optional(),
+  status: z.string(),
+  screening_id: z.string().nullable().optional(),
+}));
+type DashboardTicket = Tables<'screening_tickets'> & {
+  screening: Pick<Tables<'screenings'>, 'title' | 'poster_url' | 'slug'> | null;
+};
+type DashboardWatchHistory = Tables<'watch_history'> & {
+  content: Pick<Tables<'content'>, 'title' | 'poster_url'> | null;
+};
+type WalletBalance = Database['public']['Functions']['wallet_balance_by_currency']['Returns'][number];
+type DashboardInvitation = z.infer<typeof invitationListSchema>[number];
 
 export default function UserDashboard() {
   const { user, signOut } = useAuth();
   const { config: runtimeConfig, refresh: refreshRuntimeConfig } = useRuntimeConfig();
   const navigate = useNavigate();
   usePageTitle('My Dashboard');
-  const [tickets, setTickets] = useState<any[]>([]);
-  const [watchHistory, setWatchHistory] = useState<any[]>([]);
-  const [loyalty, setLoyalty] = useState<any[]>([]);
-  const [walletBalances, setWalletBalances] = useState<any[]>([]);
-  const [walletActivity, setWalletActivity] = useState<any[]>([]);
+  const [tickets, setTickets] = useState<DashboardTicket[]>([]);
+  const [watchHistory, setWatchHistory] = useState<DashboardWatchHistory[]>([]);
+  const [loyalty, setLoyalty] = useState<Tables<'loyalty_points'>[]>([]);
+  const [walletBalances, setWalletBalances] = useState<WalletBalance[]>([]);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawCurrency, setWithdrawCurrency] = useState('');
   const [bankCountry, setBankCountry] = useState('NG');
@@ -40,9 +59,9 @@ export default function UserDashboard() {
   const [accountName, setAccountName] = useState('');
   const [requestingWithdrawal, setRequestingWithdrawal] = useState(false);
 
-  const [invitations, setInvitations] = useState<any[]>([]);
+  const [invitations, setInvitations] = useState<DashboardInvitation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<Tables<'profiles'> | null>(null);
   const [displayName, setDisplayName] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
   const [preferredCountry, setPreferredCountry] = useState('');
@@ -51,76 +70,93 @@ export default function UserDashboard() {
   const [preferredTimezone, setPreferredTimezone] = useState('');
   const [studioAccess, setStudioAccess] = useState<'checking' | 'approved' | 'not-approved'>('checking');
 
-  useEffect(() => {
-    if (!user) { navigate('/auth'); return; }
-    fetchAll();
-    checkStudioAccess();
-  }, [user]);
-
-  const checkStudioAccess = async () => {
-    if (!user) return;
+  const checkStudioAccess = useCallback(async (isCurrent: () => boolean = () => true) => {
+    if (!user?.id) return;
     try {
-      const { data: roles, error: roleError } = await supabase.from('user_roles').select('role').eq('user_id', user.id).in('role', ['creator', 'super_admin', 'platform_admin']);
+      const { data: roles, error: roleError } = await supabase.from('user_roles')
+        .select('role').eq('user_id', user.id)
+        .in('role', ['creator', 'super_admin', 'platform_admin']);
       if (roleError) throw roleError;
-      const roleSet = new Set((roles ?? []).map((row: any) => row.role));
-      if (roleSet.has('super_admin') || roleSet.has('platform_admin')) { setStudioAccess('approved'); return; }
+      if (!isCurrent()) return;
+      const roleSet = new Set((roles ?? []).map(row => row.role));
+      if (roleSet.has('super_admin') || roleSet.has('platform_admin')) {
+        setStudioAccess('approved');
+        return;
+      }
       if (roleSet.has('creator')) {
         const { data, error } = await supabase.rpc('get_my_studio_account');
         if (error) throw error;
-        const account = data?.[0] ?? null;
-        setStudioAccess(account?.status === 'approved' ? 'approved' : 'not-approved');
+        if (!isCurrent()) return;
+        setStudioAccess(data?.[0]?.status === 'approved' ? 'approved' : 'not-approved');
         return;
       }
-      const { data: member, error: memberError } = await supabase.rpc('is_studio_member' as never, { _user_id: user.id } as never);
+      const { data: member, error: memberError } = await supabase.rpc('is_studio_member', { _user_id: user.id });
       if (memberError) throw memberError;
-      setStudioAccess(member === true ? 'approved' : 'not-approved');
+      if (isCurrent()) setStudioAccess(member ? 'approved' : 'not-approved');
     } catch {
-      setStudioAccess('not-approved');
+      if (isCurrent()) setStudioAccess('not-approved');
     }
-  };
+  }, [user?.id]);
 
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async (isCurrent: () => boolean = () => true) => {
+    if (!user?.id) { setLoading(false); return; }
     setLoading(true);
-    const [ticketsRes, historyRes, profileRes, loyaltyRes] = await Promise.all([
-      supabase.from('screening_tickets')
-        .select('*, screening:screenings(*)')
-        .or(`user_id.eq.${user!.id},email.eq.${user!.email}`)
-        .order('created_at', { ascending: false })
-        .limit(20),
-      supabase.from('watch_history')
-        .select('*, content(*)')
-        .eq('user_id', user!.id)
-        .order('last_watched_at', { ascending: false })
-        .limit(10),
-      supabase.from('profiles')
-        .select('*')
-        .eq('user_id', user!.id)
-        .single(),
-      supabase.from('loyalty_points')
-        .select('*')
-        .eq('user_id', user!.id)
-        .order('created_at', { ascending: false })
-        .limit(50),
-    ]);
-    if (ticketsRes.data) setTickets(ticketsRes.data);
-    if (historyRes.data) setWatchHistory(historyRes.data);
-    if (loyaltyRes.data) setLoyalty(loyaltyRes.data);
-    const { data: walletData, error: walletError } = await (supabase as any).rpc('wallet_balance_by_currency', { _user_id: user!.id });
-    if (!walletError && Array.isArray(walletData)) setWalletBalances(walletData);
-    const { data: activityData, error: activityError } = await (supabase as any).rpc('get_my_wallet_activity', { p_limit: 100, p_before: null });
-    if (!activityError && Array.isArray(activityData)) setWalletActivity(activityData);
-    const { data: inviteData } = await supabase.functions.invoke("manage-event-invites", { body: { action: "my_invitations" } });
-    if (inviteData?.invitations) setInvitations(inviteData.invitations);
-    if (profileRes.data) {
-      setProfile(profileRes.data);
-      setDisplayName(profileRes.data.display_name || profileRes.data.full_name || '');
-      setPreferredCountry(profileRes.data.preferred_country || runtimeConfig?.geo.countryCode || '');
-      setPreferredCurrency(profileRes.data.preferred_currency || '');
-      setPreferredLocale(profileRes.data.preferred_locale || profileRes.data.locale_code || runtimeConfig?.locale || '');
-      setPreferredTimezone(profileRes.data.timezone || runtimeConfig?.timezone || 'UTC');
+    try {
+      const [ticketsRes, historyRes, profileRes, loyaltyRes, walletRes, inviteRes] = await Promise.all([
+        supabase.from('screening_tickets')
+          .select('*, screening:screenings(title,poster_url,slug)')
+          .or('user_id.eq.' + user.id + ',email.eq.' + (user.email ?? ''))
+          .order('created_at', { ascending: false }).limit(20),
+        supabase.from('watch_history').select('*, content(title,poster_url)')
+          .eq('user_id', user.id).order('last_watched_at', { ascending: false }).limit(10),
+        supabase.from('profiles').select('*').eq('user_id', user.id).maybeSingle(),
+        supabase.from('loyalty_points').select('*').eq('user_id', user.id)
+          .order('created_at', { ascending: false }).limit(50),
+        supabase.rpc('wallet_balance_by_currency', { _user_id: user.id }),
+        supabase.functions.invoke('manage-event-invites', { body: { action: 'my_invitations' } }),
+      ]);
+      if (!isCurrent()) return;
+      if (ticketsRes.error) toast.error('Your tickets could not be loaded.');
+      setTickets(ticketsRes.data ?? []);
+      if (historyRes.error) toast.error('Your watch history could not be loaded.');
+      setWatchHistory(historyRes.data ?? []);
+      if (loyaltyRes.error) toast.error('Your rewards history could not be loaded.');
+      setLoyalty(loyaltyRes.data ?? []);
+      if (walletRes.error) toast.error('Creator balances could not be loaded.');
+      setWalletBalances(walletRes.data ?? []);
+      if (inviteRes.error) toast.error('Your event invitations could not be loaded.');
+      else {
+        const parsed = invitationListSchema.safeParse(inviteRes.data?.invitations);
+        if (parsed.success) setInvitations(parsed.data);
+        else if (inviteRes.data?.invitations != null) toast.error('The event invitation response was invalid.');
+      }
+      if (profileRes.error) toast.error('Your profile could not be loaded.');
+      else if (profileRes.data) {
+        setProfile(profileRes.data);
+        setDisplayName(profileRes.data.display_name || profileRes.data.full_name || '');
+        setPreferredCountry(profileRes.data.preferred_country || runtimeConfig?.geo.countryCode || '');
+        setPreferredCurrency(profileRes.data.preferred_currency || '');
+        setPreferredLocale(profileRes.data.locale_code || runtimeConfig?.locale || '');
+        setPreferredTimezone(profileRes.data.timezone || runtimeConfig?.timezone || 'UTC');
+      }
+    } catch {
+      if (isCurrent()) toast.error('Some dashboard information could not be loaded. Please try again.');
+    } finally {
+      if (isCurrent()) setLoading(false);
     }
-    setLoading(false);
-  };
+  }, [user?.id, user?.email, runtimeConfig?.geo.countryCode, runtimeConfig?.locale, runtimeConfig?.timezone]);
+
+  useEffect(() => {
+    let active = true;
+    if (!user) {
+      navigate('/auth');
+      setLoading(false);
+      return () => { active = false; };
+    }
+    void fetchAll(() => active);
+    void checkStudioAccess(() => active);
+    return () => { active = false; };
+  }, [user?.id, user?.email, navigate, fetchAll, checkStudioAccess]);
 
   const submitWithdrawalRequest = async () => {
     if (!user?.id) return;
@@ -132,17 +168,22 @@ export default function UserDashboard() {
       return;
     }
     setRequestingWithdrawal(true);
-    const { error } = await (supabase as any).rpc('request_wallet_withdrawal', {
-      p_amount: amount, p_currency: withdrawCurrency, p_bank_country: bankCountry,
-      p_bank_name: bankName.trim(), p_account_number: accountNumber.trim(), p_account_name: accountName.trim(),
-    });
-    if (error) toast.error(error.message || 'Unable to submit withdrawal request.');
-    else {
-      toast.success('Withdrawal request submitted for review.');
-      setWithdrawAmount(''); setBankName(''); setAccountNumber(''); setAccountName('');
-      await fetchAll();
+    try {
+      const { error } = await supabase.rpc('request_wallet_withdrawal', {
+        p_amount: amount, p_currency: withdrawCurrency, p_bank_country: bankCountry,
+        p_bank_name: bankName.trim(), p_account_number: accountNumber.trim(), p_account_name: accountName.trim(),
+      });
+      if (error) toast.error(error.message || 'Unable to submit withdrawal request.');
+      else {
+        toast.success('Withdrawal request submitted for review.');
+        setWithdrawAmount(''); setBankName(''); setAccountNumber(''); setAccountName('');
+        await fetchAll();
+      }
+    } catch {
+      toast.error('Unable to submit withdrawal request. Please try again.');
+    } finally {
+      setRequestingWithdrawal(false);
     }
-    setRequestingWithdrawal(false);
   };
 
   const saveProfile = async () => {
@@ -151,13 +192,22 @@ export default function UserDashboard() {
       toast.error(result.error.errors[0].message);
       return;
     }
+    if (!user?.id) return;
     setSavingProfile(true);
-    const { error } = await supabase.from('profiles')
-      .update({ display_name: result.data, updated_at: new Date().toISOString() })
-      .eq('user_id', user!.id);
-    if (error) toast.error('Failed to save');
-    else toast.success('Profile updated!');
-    setSavingProfile(false);
+    try {
+      const { error } = await supabase.from('profiles')
+        .update({ display_name: result.data, updated_at: new Date().toISOString() })
+        .eq('user_id', user.id);
+      if (error) toast.error('Failed to save');
+      else {
+        setProfile(current => current ? { ...current, display_name: result.data } : current);
+        toast.success('Profile updated!');
+      }
+    } catch {
+      toast.error('Failed to save your profile. Please try again.');
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
   const savePreferences = async () => {
@@ -167,23 +217,34 @@ export default function UserDashboard() {
     if (preferredLocale.trim().length > 24 || (preferredLocale.trim() && !/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(preferredLocale.trim()))) { toast.error('Enter a valid language tag, such as en-US or fr-CA.'); return; }
     setSavingProfile(true);
     const locale = preferredLocale.trim() || null;
-    const { data, error } = await supabase.functions.invoke('update-locale-preferences', {
-      body: {
-        country: preferredCountry || null,
-        currency: preferredCurrency || null,
-        language: locale ? locale.split('-')[0] : null,
-        locale,
-        timezone: preferredTimezone.trim() || null,
-      },
-    });
-    if (error) toast.error(error.message);
-    else if (data?.error) toast.error(data.error);
-    else {
-      toast.success('Language, location, currency and timezone preferences saved.');
-      setProfile((current: any) => ({ ...current, ...(data?.preferences ?? {}) }));
-      await refreshRuntimeConfig();
+    try {
+      const { data, error } = await supabase.functions.invoke('update-locale-preferences', {
+        body: {
+          country: preferredCountry || null,
+          currency: preferredCurrency || null,
+          language: locale ? locale.split('-')[0] : null,
+          locale,
+          timezone: preferredTimezone.trim() || null,
+        },
+      });
+      if (error) toast.error(error.message);
+      else if (typeof data === 'object' && data !== null && 'error' in data && typeof data.error === 'string') toast.error(data.error);
+      else {
+        setProfile(current => current ? {
+          ...current,
+          preferred_country: preferredCountry || null,
+          preferred_currency: preferredCurrency || null,
+          locale_code: locale,
+          timezone: preferredTimezone.trim() || null,
+        } : current);
+        toast.success('Language, location, currency and timezone preferences saved.');
+        await refreshRuntimeConfig();
+      }
+    } catch {
+      toast.error('Unable to save your preferences. Please try again.');
+    } finally {
+      setSavingProfile(false);
     }
-    setSavingProfile(false);
   };
 
   const now = new Date();
@@ -191,9 +252,13 @@ export default function UserDashboard() {
   const pendingTickets = tickets.filter(t => t.payment_status === 'pending');
   const expiredTickets = tickets.filter(t => t.payment_status === 'completed' && new Date(t.expires_at) <= now);
 
-  const copyWatchLink = (watchCode: string, email: string) => {
-    navigator.clipboard.writeText(`${window.location.origin}/watch/${watchCode}?email=${encodeURIComponent(email)}`);
-    toast.success('Watch link copied!');
+  const copyWatchLink = async (watchCode: string, email: string) => {
+    try {
+      await navigator.clipboard.writeText(window.location.origin + '/watch/' + watchCode + '?email=' + encodeURIComponent(email));
+      toast.success('Watch link copied!');
+    } catch {
+      toast.error('Unable to copy the watch link. Copy the page address manually.');
+    }
   };
 
   const initials = (user?.email || 'U').charAt(0).toUpperCase();
@@ -291,13 +356,13 @@ export default function UserDashboard() {
               <CardHeader><CardTitle className="text-base flex items-center gap-2"><Wallet className="h-4 w-4"/> Wallet &amp; creator earnings</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-sm text-muted-foreground">Your earnings are shown by their original transaction currency. Pending settlement is not withdrawable; only verified settled funds appear as available.</p>
-                {walletBalances.length === 0 ? <div className="rounded-xl border border-dashed p-8 text-center"><Wallet className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40"/><p className="font-medium">No creator earnings yet</p><p className="mt-1 text-xs text-muted-foreground">When you earn from ticket sales, tips or gifts as an approved creator, your balances will appear here.</p></div> : walletBalances.map((balance:any) => <div key={balance.currency} className="grid gap-3 rounded-xl border p-4 sm:grid-cols-3"><div><p className="text-xs text-muted-foreground">Currency</p><p className="text-lg font-bold">{balance.currency}</p></div><div><p className="text-xs text-muted-foreground">Pending settlement</p><p className="text-lg font-semibold">{Number(balance.escrow || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</p></div><div><p className="text-xs text-muted-foreground">Available to withdraw</p><p className="text-lg font-semibold text-primary">{Number(balance.withdrawable || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</p></div></div>)}
+                {walletBalances.length === 0 ? <div className="rounded-xl border border-dashed p-8 text-center"><Wallet className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40"/><p className="font-medium">No creator earnings yet</p><p className="mt-1 text-xs text-muted-foreground">When you earn from ticket sales, tips or gifts as an approved creator, your balances will appear here.</p></div> : walletBalances.map(balance => <div key={balance.currency} className="grid gap-3 rounded-xl border p-4 sm:grid-cols-3"><div><p className="text-xs text-muted-foreground">Currency</p><p className="text-lg font-bold">{balance.currency}</p></div><div><p className="text-xs text-muted-foreground">Pending settlement</p><p className="text-lg font-semibold">{Number(balance.escrow || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</p></div><div><p className="text-xs text-muted-foreground">Available to withdraw</p><p className="text-lg font-semibold text-primary">{Number(balance.withdrawable || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</p></div></div>)}
                 <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">Creator earnings are tracked separately from personal stored-value funds. This history includes your sent and received tips and gifts; it does not imply that a personal cash wallet or top-up balance is enabled.</div>
                 <Card className="border-primary/20">
                   <CardHeader><CardTitle className="text-base">Request a creator payout</CardTitle></CardHeader>
                   <CardContent className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1"><Label htmlFor="withdraw-amount">Amount</Label><Input id="withdraw-amount" type="number" min="0.01" step="0.01" value={withdrawAmount} onChange={e=>setWithdrawAmount(e.target.value)} placeholder="0.00"/></div>
-                    <div className="space-y-1"><Label htmlFor="withdraw-currency">Earnings currency</Label><select id="withdraw-currency" value={withdrawCurrency} onChange={e=>setWithdrawCurrency(e.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select currency</option>{walletBalances.map((b:any)=><option key={b.currency} value={b.currency}>{b.currency} · available {Number(b.withdrawable||0).toLocaleString()}</option>)}</select></div>
+                    <div className="space-y-1"><Label htmlFor="withdraw-currency">Earnings currency</Label><select id="withdraw-currency" value={withdrawCurrency} onChange={e=>setWithdrawCurrency(e.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select currency</option>{walletBalances.map(b=><option key={b.currency} value={b.currency}>{b.currency} · available {Number(b.withdrawable||0).toLocaleString()}</option>)}</select></div>
                     <div className="space-y-1"><Label htmlFor="bank-country">Bank country (ISO code)</Label><Input id="bank-country" value={bankCountry} onChange={e=>setBankCountry(e.target.value.toUpperCase().slice(0,2))} maxLength={2}/></div>
                     <div className="space-y-1"><Label htmlFor="bank-name">Bank name</Label><Input id="bank-name" value={bankName} onChange={e=>setBankName(e.target.value)} maxLength={120}/></div>
                     <div className="space-y-1"><Label htmlFor="account-number">Account number</Label><Input id="account-number" value={accountNumber} onChange={e=>setAccountNumber(e.target.value)} maxLength={34} autoComplete="off"/></div>
@@ -305,17 +370,8 @@ export default function UserDashboard() {
                     <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-muted-foreground">Requests are checked against settled earnings and reserved balances. Submission does not guarantee approval or immediate payment.</p><Button onClick={()=>void submitWithdrawalRequest()} disabled={requestingWithdrawal||walletBalances.length===0}>{requestingWithdrawal?'Submitting…':'Request payout'}</Button></div>
                   </CardContent>
                 </Card>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-3"><h3 className="font-semibold">All wallet activity</h3><Badge variant="outline">{walletActivity.length} recent</Badge></div>
-                  {walletActivity.length===0 ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">Your ticket purchases, tips, gifts and payout activity will appear here.</p> :
-                    <div className="space-y-2">{walletActivity.map((tx:any)=>{
-                      const label=tx.activity_type==='ticket_purchase'?'Ticket purchase':tx.activity_type==='tip'?(tx.direction==='incoming'?'Tip received':'Tip sent'):tx.activity_type==='gift'?(tx.direction==='incoming'?'Gift received':'Gift sent'):'Withdrawal';
-                      let amount='';try{amount=new Intl.NumberFormat(undefined,{style:'currency',currency:tx.currency,maximumFractionDigits:2}).format(Number(tx.amount_major||0));}catch{amount=Number(tx.amount_major||0).toLocaleString()+' '+tx.currency;}
-                      return <div key={tx.activity_type+":"+tx.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3">
-                        <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-medium">{label} · {tx.description}</p><Badge variant="secondary">{tx.status}</Badge></div><p className="mt-1 text-xs text-muted-foreground">{tx.direction==="incoming"?"From ":"To "}{tx.counterparty||"DeGameTV"} · {new Date(tx.created_at).toLocaleString()}</p>{tx.reference&&<p className="mt-1 text-[10px] text-muted-foreground">Reference: {tx.reference}</p>}</div>
-                        <p className={"font-semibold whitespace-nowrap "+(tx.direction==="incoming"?"text-primary":"")}>{tx.direction==="incoming"?"+":"−"}{amount}</p>
-                      </div>;
-                    })}</div>}
+                <div className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">
+                  Detailed wallet activity is not available in this dashboard yet.
                 </div>
               </CardContent>
             </Card>
@@ -519,7 +575,7 @@ export default function UserDashboard() {
   );
 }
 
-function TicketRow({ ticket, type, onCopy }: { ticket: any; type: string; onCopy: (wc: string, email: string) => void }) {
+function TicketRow({ ticket, type, onCopy }: { ticket: DashboardTicket; type: 'active' | 'pending' | 'expired'; onCopy: (wc: string, email: string) => void }) {
   const currency = typeof ticket.currency === 'string' && /^[A-Z]{3}$/.test(ticket.currency) ? ticket.currency : null;
   const formattedPrice = currency
     ? new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(ticket.price || 0))
