@@ -228,9 +228,8 @@ export default function StudioSubmit() {
         setForm(current => ({ ...current, ...parsed, submitter_email: user.email || '' }));
       }
     } catch { localStorage.removeItem(draftKey); }
-  // Restore once per authenticated creator.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  // Restore when the authenticated creator or their email changes.
+  }, [draftKey, user?.email, user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
