@@ -1,48 +1,56 @@
 import { useState, useEffect } from 'react';
+import { z } from 'zod';
 import { PromoBanner } from '@/components/cinema/PromoBanner';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Play, Ticket, Clock, Calendar, Star, ArrowRight, Loader2, Film } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { fetchCatalogRows } from '@/integrations/supabase/catalog';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
-interface Screening {
-  id: string;
-  title: string;
-  slug: string;
-  description: string;
-  poster_url: string;
-  banner_url: string;
-  screening_date: string;
-  duration: number;
-  location_pricing: any;
-  status: string;
-}
+const screeningSchema = z.object({
+  id: z.string(), title: z.string(), slug: z.string(),
+  description: z.string().nullable().optional(), poster_url: z.string().nullable().optional(),
+  banner_url: z.string().nullable().optional(), screening_date: z.string().nullable().optional(),
+  duration: z.number().nullable().optional(), location_pricing: z.unknown().nullable().optional(),
+  status: z.string(),
+}).passthrough();
+type Screening = z.infer<typeof screeningSchema>;
 
 export default function Index() {
   usePageTitle('Virtual Cinema Premieres');
   const [countdown, setCountdown] = useState({ days: 0, hours: 0, mins: 0, secs: 0 });
   const [screenings, setScreenings] = useState<Screening[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
     const fetchData = async () => {
-      const { data } = await (supabase as any)
-        .from('public_screenings_catalog')
-        .select('id,content_id,title,slug,description,poster_url,banner_url,trailer_url,release_date,screening_date,duration,location_pricing,status,event_type,lifecycle,live_price_ngn,live_price_usd,live_recording_status,live_started_at,live_ended_at,live_replay_ready_at,replay_price_ngn,replay_price_usd,replay_access_hours,refund_policy,cast_crew,gallery_images,age_rating,star_rating,review_count,allowed_countries,blocked_countries,cancelled_at,created_at,updated_at')
-        .eq('status', 'published')
-        .order('screening_date', { ascending: true });
-      if (data && data.length > 0) {
-        setScreenings(data.map(s => ({
-          ...s,
-          location_pricing: typeof s.location_pricing === 'string' ? JSON.parse(s.location_pricing) : s.location_pricing,
-        })));
-      }
-      setLoading(false);
+      try {
+        const rows = await fetchCatalogRows({
+          view: 'public_screenings_catalog',
+          select: 'id,title,slug,description,poster_url,banner_url,screening_date,duration,location_pricing,status',
+          filters: { status: 'eq.published' }, order: 'screening_date.asc', signal: controller.signal,
+        }, screeningSchema);
+        const normalized = rows.map(row => {
+          let pricing: unknown = row.location_pricing;
+          if (typeof pricing === 'string') { try { pricing = JSON.parse(pricing) as unknown; } catch { pricing = null; } }
+          const parsedPricing = z.object({ nigeria: z.union([z.number(), z.string()]).optional() }).passthrough().safeParse(pricing);
+          return { ...row, location_pricing: parsedPricing.success ? parsedPricing.data : null };
+        });
+        if (active) setScreenings(normalized);
+      } catch (error) {
+        if (active && !(error instanceof DOMException && error.name === 'AbortError')) {
+          console.error('featured_screenings_load_failed', error);
+          setLoadError('Featured screenings are temporarily unavailable.');
+        }
+      } finally { if (active) setLoading(false); }
     };
-    fetchData();
+    void fetchData();
+    return () => { active = false; controller.abort(); };
   }, []);
 
   const featuredScreening = screenings[0] || null;
@@ -53,24 +61,27 @@ export default function Index() {
     : 0;
 
   useEffect(() => {
-    if (!targetDate) return;
-    const timer = setInterval(() => {
+    const zero = { days: 0, hours: 0, mins: 0, secs: 0 };
+    if (!Number.isFinite(targetDate) || targetDate <= Date.now()) { setCountdown(zero); return; }
+    const updateCountdown = () => {
       const diff = targetDate - Date.now();
-      if (diff > 0) {
+      if (diff <= 0) { setCountdown(zero); return; }
         setCountdown({
           days: Math.floor(diff / (1000 * 60 * 60 * 24)),
           hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
           mins: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
           secs: Math.floor((diff % (1000 * 60)) / 1000),
         });
-      }
-    }, 1000);
+      };
+    updateCountdown();
+    const timer = setInterval(updateCountdown, 1000);
     return () => clearInterval(timer);
   }, [targetDate]);
 
   return (
     <MainLayout>
       <PromoBanner placement="home" />
+      {loadError && <div role="alert" className="container mx-auto px-5 pt-4 text-sm text-destructive">{loadError}</div>}
       {/* Hero */}
       <section className="relative isolate min-h-[560px] overflow-hidden bg-[#090909] animate-fade-in sm:min-h-[620px]">
         <div className="absolute inset-0 -z-20 bg-cover bg-center opacity-55" style={{ backgroundImage: `url(${featuredScreening?.banner_url || featuredScreening?.poster_url || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1800&auto=format&fit=crop'})` }} />
