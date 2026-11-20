@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
     if (cancelError) return json({
       error: "Refund processing finished but the screening cancellation state needs reconciliation.",
       refunded, pendingRefunds,
-    });
+    }, 503);
 
     await admin.from("audit_logs").insert({
       user_id: user.id, action: "event_cancel_refund", entity_type: "screening", entity_id: s.id,
