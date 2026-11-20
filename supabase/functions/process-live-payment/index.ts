@@ -168,8 +168,8 @@ serve(async(req:Request)=>{
     if(!response.ok||!checkoutValue){await markProviderHealth(db,provider.id,"unhealthy","Checkout initialization failed.");continue;}
     const checkout=new URL(checkoutValue),allowed=provider.settings?.allowed_checkout_origins;
     if(checkout.protocol!=="https:"||!Array.isArray(allowed)||!allowed.includes(checkout.origin)){await markProviderHealth(db,provider.id,"unhealthy","Provider returned an untrusted checkout URL.");continue;}
-    selected=provider;checkoutUrl=checkout.toString();selectedCheckoutId=checkoutId;break;
-   }catch{continue;}
+    selected=provider;checkoutUrl=checkout.toString();selectedCheckoutId=checkoutId;await markProviderHealth(db,provider.id,'healthy',null);break;
+   }catch{await markProviderHealth(db,provider.id,'unhealthy','Checkout provider did not respond.');continue;}
   }
   if(!selected||!checkoutUrl){await db.from("live_payment_orders").update({status:"failed"}).eq("provider_reference",reference);if(earlyBirdReserved)await db.rpc("release_event_early_bird_slot",{p_provider_reference:reference});return json(502,{error:"No configured payment provider accepted checkout. No charge was made."});}
   const {error:updateError}=await db.from("live_payment_orders").update({provider:selected.provider_key,provider_checkout_id:selectedCheckoutId,provider_mode:"live",metadata:{created_from:"viewer_checkout",guest_checkout:!user,provider_mode:"live",country_code:countryCode,source_currency:pricingCurrency,base_amount:baseAmount,early_bird_reserved:earlyBirdReserved,checkout_created_at:new Date().toISOString()}}).eq("provider_reference",reference);
