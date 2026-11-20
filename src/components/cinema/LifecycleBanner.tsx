@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,7 +19,9 @@ function useCountdown(target: string | null) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const i = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(i); }, []);
   if (!target) return null;
-  const d = Math.max(0, new Date(target).getTime() - now);
+  const timestamp = new Date(target).getTime();
+  if (!Number.isFinite(timestamp)) return null;
+  const d = Math.max(0, timestamp - now);
   return { d: Math.floor(d / 864e5), h: Math.floor(d / 36e5) % 24, m: Math.floor(d / 6e4) % 60, s: Math.floor(d / 1e3) % 60, done: d === 0 };
 }
 
@@ -27,13 +29,29 @@ export function LifecycleBanner(p: Props) {
   const cd = useCountdown(p.screeningDate);
   const [email, setEmail] = useState('');
   const [joined, setJoined] = useState(false);
+  const [joining, setJoining] = useState(false);
+  const mounted = useRef(true);
+
+  useEffect(() => () => { mounted.current = false; }, []);
 
   const join = async () => {
+    if (joining) return;
     const r = emailSchema.safeParse(email);
     if (!r.success) return toast.error(r.error.issues[0].message);
-    const { error } = await supabase.from('event_waitlist').insert({ screening_id: p.screeningId, email: r.data });
-    if (error && error.code !== '23505') return toast.error('Could not join waitlist');
-    setJoined(true); toast.success("You're on the list — we'll email you.");
+    setJoining(true);
+    try {
+      const { error } = await supabase.from('event_waitlist').insert({ screening_id: p.screeningId, email: r.data });
+      if (error && error.code !== '23505') throw error;
+      if (mounted.current) {
+        setJoined(true);
+        toast.success("You're on the list — we'll email you.");
+      }
+    } catch (error: unknown) {
+      console.error('Unable to join event waitlist:', error);
+      if (mounted.current) toast.error('Could not join waitlist. Please try again.');
+    } finally {
+      if (mounted.current) setJoining(false);
+    }
   };
 
   const waitlist = (label: string) => joined
@@ -41,7 +59,7 @@ export function LifecycleBanner(p: Props) {
     : (
       <div className="flex gap-2 w-full max-w-md">
         <Input type="email" aria-label="Email for notifications" placeholder="you@email.com" value={email} onChange={e => setEmail(e.target.value)} />
-        <Button onClick={join} className="rounded-full shrink-0"><Bell className="w-4 h-4 mr-1" />{label}</Button>
+        <Button onClick={() => { void join(); }} disabled={joining} className="rounded-full shrink-0"><Bell className="w-4 h-4 mr-1" />{label}</Button>
       </div>
     );
 
