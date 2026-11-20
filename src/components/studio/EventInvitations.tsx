@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,7 +42,7 @@ export function EventInvitations({ screeningId }: { screeningId: string }) {
     return () => { active = false; };
   }, [refresh]);
 
-  const create = async (event: React.FormEvent) => {
+  const create = async (event: FormEvent) => {
     event.preventDefault();
     if (!email.trim()) return;
     setBusy(true);
