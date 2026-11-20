@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { StudioLayout } from '@/components/studio/StudioLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,11 @@ import { Trash2, UserPlus, Megaphone } from 'lucide-react';
 
 const ROLES = { ADMIN: 'Administrator', PRODUCER: 'Producer', BROADCASTER: 'Broadcaster', FINANCE_VIEWER: 'Finance Viewer', MODERATOR: 'Moderator' } as const;
 const inviteSchema = z.object({ email: z.string().trim().email('Enter a valid email').max(255), role: z.enum(['ADMIN', 'PRODUCER', 'BROADCASTER', 'FINANCE_VIEWER', 'MODERATOR']) });
+type StudioAccount = { id: string; tier: string; company_name: string | null; rights_declared: boolean; seats: number; status: string; base_currency: string | null };
+type TeamMember = { id: string; user_id: string; role: string; revoked_at: string | null };
+type TeamInvitation = { id: string; email: string; role: string };
+type StudioEvent = { id: string; title: string; slug: string; banner_url: string | null };
+type PromoBanner = { id: string; title: string; placement: string; is_active: boolean; status: string };
 const bannerSchema = z.object({
   screeningId: z.string().uuid('Choose an event'),
   imageUrl: z.string().trim().url('Enter a valid image URL'),
@@ -25,16 +30,16 @@ const bannerSchema = z.object({
 export default function StudioTeam() {
   usePageTitle('Team & Promotion — Studio');
   const { user } = useAuth();
-  const [acct, setAcct] = useState<any>(null);
-  const [members, setMembers] = useState<any[]>([]);
-  const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
-  const [myInvitations, setMyInvitations] = useState<any[]>([]);
+  const [acct, setAcct] = useState<StudioAccount | null>(null);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [pendingInvitations, setPendingInvitations] = useState<TeamInvitation[]>([]);
+  const [myInvitations, setMyInvitations] = useState<TeamInvitation[]>([]);
   const [invite, setInvite] = useState({ email: '', role: 'PRODUCER' });
-  const [events, setEvents] = useState<{ id: string; title: string; slug: string; banner_url: string | null }[]>([]);
-  const [banners, setBanners] = useState<any[]>([]);
+  const [events, setEvents] = useState<StudioEvent[]>([]);
+  const [banners, setBanners] = useState<PromoBanner[]>([]);
   const [req, setReq] = useState({ screeningId: '', imageUrl: '', placement: 'home' });
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!user) return;
     const [{ data: a }, { data: c }, { data: b }] = await Promise.all([
       supabase.from('studio_accounts').select('id,user_id,tier,company_name,rights_declared,seats,status,base_currency').eq('user_id', user.id).maybeSingle(),
@@ -42,10 +47,10 @@ export default function StudioTeam() {
       supabase.from('promo_banners').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }),
     ]);
     setAcct(a); setBanners(b || []);
-    const invitations = await invokeFn<{invitations:any[]}>('creator-onboarding',{action:'list_invitations'});
+    const invitations = await invokeFn<{invitations:TeamInvitation[]}>('creator-onboarding',{action:'list_invitations'});
     if (invitations.ok) setMyInvitations(invitations.data?.invitations ?? []);
     if (a?.id) {
-      const team = await invokeFn<{members:any[];invitations:any[]}>('creator-onboarding',{action:'list_team',studioAccountId:a.id});
+      const team = await invokeFn<{members:TeamMember[];invitations:TeamInvitation[]}>('creator-onboarding',{action:'list_team',studioAccountId:a.id});
       if (team.ok) { setMembers(team.data?.members ?? []); setPendingInvitations(team.data?.invitations ?? []); }
       else { setMembers([]); setPendingInvitations([]); }
     }
@@ -54,8 +59,8 @@ export default function StudioTeam() {
       const { data: s } = await supabase.from('screenings').select('id, title, slug, banner_url').in('content_id', ids);
       setEvents(s || []);
     }
-  };
-  useEffect(() => { load(); }, [user]);
+  }, [user?.id]);
+  useEffect(() => { void void load(); }, [load]);
 
   const isBusiness = acct?.tier === 'business' && acct?.status === 'approved';
   const active = members;
@@ -86,7 +91,7 @@ export default function StudioTeam() {
     const { error } = await supabase.from('promo_banners').insert({
       owner_id: user!.id, screening_id: ev.id, title: ev.title, image_url: p.data.imageUrl,
       link_url: `/movie/${ev.slug}`, placement: p.data.placement, is_active: false,
-    } as any);
+    } );
     if (error) toast.error(error.message); else { toast.success('Banner request sent for admin approval'); setReq({ screeningId: '', imageUrl: '', placement: 'home' }); load(); }
   };
 
@@ -108,7 +113,7 @@ export default function StudioTeam() {
                 <Button className="rounded-full" disabled={active.length >= (acct.seats || 0)} onClick={sendInvite}><UserPlus className="w-4 h-4 mr-1" />Invite</Button>
               </div>
             )}
-            {pendingInvitations.map((inv:any) => <div key={inv.id} className="flex items-center justify-between gap-2 rounded-xl border p-2"><div className="min-w-0 flex-1"><p className="truncate text-sm">{inv.email}</p><Badge variant="secondary">{inv.role} · pending</Badge></div><Button size="sm" variant="outline" onClick={async()=>{const r=await invokeFn('creator-onboarding',{action:'revoke_invitation',invitationId:inv.id});if(!r.ok)toast.error(r.error??'Invitation revocation failed.');else{toast.success('Invitation revoked');load();}}}>Revoke invite</Button></div>)}
+            {pendingInvitations.map((inv) => <div key={inv.id} className="flex items-center justify-between gap-2 rounded-xl border p-2"><div className="min-w-0 flex-1"><p className="truncate text-sm">{inv.email}</p><Badge variant="secondary">{inv.role} · pending</Badge></div><Button size="sm" variant="outline" onClick={async()=>{const r=await invokeFn('creator-onboarding',{action:'revoke_invitation',invitationId:inv.id});if(!r.ok)toast.error(r.error??'Invitation revocation failed.');else{toast.success('Invitation revoked');load();}}}>Revoke invite</Button></div>)}
             {active.map(m => (
               <div key={m.id} className="flex items-center gap-2 border border-border rounded-xl p-2">
                 <div className="flex-1 min-w-0"><p className="text-sm truncate">{m.user_id}</p>
