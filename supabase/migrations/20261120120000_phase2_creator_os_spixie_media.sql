@@ -269,6 +269,7 @@ update public.release_domains set verification_status=
        else 'PENDING_DNS'::public.production_domain_status end
 where verification_status is null;
 create unique index if not exists release_domains_subdomain_unique on public.release_domains(subdomain);
+create unique index if not exists release_domains_hostname_unique on public.release_domains(lower(hostname));
 create index if not exists release_domains_verification_queue_idx on public.release_domains(verification_status,updated_at);
 comment on table public.release_domains is E'@graphql({"description":"Canonical per-production storefront hostname registry. Includes DNS ownership and SSL lifecycle; no duplicate production domain table.","max_rows":50})';
 
