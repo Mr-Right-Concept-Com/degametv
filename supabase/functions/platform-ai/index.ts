@@ -132,8 +132,21 @@ Deno.serve(async req => {
         sources:[],
       });
     }
+    const [{data:roleRows,error:roleError},{data:supportAgent,error:agentError}] = await Promise.all([
+      db.from("user_roles").select("role").eq("user_id",user.id),
+      db.from("support_agents").select("id").eq("user_id",user.id).eq("is_active",true).maybeSingle(),
+    ]);
+    if(roleError||agentError)return respond({error:"Support audience permissions could not be verified."},503);
+    const roles=new Set((roleRows??[]).map(row=>String(row.role)));
+    const audiences=new Set<string>(["all","public","viewer"]);
+    if(roles.has("creator")){audiences.add("creator");audiences.add("studio");}
+    if(roles.has("licensee_admin")){audiences.add("licensee_admin");audiences.add("business");}
+    if(supportAgent||roles.has("moderator")){audiences.add("support");audiences.add("technical");}
+    if(roles.has("platform_admin")||roles.has("super_admin")){
+      for(const audience of ["creator","studio","licensee_admin","business","support","technical","admin"])audiences.add(audience);
+    }
     const {data:articles,error:knowledgeError} = await db.from("knowledgebase_articles")
-      .select("slug,title,summary,body_markdown").eq("is_published",true)
+      .select("slug,title,summary,body_markdown").eq("is_published",true).in("audience",Array.from(audiences))
       .textSearch("search_vector",request.input,{type:"websearch",config:"simple"}).limit(8);
     if (knowledgeError) return respond({error:"Approved support knowledge could not be retrieved."},503);
     if (!articles?.length) return respond({
