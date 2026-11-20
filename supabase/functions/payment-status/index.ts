@@ -4,9 +4,17 @@ import { z } from "npm:zod@3.25.76";
 const schema=z.object({reference:z.string().min(20).max(80).regex(/^DTV(?:L|G)?_[A-Za-z0-9]+$/)}).strict();
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
+type PaymentVerificationOrder = {
+ provider:string|null; provider_mode:string|null; provider_checkout_id:string|null;
+ amount_minor:number; currency:string;
+};
+const isRecord=(value:unknown):value is Record<string,unknown> =>
+ value!==null&&typeof value==="object"&&!Array.isArray(value);
+
 const randomToken=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,"0")).join("");
 const sha256=async(value:string)=>Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value))),b=>b.toString(16).padStart(2,"0")).join("");
-async function verifyProviderPayment(admin:ReturnType<typeof createClient>,reference:string,order:any){
+async function verifyProviderPayment(admin:ReturnType<typeof createClient>,reference:string,order:PaymentVerificationOrder){
+ if(!order.provider)return {state:"pending" as const};
  const [{data:binding,error:bindingError},{data:secretRows,error:secretError}]=await Promise.all([
   admin.from("service_provider_bindings").select("provider_key,base_url,endpoints,settings,is_live").eq("capability","payments").eq("provider_key",order.provider).maybeSingle(),
   admin.rpc("get_service_provider_admin_secret",{p_capability:"payments",p_provider_key:order.provider}),
@@ -109,7 +117,7 @@ serve(async(req:Request)=>{
    let emailSent=Boolean(order.email_sent_at);
    let claimToken:string|null=null;
    let claimed=false;
-   let completed:any=null;
+   let completed:unknown=null;
    if(status==="pending"){
     const verified=await verifyProviderPayment(admin,reference,order);
     if(verified.state==="failed"){
@@ -147,10 +155,11 @@ serve(async(req:Request)=>{
      completed=result;
     }
    }
-   if(claimed&&claimToken&&completed?.ticket_id&&completed?.email){
+   const completedRecord=isRecord(completed)?completed:null;
+   if(claimed&&claimToken&&typeof completedRecord?.ticket_id==="string"&&typeof completedRecord.email==="string"){
     const origin=await publicOrigin(admin);
     const deliveryUrl=origin?new URL("/live/claim?token="+encodeURIComponent(claimToken),origin).toString():null;
-    emailSent=deliveryUrl?await dispatchTicketEmail(url,service,{email:completed.email,movieTitle:completed.title||"Live event",watchUrl:deliveryUrl,ticketCode:completed.ticket_code,expiresAt:completed.valid_until,location:order.metadata?.country_code||"Global",price:Number(completed.price),currency:completed.currency}):false;
+    emailSent=deliveryUrl?await dispatchTicketEmail(url,service,{email:completedRecord.email,movieTitle:typeof completedRecord.title==="string"?completedRecord.title:"Live event",watchUrl:deliveryUrl,ticketCode:completedRecord.ticket_code,expiresAt:completedRecord.valid_until,location:order.metadata?.country_code||"Global",price:Number(completedRecord.price),currency:completedRecord.currency}):false;
     await admin.from("live_payment_orders").update(emailSent?{email_sent_at:new Date().toISOString(),email_delivery_claimed_at:null}:{email_delivery_claimed_at:null}).eq("id",order.id);
    }else if(claimed){
     await admin.from("live_payment_orders").update({email_delivery_claimed_at:null}).eq("id",order.id);
