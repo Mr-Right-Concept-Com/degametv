@@ -29,19 +29,26 @@ Deno.serve(async(req)=>{
  const parsed=Body.safeParse(await req.json().catch(()=>null));
  if(!parsed.success)return json(400,{error:parsed.error.flatten().fieldErrors});
  const p=parsed.data;
- const {data:event,error:eventError}=await admin.from("screenings").select("id,tenant_id,content_id,screening_date").eq("id",p.screeningId).maybeSingle();
+ const {data:event,error:eventError}=await admin.from("screenings").select("id,tenant_id,content_id,screening_date,sales_open_at,sales_close_at,early_bird_price,early_bird_ends_at,early_bird_capacity").eq("id",p.screeningId).maybeSingle();
  if(eventError||!event)return json(404,{error:"Event not found."});
  const {data:content}=await admin.from("content").select("creator_id").eq("id",event.content_id).maybeSingle();
  const {data:isAdmin}=await admin.rpc("is_super_admin",{_user_id:user.id});
  if(!isAdmin&&content?.creator_id!==user.id)return json(403,{error:"Only the event owner or an authorized administrator can change these settings."});
- const open=p.salesOpenAt===undefined?null:p.salesOpenAt;
- const close=p.salesCloseAt===undefined?null:p.salesCloseAt;
+ const open=p.salesOpenAt===undefined?event.sales_open_at:p.salesOpenAt;
+ const close=p.salesCloseAt===undefined?event.sales_close_at:p.salesCloseAt;
+ const birdPrice=p.earlyBirdPrice===undefined?event.early_bird_price:p.earlyBirdPrice;
+ const birdEnd=p.earlyBirdEndsAt===undefined?event.early_bird_ends_at:p.earlyBirdEndsAt;
+ const birdCapacity=p.earlyBirdCapacity===undefined?event.early_bird_capacity:p.earlyBirdCapacity;
  if(open&&close&&Date.parse(open)>=Date.parse(close))return json(422,{error:"Ticket sales must close after they open."});
- if(p.earlyBirdPrice!==undefined&&p.earlyBirdPrice!==null){
-  if(p.earlyBirdEndsAt===undefined||!p.earlyBirdEndsAt)return json(422,{error:"Set an early-bird end time when enabling early-bird pricing."});
-  if(p.earlyBirdCapacity===undefined||p.earlyBirdCapacity===null||p.earlyBirdCapacity<1)return json(422,{error:"Set an early-bird ticket capacity."});
-  if(open&&Date.parse(p.earlyBirdEndsAt)<=Date.parse(open))return json(422,{error:"Early-bird pricing must end after ticket sales open."});
-  if(close&&Date.parse(p.earlyBirdEndsAt)>Date.parse(close))return json(422,{error:"Early-bird pricing cannot end after ticket sales close."});
+ if(birdPrice!==null&&birdPrice!==undefined){
+  if(!birdEnd)return json(422,{error:"Set an early-bird end time when enabling early-bird pricing."});
+  if(!birdCapacity||birdCapacity<1)return json(422,{error:"Set an early-bird ticket capacity."});
+  if(open&&Date.parse(birdEnd)<=Date.parse(open))return json(422,{error:"Early-bird pricing must end after ticket sales open."});
+  if(close&&Date.parse(birdEnd)>Date.parse(close))return json(422,{error:"Early-bird pricing cannot end after ticket sales close."});
+ }
+ if(p.eventTimezone!==undefined){
+  try{new Intl.DateTimeFormat("en",{timeZone:p.eventTimezone}).format(new Date());}
+  catch{return json(422,{error:"Enter a valid IANA timezone such as Africa/Lagos."});}
  }
  const patch:Record<string,unknown>={};
  if(p.screeningDate!==undefined)patch.screening_date=p.screeningDate;
