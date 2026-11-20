@@ -97,8 +97,8 @@ serve(async(req:Request)=>{
   const {data:providers,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:"payments"});
   if(providerError||!Array.isArray(providers)||!providers.length)return json(503,{error:"No payment provider is enabled in Admin Provider Vault."});
   const usable=providers.filter((value:unknown):value is PaymentProvider=>isPaymentProvider(value)&&(
-   p.is_live===true&&p.credential&&Array.isArray(p.settings?.supported_currencies)&&p.settings.supported_currencies.includes(currency)
-   &&typeof p.endpoints?.checkout_initialize==="string"&&p.endpoints.checkout_initialize.startsWith("/")&&!p.endpoints.checkout_initialize.startsWith("//")&&typeof p.endpoints?.payment_verify==="string"&&p.endpoints.payment_verify.startsWith("/")&&!p.endpoints.payment_verify.startsWith("//")&&typeof p.endpoints?.refund==="string"&&p.endpoints.refund.startsWith("/")&&!p.endpoints.refund.startsWith("//")
+   value.is_live===true&&value.credential&&Array.isArray(value.settings.supported_currencies)&&value.settings.supported_currencies.includes(currency)
+   &&typeof value.endpoints.checkout_initialize==="string"&&value.endpoints.checkout_initialize.startsWith("/")&&!value.endpoints.checkout_initialize.startsWith("//")&&typeof value.endpoints.payment_verify==="string"&&value.endpoints.payment_verify.startsWith("/")&&!value.endpoints.payment_verify.startsWith("//")&&typeof value.endpoints.refund==="string"&&value.endpoints.refund.startsWith("/")&&!value.endpoints.refund.startsWith("//")
    &&(!parsed.data.method||value.provider_key===parsed.data.method)
   ));
   if(!usable.length)return json(503,{error:"No live payment provider is enabled for this currency and payment method."});
