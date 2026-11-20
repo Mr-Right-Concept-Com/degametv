@@ -80,12 +80,9 @@ Deno.serve(async req=>{
     const {error:updateError}=await db.from("studio_invitations").update({revoked_at:new Date().toISOString()}).eq("id",inv.id).is("accepted_at",null).is("revoked_at",null);
     return updateError?json(503,{error:"Invitation could not be declined."}):json(200,{success:true,status:"DECLINED"});
    }
-   const now=new Date().toISOString();
-   const {error:memberError}=await db.from("studio_memberships").upsert({studio_account_id:inv.studio_account_id,user_id:user.id,role:inv.role,invited_by:inv.invited_by,accepted_at:now,revoked_at:null},{onConflict:"studio_account_id,user_id"});
-   if(memberError)return json(503,{error:"Studio membership could not be created."});
-   const {error:updateError}=await db.from("studio_invitations").update({invited_user_id:user.id,accepted_at:now}).eq("id",inv.id).is("accepted_at",null).is("revoked_at",null);
-   if(updateError){await db.from("studio_memberships").update({revoked_at:now}).eq("studio_account_id",inv.studio_account_id).eq("user_id",user.id);return json(503,{error:"Invitation acceptance could not be finalized."});}
-   return json(200,{success:true,status:"ACCEPTED",studioAccountId:inv.studio_account_id,role:inv.role});
+   const {data:accepted,error:acceptError}=await db.rpc("accept_studio_invitation",{p_invitation_id:inv.id,p_user_id:user.id,p_email:String(user.email??"")});
+   if(acceptError)return json(acceptError.code==="23514"?409:acceptError.code==="42501"?403:503,{error:acceptError.message==="studio_seat_limit_reached"?"The studio has no remaining team seats.":acceptError.message==="invitation_expired_or_revoked"?"The invitation has expired or been revoked.":"Invitation acceptance could not be finalized."});
+   return json(200,accepted??{success:true,status:"ACCEPTED",studioAccountId:inv.studio_account_id,role:inv.role});
   }
   if(p.action==="revoke_invitation"){
    const {data:inv}=await db.from("studio_invitations").select("id,studio_account_id").eq("id",p.invitationId).is("accepted_at",null).is("revoked_at",null).maybeSingle();
