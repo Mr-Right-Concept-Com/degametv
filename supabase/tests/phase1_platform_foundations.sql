@@ -39,6 +39,17 @@ begin
      or not has_function_privilege('service_role','public.transition_withdrawal_request(uuid,text,uuid,text)','execute') then
     raise exception 'withdrawal_transition_privileges_invalid';
   end if;
+  if has_function_privilege('authenticated','public.admin_configure_email_provider(text,text,text,text,text,boolean,boolean)','execute')
+     or has_function_privilege('authenticated','public.admin_configure_payment_provider(text,text,text,text,text,text,boolean,boolean)','execute')
+     or has_function_privilege('authenticated','public.admin_configure_service_provider(text,text,boolean,boolean,text,jsonb,jsonb,text,text,boolean)','execute')
+     or has_function_privilege('authenticated','public.admin_configure_service_provider_modes(text,text,boolean,boolean,text,jsonb,jsonb,text,text,text,text,boolean)','execute')
+     or has_function_privilege('authenticated','public.admin_upsert_country_currency_rule(text,text,text,text,text,boolean,text)','execute')
+     or has_function_privilege('authenticated','public.admin_upsert_feature_control(text,boolean,integer,text,jsonb,text)','execute') then
+    raise exception 'legacy_admin_rpc_paths_still_executable';
+  end if;
+  if not has_function_privilege('authenticated','public.admin_configure_service_provider_modes_with_priority(text,text,boolean,boolean,text,jsonb,jsonb,text,text,text,text,integer)','execute') then
+    raise exception 'canonical_provider_admin_rpc_not_executable';
+  end if;
   if not exists(select 1 from pg_policy p join pg_class c on c.oid=p.polrelid
     where c.relname='knowledgebase_articles' and p.polname='knowledgebase_articles_audience_read_authenticated'
       and pg_get_expr(p.polqual,p.polrelid) like '%audience%') then
