@@ -41,6 +41,9 @@ async function convertAmount(baseUrl: string, serviceKey: string, amount: number
   return Number(result.converted);
 }
 
+type PaymentProvider={provider_key:string;is_live:boolean;credential:string;settings:Record<string,unknown>;endpoints:Record<string,unknown>;base_url:string};
+const isRecord=(value:unknown):value is Record<string,unknown>=>typeof value==="object"&&value!==null&&!Array.isArray(value);
+const isPaymentProvider=(value:unknown):value is PaymentProvider=>isRecord(value)&&typeof value.provider_key==="string"&&value.is_live===true&&typeof value.credential==="string"&&isRecord(value.settings)&&isRecord(value.endpoints)&&typeof value.base_url==="string";
 const randomCode = (bytes: number) => {
   const data = crypto.getRandomValues(new Uint8Array(bytes));
   return Array.from(data, b => b.toString(16).padStart(2, "0")).join("");
@@ -93,7 +96,7 @@ if (import.meta.main) serve(async (req: Request) => {
     if (configError || !Array.isArray(configs) || !configs.length) {
       return json(503, { success: false, error: "No live payment adapter is available." });
     }
-    const config = configs.find((provider: any) => provider.provider_key === method && provider.is_live === true && Boolean(provider.credential));
+    const config = configs.find((provider: unknown): provider is PaymentProvider => isPaymentProvider(provider) && => provider.provider_key === method && provider.is_live === true && Boolean(provider.credential));
     if (!config) return json(503, { success: false, error: "The selected live payment adapter is not active or its Vault credentials are incomplete." });
     const checkoutEndpoint = config.endpoints?.checkout_initialize;
     if (!config.credential || typeof checkoutEndpoint !== "string" || !checkoutEndpoint.startsWith("/") || checkoutEndpoint.startsWith("//") || typeof config.endpoints?.payment_verify !== "string" || !config.endpoints.payment_verify.startsWith("/") || config.endpoints.payment_verify.startsWith("//") || typeof config.endpoints?.refund !== "string" || !config.endpoints.refund.startsWith("/") || config.endpoints.refund.startsWith("//")) {
