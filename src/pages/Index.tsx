@@ -63,19 +63,24 @@ export default function Index() {
   useEffect(() => {
     const zero = { days: 0, hours: 0, mins: 0, secs: 0 };
     if (!Number.isFinite(targetDate) || targetDate <= Date.now()) { setCountdown(zero); return; }
+    let timer: ReturnType<typeof setInterval> | undefined;
     const updateCountdown = () => {
       const diff = targetDate - Date.now();
-      if (diff <= 0) { setCountdown(zero); return; }
-        setCountdown({
-          days: Math.floor(diff / (1000 * 60 * 60 * 24)),
-          hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
-          mins: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
-          secs: Math.floor((diff % (1000 * 60)) / 1000),
-        });
-      };
+      if (diff <= 0) {
+        setCountdown(zero);
+        if (timer) clearInterval(timer);
+        return;
+      }
+      setCountdown({
+        days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+        hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+        mins: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+        secs: Math.floor((diff % (1000 * 60)) / 1000),
+      });
+    };
     updateCountdown();
-    const timer = setInterval(updateCountdown, 1000);
-    return () => clearInterval(timer);
+    if (targetDate > Date.now()) timer = setInterval(updateCountdown, 1000);
+    return () => { if (timer) clearInterval(timer); };
   }, [targetDate]);
 
   return (
