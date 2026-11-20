@@ -1,6 +1,6 @@
 import {createClient} from "npm:@supabase/supabase-js@2";
 import {z} from "npm:zod@3";
-const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"content-type,x-media-worker-secret","Access-Control-Allow-Methods":"POST,OPTIONS"};
+const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"content-type,x-media-worker-secret,x-media-transcoder-callback-secret","Access-Control-Allow-Methods":"POST,OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
 const enc=new TextEncoder(),hex=(v:ArrayBuffer)=>[...new Uint8Array(v)].map(x=>x.toString(16).padStart(2,"0")).join("");
 const hash=async(v:string|Uint8Array)=>hex(await crypto.subtle.digest("SHA-256",typeof v==="string"?enc.encode(v):v));
@@ -48,9 +48,13 @@ Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});if(req.method!=="POST")return json(405,{error:"Method not allowed."});
  const url=Deno.env.get("SUPABASE_URL"),key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");if(!url||!key)return json(503,{error:"Media worker is not configured."});
  const db=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
- const {data:secret,error:secretError}=await db.rpc("get_media_worker_secret");
- if(secretError||typeof secret!=="string"||!secret||req.headers.get("x-media-worker-secret")!==secret)return json(401,{error:"Worker authentication failed."});
+ const {data:workerSecret,error:workerSecretError}=await db.rpc("get_media_worker_secret");
+ if(workerSecretError||typeof workerSecret!=="string"||!workerSecret)return json(503,{error:"Worker authentication material is unavailable."});
  const body=await req.json().catch(()=>({}));
+ if(body?.action==="transcode_callback"){
+  const {data:callbackSecret,error:callbackSecretError}=await db.rpc("get_media_transcoder_callback_secret");
+  if(callbackSecretError||typeof callbackSecret!=="string"||!callbackSecret||req.headers.get("x-media-transcoder-callback-secret")!==callbackSecret)return json(401,{error:"Transcoder callback authentication failed."});
+ }else if(req.headers.get("x-media-worker-secret")!==workerSecret)return json(401,{error:"Worker authentication failed."});
  let storage:Storage;
  try{storage=storageConfig(await binding(db,"media_storage"));}catch(e){return json(503,{error:e instanceof Error?e.message:"Storage provider unavailable."});}
  if(body?.action==="transcode_callback"){
@@ -101,8 +105,8 @@ Deno.serve(async req=>{
    ];
    const uploadTargets=await Promise.all(outputs.map(async o=>({...o,uploadUrl:await presign(storage,o.path,"PUT",o.mimeType,storage.deliveryBucket,86400)})));
    const transcodeUrl=new URL(transcoder.endpoints.transcode??"/transcode",transcoder.base_url??undefined).toString();
-   const callbackUrl=Deno.env.get("MEDIA_TRANSCODE_CALLBACK_URL");if(!callbackUrl)throw new Error("MEDIA_TRANSCODE_CALLBACK_URL is not configured.");
-   const transcodeResponse=await fetch(transcodeUrl,{method:"POST",headers:{"Authorization":"Bearer "+transcoder.credential,"Content-Type":"application/json","Idempotency-Key":"transcode:"+job.id},body:JSON.stringify({jobId:job.id,sourceUrl:await presign(storage,masterPath,"GET",undefined,storage.deliveryBucket,21600),sourceSha256:scan.data.sha256,outputFormat:"fmp4-single-file",outputs:uploadTargets,packaging:{hls:"byte-range",dash:"SegmentBase"},callbackUrl,callbackSecret:secret}),signal:AbortSignal.timeout(30000)});
+   const callbackUrl=Deno.env.get("MEDIA_TRANSCODE_CALLBACK_URL")??(url+"/functions/v1/media-ingest-worker");\n   const {data:callbackSecret,error:callbackSecretError}=await db.rpc("get_media_transcoder_callback_secret");if(callbackSecretError||typeof callbackSecret!=="string"||!callbackSecret)throw new Error("transcoder_callback_secret_unavailable");
+   const transcodeResponse=await fetch(transcodeUrl,{method:"POST",headers:{"Authorization":"Bearer "+transcoder.credential,"Content-Type":"application/json","Idempotency-Key":"transcode:"+job.id},body:JSON.stringify({jobId:job.id,sourceUrl:await presign(storage,masterPath,"GET",undefined,storage.deliveryBucket,21600),sourceSha256:scan.data.sha256,outputFormat:"fmp4-single-file",outputs:uploadTargets,packaging:{hls:"byte-range",dash:"SegmentBase"},callbackUrl,callbackSecret}),signal:AbortSignal.timeout(30000)});
    if(!transcodeResponse.ok)throw new Error("transcoder_http_"+transcodeResponse.status);
    const parsed=Transcode.safeParse(await transcodeResponse.json());if(!parsed.success||parsed.data.jobId!==job.id)throw new Error("transcoder_response_invalid");
    await db.from("media_upload_sessions").update({status:"TRANSCODING",updated_at:new Date().toISOString()}).eq("id",job.upload_session_id);
