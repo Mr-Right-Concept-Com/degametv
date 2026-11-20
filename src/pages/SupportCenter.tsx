@@ -39,6 +39,7 @@ export default function SupportCenter() {
   const [reply, setReply] = useState('');
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isSupportAgent, setIsSupportAgent] = useState(false);
 
   const loadTickets = useCallback(async () => {
     if (!user) return;
@@ -58,7 +59,7 @@ export default function SupportCenter() {
     setArticles(data || []);
   }, []);
 
-  useEffect(() => { void loadTickets(); void loadArticles(); }, [loadTickets, loadArticles]);
+  useEffect(() => { void loadTickets(); void loadArticles(); if (user) (supabase as any).from('support_agents').select('is_active').eq('user_id', user.id).maybeSingle().then(({data}:any) => setIsSupportAgent(Boolean(data?.is_active))); }, [loadTickets, loadArticles, user?.id]);
 
   useEffect(() => {
     if (!selected) return;
@@ -125,7 +126,7 @@ export default function SupportCenter() {
       <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><p className="text-sm text-primary font-semibold">DEGAMETV HELP CENTRE</p><h1 className="text-3xl font-bold">How can we help?</h1><p className="text-muted-foreground mt-1">Find answers or contact the support team.</p></div>
-          <Button asChild variant="outline"><Link to="/dashboard">Back to dashboard</Link></Button>
+          <div className="flex gap-2">{isSupportAgent && <Button asChild variant="outline"><Link to="/support/agent">Agent inbox</Link></Button>}<Button asChild variant="outline"><Link to="/dashboard">Back to dashboard</Link></Button></div>
         </div>
         <div className="grid gap-3 md:grid-cols-3">
           <Card><CardContent className="p-5 flex items-center gap-3"><LifeBuoy className="h-8 w-8 text-primary"/><div><p className="font-semibold">Support requests</p><p className="text-xs text-muted-foreground">Create and track a request.</p></div></CardContent></Card>
