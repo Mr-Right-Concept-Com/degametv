@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import { CONTENT_FORMATS } from '@/lib/validations/creatorOS';
+import { assistCreatorMetadata } from '@/lib/publishing/universalPublisher';
 
 const GENRES = ['Action', 'Comedy', 'Drama', 'Horror', 'Thriller', 'Romance', 'Documentary', 'Animation', 'Sci-Fi', 'Fantasy', 'Crime', 'Biography', 'Musical', 'Nollywood', 'African Cinema'];
 const GENRES_BY_TYPE: Record<string, string[]> = { movie: GENRES, series: GENRES, episode: GENRES, short: ['Drama','Comedy','Horror','Romance','Animation','Documentary','Experimental','Social impact','Nollywood'], trailer: ['Drama','Action','Comedy','Horror','Romance','Documentary','Animation'], vod: ['Education','Documentary','Lifestyle','Entertainment','Business','Technology','Faith','Sports','Music'] };
@@ -48,42 +50,27 @@ const step2Schema = z.object({
   if (value.project_type === 'episode' && !value.episode_number) ctx.addIssue({code:z.ZodIssueCode.custom,path:['episode_number'],message:'Add the episode number.'});
 });
 
-const dynamicMetadataSchema = z.discriminatedUnion('contentType', [
-  z.object({
-    contentType: z.enum(['FILM','SHORT','DOCUMENTARY','TRAILER']),
-    genres: z.array(z.string().trim().min(1).max(60)).max(5),
-    castAndCrew: z.string().max(12000).optional(),
-    durationMinutes: z.number().int().min(1).max(999).optional(),
-    releaseYear: z.number().int().min(1900).max(new Date().getFullYear()+5).optional(),
-    audienceRating: z.string().max(20).optional(),
-    productionCountry: z.string().max(80).optional(),
-  }),
-  z.object({
-    contentType: z.enum(['SERIES','EPISODE']),
-    seasonNumber: z.number().int().min(1).max(100),
-    episodeNumber: z.number().int().min(1).max(500).optional(),
-    genres: z.array(z.string().trim().min(1).max(60)).max(5),
-  }),
-  z.object({
-    contentType: z.literal('MUSIC_VIDEO'),
-    primaryArtist: z.string().trim().min(1,'Primary artist is required').max(160),
-    featuredArtists: z.string().max(500).optional(),
-    musicGenre: z.string().max(80).optional(),
-  }),
-  z.object({
-    contentType: z.literal('PODCAST'),
-    showName: z.string().trim().min(1,'Podcast/show name is required').max(200),
-    episodeNumber: z.number().int().min(1).max(500).optional(),
-    hosts: z.string().max(500).optional(),
-    guests: z.string().max(1000).optional(),
-    mediaFormat: z.enum(['VIDEO_PODCAST','AUDIO_ONLY']),
-  }),
-  z.object({
-    contentType: z.enum(['GAMING','SPORTS','EDUCATIONAL','RECORDED_EVENT']),
-    categoryTag: z.string().max(160).optional(),
-    participants: z.string().max(1000).optional(),
-  }),
-]);
+const dynamicMetadataSchema = z.object({
+  contentType: z.enum(CONTENT_FORMATS),
+  genres: z.array(z.string().trim().min(1).max(60)).max(20).default([]),
+  castAndCrew: z.string().max(12000).optional(),
+  durationMinutes: z.number().int().min(1).max(1440).optional(),
+  releaseYear: z.number().int().min(1888).max(2200).optional(),
+  audienceRating: z.string().max(20).optional(),
+  productionCountry: z.string().max(80).optional(),
+  seasonNumber: z.number().int().min(1).max(100).optional(),
+  episodeNumber: z.number().int().min(1).max(500).optional(),
+  primaryArtist: z.string().max(160).optional(),
+  featuredArtists: z.string().max(500).optional(),
+  musicGenre: z.string().max(80).optional(),
+  showName: z.string().max(200).optional(),
+  hosts: z.string().max(500).optional(),
+  guests: z.string().max(1000).optional(),
+  mediaFormat: z.enum(['VIDEO_PODCAST','AUDIO_ONLY']).optional(),
+  categoryTag: z.string().max(160).optional(),
+  participants: z.string().max(1000).optional(),
+  sourceContentId: z.string().uuid().optional(),
+}).passthrough();
 
 const step3Schema = z.object({
   distribution_rights: z.string().trim().min(1, 'A rights declaration is required before publishing.').max(120),
@@ -123,6 +110,8 @@ export default function StudioSubmit() {
   };
   const [step, setStep] = useState(2);
   const [submitting, setSubmitting] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [published, setPublished] = useState(false);
   const [createdContentId, setCreatedContentId] = useState<string | null>(null);
@@ -580,7 +569,7 @@ export default function StudioSubmit() {
                     <Label>Content type</Label>
                     <Select value={form.preset_type} onValueChange={preset => {
                       const baseType = preset === 'FILM' ? 'movie' : preset === 'SERIES' ? 'series'
-                        : preset === 'EPISODE' ? 'episode' : preset === 'SHORT' ? 'short'
+                        : preset === 'SEASON' || preset === 'EPISODE' ? 'episode' : preset === 'SHORT' ? 'short'
                         : preset === 'TRAILER' ? 'trailer' : 'vod';
                       setForm(f => ({ ...f, preset_type: preset, project_type: baseType,
                         release_strategy: (!['movie', 'series'].includes(baseType) || f.release_strategy === 'live') ? 'on_demand' : f.release_strategy,
@@ -588,18 +577,9 @@ export default function StudioSubmit() {
                     }}>
                       <SelectTrigger><SelectValue placeholder="Choose a format" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="FILM">Feature film</SelectItem>
-                        <SelectItem value="SERIES">Series</SelectItem>
-                        <SelectItem value="EPISODE">Series episode</SelectItem>
-                        <SelectItem value="SHORT">Short film</SelectItem>
-                        <SelectItem value="TRAILER">Trailer</SelectItem>
-                        <SelectItem value="MUSIC_VIDEO">Music video</SelectItem>
-                        <SelectItem value="PODCAST">Podcast / talk show</SelectItem>
-                        <SelectItem value="DOCUMENTARY">Documentary</SelectItem>
-                        <SelectItem value="EDUCATIONAL">Educational video</SelectItem>
-                        <SelectItem value="GAMING">Gaming / esports</SelectItem>
-                        <SelectItem value="SPORTS">Sports</SelectItem>
-                        <SelectItem value="RECORDED_EVENT">Recorded event</SelectItem>
+                        {CONTENT_FORMATS.map(format => <SelectItem key={format} value={format}>{({
+                          FILM:'Feature film',SERIES:'Series',SEASON:'Season',EPISODE:'Series episode',SHORT:'Short-form',TRAILER:'Trailer',MUSIC_VIDEO:'Music video',PODCAST:'Podcast / talk show',GAMING:'Gaming / esports',SPORTS:'Sports',EDUCATIONAL:'Educational',VOD:'Video on demand',LIVE_PRODUCTION:'Live production',RECORDED_EVENT:'Recorded event',REPLAY:'Replay'
+                        } as Record<string,string>)[format]}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div> : <div className="space-y-2"><Label>Event type</Label><Select value={form.live_event_format} onValueChange={v => setForm(f => ({ ...f, live_event_format: v }))}><SelectTrigger><SelectValue placeholder="Choose your live event type" /></SelectTrigger><SelectContent><SelectItem value="broadcast">Live broadcast</SelectItem><SelectItem value="concert">Concert / performance</SelectItem><SelectItem value="conference">Conference / summit</SelectItem><SelectItem value="talk">Talk / podcast / interview</SelectItem><SelectItem value="gaming">Gaming / esports</SelectItem><SelectItem value="watch_party">Watch party</SelectItem><SelectItem value="sports">Sports event</SelectItem><SelectItem value="worship">Worship / community gathering</SelectItem><SelectItem value="other">Other live event</SelectItem></SelectContent></Select><p className="text-xs text-muted-foreground">Choose the event category. Configure the details, admission prices and encoder access below.</p></div>}
@@ -618,6 +598,10 @@ export default function StudioSubmit() {
                 <div className="space-y-2">
                   <Label>{liveFlow ? 'Event description' : 'Synopsis'}</Label>
                   <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={4} placeholder={liveFlow ? 'Tell viewers what will happen, who is hosting and what their ticket includes.' : 'Write a short synopsis that helps audiences understand your title.'} />
+                  {!liveFlow && <div className="flex flex-wrap items-center gap-2">
+                    <Button type="button" variant="outline" size="sm" disabled={aiBusy || !form.project_title.trim()} onClick={async()=>{setAiBusy(true);setAiSuggestion(null);try{const result=await assistCreatorMetadata("synopsis",{title:form.project_title,format:form.preset_type,currentSynopsis:form.description});if(result.available&&result.suggestion){setAiSuggestion(result.suggestion);setForm(v=>({...v,description:result.suggestion!}));}else toast.info(result.reason??"AI assistance is unavailable.");}catch{toast.info("AI assistance is unavailable. Continue editing manually.");}finally{setAiBusy(false);}}}>{aiBusy?"Generating…":"AI metadata assistant"}</Button>
+                    {aiSuggestion&&<span className="text-xs text-muted-foreground">AI suggestion inserted for your review; it is not a rights or policy certification.</span>}
+                  </div>}
                 </div>
                 {!liveFlow && form.preset_type === 'MUSIC_VIDEO' && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>Primary artist</Label><Input value={form.primary_artist} onChange={e=>setForm(f=>({...f,primary_artist:e.target.value}))} placeholder="Artist name"/></div>
