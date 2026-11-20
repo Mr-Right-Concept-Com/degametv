@@ -36,7 +36,7 @@ Deno.serve(async req=>{
   if(error)return json({error:"Withdrawal requests could not be loaded."},503);
   const withdrawals=(data??[]).map(row=>{
    const digits=String(row.account_number??"").replace(/\D/g,"");
-   const {account_number:discarded,...safe}=row;
+   const safe=Object.fromEntries(Object.entries(row).filter(([key])=>key!=="account_number"));
    return {...safe,account_last4:digits.length>=4?digits.slice(-4):null};
   });
   return json({withdrawals});
