@@ -78,7 +78,7 @@ export function ReleaseDomainRouter() {
             .some((root) => host === root || host === `www.${root}`)
         ) return;
 
-        // The generated Supabase types do not expose this resolver contract.
+        // This resolver boundary has not been verified against a generated contract.
         // Keep its response unknown and validate the payload before navigation.
         const resolver = supabase as unknown as ResolverClient;
         const { data, error } = await resolver.rpc(
