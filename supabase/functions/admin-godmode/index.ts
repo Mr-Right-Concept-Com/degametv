@@ -130,19 +130,16 @@ Deno.serve(async (req) => {
         break;
       }
       case "branding_set": {
-        const {data:previous,error:readError}=await admin.from("platform_branding_registry").select("brand_config,is_public,version").eq("brand_key",p.brandKey).maybeSingle();
-        if(readError)return json({error:"Branding version could not be read."},503);
-        if(!previous)return json({error:"Canonical branding record not found."},404);
-        if(previous.version!==p.expectedVersion)return json({error:"Branding changed in another session. Reload before saving."},409);
-        const {data,error}=await admin.from("platform_branding_registry").update({
-          brand_config:p.brandConfig,is_public:p.isPublic,version:previous.version+1,updated_by:user.id,updated_at:new Date().toISOString(),
-        }).eq("brand_key",p.brandKey).eq("version",p.expectedVersion)
-          .select("brand_key,brand_config,is_public,version,updated_by,updated_at").maybeSingle();
-        if(error)return json({error:"Branding update could not be committed."},503);
-        if(!data)return json({error:"Branding version conflict. Reload before saving."},409);
+        const {data,error}=await admin.rpc("update_platform_branding",{
+          p_brand_key:p.brandKey,p_brand_config:p.brandConfig,p_is_public:p.isPublic,
+          p_expected_version:p.expectedVersion,p_actor_id:user.id,p_reason:p.reason,
+        });
+        if(error){
+          if(error.message?.includes("branding_version_conflict"))return json({error:"Branding changed in another session. Reload before saving."},409);
+          if(error.message?.includes("branding_record_not_found"))return json({error:"Canonical branding record not found."},404);
+          return json({error:"Branding update and audit could not be committed."},503);
+        }
         result=data;entityId=p.brandKey;
-        await admin.from("audit_logs").insert({user_id:user.id,action:"platform_branding.updated",entity_type:"platform_branding",entity_id:null,
-          old_data:previous,new_data:{brand_key:p.brandKey,brand_config:p.brandConfig,is_public:p.isPublic,version:data.version,reason:p.reason}});
         break;
       }
       case "country_currency_set": {
@@ -198,10 +195,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    await admin.from("audit_logs").insert({
-      user_id: user.id, action: `godmode_${p.action}`, entity_type: "godmode", entity_id: entityId,
-      new_data: { ...p, value: "value" in p ? p.value : undefined },
-    });
+    if(!["withdrawal_set","branding_set"].includes(p.action)){
+      await admin.from("audit_logs").insert({
+        user_id: user.id, action: `godmode_${p.action}`, entity_type: "godmode", entity_id: entityId,
+        new_data: { ...p, value: "value" in p ? p.value : undefined },
+      });
+    }
     return json({ success: true, result });
   } catch (e) {
     console.error("admin-godmode", e);
