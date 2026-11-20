@@ -21,13 +21,12 @@ if(import.meta.main)serve(async(req:Request)=>{
   const tokenHash=await sha256(sessionId);
   const country=(req.headers.get("cf-ipcountry")||"").toUpperCase().slice(0,2)||null;
   const {data:ticket,error}=await db.from("screening_tickets")
-   .select("id,screening_id,active_session_token,active_session_expires_at,payment_status,refunded_at,expires_at")
+   .select("id,screening_id,email,active_session_token,active_session_expires_at,payment_status,refunded_at,expires_at")
    .eq("watch_code",watchCode).maybeSingle();
   if(error)return json(503,{success:false,error:"Playback session could not be checked."});
   if(!ticket||ticket.payment_status!=="completed"||ticket.refunded_at||!ticket.expires_at||new Date(ticket.expires_at).getTime()<=Date.now())
    return json(403,{success:false,error:"Ticket is no longer valid."});
-  const {data:emailCheck,error:emailError}=await db.from("screening_tickets").select("email").eq("id",ticket.id).maybeSingle();
-  if(emailError||String(emailCheck?.email||"").trim().toLowerCase()!==email)return json(403,{success:false,error:"Email does not match this ticket."});
+  if(String(ticket.email||"").trim().toLowerCase()!==email)return json(403,{success:false,error:"Email does not match this ticket."});
   if(ticket.active_session_token!==tokenHash)return json(403,{success:false,error:"This playback session is no longer active."});
   if(!release&&(!ticket.active_session_expires_at||new Date(ticket.active_session_expires_at).getTime()<=Date.now()))
    return json(403,{success:false,error:"Playback session expired. Reopen your ticket to resume."});
