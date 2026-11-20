@@ -13,6 +13,7 @@ const schema=z.object({
 }).strict();
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, x-client-info, content-type, cf-ipcountry","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
+const markProviderHealth=async(db:any,id:string,status:'healthy'|'unhealthy',error:string|null=null)=>{await db.from('service_provider_bindings').update({health_status:status,health_checked_at:new Date().toISOString(),health_error:error}).eq('id',id);};
 async function featureEnabled(db:ReturnType<typeof createClient>,key:string,subject:string):Promise<boolean>{
  const {data:flag,error}=await db.from("platform_feature_controls").select("enabled,rollout_percentage,release_state").eq("feature_key",key).maybeSingle();
  if(error||!flag)return false;
@@ -138,7 +139,7 @@ serve(async(req:Request)=>{
   for(const provider of usable){
    try{
     const target=new URL(provider.endpoints.checkout_initialize,provider.base_url);
-    if(target.origin!==new URL(provider.base_url).origin)continue;
+    if(target.origin!==new URL(provider.base_url).origin){await markProviderHealth(db,provider.id,"unhealthy","Checkout endpoint host mismatch.");continue;}
     const header=provider.settings?.credential_header||"Authorization",prefix=provider.settings?.credential_prefix??"Bearer ";
     const callbackUrl=new URL("/payment/return?reference="+reference,siteOrigin).toString();
     const adapter=String(provider.settings?.checkout_adapter??provider.settings?.adapter??provider.provider_key).toLowerCase();
@@ -164,9 +165,9 @@ serve(async(req:Request)=>{
     else if(adapter==="stripe"&&response.ok){checkoutValue=typeof result?.url==="string"?result.url:null;checkoutId=typeof result?.id==="string"?result.id:null;}
     else if(adapter==="flutterwave"&&response.ok&&result?.status==="success"){checkoutValue=typeof result.data?.link==="string"?result.data.link:null;checkoutId=result.data?.id?String(result.data.id):null;}
     else if(adapter==="generic"&&response.ok&&result?.authorized===true){checkoutValue=typeof result.checkout_url==="string"?result.checkout_url:null;checkoutId=typeof result.provider_checkout_id==="string"?result.provider_checkout_id:null;}
-    if(!response.ok||!checkoutValue)continue;
+    if(!response.ok||!checkoutValue){await markProviderHealth(db,provider.id,"unhealthy","Checkout initialization failed.");continue;}
     const checkout=new URL(checkoutValue),allowed=provider.settings?.allowed_checkout_origins;
-    if(checkout.protocol!=="https:"||!Array.isArray(allowed)||!allowed.includes(checkout.origin))continue;
+    if(checkout.protocol!=="https:"||!Array.isArray(allowed)||!allowed.includes(checkout.origin)){await markProviderHealth(db,provider.id,"unhealthy","Provider returned an untrusted checkout URL.");continue;}
     selected=provider;checkoutUrl=checkout.toString();selectedCheckoutId=checkoutId;break;
    }catch{continue;}
   }
