@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { Loader2 } from 'lucide-react';
 import { ProviderRegistryPanel } from '@/components/admin/ProviderRegistryPanel';
-import { RuntimeControlPanel } from '@/components/admin/RuntimeControlPanel';
+import { RuntimeControlPanel } from '@/components/admin/RuntimeControlPanel';\nimport { PlatformGovernancePanel } from '@/components/admin/PlatformGovernancePanel';
 
 async function god(body: Record<string, unknown>) {
   const r = await invokeFn<{ result?: unknown }>('admin-godmode', body);
@@ -135,7 +135,7 @@ export default function Godmode() {
         <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="settings">Settings</TabsTrigger>
           <TabsTrigger value="providers">Providers</TabsTrigger>
-          <TabsTrigger value="global">Global & releases</TabsTrigger>
+          <TabsTrigger value="global">Global & releases</TabsTrigger>\n          <TabsTrigger value="governance">AI & canary</TabsTrigger>
           <TabsTrigger value="users">Users & roles</TabsTrigger>
           <TabsTrigger value="wallets">Wallets</TabsTrigger>
           <TabsTrigger value="tiers">Tiers</TabsTrigger>
@@ -188,7 +188,7 @@ export default function Godmode() {
         </TabsContent>
 
         <TabsContent value="providers" className="mt-4 space-y-4"><ProviderRegistryPanel /></TabsContent>
-        <TabsContent value="global" className="mt-4 space-y-4"><RuntimeControlPanel /></TabsContent>
+        <TabsContent value="global" className="mt-4 space-y-4"><RuntimeControlPanel /></TabsContent>\n        <TabsContent value="governance" className="mt-4 space-y-4"><PlatformGovernancePanel /></TabsContent>
 
         <TabsContent value="users" className="mt-4 space-y-3">
           <Input placeholder="Search by email or name" value={q} onChange={e => setQ(e.target.value)} className="max-w-sm" aria-label="Search users" />
