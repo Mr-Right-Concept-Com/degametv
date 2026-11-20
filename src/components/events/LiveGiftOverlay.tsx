@@ -1,0 +1,33 @@
+import { useEffect, useRef, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { Gift, Sparkles } from 'lucide-react';
+
+type GiftEvent={id:string;contribution_type:string;gift_catalog_key:string|null;amount_major:number;currency:string;contributor_name:string;message:string|null;gift_name:string|null;gift_emoji:string|null;gift_asset_url:string|null;gift_animation_url:string|null;animation_duration_ms:number|null};
+export function LiveGiftOverlay({streamId}:{streamId:string}){
+ const [active,setActive]=useState<GiftEvent|null>(null);
+ const lastSeen=useRef<string|null>(null);
+ const [initialised,setInitialised]=useState(false);
+ useEffect(()=>{
+  let alive=true;
+  const poll=async()=>{
+   const {data,error}=await (supabase as any).rpc('get_event_contribution_feed',{p_screening_id:null,p_live_stream_id:streamId});
+   if(!alive||error||!Array.isArray(data)||data.length===0)return;
+   const newest=data[0] as GiftEvent;
+   if(!initialised){lastSeen.current=newest.id;setInitialised(true);return;}
+   if(newest.id!==lastSeen.current){lastSeen.current=newest.id;if(newest.contribution_type==='gift')setActive(newest);}
+  };
+  void poll();const timer=setInterval(()=>void poll(),3500);
+  return()=>{alive=false;clearInterval(timer);};
+ },[streamId,initialised]);
+ useEffect(()=>{if(!active)return;const timer=setTimeout(()=>setActive(null),Math.max(1800,Math.min(active.animation_duration_ms||2200,10000)));return()=>clearTimeout(timer);},[active]);
+ if(!active)return null;
+ const media=active.gift_animation_url||active.gift_asset_url;
+ const isVideo=Boolean(media&&/\.(mp4|webm)(\?|$)/i.test(media));
+ return <div className="pointer-events-none absolute right-3 top-3 z-30 w-[min(20rem,75%)] animate-in slide-in-from-right-6 fade-in duration-300">
+  <div className="flex items-center gap-3 rounded-2xl border border-white/20 bg-black/75 p-3 text-white shadow-2xl backdrop-blur-md">
+   <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-white/10">{media?(isVideo?<video src={media} autoPlay muted loop playsInline className="h-full w-full rounded-xl object-contain"/>:<img src={media} alt="" className="h-full w-full rounded-xl object-contain"/>):<span className="text-3xl">{active.gift_emoji||'🎁'}</span>}</div>
+   <div className="min-w-0 flex-1"><p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-white/70"><Sparkles className="h-3 w-3"/> Gift received</p><p className="truncate text-sm font-bold">{active.contributor_name} sent {active.gift_name||'a gift'}</p>{active.message&&<p className="truncate text-xs text-white/70">{active.message}</p>}</div>
+   <Gift className="h-5 w-5 shrink-0 text-pink-300"/>
+  </div>
+ </div>;
+}
