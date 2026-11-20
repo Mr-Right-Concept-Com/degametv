@@ -77,4 +77,7 @@ jobs:
             supabase/functions/dispatch-event-notifications/index.ts \
             supabase/functions/process-refund/index.ts \
             supabase/functions/manage-event/index.ts \
-            supabase/functions/authorize-live-playback/index.ts
+            supabase/functions/authorize-live-playback/index.ts \
+            supabase/functions/validate-watch-code/index.ts \
+            supabase/functions/get-playback-url/index.ts \
+            supabase/functions/record-watch-heartbeat/index.ts
