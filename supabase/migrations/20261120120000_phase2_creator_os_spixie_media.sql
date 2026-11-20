@@ -373,7 +373,7 @@ grant select on public.creator_verification_cases,public.creator_verification_au
 -- Complete content-format contract (kept as text so new formats do not require unsafe enum casts).
 alter table public.content add column if not exists content_format text;
 update public.content set content_format=coalesce(content_format,preset_type::text,'FILM');
-do $ begin
+do $$ begin
   alter table public.content add constraint content_format_allowed_check
   check (content_format in ('FILM','SERIES','SEASON','EPISODE','SHORT','TRAILER','MUSIC_VIDEO','PODCAST','GAMING','SPORTS','EDUCATIONAL','VOD','LIVE_PRODUCTION','RECORDED_EVENT','REPLAY'));
 exception when duplicate_object then null; end $$;
@@ -473,7 +473,8 @@ begin
   end if;
   if p_user_id is null then raise exception 'creator_user_required' using errcode='22023'; end if;
   if nullif(btrim(coalesce(p_bank_account_number,'')),'') is not null then
-    if btrim(p_bank_account_number) !~ '^[A-Za-z0-9 -]{4,34} using errcode='22023';
+    if btrim(p_bank_account_number) !~ '^[A-Za-z0-9 -]{4,34}$' then
+      raise exception 'invalid_bank_account_number' using errcode='22023';
     end if;
     v_bank_suffix:=right(regexp_replace(btrim(p_bank_account_number),'[^A-Za-z0-9]','','g'),4);
     v_bank_ref:=vault.create_secret(btrim(p_bank_account_number),'creator-payout-'||p_user_id::text||'-'||gen_random_uuid()::text,'Creator payout account',null);
