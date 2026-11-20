@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, Loader2, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,14 +15,20 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
+  const isMounted = useRef(false);
+  const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    // Check for recovery type in URL hash
+    isMounted.current = true;
     const hash = window.location.hash;
     if (!hash.includes('type=recovery')) {
       toast.error('Invalid or expired reset link');
-      navigate('/auth');
+      navigate('/auth', { replace: true });
     }
+    return () => {
+      isMounted.current = false;
+      if (redirectTimer.current !== null) clearTimeout(redirectTimer.current);
+    };
   }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -40,13 +46,18 @@ export default function ResetPassword() {
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
+      if (!isMounted.current) return;
       setSuccess(true);
       toast.success('Password updated successfully!');
-      setTimeout(() => navigate('/'), 2000);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update password');
+      redirectTimer.current = setTimeout(() => {
+        if (isMounted.current) navigate('/', { replace: true });
+      }, 2000);
+    } catch (err: unknown) {
+      if (!isMounted.current) return;
+      const message = err instanceof Error ? err.message : 'Failed to update password';
+      toast.error(message || 'Failed to update password');
     } finally {
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
     }
   };
 
