@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { StatCard } from '@/components/admin/StatCard';
 import { Button } from '@/components/ui/button';
@@ -6,21 +6,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
+import type { Tables } from '@/integrations/supabase/types';
 import { 
   Users, DollarSign, Activity, TrendingUp, Film, Loader2, Ticket, Upload
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
+type RecentTicket = Pick<Tables<'screening_tickets'>, 'id' | 'email' | 'price' | 'currency' | 'payment_status'> & { screening: { title: string } | null };
+type RecentSubmission = Pick<Tables<'filmmaker_submissions'>, 'id' | 'project_title' | 'submitter_name' | 'status' | 'created_at'>;
+
 export default function AdminDashboard() {
   usePageTitle('Admin: Dashboard');
   const [metrics, setMetrics] = useState({ totalRevenue: 0, totalTickets: 0, totalScreenings: 0, completedTickets: 0 });
-  const [recentTickets, setRecentTickets] = useState<any[]>([]);
-  const [recentSubmissions, setRecentSubmissions] = useState<any[]>([]);
+  const [recentTickets, setRecentTickets] = useState<RecentTicket[]>([]);
+  const [recentSubmissions, setRecentSubmissions] = useState<RecentSubmission[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetch = async () => {
+  const fetchDashboard = useCallback(async () => {
       try {
         const [ticketsRes, screeningsRes, recentTicketsRes, submissionsRes] = await Promise.all([
           supabase.from('screening_tickets').select('price, payment_status'),
@@ -46,9 +49,9 @@ export default function AdminDashboard() {
       } finally {
         setLoading(false);
       }
-    };
-    fetch();
   }, []);
+
+  useEffect(() => { void fetchDashboard(); }, [fetchDashboard]);
 
   const fmt = (n: number) => {
     if (n >= 1000000) return `₦${(n / 1000000).toFixed(2)}M`;
@@ -144,7 +147,7 @@ export default function AdminDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {recentTickets.map((t: any) => (
+                  {recentTickets.map(t => (
                     <TableRow key={t.id}>
                       <TableCell className="text-xs font-medium">{t.screening?.title?.substring(0, 20) || '—'}</TableCell>
                       <TableCell className="text-xs">{t.email}</TableCell>
@@ -187,7 +190,7 @@ export default function AdminDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {recentSubmissions.map((s: any) => (
+                  {recentSubmissions.map(s => (
                     <TableRow key={s.id}>
                       <TableCell className="text-xs font-medium">{s.project_title}</TableCell>
                       <TableCell className="text-xs">{s.submitter_name}</TableCell>
