@@ -62,14 +62,20 @@ Deno.serve(async req=>{
  if(domain.domain_kind!=="custom_domain"||!domain.verification_token_hash)return json(409,{error:"This domain does not require custom DNS verification."});
  try{
   const [txt,cnames,ips]=await Promise.all([dns("_degametv-verification."+domain.hostname,"TXT"),dns(domain.hostname,"CNAME"),dns(domain.hostname,"A")]);
-  const txtHashes=await Promise.all(txt.map(v=>hash(v)));\n  const tokenVerified=txtHashes.includes(domain.verification_token_hash);
+  const txtHashes=await Promise.all(txt.map(v=>hash(v)));
+  const tokenVerified=txtHashes.includes(domain.verification_token_hash);
   const target=(domain.dns_target??"").toLowerCase().replace(/\.$/,"");
   const routeVerified=cnames.includes(target)||(Deno.env.get("DEGAMETV_CUSTOM_DOMAIN_IPV4")?ips.includes(Deno.env.get("DEGAMETV_CUSTOM_DOMAIN_IPV4")!):false);
   if(!tokenVerified||!routeVerified){
    await db.from("release_domains").update({verification_status:"VERIFYING",last_verification_at:new Date().toISOString(),verification_error:!tokenVerified?"TXT ownership record not found.":"CNAME/A target does not match platform target.",updated_at:new Date().toISOString()}).eq("id",domain.id);
    return json(409,{success:false,verified:false,txtVerified:tokenVerified,routeVerified});
   }
+  const providerUrl=Deno.env.get("DOMAIN_PROVIDER_API_URL"),providerToken=Deno.env.get("DOMAIN_PROVIDER_API_TOKEN");
+  if(!providerUrl||!providerToken)return json(503,{error:"DNS is verified, but the SSL/domain provider is not configured. Domain remains non-active."});
   await db.from("release_domains").update({verification_status:"PROVISIONING_SSL",last_verification_at:new Date().toISOString(),verified_at:new Date().toISOString(),verification_error:null,updated_at:new Date().toISOString()}).eq("id",domain.id);
-  return json(202,{success:true,verified:true,status:"PROVISIONING_SSL",message:"DNS ownership and routing are verified. SSL provisioning must be completed by the configured hosting-domain adapter."});
+  const provision=await fetch(providerUrl,{method:"POST",headers:{"Authorization":"Bearer "+providerToken,"Content-Type":"application/json","Idempotency-Key":"degametv-domain:"+domain.id},body:JSON.stringify({domain:domain.hostname,projectId:Deno.env.get("DOMAIN_PROVIDER_PROJECT_ID")??null,domainId:domain.id,verification:"dns_verified"}),signal:AbortSignal.timeout(20000)});
+  if(!provision.ok){const detail=(await provision.text()).slice(0,300);await db.from("release_domains").update({verification_status:"FAILED",ssl_status:"failed",verification_error:"SSL provider rejected domain provisioning: "+detail,updated_at:new Date().toISOString()}).eq("id",domain.id);return json(502,{error:"SSL provisioning provider rejected the domain.",status:"FAILED"});}
+  const providerResult=await provision.json().catch(()=>({}));
+  return json(202,{success:true,verified:true,status:"PROVISIONING_SSL",providerRequestId:typeof providerResult.id==="string"?providerResult.id:null,message:"DNS is verified. The configured domain provider must confirm certificate issuance through the authenticated SSL callback."});
  }catch(e){return json(503,{error:"DNS verification service is temporarily unavailable."});}
 });
