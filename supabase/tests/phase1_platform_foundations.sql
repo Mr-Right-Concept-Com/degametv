@@ -19,6 +19,23 @@ begin
      or has_table_privilege('authenticated','public.payment_refunds','select') then
     raise exception 'payment_refunds_exposed_to_client_roles';
   end if;
+  if has_column_privilege('anon','public.withdrawal_requests','account_number','select')
+     or has_column_privilege('authenticated','public.withdrawal_requests','account_number','select') then
+    raise exception 'withdrawal_bank_account_exposed_to_client_roles';
+  end if;
+  if has_column_privilege('anon','public.screening_comments','email','select')
+     or has_column_privilege('authenticated','public.screening_comments','email','select') then
+    raise exception 'screening_comment_email_exposed_to_client_roles';
+  end if;
+  if has_function_privilege('authenticated','public.transition_withdrawal_request(uuid,text,uuid,text)','execute')
+     or not has_function_privilege('service_role','public.transition_withdrawal_request(uuid,text,uuid,text)','execute') then
+    raise exception 'withdrawal_transition_privileges_invalid';
+  end if;
+  if not exists(select 1 from pg_policy p join pg_class c on c.oid=p.polrelid
+    where c.relname='knowledgebase_articles' and p.polname='knowledgebase_articles_audience_read_authenticated'
+      and pg_get_expr(p.polqual,p.polrelid) like '%audience%') then
+    raise exception 'knowledgebase_audience_policy_missing';
+  end if;
   if has_function_privilege('anon','public.get_platform_release_assignment(text,uuid)','execute') then
     raise exception 'release_assignment_exposed_to_anonymous';
   end if;
