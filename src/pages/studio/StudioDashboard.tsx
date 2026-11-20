@@ -9,9 +9,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { Film, Upload, CalendarDays, Eye, DollarSign, Loader2 } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { TierUpgradeCard } from '@/components/studio/TierUpgradeCard';
+import type { Tables } from '@/integrations/supabase/types';
 
-type ContentRow={id:string;title:string;type:string;status:string;created_at:string;view_count:number|null};
-type EventRow={id:string;title:string;screening_date:string|null;event_type:string|null;status:string};
+type ContentRow=Pick<Tables<'content'>,'id'|'title'|'type'|'status'|'created_at'|'view_count'>;
+type EventRow=Pick<Tables<'screenings'>,'id'|'title'|'screening_date'|'event_type'|'status'>;
 export default function StudioDashboard(){
  usePageTitle('Studio: Dashboard');const {user}=useAuth();
  const [items,setItems]=useState<ContentRow[]>([]);const [events,setEvents]=useState<EventRow[]>([]);
@@ -22,9 +23,9 @@ export default function StudioDashboard(){
    supabase.from('wallet_ledger').select('net,currency').eq('user_id',user.id).eq('kind','sale')
   ]);
   if(!active)return;
-  const titles=(content.data||[]) as unknown as ContentRow[];setItems(titles);
+  const titles=content.data ?? [];setItems(titles);
   const ids=titles.map(item=>item.id);
-  if(ids.length){const {data:screenings}=await supabase.from('screenings').select('id,title,screening_date,event_type,status').in('content_id',ids).order('screening_date',{ascending:true}).limit(10);if(active)setEvents((screenings||[]) as EventRow[]);}else setEvents([]);
+  if(ids.length){const {data:screenings}=await supabase.from('screenings').select('id,title,screening_date,event_type,status').in('content_id',ids).order('screening_date',{ascending:true}).limit(10);if(active)setEvents(screenings ?? []);}else setEvents([]);
   setEarnings((ledger.data||[]).reduce((a,row)=>{const currency=String(row.currency||'').toUpperCase();if(/^[A-Z]{3}$/.test(currency))a[currency]=(a[currency]||0)+(Number(row.net)||0);return a;},{} as Record<string,number>));setLoading(false);
   })();return()=>{active=false;};},[user?.id]);
  const published=items.filter(x=>x.status==='published').length;
