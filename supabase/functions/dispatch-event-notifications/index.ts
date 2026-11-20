@@ -1,12 +1,18 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
+const secureEqual=(a:string,b:string)=>{if(a.length!==b.length)return false;let diff=0;for(let i=0;i<a.length;i++)diff|=a.charCodeAt(i)^b.charCodeAt(i);return diff===0;};
 Deno.serve(async(req)=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
  if(req.method!=="POST")return json(405,{error:"Method not allowed."});
  const url=Deno.env.get("SUPABASE_URL"),service=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
- if(!url||!service||req.headers.get("Authorization")!=="Bearer "+service)return json(403,{error:"Forbidden."});
+ if(!url||!service)return json(503,{error:"Notification worker is unavailable."});
  const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
+ const serviceAuthorized=req.headers.get("Authorization")==="Bearer "+service;
+ const suppliedInternal=req.headers.get("x-internal-worker-token")||"";
+ const {data:internalSecret}=await admin.rpc("get_event_notification_worker_secret");
+ const internalAuthorized=typeof internalSecret==="string"&&suppliedInternal.length>=32&&secureEqual(suppliedInternal,internalSecret);
+ if(!serviceAuthorized&&!internalAuthorized)return json(403,{error:"Forbidden."});
  const body=await req.json().catch(()=>({}));
  const limit=Number.isInteger(body?.limit)?Math.max(1,Math.min(200,body.limit)):50;
  const {data:items,error}=await admin.rpc("claim_event_notification_outbox",{p_limit:limit});
