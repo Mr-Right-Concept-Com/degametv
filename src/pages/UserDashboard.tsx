@@ -31,6 +31,7 @@ export default function UserDashboard() {
   const [watchHistory, setWatchHistory] = useState<any[]>([]);
   const [loyalty, setLoyalty] = useState<any[]>([]);
   const [walletBalances, setWalletBalances] = useState<any[]>([]);
+  const [supportTransactions, setSupportTransactions] = useState<any[]>([]);
   const [invitations, setInvitations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
@@ -97,6 +98,8 @@ export default function UserDashboard() {
     if (loyaltyRes.data) setLoyalty(loyaltyRes.data);
     const { data: walletData, error: walletError } = await (supabase as any).rpc('wallet_balance_by_currency', { _user_id: user!.id });
     if (!walletError && Array.isArray(walletData)) setWalletBalances(walletData);
+    const { data: supportData, error: supportError } = await (supabase as any).rpc('get_my_support_transactions');
+    if (!supportError && Array.isArray(supportData)) setSupportTransactions(supportData);
     const { data: inviteData } = await supabase.functions.invoke("manage-event-invites", { body: { action: "my_invitations" } });
     if (inviteData?.invitations) setInvitations(inviteData.invitations);
     if (profileRes.data) {
@@ -251,7 +254,8 @@ export default function UserDashboard() {
               <CardContent className="space-y-3">
                 <p className="text-sm text-muted-foreground">Your earnings are shown by their original transaction currency. Pending settlement is not withdrawable; only verified settled funds appear as available.</p>
                 {walletBalances.length === 0 ? <div className="rounded-xl border border-dashed p-8 text-center"><Wallet className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40"/><p className="font-medium">No creator earnings yet</p><p className="mt-1 text-xs text-muted-foreground">When you earn from ticket sales, tips or gifts as an approved creator, your balances will appear here.</p></div> : walletBalances.map((balance:any) => <div key={balance.currency} className="grid gap-3 rounded-xl border p-4 sm:grid-cols-3"><div><p className="text-xs text-muted-foreground">Currency</p><p className="text-lg font-bold">{balance.currency}</p></div><div><p className="text-xs text-muted-foreground">Pending settlement</p><p className="text-lg font-semibold">{Number(balance.escrow || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</p></div><div><p className="text-xs text-muted-foreground">Available to withdraw</p><p className="text-lg font-semibold text-primary">{Number(balance.withdrawable || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</p></div></div>)}
-                <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">This view currently reports creator earnings from the settlement ledger. Personal wallet top-ups, stored-value spending and peer-to-peer transfers are not enabled by this ledger.</div>
+                <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">Creator earnings are tracked separately from personal stored-value funds. This history includes your sent and received tips and gifts; it does not imply that a personal cash wallet or top-up balance is enabled.</div>
+                <div className="space-y-3"><h3 className="font-semibold">Tips &amp; gifts activity</h3>{supportTransactions.length===0?<p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">No tips or gifts yet.</p>:<div className="space-y-2">{supportTransactions.map((tx:any)=><div key={tx.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"><div className="min-w-0"><p className="text-sm font-medium">{tx.direction==='received'?'Received':'Sent'} {tx.contribution_type} · {tx.target_title}</p><p className="text-xs text-muted-foreground">{tx.display_name} · {new Date(tx.created_at).toLocaleString()}</p>{tx.message&&<p className="mt-1 text-xs text-muted-foreground">{tx.message}</p>}</div><div className="text-right"><p className="font-semibold">{Number(tx.amount_major||0).toLocaleString(undefined,{maximumFractionDigits:2})} {tx.currency}</p><Badge variant={tx.status==='paid'?'default':'secondary'}>{tx.status}</Badge></div></div>)}</div>}</div>
               </CardContent>
             </Card>
           </TabsContent>
