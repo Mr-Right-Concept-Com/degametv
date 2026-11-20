@@ -1036,6 +1036,18 @@ export type Database = {
           updated_at: string
           viewer_count: number | null
           vod_replay_asset_url: string | null
+          sales_open_at: string | null
+          sales_close_at: string | null
+          early_bird_price: number | null
+          early_bird_currency: string | null
+          early_bird_ends_at: string | null
+          early_bird_capacity: number | null
+          event_visibility: string
+          invite_only: boolean
+          settlement_hold_hours: number
+          settlement_delivery_required: boolean
+          event_timezone: string
+          presale_enabled: boolean
         }
         Insert: {
           actual_end?: string | null
@@ -1072,6 +1084,18 @@ export type Database = {
           updated_at?: string
           viewer_count?: number | null
           vod_replay_asset_url?: string | null
+          sales_open_at?: string | null
+          sales_close_at?: string | null
+          early_bird_price?: number | null
+          early_bird_currency?: string | null
+          early_bird_ends_at?: string | null
+          early_bird_capacity?: number | null
+          event_visibility?: string
+          invite_only?: boolean
+          settlement_hold_hours?: number
+          settlement_delivery_required?: boolean
+          event_timezone?: string
+          presale_enabled?: boolean
         }
         Update: {
           actual_end?: string | null
@@ -1108,6 +1132,18 @@ export type Database = {
           updated_at?: string
           viewer_count?: number | null
           vod_replay_asset_url?: string | null
+          sales_open_at?: string | null
+          sales_close_at?: string | null
+          early_bird_price?: number | null
+          early_bird_currency?: string | null
+          early_bird_ends_at?: string | null
+          early_bird_capacity?: number | null
+          event_visibility?: string
+          invite_only?: boolean
+          settlement_hold_hours?: number
+          settlement_delivery_required?: boolean
+          event_timezone?: string
+          presale_enabled?: boolean
         }
         Relationships: [
           {
@@ -2013,6 +2049,19 @@ export type Database = {
           title: string
           trailer_url: string | null
           updated_at: string
+          sales_open_at: string | null
+          sales_close_at: string | null
+          early_bird_price: number | null
+          early_bird_currency: string | null
+          early_bird_ends_at: string | null
+          early_bird_capacity: number | null
+          event_visibility: string
+          invite_only: boolean
+          settlement_hold_hours: number
+          settlement_delivery_required: boolean
+          event_timezone: string
+          presale_enabled: boolean
+          release_access_at: string | null
         }
         Insert: {
           access_model?: string
@@ -2061,6 +2110,19 @@ export type Database = {
           title: string
           trailer_url?: string | null
           updated_at?: string
+          sales_open_at?: string | null
+          sales_close_at?: string | null
+          early_bird_price?: number | null
+          early_bird_currency?: string | null
+          early_bird_ends_at?: string | null
+          early_bird_capacity?: number | null
+          event_visibility?: string
+          invite_only?: boolean
+          settlement_hold_hours?: number
+          settlement_delivery_required?: boolean
+          event_timezone?: string
+          presale_enabled?: boolean
+          release_access_at?: string | null
         }
         Update: {
           access_model?: string
@@ -2109,6 +2171,19 @@ export type Database = {
           title?: string
           trailer_url?: string | null
           updated_at?: string
+          sales_open_at?: string | null
+          sales_close_at?: string | null
+          early_bird_price?: number | null
+          early_bird_currency?: string | null
+          early_bird_ends_at?: string | null
+          early_bird_capacity?: number | null
+          event_visibility?: string
+          invite_only?: boolean
+          settlement_hold_hours?: number
+          settlement_delivery_required?: boolean
+          event_timezone?: string
+          presale_enabled?: boolean
+          release_access_at?: string | null
         }
         Relationships: []
       }
