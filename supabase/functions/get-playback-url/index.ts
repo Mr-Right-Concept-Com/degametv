@@ -48,37 +48,51 @@ if(import.meta.main)serve(async(req:Request)=>{
   const {data:delivery,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:"video_delivery"});
   if(providerError||!Array.isArray(delivery)||!delivery.length)
    return json(503,{success:false,code:"PLAYBACK_PROVIDER_NOT_CONFIGURED",error:"Secure playback is not configured. Your ticket remains valid."});
-  const provider=delivery[0],endpoint=provider.endpoints?.playback_authorize;
-  if(!provider.credential||typeof endpoint!=="string"||!endpoint.startsWith("/")||endpoint.startsWith("//"))
-   return json(503,{success:false,code:"PLAYBACK_PROVIDER_INCOMPLETE",error:"The active video provider is missing its playback authorization contract."});
-  const providerUrl=new URL(endpoint,provider.base_url);
-  if(providerUrl.origin!==new URL(provider.base_url).origin)return json(503,{success:false,code:"PLAYBACK_PROVIDER_INVALID",error:"The configured playback endpoint is invalid."});
-  const header=typeof provider.settings?.credential_header==="string"?provider.settings.credential_header:"Authorization";
-  const prefix=typeof provider.settings?.credential_prefix==="string"?provider.settings.credential_prefix:"Bearer ";
   const sessionTokenHash=await sha256(sessionId);
-  const providerResponse=await fetch(providerUrl,{
-   method:"POST",
-   headers:{"Content-Type":"application/json",[header]:prefix+provider.credential},
-   body:JSON.stringify({
-    entitlement:{ticket_id:ticket.id,screening_id:ticket.screening_id,email,expires_at:ticket.expires_at},
-    session:{session_id:sessionId,token_hash:sessionTokenHash,issued_at:new Date().toISOString()},
-    request:{country}
-   }),
-   signal:AbortSignal.timeout(10000)
-  });
-  const result=await providerResponse.json().catch(()=>null);
-  if(!providerResponse.ok||result?.authorized!==true||typeof result?.playback_url!=="string"||typeof result?.expires_at!=="string")
-   return json(503,{success:false,code:"PLAYBACK_AUTHORIZATION_FAILED",error:"The delivery provider could not authorize this ticket. Please retry."});
-  let playbackUrl:URL,expiresAt:Date;
-  try{
-   playbackUrl=new URL(result.playback_url);expiresAt=new Date(result.expires_at);
-   if(playbackUrl.protocol!=="https:"||Number.isNaN(expiresAt.getTime())||expiresAt.getTime()<=Date.now()||
-      expiresAt.getTime()>Date.now()+4*60*60*1000||expiresAt.getTime()>new Date(ticket.expires_at).getTime())
-    throw new Error("invalid_delivery_grant");
-  }catch{return json(502,{success:false,code:"INVALID_PLAYBACK_GRANT",error:"The delivery provider returned an invalid playback grant."});}
-  const allowedOrigins=Array.isArray(provider.settings?.allowed_playback_origins)?provider.settings.allowed_playback_origins:[];
-  if(!allowedOrigins.includes(playbackUrl.origin))return json(502,{success:false,code:"UNTRUSTED_PLAYBACK_ORIGIN",error:"The delivery provider returned an unapproved playback origin."});
-
+  let provider:any=null;
+  let playbackUrl:URL|null=null;
+  let expiresAt:Date|null=null;
+  for(const candidate of delivery){
+   const endpoint=candidate.endpoints?.playback_authorize;
+   if(!candidate.credential||typeof endpoint!=="string"||!endpoint.startsWith("/")||endpoint.startsWith("//"))continue;
+   try{
+    const providerUrl=new URL(endpoint,candidate.base_url);
+    if(providerUrl.origin!==new URL(candidate.base_url).origin)continue;
+    const header=typeof candidate.settings?.credential_header==="string"?candidate.settings.credential_header:"Authorization";
+    const prefix=typeof candidate.settings?.credential_prefix==="string"?candidate.settings.credential_prefix:"Bearer ";
+    const providerResponse=await fetch(providerUrl,{
+     method:"POST",
+     headers:{"Content-Type":"application/json",[header]:prefix+candidate.credential},
+     body:JSON.stringify({
+      entitlement:{ticket_id:ticket.id,screening_id:ticket.screening_id,email,expires_at:ticket.expires_at},
+      session:{session_id:sessionId,token_hash:sessionTokenHash,issued_at:new Date().toISOString()},
+      request:{country}
+     }),
+     signal:AbortSignal.timeout(10000)
+    });
+    const result=await providerResponse.json().catch(()=>null);
+    if(!providerResponse.ok||result?.authorized!==true||typeof result?.playback_url!=="string"||typeof result?.expires_at!=="string"){
+     await db.from("service_provider_bindings").update({health_status:"unhealthy",health_checked_at:new Date().toISOString(),health_error:"Playback authorization endpoint failed."}).eq("id",candidate.id);
+     continue;
+    }
+    const candidateUrl=new URL(result.playback_url);
+    const candidateExpiry=new Date(result.expires_at);
+    const allowedOrigins=Array.isArray(candidate.settings?.allowed_playback_origins)?candidate.settings.allowed_playback_origins:[];
+    if(candidateUrl.protocol!=="https:"||Number.isNaN(candidateExpiry.getTime())||candidateExpiry.getTime()<=Date.now()||
+       candidateExpiry.getTime()>Date.now()+4*60*60*1000||candidateExpiry.getTime()>new Date(ticket.expires_at).getTime()||
+       !allowedOrigins.includes(candidateUrl.origin)){
+     await db.from("service_provider_bindings").update({health_status:"unhealthy",health_checked_at:new Date().toISOString(),health_error:"Provider returned an invalid playback grant."}).eq("id",candidate.id);
+     continue;
+    }
+    provider=candidate;playbackUrl=candidateUrl;expiresAt=candidateExpiry;
+    await db.from("service_provider_bindings").update({health_status:"healthy",health_checked_at:new Date().toISOString(),health_error:null}).eq("id",candidate.id);
+    break;
+   }catch{
+    await db.from("service_provider_bindings").update({health_status:"unhealthy",health_checked_at:new Date().toISOString(),health_error:"Playback provider did not respond."}).eq("id",candidate.id);
+   }
+  }
+  if(!provider||!playbackUrl||!expiresAt)
+   return json(503,{success:false,code:"PLAYBACK_PROVIDER_UNAVAILABLE",error:"No healthy video delivery provider could authorize this ticket. Your ticket remains valid."});
   const {data:session,error:sessionError}=await db.rpc("authorize_legacy_screening_ticket_playback",{
    p_watch_code:watchCode,p_email:email,p_session_token_hash:sessionTokenHash,
    p_country_code:country,p_provider_expires_at:expiresAt.toISOString()
