@@ -622,7 +622,8 @@ export default function StudioSubmit() {
                     {aiSuggestion&&<span className="text-xs text-muted-foreground">AI suggestion inserted for your review; it is not a rights or policy certification.</span>}
                   </div>}
                 </div>
-                <details className={liveFlow ? 'hidden' : 'rounded-xl border p-4'}><summary className="cursor-pointer font-medium">Advanced Metadata</summary><div className="mt-4 space-y-4">\n                {!liveFlow && form.preset_type === 'MUSIC_VIDEO' && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <details className={liveFlow ? 'hidden' : 'rounded-xl border p-4'}><summary className="cursor-pointer font-medium">Advanced Metadata</summary><div className="mt-4 space-y-4">
+                {!liveFlow && form.preset_type === 'MUSIC_VIDEO' && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>Primary artist</Label><Input value={form.primary_artist} onChange={e=>setForm(f=>({...f,primary_artist:e.target.value}))} placeholder="Artist name"/></div>
                   <div className="space-y-2"><Label>Featured artists</Label><Input value={form.featured_artists} onChange={e=>setForm(f=>({...f,featured_artists:e.target.value}))} placeholder="Optional"/></div>
                   <div className="space-y-2"><Label>Music genre</Label><Input value={form.music_genre} onChange={e=>setForm(f=>({...f,music_genre:e.target.value}))} placeholder="Afrobeats, Gospel, Hip-hop…"/></div>
