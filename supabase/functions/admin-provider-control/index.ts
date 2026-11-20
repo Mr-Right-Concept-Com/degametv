@@ -196,6 +196,10 @@ Deno.serve(async req => {
     }else if(["ai_text","ai_moderation","ai_embeddings"].includes(p.capability)){
       const policies=await admin.from("platform_ai_policies").select("workflow_key",{count:"exact",head:true}).eq("enabled",true).contains("provider_allowlist",[p.providerKey]);
       dependencies.push({label:"enabled AI workflows",count:policies.count,error:policies.error});
+    }else if(["email","sms","push"].includes(p.capability)){
+      const alternatives=await admin.from("service_provider_bindings").select("id",{count:"exact",head:true})
+        .eq("capability",p.capability).eq("enabled",true).eq("health_status","healthy").is("removed_at",null).neq("provider_key",p.providerKey);
+      dependencies.push({label:"healthy alternate delivery providers",count:alternatives.error?null:(alternatives.count??0)>0?0:1,error:alternatives.error});
     }
     if(dependencies.some(item=>item.error))return json({error:"Provider dependencies could not be verified; disabling this provider was blocked."},503);
     const active=dependencies.filter(item=>(item.count??0)>0);
