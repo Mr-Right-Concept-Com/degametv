@@ -18,6 +18,7 @@ export default function PaymentReturn(){
  useEffect(()=>{
   let active=true;
   let checks=0;
+  let terminal=false;
   let timer:ReturnType<typeof setTimeout>|undefined;
   const check=async()=>{
    if(!/^DTV(?:L|G)?_[A-Za-z0-9]+$/.test(reference)||reference.length<20||reference.length>80){
@@ -37,6 +38,7 @@ export default function PaymentReturn(){
       setStatus('pending');
      }else{
       setEmail(parsed.data.email??'');
+      terminal=parsed.data.status==='paid'||parsed.data.status==='failed';
       setStatus(parsed.data.status==='paid'?'paid':parsed.data.status==='failed'?'failed':'pending');
      }
     }
@@ -44,7 +46,7 @@ export default function PaymentReturn(){
     if(active){console.error('payment_status_check_failed',error);setStatus('pending');}
    }
    checks+=1;
-   if(active&&checks<20)timer=setTimeout(()=>{void check();},3000);
+   if(active&&!terminal&&checks<20)timer=setTimeout(()=>{void check();},3000);
   };
   void check();
   return()=>{active=false;if(timer)clearTimeout(timer);};
