@@ -16,22 +16,28 @@ export default function StudioProfile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const userId = user?.id;
+  const metadataFullName = typeof user?.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : '';
+
   useEffect(() => {
-    if (!user?.id) return;
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
     let active = true;
     void (async () => {
       const { data, error } = await supabase.from('profiles')
         .select('full_name,company_name')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .maybeSingle();
       if (!active) return;
       if (error) toast.error('Creator profile could not be loaded.');
-      setFullName(data?.full_name || String(user.user_metadata?.full_name || ''));
+      setFullName(data?.full_name || metadataFullName);
       setCompanyName(data?.company_name || '');
       setLoading(false);
     })();
     return () => { active = false; };
-  }, [user?.id]);
+  }, [userId, metadataFullName]);
 
   const save = async () => {
     if (!user?.id) return;
