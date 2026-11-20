@@ -86,7 +86,14 @@ Deno.serve(async (req) => {
   if (siteSetting.data?.is_public === true) {
     try { const parsedUrl = new URL(rawWebUrl); if (parsedUrl.protocol === "https:") webAppUrl = parsedUrl.origin; } catch { /* Invalid or unpublished URL is never exposed. */ }
   }
-  const releases = await Promise.all((releaseResult.data ?? []).map(async release => {\n    const {data,error} = await db.rpc("get_platform_release_assignment",{p_release_key:release.release_key,p_subject_id:cohortId});\n    if(error) return null;\n    const assignment = Array.isArray(data) ? data[0] : data;\n    return assignment?.assigned === true ? {key:release.release_key,version:release.release_version,rolloutId:assignment.rollout_id} : null;\n  }));\n\n  const runtimeFeatures = await Promise.all((features.data ?? []).map(async (feature) => {
+  const releases = await Promise.all((releaseResult.data ?? []).map(async release => {
+    const {data,error} = await db.rpc("get_platform_release_assignment",{p_release_key:release.release_key,p_subject_id:cohortId});
+    if(error) return null;
+    const assignment = Array.isArray(data) ? data[0] : data;
+    return assignment?.assigned === true ? {key:release.release_key,version:release.release_version,rolloutId:assignment.rollout_id} : null;
+  }));
+
+  const runtimeFeatures = await Promise.all((features.data ?? []).map(async (feature) => {
     if (!feature.enabled || ["draft", "paused", "rolled_back"].includes(feature.release_state)) {
       return { key: feature.feature_key, enabled: false };
     }
@@ -101,7 +108,9 @@ Deno.serve(async (req) => {
   return response({
     cohortId,
     webAppUrl,
-    geo: { countryCode: candidate, source: candidate === preferredCountry ? "profile_preference" : candidate === requestedCountry ? "explicit" : candidate === edgeCountry ? "edge" : candidate === localeRegion ? "locale_hint" : "unknown" },\n    timezone: profile?.timezone ?? country?.timezone_name ?? "UTC",\n    language: profile?.language ?? locale.split("-")[0],
+    geo: { countryCode: candidate, source: candidate === preferredCountry ? "profile_preference" : candidate === requestedCountry ? "explicit" : candidate === edgeCountry ? "edge" : candidate === localeRegion ? "locale_hint" : "unknown" },
+    timezone: profile?.timezone ?? country?.timezone_name ?? "UTC",
+    language: profile?.language ?? locale.split("-")[0],
     locale,
     currency,
     baseCurrency: configuredBaseCurrency,
