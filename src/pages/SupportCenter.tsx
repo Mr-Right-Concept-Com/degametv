@@ -14,7 +14,7 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 
 type SupportTicket = {
   id: string; ticket_number: number; subject: string; category: string;
-  priority: string; status: string; description: string; created_at: string;
+  priority: string; status: string; description: string; created_at: string; channel?: string;
 };
 type SupportMessage = { id: string; sender_id: string; body: string; created_at: string };
 type Article = { id: string; slug: string; title: string; summary: string | null; body_markdown: string };
@@ -39,12 +39,13 @@ export default function SupportCenter() {
   const [reply, setReply] = useState('');
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('requests');
   const [isSupportAgent, setIsSupportAgent] = useState(false);
 
   const loadTickets = useCallback(async () => {
     if (!user) return;
     const { data, error } = await (supabase as any).from('support_tickets')
-      .select('id,ticket_number,subject,category,priority,status,description,created_at')
+      .select('id,ticket_number,subject,category,priority,status,description,created_at,channel')
       .eq('user_id', user.id).order('created_at', { ascending: false }).limit(50);
     if (error) toast.error('Unable to load support requests.');
     else setTickets(data || []);
@@ -90,7 +91,7 @@ export default function SupportCenter() {
     setCreating(true);
     const { data, error } = await (supabase as any).from('support_tickets').insert({
       user_id: user.id, subject: subject.trim(), category, description: description.trim(),
-    }).select('id,ticket_number,subject,category,priority,status,description,created_at').single();
+    }).select('id,ticket_number,subject,category,priority,status,description,created_at,channel').single();
     if (error) toast.error(error.message);
     else {
       setSubject(''); setDescription('');
@@ -98,6 +99,40 @@ export default function SupportCenter() {
       await loadTickets();
       if (data) await loadMessages(data);
     }
+    setCreating(false);
+  };
+
+  const startLiveChat = async () => {
+    if (!user) return;
+    setCreating(true);
+    const { data: existing, error: lookupError } = await (supabase as any).from('support_tickets')
+      .select('id,ticket_number,subject,category,priority,status,description,created_at,channel')
+      .eq('user_id', user.id).eq('channel', 'live_chat')
+      .in('status', ['open','awaiting_support','awaiting_user','in_progress','escalated'])
+      .order('last_message_at', { ascending: false }).limit(1).maybeSingle();
+    if (lookupError) {
+      toast.error('Could not check your active support chat.');
+      setCreating(false);
+      return;
+    }
+    let ticket = existing as SupportTicket | null;
+    if (!ticket) {
+      const { data, error } = await (supabase as any).from('support_tickets').insert({
+        user_id: user.id, subject: 'Live chat support', category: 'other',
+        description: 'Live chat conversation started from the DeGameTV Help Centre.',
+        channel: 'live_chat',
+      }).select('id,ticket_number,subject,category,priority,status,description,created_at,channel').single();
+      if (error) {
+        toast.error('Live support is temporarily unavailable. Please create a support request.');
+        setCreating(false);
+        return;
+      }
+      ticket = data as SupportTicket;
+    }
+    await loadTickets();
+    if (ticket) await loadMessages(ticket);
+    setActiveTab('requests');
+    toast.success(existing ? 'Your active support chat is ready.' : 'Live support chat started. An agent can join shortly.');
     setCreating(false);
   };
 
@@ -130,10 +165,10 @@ export default function SupportCenter() {
         </div>
         <div className="grid gap-3 md:grid-cols-3">
           <Card><CardContent className="p-5 flex items-center gap-3"><LifeBuoy className="h-8 w-8 text-primary"/><div><p className="font-semibold">Support requests</p><p className="text-xs text-muted-foreground">Create and track a request.</p></div></CardContent></Card>
-          <Card><CardContent className="p-5 flex items-center gap-3"><MessageCircle className="h-8 w-8 text-primary"/><div><p className="font-semibold">Conversations</p><p className="text-xs text-muted-foreground">Continue an existing ticket.</p></div></CardContent></Card>
+          <Card><CardContent className="p-5 flex items-center justify-between gap-3"><div className="flex items-center gap-3"><MessageCircle className="h-8 w-8 text-primary"/><div><p className="font-semibold">Live support chat</p><p className="text-xs text-muted-foreground">Start a realtime conversation with an agent.</p></div></div><Button size="sm" onClick={()=>void startLiveChat()} disabled={creating}>{creating ? "Starting…" : "Chat now"}</Button></CardContent></Card>
           <Card><CardContent className="p-5 flex items-center gap-3"><BookOpen className="h-8 w-8 text-primary"/><div><p className="font-semibold">Knowledgebase</p><p className="text-xs text-muted-foreground">Search help articles and guides.</p></div></CardContent></Card>
         </div>
-        <Tabs defaultValue="requests" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList><TabsTrigger value="requests"><TicketCheck className="h-4 w-4 mr-2"/>My requests</TabsTrigger><TabsTrigger value="new"><Plus className="h-4 w-4 mr-2"/>New request</TabsTrigger><TabsTrigger value="knowledge"><BookOpen className="h-4 w-4 mr-2"/>Knowledgebase</TabsTrigger></TabsList>
           <TabsContent value="requests" className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
             <Card><CardHeader><CardTitle className="text-base">Your support requests</CardTitle></CardHeader><CardContent className="space-y-2">
