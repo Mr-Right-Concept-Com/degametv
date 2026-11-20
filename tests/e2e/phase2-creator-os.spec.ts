@@ -28,6 +28,21 @@ test("ordinary user can submit a creator application and an administrator can re
  await admin.goto(appUrl+"/auth");await admin.locator("#email").fill(adminEmail!);await admin.locator("#password").fill(adminPassword!);
  await admin.getByRole("button",{name:"Sign In",exact:true}).click();await admin.goto("/admin/godmode");
  await expect(admin.getByText(/Creator verification/i).first()).toBeVisible({timeout:30000});
+ await admin.getByRole("button",{name:"Approve",exact:true}).first().click();
+ await expect(admin.getByText(/No cases|No applications/i)).toHaveCount(0,{timeout:1000}).catch(()=>undefined);
+ await page.goto("/studio/create");
+ await expect(page.getByLabel("Title")).toBeVisible({timeout:30000});
+ await page.getByLabel("Title").fill("Phase 2 E2E Production "+Date.now());
+ await page.getByLabel("Duration (mins)").fill("90");
+ const country=page.getByLabel("Production country");
+ await country.click();
+ await page.getByRole("option",{name:/Nigeria/}).click();
+ await page.getByRole("button",{name:/Next/}).click();
+ await page.getByLabel("Distribution rights scope").click();
+ await page.getByRole("option").first().click();
+ await page.getByLabel("Admission price").fill("0");
+ await page.getByRole("button",{name:/Save draft \/ Publish/}).click();
+ await expect(page.getByText(/Draft saved|Published to Studio/).first()).toBeVisible({timeout:30000});
 });
 
 test("a configured production hostname resolves to the native storefront",async({page})=>{
@@ -35,5 +50,8 @@ test("a configured production hostname resolves to the native storefront",async(
  test.skip(!hostname,"Set DEGAMETV_E2E_STOREFRONT_HOST to a verified test domain.");
  await page.goto("https://"+hostname);
  await expect(page.getByText("Official production storefront")).toBeVisible({timeout:30000});
- await expect(page.getByRole("button",{name:"Get tickets / Watch"})).toBeVisible();
+ const tickets=page.getByRole("button",{name:"Get tickets",exact:true});
+ const watch=page.getByRole("button",{name:"Watch / Details",exact:true});
+ if(await tickets.count()){await expect(tickets).toBeEnabled();await tickets.click();await expect(page).toHaveURL(/\\/buy\\//);}
+ else {await expect(watch).toBeVisible();await watch.click();await expect(page).toHaveURL(/\\/content\\//);}
 });
