@@ -12,6 +12,17 @@ const Body = z.discriminatedUnion("action",[
 ]);
 const respond=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers});
 const p95=(values:number[])=>{if(!values.length)return 0;const sorted=[...values].sort((a,b)=>a-b);return sorted[Math.min(sorted.length-1,Math.ceil(sorted.length*.95)-1)];};
+const safeHealthUrl=(value:unknown)=>{
+  const target=new URL(String(value));
+  const host=target.hostname.toLowerCase();
+  if(target.protocol!=="https:"||target.username||target.password||!host.includes(".")||
+    host==="localhost"||host.endsWith(".localhost")||host.endsWith(".local")||host.endsWith(".internal")||
+    /^127\\./.test(host)||/^10\\./.test(host)||/^192\\.168\\./.test(host)||/^169\\.254\\./.test(host)||
+    /^172\\.(1[6-9]|2[0-9]|3[01])\\./.test(host)||host==="[::1]"||host.startsWith("[fc")||host.startsWith("[fd")||host.startsWith("[fe80")) {
+    throw new Error("Health endpoint must be a public HTTPS hostname.");
+  }
+  return target;
+};
 
 Deno.serve(async req=>{
   if(req.method==="OPTIONS")return new Response(null,{headers});
@@ -27,7 +38,7 @@ Deno.serve(async req=>{
   if(!parsed.success)return respond({error:"Invalid platform control request.",issues:parsed.error.flatten()},400);
   const p=parsed.data;
   try{
-    if(p.action==="release_probe"){\n      const {data:rollout,error}=await admin.from("platform_release_rollouts").select("id,release_key,state,config").eq("release_key",p.releaseKey).single();\n      if(error||!rollout)return respond({error:"Release was not found."},404);\n      if(rollout.state!=="canary")return respond({error:"Only active canary releases can be probed."},409);\n      const target=new URL(String(rollout.config?.health_check_url));\n      if(target.protocol!=="https:"||target.username||target.password)return respond({error:"Release health endpoint is not a valid HTTPS URL."},400);\n      const started=performance.now();let success=false;let errorCode:string|null=null;\n      try{const probe=await fetch(target,{headers:{Accept:"application/json"},signal:AbortSignal.timeout(8000)});const body=await probe.json().catch(()=>null);success=probe.ok&&(body?.ok===true||body?.status===true);if(!success)errorCode="health_check_failed";}catch{errorCode="health_check_unreachable";}\n      const latency=Math.max(0,Math.round(performance.now()-started));\n      const {error:writeError}=await admin.from("platform_release_observations").insert({rollout_id:rollout.id,release_key:rollout.release_key,success,latency_ms:latency,error_code:errorCode});\n      if(writeError)return respond({error:"Health probe result could not be recorded."},503);\n      return respond({success,latencyMs:latency,errorCode,releaseKey:rollout.release_key});\n    }\n    if(p.action==="release_list"){
+    if(p.action==="release_probe"){\n      const {data:rollout,error}=await admin.from("platform_release_rollouts").select("id,release_key,state,config").eq("release_key",p.releaseKey).single();\n      if(error||!rollout)return respond({error:"Release was not found."},404);\n      if(rollout.state!=="canary")return respond({error:"Only active canary releases can be probed."},409);\n      let target:URL;try{target=safeHealthUrl(rollout.config?.health_check_url);}catch{return respond({error:"Release health endpoint must be a public HTTPS URL."},400);}\n      const started=performance.now();let success=false;let errorCode:string|null=null;\n      try{const probe=await fetch(target,{headers:{Accept:"application/json"},redirect:"manual",signal:AbortSignal.timeout(8000)});const body=await probe.json().catch(()=>null);success=probe.ok&&(body?.ok===true||body?.status===true);if(!success)errorCode="health_check_failed";}catch{errorCode="health_check_unreachable";}\n      const latency=Math.max(0,Math.round(performance.now()-started));\n      const {error:writeError}=await admin.from("platform_release_observations").insert({rollout_id:rollout.id,release_key:rollout.release_key,success,latency_ms:latency,error_code:errorCode});\n      if(writeError)return respond({error:"Health probe result could not be recorded."},503);\n      return respond({success,latencyMs:latency,errorCode,releaseKey:rollout.release_key});\n    }\n    if(p.action==="release_list"){
       const {data,error}=await admin.from("platform_release_rollouts").select("*").order("updated_at",{ascending:false});
       if(error)return respond({error:"Release rollouts could not be loaded."},503);
       return respond({rollouts:data??[]});
@@ -55,7 +66,7 @@ Deno.serve(async req=>{
         const digest=rollout.config?.artifact_digest;
         const healthUrl=rollout.config?.health_check_url;
         if(typeof digest!=="string"||!/^sha256:[a-f0-9]{64}$/.test(digest))return respond({error:"A SHA-256 artifact_digest is required before validation."},400);
-        try{const parsedUrl=new URL(String(healthUrl));if(parsedUrl.protocol!=="https:"||parsedUrl.username||parsedUrl.password)return respond({error:"A verified HTTPS health_check_url is required."},400);}catch{return respond({error:"A valid HTTPS health_check_url is required."},400);}
+        try{safeHealthUrl(healthUrl);}catch{return respond({error:"A valid public HTTPS health_check_url is required."},400);}
         patch.state="validated";patch.traffic_percentage=0;auditAction="validated";
       }else if(p.transition==="start_canary"){
         if(rollout.state!=="validated")return respond({error:"Release must pass validation before canary."},409);
@@ -74,7 +85,7 @@ Deno.serve(async req=>{
         if(samples.length<rollout.minimum_samples)return respond({error:"Canary has insufficient verified health samples.",required:rollout.minimum_samples,observed:samples.length},409);
         const errors=samples.filter(row=>!row.success).length;
         const errorRate=errors/samples.length;
-        const latency=p95(samples.map(row=>Number(row.latency_ms)).filter(Number.isFinite));
+        const latency=p95(samples.filter(row=>row.latency_ms!==null).map(row=>Number(row.latency_ms)).filter(Number.isFinite));
         if(errorRate>Number(rollout.error_rate_threshold)||latency>rollout.latency_p95_threshold_ms)
           return respond({error:"Canary health thresholds were not met. Keep traffic limited or roll back.",samples:samples.length,errorRate,p95LatencyMs:latency},409);
         patch.state="approved";patch.traffic_percentage=100;patch.approved_by=user.id;patch.approved_at=new Date().toISOString();auditAction="approved";
