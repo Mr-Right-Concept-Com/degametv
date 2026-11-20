@@ -18,15 +18,15 @@ interface TenantContextType {
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
-// Default tenant for demo purposes
+// Non-persisted platform context for public DeGameTV surfaces
 const DEFAULT_TENANT: TenantConfig = {
-  id: 'default',
-  name: 'AGE Media',
-  slug: 'age-media',
+  id: 'platform',
+  name: 'DeGameTV',
+  slug: 'degametv',
   branding: {
-    primaryColor: '#3B82F6',
-    secondaryColor: '#8B5CF6',
-    accentColor: '#10B981',
+    primaryColor: '#ed1c18',
+    secondaryColor: '#080808',
+    accentColor: '#ffffff',
   },
   modules: MODULE_DEFINITIONS.filter(m => m.isCore || m.status === 'stable').map(m => ({
     moduleId: m.id,
@@ -37,8 +37,8 @@ const DEFAULT_TENANT: TenantConfig = {
   plan: 'professional',
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
-  selfService: true,
-  autopilot: true,
+  selfService: false,
+  autopilot: false,
 };
 
 export function TenantProvider({ children }: { children: ReactNode }) {
@@ -81,9 +81,9 @@ export function TenantProvider({ children }: { children: ReactNode }) {
                 branding: {
                   logo: tenantData.logo_url || undefined,
                   favicon: tenantData.favicon_url || undefined,
-                  primaryColor: tenantData.primary_color || '#3B82F6',
-                  secondaryColor: tenantData.secondary_color || '#8B5CF6',
-                  accentColor: '#10B981',
+                  primaryColor: tenantData.primary_color || '#ed1c18',
+                  secondaryColor: tenantData.secondary_color || '#080808',
+                  accentColor: '#ffffff',
                 },
                 modules: DEFAULT_TENANT.modules,
                 status: tenantData.is_active ? 'active' : 'suspended',
