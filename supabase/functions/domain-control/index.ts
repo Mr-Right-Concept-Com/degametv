@@ -75,8 +75,12 @@ Deno.serve(async req=>{
   }
   const host=p.hostname.toLowerCase().replace(/\.$/,"");
   if(host.includes("/")||host.includes(":")||host==="degametv.com"||host.endsWith(".degametv.com")||!host.includes(".")||!(/^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(host)))return json(400,{error:"A valid external custom domain is required."});
+  const {data:domainProviders}=await db.rpc("get_service_provider_runtime_config",{p_capability:"domain_ssl"});
+  const domainProvider=Array.isArray(domainProviders)?domainProviders[0]:null;
+  const dnsTarget=Deno.env.get("DEGAMETV_CUSTOM_DOMAIN_TARGET")??(typeof domainProvider?.settings?.cnameTarget==="string"?domainProvider.settings.cnameTarget:null);
+  if(!dnsTarget)return json(503,{error:"Custom domain routing target is not configured in the domain_ssl provider binding."});
   const token=crypto.randomUUID()+"."+crypto.randomUUID(),tokenHash=await hash(token);
-  const {data:domain,error:saveError}=await db.from("release_domains").upsert({tenant_id:content.tenant_id,content_id:content.id,subdomain:content.slug,hostname:host,domain_kind:"custom_domain",status:"pending_dns",verification_status:"PENDING_DNS",verification_token_hash:tokenHash,dns_target:Deno.env.get("DEGAMETV_CUSTOM_DOMAIN_TARGET")??"domains.degametv.com",ssl_status:"not_requested",updated_at:new Date().toISOString()},{onConflict:"content_id"}).select("id,hostname,verification_status,dns_target").single();
+  const {data:domain,error:saveError}=await db.from("release_domains").upsert({tenant_id:content.tenant_id,content_id:content.id,subdomain:content.slug,hostname:host,domain_kind:"custom_domain",status:"pending_dns",verification_status:"PENDING_DNS",verification_token_hash:tokenHash,dns_target:dnsTarget,ssl_status:"not_requested",updated_at:new Date().toISOString()},{onConflict:"content_id"}).select("id,hostname,verification_status,dns_target").single();
   if(saveError)return json(409,{error:"Custom domain could not be registered."});
   return json(201,{success:true,domain,verificationRecord:{type:"TXT",name:"_degametv-verification."+host,value:token},routingRecord:{type:"CNAME",name:host,value:domain.dns_target}});
  }
