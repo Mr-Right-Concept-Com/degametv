@@ -180,6 +180,14 @@ export default function StudioSubmit() {
   });
 
   useEffect(() => {
+    const sessionId=mediaUpload.sessionId;
+    if(mediaUpload.status!=="READY"||!sessionId)return;
+    const contentId=createdContentId??window.localStorage.getItem("degametv_media_content_"+sessionId);
+    if(!contentId)return;
+    void mediaUpload.attachToContent(contentId).then(()=>{window.localStorage.removeItem("degametv_media_content_"+sessionId);toast.success("Media passed scanning and transcoding. Verified playback renditions are attached.");}).catch(()=>toast.error("Media is ready but its content attachment needs reconciliation."));
+  },[mediaUpload.status,mediaUpload.sessionId,createdContentId,mediaUpload.attachToContent]);
+
+  useEffect(() => {
     let active = true;
     if (!user?.id) return;
     void supabase.from('studio_accounts').select('base_currency,status').eq('user_id', user.id).eq('status', 'approved').maybeSingle()
@@ -341,7 +349,7 @@ export default function StudioSubmit() {
       }
     }
 
-    if (mediaUpload.sessionId && mediaUpload.status !== 'QUARANTINED') {
+    if (mediaUpload.sessionId && !['QUARANTINED','READY'].includes(mediaUpload.status)) {
       toast.error('Pause or finish the current master upload before saving this production.');
       return;
     }
@@ -425,6 +433,7 @@ export default function StudioSubmit() {
       return;
     }
     setCreatedContentId(contentId);
+    if(mediaUpload.sessionId)window.localStorage.setItem("degametv_media_content_"+mediaUpload.sessionId,contentId);
     const territories = form.rights_territories.split(',').map(value => value.trim().toUpperCase()).filter(Boolean);
     const rightsResult = await invokeFn<{rightsStatus:string;baseCurrency:string}>("creator-onboarding", {
       action:"record_content_rights",
@@ -442,7 +451,7 @@ export default function StudioSubmit() {
       }
     });
     if (!rightsResult.ok) { toast.error(rightsResult.error ?? "Rights declaration could not be recorded. Your production remains a draft."); setSubmitting(false); return; }
-    if (mediaUpload.sessionId && mediaUpload.status === 'QUARANTINED') {
+    if (mediaUpload.sessionId && mediaUpload.status === 'READY') {
       try { await mediaUpload.attachToContent(contentId, mediaUpload.sessionId); }
       catch (attachmentError) { toast.error(attachmentError instanceof Error ? attachmentError.message : 'The uploaded master could not be attached. Your draft remains saved.'); setSubmitting(false); return; }
     }
