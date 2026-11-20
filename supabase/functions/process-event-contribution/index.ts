@@ -12,7 +12,8 @@ const Body=z.object({
  message:z.string().trim().max(500).optional(),
  contributorName:z.string().trim().max(100).optional(),
  isAnonymous:z.boolean().default(false),
- method:z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/).optional()
+ method:z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/).optional(),
+ idempotencyKey:z.string().uuid().optional()
 }).strict().refine(v=>[v.screeningId,v.liveStreamId,v.contentId].filter(Boolean).length===1,"Choose exactly one support target.").refine(v=>v.contributionType==="tip"?v.amount!==undefined:Boolean(v.giftCatalogKey),"Tips require an amount; gifts require a catalogue item.");
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, x-client-info, content-type, cf-ipcountry","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
@@ -34,6 +35,18 @@ Deno.serve(async(req)=>{
  if(!parsed.success)return json(400,{error:"Invalid contribution details."});
  const p=parsed.data,db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
  try{
+  if(p.idempotencyKey){
+   const {data:existing,error:existingError}=await db.from("event_contributions")
+    .select("provider_reference,status,checkout_url,amount_major,currency,contribution_type")
+    .eq("contributor_user_id",user.id).eq("idempotency_key",p.idempotencyKey).maybeSingle();
+   if(existingError)return json(503,{error:"Could not confirm the previous contribution request."});
+   if(existing){
+    if(existing.status==="pending"&&existing.checkout_url)return json(200,{success:true,checkoutUrl:existing.checkout_url,reference:existing.provider_reference,amount:existing.amount_major,currency:existing.currency,contributionType:existing.contribution_type,reused:true});
+    if(existing.status==="paid")return json(409,{error:"This contribution has already been paid.",alreadyPaid:true});
+    if(["failed","refunded"].includes(existing.status))return json(409,{error:"The previous attempt did not complete. Start a new contribution attempt.",retryable:true});
+    return json(409,{error:"This contribution request is already being processed. Please wait before retrying."});
+   }
+  }
   const {data:profile}=await db.from("profiles").select("preferred_country,preferred_currency").eq("user_id",user.id).maybeSingle();
   const edgeCountry=req.headers.get("cf-ipcountry")?.toUpperCase();
   const country=p.countryCode?.toUpperCase()??profile?.preferred_country?.toUpperCase()??(edgeCountry&&/^[A-Z]{2}$/.test(edgeCountry)?edgeCountry:null);
@@ -104,12 +117,19 @@ Deno.serve(async(req)=>{
   let origin:string;try{const site=new URL(String(siteSetting?.setting_value||""));if(siteSetting?.is_public!==true||site.protocol!=="https:")throw new Error();origin=site.origin;}catch{return json(503,{error:"The canonical return URL is not configured."});}
   const {error:insertError}=await db.from("event_contributions").insert({
    tenant_id:tenantId,creator_id:creatorId,screening_id:screeningId,live_stream_id:liveStreamId,content_id:contentId,target_kind:contentId?"content":"event",
-   contributor_user_id:user.id,contributor_name:p.isAnonymous?null:(p.contributorName||user.user_metadata?.full_name||user.email),
+   contributor_user_id:user.id,idempotency_key:p.idempotencyKey??null,contributor_name:p.isAnonymous?null:(p.contributorName||user.user_metadata?.full_name||user.email),
    contributor_email:user.email,contribution_type:p.contributionType,gift_catalog_key:p.contributionType==="gift"?p.giftCatalogKey??"standard":null,
    message:p.message??null,amount_minor:amountMinor,amount_major:amountMajor,platform_fee_major:feeMajor,currency,
    provider_key:usable[0].provider_key,provider_reference:reference,provider_mode:"live",status:"pending",is_anonymous:p.isAnonymous
   });
-  if(insertError)return json(503,{error:"Could not create contribution order. No charge was made."});
+  if(insertError){
+   if(p.idempotencyKey){
+    const {data:existing}=await db.from("event_contributions").select("provider_reference,status,checkout_url,amount_major,currency,contribution_type").eq("contributor_user_id",user.id).eq("idempotency_key",p.idempotencyKey).maybeSingle();
+    if(existing?.status==="pending"&&existing.checkout_url)return json(200,{success:true,checkoutUrl:existing.checkout_url,reference:existing.provider_reference,amount:existing.amount_major,currency:existing.currency,contributionType:existing.contribution_type,reused:true});
+    if(existing)return json(409,{error:"This contribution request is already being processed. Please wait before retrying."});
+   }
+   return json(503,{error:"Could not create contribution order. No charge was made."});
+  }
   let checkoutUrl:string|null=null,selected:any=null,checkoutId:string|null=null;
   for(const provider of usable){
    try{
@@ -142,7 +162,7 @@ Deno.serve(async(req)=>{
    }catch{continue;}
   }
   if(!selected||!checkoutUrl){await db.from("event_contributions").update({status:"failed"}).eq("provider_reference",reference);return json(502,{error:"Payment provider did not accept this contribution. No charge was made."});}
-  const {error:updateError}=await db.from("event_contributions").update({provider_key:selected.provider_key,provider_checkout_id:checkoutId}).eq("provider_reference",reference);
+  const {error:updateError}=await db.from("event_contributions").update({provider_key:selected.provider_key,provider_checkout_id:checkoutId,checkout_url:checkoutUrl}).eq("provider_reference",reference);
   if(updateError)return json(503,{error:"Checkout started but contribution order reconciliation is pending. Contact support before retrying."});
   return json(200,{success:true,checkoutUrl,reference,amount:amountMajor,currency,contributionType:p.contributionType});
  }catch(error){console.error("process-event-contribution",error);return json(503,{error:error instanceof Error?error.message:"Contribution checkout unavailable."});}
