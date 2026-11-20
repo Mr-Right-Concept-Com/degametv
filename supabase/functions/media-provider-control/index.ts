@@ -28,8 +28,12 @@ Deno.serve(async req=>{
  const parsed=schema.safeParse(await req.json().catch(()=>null));
  if(!parsed.success)return json({error:"Invalid media operation.",details:parsed.error.flatten()},400);
  const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
- const {data:approved}=await db.rpc("is_approved_creator",{p_user_id:user.id});
- if(!approved)return json({error:"Approved creator access is required."},403);
+ const [{data:creatorRole,error:roleError},{data:studio,error:studioError}]=await Promise.all([
+  db.from("user_roles").select("user_id").eq("user_id",user.id).eq("role","creator").maybeSingle(),
+  db.from("studio_accounts").select("id").eq("user_id",user.id).eq("status","approved").maybeSingle(),
+ ]);
+ if(roleError||studioError)return json({error:"Creator permissions could not be verified."},503);
+ if(!creatorRole||!studio)return json({error:"Approved creator access is required."},403);
  const p=parsed.data;
  if(p.action==="create_live"&&!await featureEnabled(db,"creator.live",user.id))return json({error:"Live creation is currently unavailable for this release cohort."},403);
  const capability=p.action==="create_live"||p.action==="stop_live"?"live_streaming":"video_delivery";
