@@ -8,30 +8,32 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Search, Download, Loader2, Mail, RotateCcw, Ticket } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { Tables } from '@/integrations/supabase/types';
 import { invokeFn } from '@/lib/invokeFn';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
-interface TicketRow {
-  id: string;
-  ticket_code: string;
-  watch_code: string;
-  email: string;
-  location: string;
-  price: number;
-  currency: string;
-  payment_status: string;
-  payment_method: string;
-  created_at: string;
-  expires_at: string;
-  refunded_at: string | null;
-  refund_reason: string | null;
-  stream_count: number;
-  screening: { title: string; slug: string } | null;
-}
-
+type TicketRow = Pick<
+  Tables<'screening_tickets'>,
+  | 'id'
+  | 'ticket_code'
+  | 'watch_code'
+  | 'email'
+  | 'location'
+  | 'price'
+  | 'currency'
+  | 'payment_status'
+  | 'payment_method'
+  | 'created_at'
+  | 'expires_at'
+  | 'refunded_at'
+  | 'refund_reason'
+  | 'stream_count'
+> & {
+  screening: Pick<Tables<'screenings'>, 'title' | 'slug'> | null;
+};
 export default function TicketManagement() {
   usePageTitle('Tickets — Admin');
   const [tickets, setTickets] = useState<TicketRow[]>([]);
@@ -40,18 +42,24 @@ export default function TicketManagement() {
   const [refundReason, setRefundReason] = useState('');
   const [refundingId, setRefundingId] = useState<string | null>(null);
 
-  const fetchTickets = async () => {
+  const fetchTickets = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('screening_tickets')
-      .select('id, ticket_code, watch_code, email, location, price, currency, payment_status, payment_method, created_at, expires_at, refunded_at, refund_reason, stream_count, screening:screenings(title, slug)')
-      .order('created_at', { ascending: false })
-      .limit(500);
-    setTickets((data as unknown as TicketRow[]) || []);
-    setLoading(false);
-  };
+    try {
+      const { data, error } = await supabase
+        .from('screening_tickets')
+        .select('id, ticket_code, watch_code, email, location, price, currency, payment_status, payment_method, created_at, expires_at, refunded_at, refund_reason, stream_count, screening:screenings(title, slug)')
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      setTickets(data ?? []);
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Failed to load tickets');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  useEffect(() => { fetchTickets(); }, []);
+  useEffect(() => { void fetchTickets(); }, [fetchTickets]);
 
   const handleRefund = async (id: string) => {
     setRefundingId(id);
@@ -61,7 +69,7 @@ export default function TicketManagement() {
     } else {
       toast.success('Ticket refunded');
       setRefundReason('');
-      fetchTickets();
+      await fetchTickets();
     }
     setRefundingId(null);
   };
@@ -81,9 +89,11 @@ export default function TicketManagement() {
     const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
+    const downloadUrl = URL.createObjectURL(blob);
+    a.href = downloadUrl;
     a.download = `tickets-${Date.now()}.csv`;
     a.click();
+    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0);
   };
 
   const filtered = tickets.filter(t =>
@@ -93,7 +103,16 @@ export default function TicketManagement() {
     t.screening?.title.toLowerCase().includes(search.toLowerCase())
   );
 
-  const totalRevenue = tickets.filter(t => t.payment_status === 'completed' && !t.refunded_at).reduce((s, t) => s + Number(t.price || 0), 0);
+  const revenueByCurrency = tickets.reduce<Record<string, number>>((totals, ticket) => {
+    if (ticket.payment_status === 'completed' && !ticket.refunded_at) {
+      const currency = ticket.currency || 'UNKNOWN';
+      totals[currency] = (totals[currency] ?? 0) + Number(ticket.price || 0);
+    }
+    return totals;
+  }, {});
+  const revenueSummary = Object.entries(revenueByCurrency)
+    .map(([currency, amount]) => `${currency} ${amount.toLocaleString()}`)
+    .join(' · ') || 'No completed sales';
   const refundedCount = tickets.filter(t => t.refunded_at).length;
 
   const statusBadge = (t: TicketRow) => {
@@ -104,7 +123,7 @@ export default function TicketManagement() {
   };
 
   return (
-    <AdminLayout title="Ticketing & Access" description={`${tickets.length} tickets · ₦${totalRevenue.toLocaleString()} net revenue · ${refundedCount} refunded`}>
+    <AdminLayout title="Ticketing & Access" description={`${tickets.length} tickets · ${revenueSummary} collected · ${refundedCount} refunded`}>
       <div className="space-y-6">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
