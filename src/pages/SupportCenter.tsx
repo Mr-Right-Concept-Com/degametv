@@ -60,6 +60,19 @@ export default function SupportCenter() {
 
   useEffect(() => { void loadTickets(); void loadArticles(); }, [loadTickets, loadArticles]);
 
+  useEffect(() => {
+    if (!selected) return;
+    const channel = supabase.channel(`support-ticket-${selected.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_messages', filter: `ticket_id=eq.${selected.id}` }, async () => {
+        const { data } = await (supabase as any).from('support_messages')
+          .select('id,sender_id,body,created_at').eq('ticket_id', selected.id)
+          .eq('is_internal', false).order('created_at', { ascending: true });
+        setMessages(data || []);
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [selected?.id]);
+
   const loadMessages = useCallback(async (ticket: SupportTicket) => {
     setSelected(ticket);
     const { data, error } = await (supabase as any).from('support_messages')
