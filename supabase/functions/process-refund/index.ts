@@ -59,6 +59,11 @@ Deno.serve(async(req)=>{
   }
   if(!order)return json({error:"The original payment order could not be found."},404);
   if(order.status!=="paid")return json({error:"Only settled payments can be refunded."},409);
+  if(contributionOrder&&contribution?.provider_mode==="wallet"){
+   const {data:walletRefund,error:walletRefundError}=await admin.rpc("refund_personal_wallet_contribution",{p_contribution_id:contribution.id});
+   if(walletRefundError)return json({error:"Personal Wallet refund could not be completed. No provider refund was initiated."},409);
+   return json({success:true,personalWalletRefund:walletRefund,providerRefundRequired:false});
+  }
   const bindingResult=await admin.from("service_provider_bindings").select("base_url,endpoints,settings,is_live").eq("capability","payments").eq("provider_key",order.provider).maybeSingle();
   const {data:secretRows,error:secretError}=await admin.rpc("get_service_provider_admin_secret",{p_capability:"payments",p_provider_key:order.provider});
   const secret=Array.isArray(secretRows)?secretRows[0]:null;
