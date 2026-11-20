@@ -7,13 +7,20 @@ declare
   v_def text;
 begin
   select relrowsecurity,relforcerowsecurity into v_rls,v_force from pg_class where oid='public.studio_accounts'::regclass;
-  if not v_rls or not v_force then raise exception 'studio_accounts must enforce RLS'; end if;
+  if not v_rls then raise exception 'studio_accounts must enforce RLS'; end if;
   select relrowsecurity,relforcerowsecurity into v_rls,v_force from pg_class where oid='public.media_upload_sessions'::regclass;
   if not v_rls or not v_force then raise exception 'media_upload_sessions must enforce RLS'; end if;
   select relrowsecurity,relforcerowsecurity into v_rls,v_force from pg_class where oid='public.media_processing_jobs'::regclass;
   if not v_rls or not v_force then raise exception 'media_processing_jobs must enforce RLS'; end if;
-  if has_table_privilege('authenticated','public.studio_accounts','select') is false then
-    raise exception 'authenticated creator account read access contract missing';
+  if not has_column_privilege('authenticated','public.studio_accounts','id','select') then
+    raise exception 'authenticated creator account safe projection is missing';
+  end if;
+  if has_table_privilege('authenticated','public.studio_accounts','select') then
+    raise exception 'browser roles must not have table-wide studio account reads';
+  end if;
+  if has_column_privilege('authenticated','public.studio_accounts','bank_account_number','select')
+     or has_column_privilege('authenticated','public.studio_accounts','tax_id','select') then
+    raise exception 'legacy plaintext bank and tax columns must not be readable by browser roles';
   end if;
   if has_column_privilege('authenticated','public.studio_accounts','tax_secret_ref','select')
      or has_column_privilege('authenticated','public.studio_accounts','payout_bank_secret_ref','select') then
@@ -38,6 +45,19 @@ begin
   end if;
   if has_function_privilege('authenticated','public.claim_media_processing_jobs(text,integer)','execute') then
     raise exception 'browser roles must not claim media jobs';
+  end if;
+  if not exists(select 1 from pg_policies where schemaname='public' and tablename='studio_memberships') then
+    raise exception 'studio membership row-level policies are required';
+  end if;
+  if not exists(select 1 from pg_indexes where schemaname='public' and tablename='media_upload_sessions' and indexdef ilike '%owner_id%') then
+    raise exception 'owner-scoped upload session lookup index is required';
+  end if;
+  if not exists(select 1 from information_schema.columns where table_schema='public' and table_name='media_upload_sessions' and column_name='chunk_size_bytes') then
+    raise exception 'multipart chunk sizing is not persisted';
+  end if;
+  if not exists(select 1 from information_schema.columns where table_schema='public' and table_name='content' and column_name='hls_manifest_url')
+     or not exists(select 1 from information_schema.columns where table_schema='public' and table_name='content' and column_name='dash_manifest_url') then
+    raise exception 'content playback rendition fields are missing';
   end if;
   if not exists(select 1 from pg_policies where schemaname='public' and tablename='studio_invitations' and policyname='studio_invitations_backend_only') then
     raise exception 'studio invitation browser deny policy missing';
