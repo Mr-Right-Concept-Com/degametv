@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,22 +7,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
+import type { Tables } from '@/integrations/supabase/types';
 import { ShieldCheck, Clock, X, Check, Loader2, ScanFace, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
-interface Application {
-  id: string;
-  user_id: string;
-  email: string;
-  full_name: string | null;
-  kyc_status: string;
-  kyc_id_type: string | null;
-  kyc_id_url: string | null;
-  kyc_selfie_url: string | null;
-  kyc_full_name: string | null;
-  kyc_submitted_at: string | null;
-}
+type Application = Pick<Tables<'profiles'>, 'id' | 'user_id' | 'email' | 'full_name' | 'kyc_status' | 'kyc_id_type' | 'kyc_id_url' | 'kyc_selfie_url' | 'kyc_full_name' | 'kyc_submitted_at'>;
 
 export default function FilmmakerApplications() {
   const [apps, setApps] = useState<Application[]>([]);
@@ -34,7 +24,7 @@ export default function FilmmakerApplications() {
   const [tab, setTab] = useState<'pending' | 'verified' | 'rejected'>('pending');
   const [q, setQ] = useState('');
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('profiles')
@@ -42,11 +32,11 @@ export default function FilmmakerApplications() {
       .in('kyc_status', ['pending', 'verified', 'rejected'])
       .order('kyc_submitted_at', { ascending: false });
     if (error) toast.error('Failed to load: ' + error.message);
-    else setApps((data || []) as Application[]);
+    else setApps(data || []);
     setLoading(false);
-  };
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void load(); }, [load]);
 
   const review = async (app: Application, decision: 'verified' | 'rejected') => {
     if (note.trim().length < 10) {
