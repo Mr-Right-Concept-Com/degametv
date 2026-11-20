@@ -19,6 +19,14 @@ begin
      or has_table_privilege('authenticated','public.payment_refunds','select') then
     raise exception 'payment_refunds_exposed_to_client_roles';
   end if;
+  if has_table_privilege('anon','public.platform_security_alerts','select')
+     or has_table_privilege('authenticated','public.platform_security_alerts','select') then
+    raise exception 'platform_security_alerts_exposed_to_client_roles';
+  end if;
+  if has_function_privilege('authenticated','public.resolve_platform_security_alert(uuid,uuid,text)','execute')
+     or not has_function_privilege('service_role','public.resolve_platform_security_alert(uuid,uuid,text)','execute') then
+    raise exception 'security_alert_resolution_privileges_invalid';
+  end if;
   if has_column_privilege('anon','public.withdrawal_requests','account_number','select')
      or has_column_privilege('authenticated','public.withdrawal_requests','account_number','select') then
     raise exception 'withdrawal_bank_account_exposed_to_client_roles';
