@@ -3,6 +3,10 @@ import { z } from "npm:zod@3";
 const Body=z.object({ticketId:z.string().uuid().optional(),contributionId:z.string().uuid().optional(),reason:z.string().trim().min(3).max(500),requestedBy:z.string().uuid().optional()}).strict().refine(v=>Boolean(v.ticketId)!==Boolean(v.contributionId));
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS","Content-Type":"application/json","Cache-Control":"no-store"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:cors});
+type ScreeningTicket={id:string;screening_id:string;payment_status:string;refunded_at:string|null;price:number;currency:string};
+type LiveTicket={id:string;revoked_at:string|null;price:number;currency:string;metadata:Record<string,unknown>|null};
+type Contribution={id:string;amount_minor:number;amount_major:number|null;currency:string;status:string;provider_key:string;provider_reference:string;provider_transaction_id:string|null;provider_mode:string;contribution_type:string};
+type PaymentOrder={provider:string;provider_mode:string;provider_reference:string;provider_transaction_id:string|null;amount_minor:number;amount_major?:number|null;currency:string;status:string};
 Deno.serve(async(req)=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
  if(req.method!=="POST")return json({error:"Method not allowed."},405);
@@ -25,10 +29,10 @@ Deno.serve(async(req)=>{
   actorId=user.id;
  }
  try{
-  let ticket:any=null,liveTicket:any=null,contribution:any=null,order:any=null,liveOrder=false,contributionOrder=false;
+  let ticket:ScreeningTicket|null=null,liveTicket:LiveTicket|null=null,contribution:Contribution|null=null,order:PaymentOrder|null=null,liveOrder=false,contributionOrder=false;
   if(parsed.data.contributionId){
    const found=await admin.from("event_contributions").select("id,amount_minor,amount_major,currency,status,provider_key,provider_reference,provider_transaction_id,provider_mode,contribution_type").eq("id",parsed.data.contributionId).maybeSingle();
-   contribution=found.data;contributionOrder=true;
+   contribution=found.data as Contribution|null;contributionOrder=true;
    if(found.error||!contribution)return json({error:"Contribution not found."},404);
    order={provider:contribution.provider_key,provider_mode:contribution.provider_mode,provider_reference:contribution.provider_reference,provider_transaction_id:contribution.provider_transaction_id,amount_minor:contribution.amount_minor,amount_major:contribution.amount_major,currency:contribution.currency,status:contribution.status};
   }
@@ -36,23 +40,24 @@ Deno.serve(async(req)=>{
   if(contributionOrder){
    if(contribution.status!=="paid")return json({error:"Only paid contributions can be refunded."},409);
   }else if(screeningTicket.data){
-   ticket=screeningTicket.data;
+   ticket=screeningTicket.data as ScreeningTicket;
    if(ticket.refunded_at||ticket.payment_status==="refunded")return json({error:"This ticket has already been refunded."},409);
    if(ticket.payment_status!=="completed")return json({error:"Only completed ticket payments can be refunded."},409);
    const found=await admin.from("guest_payment_orders").select("id,provider,provider_mode,provider_reference,provider_transaction_id,amount_minor,currency,status").eq("ticket_id",ticket.id).maybeSingle();
-   order=found.data;
+   order=found.data as PaymentOrder|null;
    if(found.error||!order)return json({error:"The original payment order could not be found."},404);
   }else{
    const foundTicket=await admin.from("tickets").select("id,revoked_at,price,currency,metadata").eq("id",parsed.data.ticketId).maybeSingle();
-   liveTicket=foundTicket.data;
+   liveTicket=foundTicket.data as LiveTicket|null;
    if(!liveTicket)return json({error:"Ticket not found."},404);
    if(liveTicket.revoked_at)return json({error:"This live ticket has already been refunded or revoked."},409);
    const reference=liveTicket.metadata?.payment_reference;
    if(typeof reference!=="string")return json({error:"The original live payment reference is missing."},404);
    const foundOrder=await admin.from("live_payment_orders").select("id,provider,provider_mode,provider_reference,provider_transaction_id,amount_minor,amount_major,currency,status").eq("provider_reference",reference).maybeSingle();
-   order=foundOrder.data;liveOrder=true;
+   order=foundOrder.data as PaymentOrder|null;liveOrder=true;
    if(foundOrder.error||!order)return json({error:"The original live payment order could not be found."},404);
   }
+  if(!order)return json({error:"The original payment order could not be found."},404);
   if(order.status!=="paid")return json({error:"Only settled payments can be refunded."},409);
   const bindingResult=await admin.from("service_provider_bindings").select("base_url,endpoints,settings,is_live").eq("capability","payments").eq("provider_key",order.provider).maybeSingle();
   const {data:secretRows,error:secretError}=await admin.rpc("get_service_provider_admin_secret",{p_capability:"payments",p_provider_key:order.provider});
@@ -129,5 +134,5 @@ Deno.serve(async(req)=>{
   const {data:completed,error:completeError}=await admin.rpc("complete_payment_refund",{p_refund_id:refundId,p_provider_refund_id:providerRefundId});
   if(completeError)return json({error:"Provider confirmed the refund, but local ticket and ledger reconciliation is pending. Retry this refund reference.",refundId:refundId},503);
   return json({success:true,refund:completed});
- }catch(error){console.error("process-refund",error);return json({error:"Refund processing failed safely. Ticket access was not changed."},500);}
+ }catch(error:unknown){console.error("process-refund",error);return json({error:"Refund processing failed safely. Ticket access was not changed."},500);}
 });
