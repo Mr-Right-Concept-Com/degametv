@@ -10,7 +10,7 @@ const hmac=async(key:Uint8Array|string,data:string)=>new Uint8Array(await crypto
 const awsEncode=(v:string)=>encodeURIComponent(v).replace(/[!'()*]/g,c=>"%"+c.charCodeAt(0).toString(16).toUpperCase());
 const canonicalQuery=(u:URL)=>[...u.searchParams.entries()].sort(([a,av],[b,bv])=>a.localeCompare(b)||av.localeCompare(bv)).map(([k,v])=>awsEncode(k)+"="+awsEncode(v)).join("&");
 const timestamp=()=>new Date().toISOString().replace(/[:-]|\.\d{3}/g,"");
-type S3Config={endpoint:URL;bucket:string;region:string;accessKeyId:string;secretAccessKey:string;sessionToken?:string;pathStyle:boolean;};
+type S3Config={endpoint:URL;bucket:string;deliveryBucket:string;region:string;accessKeyId:string;secretAccessKey:string;sessionToken?:string;pathStyle:boolean;};
 type Provider={id:string;provider_key:string;base_url:string|null;endpoints:Record<string,string>;settings:Record<string,unknown>;credential:string;};
 async function getStorage(db:ReturnType<typeof createClient>):Promise<S3Config>{
  const {data,error}=await db.rpc("get_service_provider_runtime_config",{p_capability:"media_storage"});
@@ -19,12 +19,12 @@ async function getStorage(db:ReturnType<typeof createClient>):Promise<S3Config>{
  let secret:Record<string,unknown>;
  try{secret=JSON.parse(p.credential) as Record<string,unknown>;}catch{throw new Error("The media_storage Vault credential must be a JSON object containing accessKeyId and secretAccessKey.");}
  const endpoint=String(p.base_url??p.settings.endpoint??"");
- const bucket=String(p.settings.bucket??"");
+ const bucket=String(p.settings.quarantineBucket??p.settings.bucket??"");\n const deliveryBucket=String(p.settings.deliveryBucket??"");
  const region=String(p.settings.region??"auto");
- if(!endpoint||!bucket||typeof secret.accessKeyId!=="string"||typeof secret.secretAccessKey!=="string")throw new Error("The selected media_storage binding is missing endpoint, bucket, or S3 credentials.");
- return {endpoint:new URL(endpoint),bucket,region,accessKeyId:secret.accessKeyId,secretAccessKey:secret.secretAccessKey,sessionToken:typeof secret.sessionToken==="string"?secret.sessionToken:undefined,pathStyle:p.settings.pathStyle!==false};
+ if(!endpoint||!bucket||!deliveryBucket||bucket===deliveryBucket||typeof secret.accessKeyId!=="string"||typeof secret.secretAccessKey!=="string")throw new Error("The selected media_storage binding is missing endpoint, bucket, or S3 credentials.");
+ return {endpoint:new URL(endpoint),bucket,deliveryBucket,region,accessKeyId:secret.accessKeyId,secretAccessKey:secret.secretAccessKey,sessionToken:typeof secret.sessionToken==="string"?secret.sessionToken:undefined,pathStyle:p.settings.pathStyle!==false};
 }
-function objectUrl(c:S3Config,key:string){
+function objectUrl(c:S3Config,key:string,bucket=c.bucket){
  const u=new URL(c.endpoint.toString());
  if(c.pathStyle)u.pathname=u.pathname.replace(/\/$/,"")+"/"+awsEncode(c.bucket)+"/"+key.split("/").map(awsEncode).join("/");
  else{u.hostname=c.bucket+"."+u.hostname;u.pathname=u.pathname.replace(/\/$/,"")+"/"+key.split("/").map(awsEncode).join("/");}
@@ -126,7 +126,7 @@ Deno.serve(async req=>{
   const {data:admin}=await db.from("user_roles").select("role").eq("user_id",user.id).in("role",["super_admin","platform_admin"]).limit(1);
   if(session?.owner_id!==user.id&&!admin?.length)return json(403,{error:"Not authorized."});
   const renditions=job.renditions as Array<{path:string;kind:string}>,rendition=renditions.find(r=>r.path===p.path);if(!rendition)return json(404,{error:"Rendition not found."});
-  try{const storage=await getStorage(db);return json(200,{url:await presignGet(storage,p.path),expiresIn:900});}catch(e){return json(503,{error:e instanceof Error?e.message:"Playback signing failed."});}
+  try{const storage=await getStorage(db);return json(200,{url:await presignGet(storage,p.path,storage.deliveryBucket),expiresIn:900});}catch(e){return json(503,{error:e instanceof Error?e.message:"Playback signing failed."});}
  }
  const {data:session,error:sessionError}=await db.from("media_upload_sessions").select("*").eq("id",p.sessionId).eq("owner_id",user.id).maybeSingle();
  if(sessionError||!session)return json(404,{error:"Upload session not found."});
