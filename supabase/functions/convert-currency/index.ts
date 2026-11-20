@@ -23,6 +23,16 @@ function readPath(value: unknown, path: string): unknown {
     return (current as Record<string, unknown>)[key];
   }, value);
 }
+function currencyDigits(currency: string): number {
+  try { return new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits; }
+  catch { return 2; }
+}
+function endpointFor(baseUrl: string, path: string): URL {
+  if (!path.startsWith("/") || path.startsWith("//")) throw new Error("FX endpoint must be a relative path.");
+  const target = new URL(path, baseUrl);
+  if (target.origin !== new URL(baseUrl).origin) throw new Error("FX endpoint host mismatch.");
+  return target;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
@@ -54,79 +64,104 @@ Deno.serve(async (req) => {
     const countryCode = parsed.data.country?.toUpperCase()
       ?? (edgeCountry && /^[A-Z]{2}$/.test(edgeCountry) ? edgeCountry : undefined);
     const countryRule = countryCode
-      ? await db.from("country_currency_rules").select("country_code,currency_code,currency_symbol")
+      ? await db.from("country_currency_rules").select("country_code,currency_code,currency_symbol,locale_code,timezone_name")
           .eq("country_code", countryCode).eq("enabled", true).maybeSingle()
       : { data: null, error: null };
     if (countryRule.error) return respond({ error: "Country currency policy is unavailable." }, 503);
 
     const from = (parsed.data.fromCurrency ?? configuredBase).toUpperCase();
     const to = (parsed.data.toCurrency ?? parsed.data.currency ?? countryRule.data?.currency_code ?? "").toUpperCase();
-    if (!/^[A-Z]{3}$/.test(to)) {
-      return respond({ error: "Provide a target currency or a supported country so its currency can be resolved." }, 400);
-    }
+    if (!/^[A-Z]{3}$/.test(to)) return respond({ error: "Provide a target currency or a supported country so its currency can be resolved." }, 400);
     if (from === to) {
-      return respond({ country: countryCode ?? null, fromCurrency: from, toCurrency: to, original: parsed.data.amount, converted: parsed.data.amount, rate: 1, rateBase: from, provider: null, retrievedAt: new Date().toISOString() });
+      return respond({ country: countryCode ?? null, fromCurrency: from, toCurrency: to, original: parsed.data.amount,
+        converted: parsed.data.amount, rate: 1, rateBase: from, provider: null, retrievedAt: new Date().toISOString(), cache: "identity" });
     }
 
-    const { data: binding, error: bindingError } = await db.from("service_provider_bindings")
-      .select("provider_key,base_url,endpoints,settings,is_live")
-      .eq("capability", "fx_rates").eq("enabled", true).is("removed_at", null)
-      .order("priority", { ascending: true }).limit(1).maybeSingle();
-    if (bindingError || !binding?.base_url) {
-      return respond({ error: "No active FX provider is configured.", code: "FX_PROVIDER_UNAVAILABLE" }, 503);
-    }
+    const now = new Date();
+    const { data: cached } = await db.from("platform_fx_rate_cache")
+      .select("rate,provider_key,retrieved_at,expires_at")
+      .eq("base_currency", from).eq("quote_currency", to).gt("expires_at", now.toISOString())
+      .order("retrieved_at", { ascending: false }).limit(1).maybeSingle();
+    let rate = cached ? Number(cached.rate) : 0;
+    let provider = cached?.provider_key ?? null;
+    let retrievedAt = cached?.retrieved_at ?? null;
+    let cache: "hit" | "miss" = cached ? "hit" : "miss";
 
-    const { data: secretRows, error: secretError } = await db.rpc("get_service_provider_admin_secret", {
-      p_capability: "fx_rates", p_provider_key: binding.provider_key,
-    });
-    const secret = Array.isArray(secretRows) ? secretRows[0] : null;
-    const credential = binding.is_live ? secret?.live_credential : secret?.test_credential;
-    if (secretError || !credential) return respond({ error: "The selected FX provider has no credential for its active mode." }, 503);
+    if (!cached) {
+      const { data: bindings, error: bindingError } = await db.from("service_provider_bindings")
+        .select("provider_key,base_url,endpoints,settings,is_live,priority")
+        .eq("capability", "fx_rates").eq("enabled", true).is("removed_at", null)
+        .order("priority", { ascending: true });
+      if (bindingError) return respond({ error: "FX provider routing is unavailable." }, 503);
+      if (!bindings?.length) return respond({ error: "No active FX provider is configured.", code: "FX_PROVIDER_UNAVAILABLE" }, 503);
 
-    const ratesPath = binding.endpoints?.rates;
-    if (typeof ratesPath !== "string" || !ratesPath.startsWith("/") || ratesPath.startsWith("//")) {
-      return respond({ error: "Configure a relative rates endpoint for the FX provider." }, 503);
-    }
-    const target = new URL(ratesPath, binding.base_url);
-    if (target.origin !== new URL(binding.base_url).origin) return respond({ error: "FX endpoint host mismatch." }, 400);
-    target.searchParams.set("base", from);
-    const authHeader = typeof binding.settings?.auth_header === "string" ? binding.settings.auth_header : "Authorization";
-    const authPrefix = typeof binding.settings?.auth_prefix === "string" ? binding.settings.auth_prefix : "Bearer ";
-    const upstream = await fetch(target, {
-      headers: { [authHeader]: authPrefix + credential, Accept: "application/json" },
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!upstream.ok) return respond({ error: "FX provider request failed.", providerStatus: upstream.status }, 502);
-
-    const payload: unknown = await upstream.json();
-    const configuredPath = typeof binding.settings?.rates_response_path === "string" ? binding.settings.rates_response_path : "";
-    const rawRates = (configuredPath ? readPath(payload, configuredPath) : undefined)
-      ?? readPath(payload, "rates")
-      ?? readPath(payload, "data.rates")
-      ?? readPath(payload, "conversion_rates")
-      ?? readPath(payload, "data.conversion_rates");
-    if (!rawRates || typeof rawRates !== "object" || Array.isArray(rawRates)) {
-      return respond({ error: "FX provider response did not contain a supported rates object." }, 502);
-    }
-    const rates: Record<string, number> = {};
-    for (const [code, value] of Object.entries(rawRates as Record<string, unknown>)) {
-      const normalizedCode = code.toUpperCase();
-      const normalizedRate = typeof value === "number" ? value : Number(value);
-      if (/^[A-Z]{3}$/.test(normalizedCode) && Number.isFinite(normalizedRate) && normalizedRate > 0) {
-        rates[normalizedCode] = normalizedRate;
+      const failures: string[] = [];
+      for (const binding of bindings) {
+        try {
+          if (!binding.base_url) throw new Error("Provider base URL is missing.");
+          const { data: secretRows, error: secretError } = await db.rpc("get_service_provider_admin_secret", {
+            p_capability: "fx_rates", p_provider_key: binding.provider_key,
+          });
+          const secret = Array.isArray(secretRows) ? secretRows[0] : null;
+          const credential = binding.is_live ? secret?.live_credential : secret?.test_credential;
+          if (secretError || !credential) throw new Error("Credential unavailable for configured mode.");
+          const ratesPath = binding.endpoints?.rates;
+          if (typeof ratesPath !== "string") throw new Error("Relative rates endpoint is not configured.");
+          const target = endpointFor(binding.base_url, ratesPath);
+          target.searchParams.set("base", from);
+          const authHeader = typeof binding.settings?.auth_header === "string" ? binding.settings.auth_header : "Authorization";
+          const authPrefix = typeof binding.settings?.auth_prefix === "string" ? binding.settings.auth_prefix : "Bearer ";
+          const upstream = await fetch(target, {
+            headers: { [authHeader]: authPrefix + credential, Accept: "application/json" },
+            signal: AbortSignal.timeout(8000),
+          });
+          if (!upstream.ok) throw new Error("Provider returned HTTP " + upstream.status);
+          const payload: unknown = await upstream.json();
+          const configuredPath = typeof binding.settings?.rates_response_path === "string" ? binding.settings.rates_response_path : "";
+          const rawRates = (configuredPath ? readPath(payload, configuredPath) : undefined)
+            ?? readPath(payload, "rates") ?? readPath(payload, "data.rates")
+            ?? readPath(payload, "conversion_rates") ?? readPath(payload, "data.conversion_rates");
+          if (!rawRates || typeof rawRates !== "object" || Array.isArray(rawRates)) throw new Error("Response has no rates object.");
+          const rawRate = (rawRates as Record<string, unknown>)[to];
+          const candidateRate = typeof rawRate === "number" ? rawRate : Number(rawRate);
+          if (!Number.isFinite(candidateRate) || candidateRate <= 0) throw new Error("Requested currency rate is missing or invalid.");
+          rate = candidateRate;
+          provider = binding.provider_key;
+          retrievedAt = new Date().toISOString();
+          const ttlSetting = Number(binding.settings?.cache_ttl_seconds ?? 900);
+          const ttlSeconds = Number.isFinite(ttlSetting) ? Math.min(86400, Math.max(60, Math.floor(ttlSetting))) : 900;
+          const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+          const payloadHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(payload)))
+            .then(bytes => Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2, "0")).join(""));
+          const { error: cacheError } = await db.from("platform_fx_rate_cache").upsert({
+            base_currency: from, quote_currency: to, rate, provider_key: provider,
+            retrieved_at: retrievedAt, expires_at: expiresAt, provider_payload_hash: payloadHash,
+          }, { onConflict: "base_currency,quote_currency,provider_key" });
+          if (cacheError) console.error("fx-cache-write", cacheError.message);
+          break;
+        } catch (error) {
+          failures.push(binding.provider_key + ": " + (error instanceof Error ? error.message : "provider failure"));
+          await db.from("service_provider_bindings").update({
+            health_status: "unhealthy", health_checked_at: new Date().toISOString(),
+            health_error: (error instanceof Error ? error.message : "Provider failure").slice(0, 500),
+          }).eq("capability", "fx_rates").eq("provider_key", binding.provider_key);
+        }
       }
+      if (!rate || !provider) return respond({ error: "All configured FX providers failed. No estimated exchange rate was used.", code: "FX_PROVIDER_UNAVAILABLE", failures }, 503);
+      await db.from("service_provider_bindings").update({
+        health_status: "healthy", health_checked_at: new Date().toISOString(), health_error: null,
+      }).eq("capability", "fx_rates").eq("provider_key", provider);
     }
-    const rate = rates[to];
-    if (!rate) return respond({ error: "The requested currency is not supported by the FX provider." }, 422);
-    const converted = Math.round(parsed.data.amount * rate * 100) / 100;
+
+    const converted = Number((parsed.data.amount * rate).toFixed(currencyDigits(to)));
     return respond({
       country: countryCode ?? null, fromCurrency: from, toCurrency: to,
-      original: parsed.data.amount, converted, rate, rateBase: from,
-      provider: binding.provider_key, mode: binding.is_live ? "live" : "test",
-      retrievedAt: new Date().toISOString(),
+      original: parsed.data.amount, converted, rate, rateBase: from, provider,
+      retrievedAt, cache, currencyDigits: currencyDigits(to),
+      countryCurrency: countryRule.data ?? null,
     });
   } catch (error) {
-    console.error("convert-currency", error);
+    console.error("convert-currency", error instanceof Error ? error.message : "Unknown FX error");
     return respond({ error: "Currency conversion is temporarily unavailable. No estimated exchange rate was used.", code: "FX_PROVIDER_UNAVAILABLE" }, 503);
   }
 });
