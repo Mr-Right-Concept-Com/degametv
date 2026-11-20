@@ -1,0 +1,1 @@
+revoke all on function public.sync_event_early_bird_reservation_payment() from public,anon,authenticated;
