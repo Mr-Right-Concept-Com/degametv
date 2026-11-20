@@ -7,10 +7,8 @@ const Invite=z.object({action:z.literal("invite"),studioAccountId:z.string().uui
 const InvitationAction=z.discriminatedUnion("action",[
  z.object({action:z.literal("list_invitations")}).strict(),
  z.object({action:z.literal("list_team"),studioAccountId:z.string().uuid()}).strict(),
- z.object({action:z.literal("accept_invitation"),token:z.string().min(20).max(200)}).strict(),
- z.object({action:z.literal("accept_invitation"),invitationId:z.string().uuid()}).strict(),
- z.object({action:z.literal("reject_invitation"),token:z.string().min(20).max(200)}).strict(),
- z.object({action:z.literal("reject_invitation"),invitationId:z.string().uuid()}).strict(),
+ z.object({action:z.literal("accept_invitation"),token:z.string().min(20).max(200).optional(),invitationId:z.string().uuid().optional()}).strict().refine(v=>Boolean(v.token)!==Boolean(v.invitationId)),
+ z.object({action:z.literal("reject_invitation"),token:z.string().min(20).max(200).optional(),invitationId:z.string().uuid().optional()}).strict().refine(v=>Boolean(v.token)!==Boolean(v.invitationId)),
  z.object({action:z.literal("revoke_invitation"),invitationId:z.string().uuid()}).strict(),
  z.object({action:z.literal("update_member_role"),membershipId:z.string().uuid(),role:z.enum(["ADMIN","PRODUCER","BROADCASTER","FINANCE_VIEWER","MODERATOR"])}).strict(),
  z.object({action:z.literal("revoke_member"),membershipId:z.string().uuid()}).strict(),
