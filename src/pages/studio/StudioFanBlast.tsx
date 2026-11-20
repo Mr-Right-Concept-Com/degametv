@@ -32,20 +32,21 @@ const schema = z.object({
 export default function StudioFanBlast() {
   usePageTitle('Fan Blast — Studio');
   const { user } = useAuth();
+  const userId = user?.id;
   const [events, setEvents] = useState<{ id: string; title: string }[]>([]);
   const [history, setHistory] = useState<Tables<'fan_blasts'>[]>([]);
   const [form, setForm] = useState({ screeningId: '', template: 'starting_soon', audience: 'all', subject: '', message: '' });
   const [sending, setSending] = useState(false);
 
   const load = useCallback(async () => {
-    if (!user) return;
-    const { data: content } = await supabase.from('content').select('id').eq('creator_id', user.id);
+    if (!userId) return;
+    const { data: content } = await supabase.from('content').select('id').eq('creator_id', userId);
     const ids = (content || []).map(c => c.id);
     const { data: s } = ids.length ? await supabase.from('screenings').select('id, title').in('content_id', ids) : { data: [] };
     setEvents(s || []);
     const { data: h } = await supabase.from('fan_blasts').select('*').order('created_at', { ascending: false }).limit(50);
     setHistory(h || []);
-  }, [user?.id]);
+  }, [userId]);
   useEffect(() => { void load(); }, [load]);
 
   const applyTemplate = (template: string, screeningId = form.screeningId) => {
