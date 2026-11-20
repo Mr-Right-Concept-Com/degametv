@@ -3,16 +3,17 @@ import { z } from "npm:zod@3";
 const Body=z.object({
  screeningId:z.string().uuid().optional(),
  liveStreamId:z.string().uuid().optional(),
+ contentId:z.string().uuid().optional(),
  contributionType:z.enum(["tip","gift"]),
  giftCatalogKey:z.string().trim().min(1).max(80).optional(),
- amount:z.number().finite().positive().max(10000000),
+ amount:z.number().finite().positive().max(10000000).optional(),
  currency:z.string().regex(/^[A-Za-z]{3}$/),
  countryCode:z.string().regex(/^[A-Za-z]{2}$/).optional(),
  message:z.string().trim().max(500).optional(),
  contributorName:z.string().trim().max(100).optional(),
  isAnonymous:z.boolean().default(false),
  method:z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/).optional()
-}).strict().refine(v=>Boolean(v.screeningId)!==Boolean(v.liveStreamId),"Choose exactly one event.");
+}).strict().refine(v=>[v.screeningId,v.liveStreamId,v.contentId].filter(Boolean).length===1,"Choose exactly one support target.").refine(v=>v.contributionType==="tip"?v.amount!==undefined:Boolean(v.giftCatalogKey),"Tips require an amount; gifts require a catalogue item.");
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, x-client-info, content-type, cf-ipcountry","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
 const minorScale=(currency:string)=>["BIF","CLP","DJF","GNF","ISK","JPY","KMF","KRW","PYG","RWF","UGX","VND","VUV","XAF","XOF","XPF"].includes(currency)?1:["BHD","IQD","JOD","KWD","LYD","OMR","TND"].includes(currency)?1000:100;
@@ -42,7 +43,7 @@ Deno.serve(async(req)=>{
   const currency=p.currency.toUpperCase();
   const {count:currencyCount}=await db.from("country_currency_rules").select("country_code",{count:"exact",head:true}).eq("currency_code",currency).eq("enabled",true);
   if(!currencyCount)return json(422,{error:"This contribution currency is not enabled."});
-  let tenantId:string,creatorId:string,screeningId:string|null=p.screeningId??null,liveStreamId:string|null=p.liveStreamId??null,eventTitle:string;
+  let tenantId:string,creatorId:string,screeningId:string|null=p.screeningId??null,liveStreamId:string|null=p.liveStreamId??null,contentId:string|null=p.contentId??null,eventTitle:string;
   if(p.screeningId){
    const {data:event,error}=await db.from("screenings").select("id,tenant_id,content_id,title,status,lifecycle,event_visibility,invite_only").eq("id",p.screeningId).eq("status","published").maybeSingle();
    if(error||!event)return json(404,{error:"Event not found."});
@@ -54,7 +55,7 @@ Deno.serve(async(req)=>{
     if(!invite)return json(403,{error:"An accepted event invitation is required."});
    }
    tenantId=event.tenant_id;creatorId=content.creator_id;eventTitle=event.title;
-  }else{
+  }else if(p.liveStreamId){
    const {data:stream,error}=await db.from("live_streams").select("id,tenant_id,creator_id,status,title,metadata").eq("id",p.liveStreamId).maybeSingle();
    if(error||!stream||!["scheduled","starting","live"].includes(stream.status))return json(404,{error:"Live event is not accepting contributions."});
    const streamScreeningId=typeof stream.metadata?.screening_id==="string"?stream.metadata.screening_id:null;
@@ -70,8 +71,24 @@ Deno.serve(async(req)=>{
     if(!invite)return json(403,{error:"An accepted event invitation is required."});
    }
    tenantId=stream.tenant_id;creatorId=stream.creator_id;eventTitle=stream.title||"Live event";
+  }else if(p.contentId){
+   const {data:content,error}=await db.from("content").select("id,tenant_id,creator_id,title,status,availability_start,availability_end").eq("id",p.contentId).maybeSingle();
+   if(error||!content||content.status!=="published")return json(404,{error:"Published content not found."});
+   const now=Date.now();
+   if(content.availability_start&&new Date(content.availability_start).getTime()>now)return json(403,{error:"This content is not available yet."});
+   if(content.availability_end&&new Date(content.availability_end).getTime()<=now)return json(410,{error:"This content is no longer available."});
+   if(!content.creator_id)return json(409,{error:"The content creator is not configured."});
+   tenantId=content.tenant_id;creatorId=content.creator_id;eventTitle=content.title||"Content";
   }
-  const amount=await convert(url,service,p.amount,currency,currency,country);
+  if(creatorId===user.id)return json(403,{error:"You cannot send a gift or tip to your own content."});
+  let giftAmount:number|undefined;
+  if(p.contributionType==="gift"){
+   const {data:gift,error:giftError}=await db.from("creator_gift_catalog").select("gift_key,amount_minor,currency,is_enabled").eq("gift_key",p.giftCatalogKey).eq("is_enabled",true).maybeSingle();
+   if(giftError||!gift||gift.currency!==currency)return json(422,{error:"This gift is unavailable in the selected currency."});
+   giftAmount=Number(gift.amount_minor)/minorScale(currency);
+  }
+  const requestedAmount=p.contributionType==="gift"?giftAmount!:p.amount!;
+  const amount=await convert(url,service,requestedAmount,currency,currency,country);
   const scale=minorScale(currency),amountMinor=Math.round(amount*scale);
   if(!Number.isSafeInteger(amountMinor)||amountMinor<=0)return json(422,{error:"Contribution amount is invalid."});
   const {data:providers,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:"payments"});
@@ -86,7 +103,7 @@ Deno.serve(async(req)=>{
   const {data:siteSetting}=await db.from("platform_settings").select("setting_value,is_public").eq("setting_key","public_site_url").maybeSingle();
   let origin:string;try{const site=new URL(String(siteSetting?.setting_value||""));if(siteSetting?.is_public!==true||site.protocol!=="https:")throw new Error();origin=site.origin;}catch{return json(503,{error:"The canonical return URL is not configured."});}
   const {error:insertError}=await db.from("event_contributions").insert({
-   tenant_id:tenantId,creator_id:creatorId,screening_id:screeningId,live_stream_id:liveStreamId,
+   tenant_id:tenantId,creator_id:creatorId,screening_id:screeningId,live_stream_id:liveStreamId,content_id:contentId,target_kind:contentId?"content":"event",
    contributor_user_id:user.id,contributor_name:p.isAnonymous?null:(p.contributorName||user.user_metadata?.full_name||user.email),
    contributor_email:user.email,contribution_type:p.contributionType,gift_catalog_key:p.contributionType==="gift"?p.giftCatalogKey??"standard":null,
    message:p.message??null,amount_minor:amountMinor,amount_major:amountMajor,platform_fee_major:feeMajor,currency,
@@ -100,7 +117,7 @@ Deno.serve(async(req)=>{
     const header=provider.settings?.credential_header||"Authorization",prefix=provider.settings?.credential_prefix??"Bearer ";
     const callback=new URL("/payment/return?reference="+reference,origin).toString();
     const adapter=String(provider.settings?.checkout_adapter??provider.settings?.adapter??provider.provider_key).toLowerCase();
-    const metadata={reference,contribution_id:reference,contribution_type:p.contributionType,screening_id:screeningId,live_stream_id:liveStreamId};
+    const metadata={reference,contribution_id:reference,contribution_type:p.contributionType,screening_id:screeningId,live_stream_id:liveStreamId,content_id:contentId};
     let body:string,contentType="application/json";
     if(adapter==="stripe"){
      const form=new URLSearchParams({mode:"payment",success_url:callback+"&session_id={CHECKOUT_SESSION_ID}",cancel_url:callback,customer_email:user.email,client_reference_id:reference,
