@@ -28,18 +28,17 @@ async function requestS3(c:Storage,key:string,method:string,headers:Record<strin
  const all={host:u.host,"x-amz-content-sha256":payload,"x-amz-date":now,...(c.sessionToken?{"x-amz-security-token":c.sessionToken}:{}),...headers};
  const canonicalHeaders=Object.entries(all).map(([k,v])=>[k.toLowerCase(),v.trim()] as const).sort(([a],[b])=>a.localeCompare(b)),signed=canonicalHeaders.map(([k])=>k).join(";");
  const canonical=method+"\n"+u.pathname+"\n"+query(u)+"\n"+canonicalHeaders.map(([k,v])=>k+":"+v+"\n").join("")+"\n"+signed+"\n"+payload;
- const scope=day+"/"+c.region+"/s3/aws4_request",toSign="AWS4-HMAC-SHA256\n"+now+"\n"+scope+"\n"+await hash(canonical),sig=hex(await keyFor(c,day).then(k=>crypto.subtle.sign("HMAC",cryptoKey(k),enc.encode(toSign))));
+ const scope=day+"/"+c.region+"/s3/aws4_request",toSign="AWS4-HMAC-SHA256\n"+now+"\n"+scope+"\n"+await hash(canonical),sig=hex(await hmac(await keyFor(c,day),toSign));
  const auth="AWS4-HMAC-SHA256 Credential="+c.accessKeyId+"/"+scope+", SignedHeaders="+signed+", Signature="+sig;
  const {host:_host,...wireHeaders}=all;return fetch(u,{method,headers:{...wireHeaders,...headers,Authorization:auth},body:body??undefined,signal:AbortSignal.timeout(30000)});
 }
-function cryptoKey(k:Uint8Array){return crypto.subtle.importKey("raw",k,{name:"HMAC",hash:"SHA-256"},false,["sign"]);}
 async function presign(c:Storage,key:string,method:"GET"|"PUT",contentType?:string){
  const u=objectUrl(c,key),now=stamp(),day=now.slice(0,8),scope=day+"/"+c.region+"/s3/aws4_request";
  const headers=contentType?"content-type;host":"host";
  const params:Record<string,string>={"X-Amz-Algorithm":"AWS4-HMAC-SHA256","X-Amz-Credential":c.accessKeyId+"/"+scope,"X-Amz-Date":now,"X-Amz-Expires":"900","X-Amz-SignedHeaders":headers};
  if(c.sessionToken)params["X-Amz-Security-Token"]=c.sessionToken;for(const [k,v] of Object.entries(params))u.searchParams.set(k,v);
  const canonical=method+"\n"+u.pathname+"\n"+query(u)+"\n"+(contentType?"content-type:"+contentType+"\n":"")+"host:"+u.host+"\n\n"+headers+"\nUNSIGNED-PAYLOAD";
- const toSign="AWS4-HMAC-SHA256\n"+now+"\n"+scope+"\n"+await hash(canonical),sig=hex(await crypto.subtle.sign("HMAC",cryptoKey(await keyFor(c,day)),enc.encode(toSign)));
+ const toSign="AWS4-HMAC-SHA256\n"+now+"\n"+scope+"\n"+await hash(canonical),sig=hex(await hmac(await keyFor(c,day),toSign));
  u.searchParams.set("X-Amz-Signature",sig);return u.toString();
 }
 const Scan=z.object({clean:z.boolean(),engine:z.string().min(1),signatureVersion:z.string().optional(),sha256:z.string().regex(/^[a-f0-9]{64}$/i),findings:z.array(z.string()).default([])});
