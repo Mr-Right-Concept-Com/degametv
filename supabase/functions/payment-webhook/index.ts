@@ -33,11 +33,14 @@ serve(async(req:Request)=>{
   const event=JSON.parse(raw);
   const eventData=event?.data?.object??event?.data??event;
   const reference=eventData?.reference??eventData?.tx_ref??eventData?.metadata?.reference??eventData?.client_reference_id??event?.reference??event?.data?.reference;
-  if(typeof reference!=="string"||(!/^DTV_[A-Za-z0-9]+$/.test(reference)&&!/^DTVL_[A-Za-z0-9]+$/.test(reference)))return json(400,{error:"Invalid payment reference."});
+  if(typeof reference!=="string"||(!/^DTV_[A-Za-z0-9]+$/.test(reference)&&!/^DTVL_[A-Za-z0-9]+$/.test(reference)&&!/^DTVG_[A-Za-z0-9]+$/.test(reference)))return json(400,{error:"Invalid payment reference."});
   const liveOrder=reference.startsWith("DTVL_");
+  const contributionOrder=reference.startsWith("DTVG_");
   const orderLookup=liveOrder
    ? await admin.from("live_payment_orders").select("provider,provider_mode,provider_checkout_id,metadata,email_sent_at,status,user_id").eq("provider_reference",reference).maybeSingle()
-   : await admin.from("guest_payment_orders").select("provider,provider_mode,provider_checkout_id").eq("provider_reference",reference).maybeSingle();
+   : contributionOrder
+    ? await admin.from("event_contributions").select("provider:provider_key,provider_mode,provider_checkout_id,status").eq("provider_reference",reference).maybeSingle()
+    : await admin.from("guest_payment_orders").select("provider,provider_mode,provider_checkout_id").eq("provider_reference",reference).maybeSingle();
   if(orderLookup.error||!orderLookup.data?.provider)return json(404,{error:"Payment order not found."});
   const [{data:binding,error:bindingError},{data:secrets,error:secretError}]=await Promise.all([
    admin.from("service_provider_bindings").select("provider_key,base_url,endpoints,settings,is_live").eq("capability","payments").eq("provider_key",orderLookup.data.provider).maybeSingle(),
@@ -99,6 +102,14 @@ serve(async(req:Request)=>{
    result={verified:providerResult?.status==="success"&&providerResult?.data?.status==="successful",status:providerResult?.data?.status==="successful"?"paid":"unpaid",transaction_id:providerResult?.data?.id,amount_minor:Math.round(major*Math.pow(10,digits)),currency};
   }
   if(!verification.ok||result?.verified!==true||result?.status!=="paid"||!Number.isFinite(Number(result?.amount_minor))||typeof result?.currency!=="string")return json(409,{error:"Payment has not been verified as successful."});
+  if(contributionOrder){
+   const {data:completed,error:completeError}=await admin.rpc("complete_event_contribution",{
+    p_reference:reference,p_transaction_id:String(result.transaction_id||reference),
+    p_amount_minor:Number(result.amount_minor),p_currency:String(result.currency)
+   });
+   if(completeError)return json(409,{error:"Payment was verified but the contribution ledger could not be completed."});
+   return json(200,{received:true,verified:true,fulfillment:completed,entitlementGranted:false});
+  }
   const liveOrderRow=liveOrder?orderLookup.data:null;
   let claimToken:string|null=null,emailClaimed=false;
   if(liveOrder&&liveOrderRow?.user_id===null){
