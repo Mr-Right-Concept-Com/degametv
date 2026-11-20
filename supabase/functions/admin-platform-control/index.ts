@@ -5,7 +5,8 @@ const headers = { "Access-Control-Allow-Origin":"*", "Access-Control-Allow-Heade
 const object = z.record(z.string(),z.unknown());
 const Body = z.discriminatedUnion("action",[
   z.object({action:z.literal("release_list")}),
-  z.object({action:z.literal("release_probe"),releaseKey:z.string()}),\n  z.object({action:z.literal("release_probe_batch"),releaseKey:z.string(),samples:z.number().int().min(1).max(50)}),
+  z.object({action:z.literal("release_probe"),releaseKey:z.string()}),
+  z.object({action:z.literal("release_probe_batch"),releaseKey:z.string(),samples:z.number().int().min(1).max(50)}),
   z.object({action:z.literal("release_save"),releaseKey:z.string().regex(/^[a-z][a-z0-9_.-]{1,100}$/),releaseVersion:z.string().min(1).max(80),config:object}),
   z.object({action:z.literal("release_transition"),releaseKey:z.string(),transition:z.enum(["validate","start_canary","set_traffic","approve","pause","rollback"]),trafficPercentage:z.number().int().min(1).max(99).optional(),reason:z.string().min(3).max(500)}),
   z.object({action:z.literal("ai_policy_list")}),
