@@ -21,6 +21,8 @@ import { RuntimeControlPanel } from '@/components/admin/RuntimeControlPanel';
 import { PlatformGovernancePanel } from '@/components/admin/PlatformGovernancePanel';
 import { BrandingRegistryPanel } from '@/components/admin/BrandingRegistryPanel';
 import { SecurityAlertsPanel } from '@/components/admin/SecurityAlertsPanel';
+import { CreatorVerificationPanel } from '@/components/admin/CreatorVerificationPanel';
+import { DomainRegistryPanel } from '@/components/admin/DomainRegistryPanel';
 
 async function god(body: Record<string, unknown>) {
   const r = await invokeFn<{ result?: unknown }>('admin-godmode', body);
@@ -161,6 +163,8 @@ export default function Godmode() {
           <TabsTrigger value="banners">Banners</TabsTrigger>
           <TabsTrigger value="audit">Audit log</TabsTrigger>
           <TabsTrigger value="security">Security alerts</TabsTrigger>
+          <TabsTrigger value="creators">Creator verification</TabsTrigger>
+          <TabsTrigger value="domains">Production domains</TabsTrigger>
         </TabsList>
 
         <TabsContent value="settings" className="mt-4 space-y-4">
@@ -314,6 +318,8 @@ export default function Godmode() {
         </TabsContent>
 
         <TabsContent value="security" className="mt-4 space-y-3"><SecurityAlertsPanel /></TabsContent>
+        <TabsContent value="creators" className="mt-4 space-y-3"><CreatorVerificationPanel /></TabsContent>
+        <TabsContent value="domains" className="mt-4 space-y-3"><DomainRegistryPanel /></TabsContent>
 
         <TabsContent value="audit" className="mt-4 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
