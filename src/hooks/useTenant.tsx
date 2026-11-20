@@ -58,45 +58,47 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
       try {
         // Fetch user role
-        const { data: roleData } = await supabase
+        const { data: roleRows, error: roleError } = await supabase
           .from('user_roles')
           .select('role, tenant_id')
-          .eq('user_id', user.id)
-          .maybeSingle();
+          .eq('user_id', user.id);
 
-        if (roleData) {
-          setUserRole(roleData.role as TenantContextType['userRole']);
-          
-          // If user has a tenant_id, fetch that tenant
-          if (roleData.tenant_id) {
-            const { data: tenantRows } = await (supabase as any).rpc('get_my_tenant_config');
-            const tenantData = Array.isArray(tenantRows) ? tenantRows[0] : tenantRows;
+        if (roleError) throw roleError;
+        const rolePriority = ['super_admin','platform_admin','licensee_admin','creator','moderator','viewer'];
+        const rows = roleRows || [];
+        const selectedRole = [...rows].sort((a,b) => rolePriority.indexOf(a.role) - rolePriority.indexOf(b.role))[0];
+        setUserRole((selectedRole?.role || 'viewer') as TenantContextType['userRole']);
 
-            if (tenantData) {
-              setTenant({
-                id: tenantData.id,
-                name: tenantData.name,
-                slug: tenantData.slug,
-                domain: tenantData.custom_domain || undefined,
-                branding: {
-                  logo: tenantData.logo_url || undefined,
-                  favicon: tenantData.favicon_url || undefined,
-                  primaryColor: tenantData.primary_color || '#ed1c18',
-                  secondaryColor: tenantData.secondary_color || '#080808',
-                  accentColor: '#ffffff',
-                },
-                modules: DEFAULT_TENANT.modules,
-                status: tenantData.is_active ? 'active' : 'suspended',
-                plan: 'professional',
-                createdAt: tenantData.created_at,
-                updatedAt: tenantData.updated_at,
-                selfService: true,
-                autopilot: true,
-              });
-            }
+        if (rows.some(row => row.tenant_id)) {
+          const { data: tenantRows, error: tenantError } = await (supabase as any).rpc('get_my_tenant_config');
+          if (tenantError) throw tenantError;
+          const tenantData = Array.isArray(tenantRows) ? tenantRows[0] : tenantRows;
+          if (tenantData) {
+            setTenant({
+              id: tenantData.id,
+              name: tenantData.name,
+              slug: tenantData.slug,
+              domain: tenantData.custom_domain || undefined,
+              branding: {
+                logo: tenantData.logo_url || undefined,
+                favicon: tenantData.favicon_url || undefined,
+                primaryColor: tenantData.primary_color || '#ed1c18',
+                secondaryColor: tenantData.secondary_color || '#080808',
+                accentColor: '#ffffff',
+              },
+              modules: DEFAULT_TENANT.modules,
+              status: tenantData.is_active ? 'active' : 'suspended',
+              plan: 'professional',
+              createdAt: tenantData.created_at,
+              updatedAt: tenantData.updated_at,
+              selfService: true,
+              autopilot: true,
+            });
+          } else {
+            setTenant(DEFAULT_TENANT);
           }
         } else {
-          setUserRole('viewer');
+          setTenant(DEFAULT_TENANT);
         }
       } catch (error) {
         console.error('Error fetching tenant/role:', error);
