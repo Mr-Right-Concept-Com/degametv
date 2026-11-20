@@ -44,12 +44,17 @@ Deno.serve(async req => {
   if (!parsed.success) return respond({error:"Invalid AI request.",issues:parsed.error.flatten()},400);
   const request = parsed.data;
   const adminCheck = async () => {
-    const {data,error} = await db.rpc("is_super_admin",{_user_id:user.id});
-    return !error && data === true;
+    const {data,error} = await db.from("user_roles").select("user_id")
+      .eq("user_id",user.id).eq("role","super_admin").maybeSingle();
+    return !error && Boolean(data);
   };
   if (["creator.metadata","creator.pricing"].includes(request.workflowKey)) {
-    const {data,error} = await db.rpc("is_approved_creator",{p_user_id:user.id});
-    if (error || data !== true) return respond({error:"An approved creator account is required for this AI workflow."},403);
+    const [{data:creatorRole,error:roleError},{data:studio,error:studioError}] = await Promise.all([
+      db.from("user_roles").select("user_id").eq("user_id",user.id).eq("role","creator").maybeSingle(),
+      db.from("studio_accounts").select("id").eq("user_id",user.id).eq("status","approved").maybeSingle(),
+    ]);
+    if(roleError||studioError)return respond({error:"Creator permissions could not be verified."},503);
+    if(!creatorRole||!studio)return respond({error:"An approved creator account is required for this AI workflow."},403);
   }
   if (request.workflowKey === "broadcast.moderation" && !(await adminCheck())) {
     return respond({error:"Platform moderator permission is required for broadcast moderation AI."},403);
