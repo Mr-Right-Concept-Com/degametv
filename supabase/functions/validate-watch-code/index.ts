@@ -38,11 +38,12 @@ if(import.meta.main)serve(async(req:Request)=>{
    const windowEnd=new Date(ticket.first_played_at).getTime()+Number(ticket.access_hours)*3600000;
    if(Date.now()>windowEnd)return json(403,{success:false,error:"Your viewing window has ended."});
   }
-  const configuredMaxStreams=Number(s.max_streams_per_ticket??5);\n  const maxStreams=configuredMaxStreams>0?configuredMaxStreams:null;
+  const configuredMaxStreams=Number(s.max_streams_per_ticket??5);
+  const maxStreams=configuredMaxStreams>0?configuredMaxStreams:null;
   return json(200,{success:true,ticket:{
    id:ticket.id,watchCode:ticket.watch_code,email:ticket.email,movieTitle:s.title,moviePoster:s.poster_url,
    expiresAt:ticket.expires_at,location:ticket.location,currency:ticket.currency||"NGN",price:ticket.price,
-   screeningId:ticket.screening_id,contentId:s.content_id,country,streamsRemaining:Math.max(0,maxStreams-Number(ticket.stream_count||0)),
+   screeningId:ticket.screening_id,contentId:s.content_id,country,streamsRemaining:maxStreams===null?null:Math.max(0,maxStreams-Number(ticket.stream_count||0)),
    maxStreams,maxConcurrent:Number(s.max_concurrent_streams??1)
   }});
  }catch(error){console.error("validate-watch-code",error);return json(500,{success:false,error:"Ticket validation failed safely."});}
