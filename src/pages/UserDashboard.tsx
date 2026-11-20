@@ -225,7 +225,7 @@ export default function UserDashboard() {
           ))}
         </div>
 
-        <Tabs defaultValue={new URLSearchParams(window.location.search).get("tab") === "invitations" ? "invitations" : "tickets"} className="space-y-4">
+        <Tabs defaultValue={(["wallet","invitations","history","rewards","profile","tickets"].includes(new URLSearchParams(window.location.search).get("tab") || "") ? new URLSearchParams(window.location.search).get("tab")! : "tickets")} className="space-y-4">
           <TabsList className="bg-secondary/50 w-full sm:w-auto">
             <TabsTrigger value="wallet"><Wallet className="w-4 h-4 mr-1.5" /> Wallet</TabsTrigger>
             <TabsTrigger value="tickets">
