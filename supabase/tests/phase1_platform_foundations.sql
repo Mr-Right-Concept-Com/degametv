@@ -1,4 +1,4 @@
--- Run with: supabase test db --linked
+-- Run with: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/phase1_platform_foundations.sql
 begin;
 
 do $$
