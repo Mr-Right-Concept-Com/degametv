@@ -60,7 +60,7 @@ export default function StudioEarnings() {
     setForm(current => ({ ...current, currency: current.currency || rows[0]?.currency || '', bank_country: current.bank_country || runtime.config?.geo.countryCode || '' }));
     setReqs((w.data as WR[]) || []);
     if (c.error) toast.error('Tips and digital gifts could not be loaded.');
-    const contributionRows = (c.data ?? []).flatMap(row => {
+    const contributionRows: Contribution[] = (c.data ?? []).flatMap((row): Contribution[] => {
       if (row.contribution_type !== 'tip' && row.contribution_type !== 'gift') return [];
       return [{
         id: row.id,
