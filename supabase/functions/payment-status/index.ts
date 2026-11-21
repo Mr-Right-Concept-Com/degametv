@@ -1,5 +1,5 @@
+import { createServiceClient, type TypedSupabaseClient } from "../_shared/supabase.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { z } from "npm:zod@3.25.76";
 const schema=z.object({reference:z.string().min(20).max(80).regex(/^DTV(?:L|G)?_[A-Za-z0-9]+$/)}).strict();
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
@@ -13,7 +13,7 @@ const isRecord=(value:unknown):value is Record<string,unknown> =>
 
 const randomToken=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,"0")).join("");
 const sha256=async(value:string)=>Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value))),b=>b.toString(16).padStart(2,"0")).join("");
-async function verifyProviderPayment(admin:ReturnType<typeof createClient>,reference:string,order:PaymentVerificationOrder){
+async function verifyProviderPayment(admin:TypedSupabaseClient,reference:string,order:PaymentVerificationOrder){
  if(!order.provider)return {state:"pending" as const};
  const [{data:binding,error:bindingError},{data:secretRows,error:secretError}]=await Promise.all([
   admin.from("service_provider_bindings").select("provider_key,base_url,endpoints,settings,is_live").eq("capability","payments").eq("provider_key",order.provider).maybeSingle(),
@@ -57,7 +57,7 @@ async function verifyProviderPayment(admin:ReturnType<typeof createClient>,refer
   status=String(payload.data?.status??"pending");
   currency=String(payload.data?.currency??"").toUpperCase();
   const major=Number(payload.data?.amount);
-  const digits=currency&&/^[A-Z]{3}$/.test(currency)?new Intl.NumberFormat("en",{style:"currency",currency}).resolvedOptions().maximumFractionDigits:2;
+  const digits=currency&&/^[A-Z]{3}$/.test(currency)?(new Intl.NumberFormat("en",{style:"currency",currency}).resolvedOptions().maximumFractionDigits??2):2;
   amountMinor=Math.round(major*Math.pow(10,digits));
   transactionId=String(payload.data?.id??reference);
  }else{
@@ -71,7 +71,7 @@ async function verifyProviderPayment(admin:ReturnType<typeof createClient>,refer
  if(!verified||!Number.isSafeInteger(amountMinor)||amountMinor!==Number(order.amount_minor)||currency!==String(order.currency).toUpperCase())return {state:"pending" as const};
  return {state:"paid" as const,amountMinor,currency,transactionId};
 }
-async function publicOrigin(admin:ReturnType<typeof createClient>){
+async function publicOrigin(admin:TypedSupabaseClient){
  const {data,error}=await admin.from("platform_settings").select("setting_value,is_public").eq("setting_key","public_site_url").maybeSingle();
  const value=typeof data?.setting_value==="string"?data.setting_value:"";
  try{const u=new URL(value);if(error||data?.is_public!==true||u.protocol!=="https:"||u.username||u.password)return null;return u.origin;}catch{return null;}
@@ -88,7 +88,7 @@ serve(async(req:Request)=>{
  const url=Deno.env.get("SUPABASE_URL"),service=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
  if(!url||!service)return json(503,{error:"Payment status is temporarily unavailable."});
  try{
-  const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
+  const admin=createServiceClient(url,service);
   const reference=parsed.data.reference;
   if(reference.startsWith("DTVG_")){
    const {data:order,error}=await admin.from("event_contributions").select("id,status,provider:provider_key,provider_mode,provider_checkout_id,amount_minor,currency,contribution_type").eq("provider_reference",reference).maybeSingle();
@@ -191,7 +191,7 @@ serve(async(req:Request)=>{
     const {data:screening}=await admin.from("screenings").select("title").eq("id",ticket.screening_id).maybeSingle();
     const origin=await publicOrigin(admin);
     const watchUrl=origin?new URL("/watch/"+ticket.watch_code+"?email="+encodeURIComponent(order.email),origin).toString():null;
-    emailSent=watchUrl?await dispatchTicketEmail(admin,url,service,{email:order.email,movieTitle:screening?.title||"Your DeGameTV screening",watchUrl,ticketCode:ticket.ticket_code,expiresAt:ticket.expires_at,location:ticket.location,price:Number(ticket.price),currency:order.currency}):false;
+    emailSent=watchUrl?await dispatchTicketEmail(url,service,{email:order.email,movieTitle:screening?.title||"Your DeGameTV screening",watchUrl,ticketCode:ticket.ticket_code,expiresAt:ticket.expires_at,location:ticket.location,price:Number(ticket.price),currency:order.currency}):false;
     if(!emailSent)await admin.from("guest_payment_orders").update({email_sent_at:null}).eq("id",order.id);
    }
   }
