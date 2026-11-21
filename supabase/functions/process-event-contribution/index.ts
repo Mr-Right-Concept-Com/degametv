@@ -1,4 +1,5 @@
 import { createServiceClient, createUserClient, type TypedSupabaseClient } from "../_shared/supabase.ts";
+import { isJsonObject } from "../_shared/json.ts";
 import { z } from "npm:zod@3";
 const Body=z.object({
  screeningId:z.string().uuid().optional(),
@@ -21,7 +22,10 @@ const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.string
 const markProviderHealth=async(db:TypedSupabaseClient,id:string,status:'healthy'|'unhealthy',error:string|null=null)=>{await db.from('service_provider_bindings').update({health_status:status,health_checked_at:new Date().toISOString(),health_error:error}).eq('id',id);};
 type PaymentProvider={id:string;provider_key:string;is_live:boolean;credential:string;settings:Record<string,unknown>;endpoints:Record<string,unknown>;base_url:string};
 const isRecord=(value:unknown):value is Record<string,unknown>=>typeof value==="object"&&value!==null&&!Array.isArray(value);
-const isPaymentProvider=(value:unknown):value is PaymentProvider=>isRecord(value)&&typeof value.id==="string"&&typeof value.provider_key==="string"&&value.is_live===true&&typeof value.credential==="string"&&isRecord(value.settings)&&isRecord(value.endpoints)&&typeof value.base_url==="string";
+const parsePaymentProvider=(value:unknown):PaymentProvider|null=>{
+ if(!isRecord(value)||typeof value.id!=="string"||typeof value.provider_key!=="string"||value.is_live!==true||typeof value.credential!=="string"||!value.credential||!isRecord(value.settings)||!isRecord(value.endpoints)||typeof value.base_url!=="string")return null;
+ return {id:value.id,provider_key:value.provider_key,is_live:true,credential:value.credential,settings:value.settings,endpoints:value.endpoints,base_url:value.base_url};
+};
 const minorScale=(currency:string)=>["BIF","CLP","DJF","GNF","ISK","JPY","KMF","KRW","PYG","RWF","UGX","VND","VUV","XAF","XOF","XPF"].includes(currency)?1:["BHD","IQD","JOD","KWD","LYD","OMR","TND"].includes(currency)?1000:100;
 async function convert(base:string,service:string,amount:number,from:string,to:string,country:string){
  if(from===to)return amount;
@@ -51,7 +55,7 @@ Deno.serve(async(req)=>{
     if(existing.status==="paid")return json(409,{error:"This contribution has already been paid.",alreadyPaid:true});
     if(existing.status==="pending"&&existing.provider_mode==="wallet"){
      const {data:spent,error:spendError}=await db.rpc("spend_personal_wallet_for_contribution",{p_contribution_id:existing.id});
-     if(!spendError)return json(200,{success:true,paid:true,reference:existing.provider_reference,contributionType:existing.contribution_type,reused:true,balanceMinor:spent?.balance_minor});
+     if(!spendError)return json(200,{success:true,paid:true,reference:existing.provider_reference,contributionType:existing.contribution_type,reused:true,balanceMinor:isJsonObject(spent)?spent.balance_minor:undefined});
      return json(spendError.message.includes("insufficient_personal_wallet_funds")?402:409,{error:spendError.message.includes("insufficient_personal_wallet_funds")?"Insufficient Personal Wallet balance. Top up your wallet or use external checkout.":"The wallet contribution could not be completed. Please retry.",retryable:!spendError.message.includes("insufficient_personal_wallet_funds")});
     }
     if(["failed","refunded"].includes(existing.status))return json(409,{error:"The previous attempt did not complete. Start a new contribution attempt.",retryable:true});
@@ -82,8 +86,9 @@ Deno.serve(async(req)=>{
   }else if(p.liveStreamId){
    const {data:stream,error}=await db.from("live_streams").select("id,tenant_id,creator_id,status,title,metadata").eq("id",p.liveStreamId).maybeSingle();
    if(error||!stream||!["scheduled","starting","live"].includes(stream.status))return json(404,{error:"Live event is not accepting contributions."});
-   const streamScreeningId=typeof stream.metadata?.screening_id==="string"?stream.metadata.screening_id:null;
-   const privateStream=stream.metadata?.invite_only===true||stream.metadata?.event_visibility==="private";
+   const streamMetadata=isJsonObject(stream.metadata)?stream.metadata:{};
+   const streamScreeningId=typeof streamMetadata.screening_id==="string"?streamMetadata.screening_id:null;
+   const privateStream=streamMetadata.invite_only===true||streamMetadata.event_visibility==="private";
    if(streamScreeningId){
     const {data:event}=await db.from("screenings").select("event_visibility,invite_only").eq("id",streamScreeningId).maybeSingle();
     if(event&&(event.event_visibility==="private"||event.invite_only)) {
@@ -108,7 +113,8 @@ Deno.serve(async(req)=>{
   if(creatorId===user.id)return json(403,{error:"You cannot send a gift or tip to your own content."});
   let giftAmount:number|undefined;
   if(p.contributionType==="gift"){
-   const {data:gift,error:giftError}=await db.from("creator_gift_catalog").select("gift_key,amount_minor,currency,is_enabled").eq("gift_key",p.giftCatalogKey).eq("currency",currency).eq("is_enabled",true).maybeSingle();
+   const giftKey=p.giftCatalogKey;if(!giftKey)return json(422,{error:"Choose an available gift."});
+   const {data:gift,error:giftError}=await db.from("creator_gift_catalog").select("gift_key,amount_minor,currency,is_enabled").eq("gift_key",giftKey).eq("currency",currency).eq("is_enabled",true).maybeSingle();
    if(giftError||!gift||gift.currency!==currency)return json(422,{error:"This gift is unavailable in the selected currency."});
    giftAmount=Number(gift.amount_minor)/minorScale(currency);
   }
@@ -120,11 +126,12 @@ Deno.serve(async(req)=>{
   if(p.paymentMethod==="provider"){
    const {data:providers,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:"payments"});
    if(providerError||!Array.isArray(providers))return json(503,{error:"No payment provider is configured."});
-   usable=providers.filter((value:unknown):value is PaymentProvider=>isPaymentProvider(value)&&Array.isArray(value.settings.supported_currencies)&&value.settings.supported_currencies.includes(currency)&&typeof value.endpoints.checkout_initialize==="string"&&value.endpoints.checkout_initialize.startsWith("/")&&!value.endpoints.checkout_initialize.startsWith("//")&&typeof value.endpoints.payment_verify==="string"&&value.endpoints.payment_verify.startsWith("/")&&!value.endpoints.payment_verify.startsWith("//")&&(!p.method||value.provider_key===p.method));
+   usable=(Array.isArray(providers)?providers:[]).map((value:unknown)=>parsePaymentProvider(value)).filter((value):value is PaymentProvider=>value!==null).filter(value=>Array.isArray(value.settings.supported_currencies)&&value.settings.supported_currencies.some((item:unknown)=>item===currency)&&typeof value.endpoints.checkout_initialize==="string"&&value.endpoints.checkout_initialize.startsWith("/")&&!value.endpoints.checkout_initialize.startsWith("//")&&typeof value.endpoints.payment_verify==="string"&&value.endpoints.payment_verify.startsWith("/")&&!value.endpoints.payment_verify.startsWith("//")&&(!p.method||value.provider_key===p.method));
    if(!usable.length)return json(503,{error:"No live payment provider is available for this currency."});
   }
   const {data:commissionSetting,error:commissionError}=await db.from("platform_settings").select("setting_value").eq("setting_key","commission_rates").maybeSingle();
-  const rate=Number(commissionSetting?.setting_value?.creator);
+  const commissionConfig=isJsonObject(commissionSetting?.setting_value)?commissionSetting.setting_value:{};
+  const rate=Number(commissionConfig.creator);
   if(commissionError||!Number.isFinite(rate)||rate<0||rate>0.5)return json(503,{error:"Creator commission policy is not configured safely."});
   const amountMajor=amountMinor/scale,feeMajor=Math.round(amountMajor*rate*scale)/scale;
   const reference="DTVG_"+crypto.randomUUID().replaceAll("-","");
@@ -152,7 +159,7 @@ Deno.serve(async(req)=>{
     if(!spendError.message.includes("insufficient_personal_wallet_funds"))await db.from("event_contributions").update({status:"failed"}).eq("id",createdContribution.id).eq("status","pending");
     return json(spendError.message.includes("insufficient_personal_wallet_funds")?402:409,{error:spendError.message.includes("insufficient_personal_wallet_funds")?"Insufficient Personal Wallet balance. Top up your wallet or use external checkout.":"The wallet contribution could not be completed. Please retry."});
    }
-   return json(200,{success:true,paid:true,reference,contributionId:createdContribution.id,contributionType:p.contributionType,balanceMinor:spent?.balance_minor});
+   return json(200,{success:true,paid:true,reference,contributionId:createdContribution.id,contributionType:p.contributionType,balanceMinor:isJsonObject(spent)?spent.balance_minor:undefined});
   }
   let checkoutUrl:string|null=null,selected:PaymentProvider|null=null,checkoutId:string|null=null;
   for(const provider of usable){
