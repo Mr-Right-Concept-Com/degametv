@@ -1,4 +1,5 @@
 import { createServiceClient, type TypedSupabaseClient } from "../_shared/supabase.ts";
+import { isJsonObject } from "../_shared/json.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "npm:zod@3.25.76";
 const schema=z.object({reference:z.string().min(20).max(80).regex(/^DTV(?:L|G)?_[A-Za-z0-9]+$/)}).strict();
@@ -23,12 +24,15 @@ async function verifyProviderPayment(admin:TypedSupabaseClient,reference:string,
  const mode=order.provider_mode??(binding?.is_live===true?"live":"test");
  const credential=mode==="live"?secrets?.live_credential:secrets?.test_credential;
  if(bindingError||secretError||!binding?.base_url||!credential)return {state:"pending" as const};
- const path=binding.endpoints?.payment_verify;
+ const settings=isJsonObject(binding.settings)?binding.settings:{};
+ const endpoints=isJsonObject(binding.endpoints)?binding.endpoints:{};
+ const baseUrl=binding.base_url;
+ const path=endpoints.payment_verify;
  if(typeof path!=="string"||!path.startsWith("/")||path.startsWith("//"))return {state:"pending" as const};
- const adapter=String(binding.settings?.verification_adapter??binding.settings?.adapter??binding.provider_key).toLowerCase();
+ const adapter=String(settings.verification_adapter??binding.settings?.adapter??binding.provider_key).toLowerCase();
  const verificationReference=adapter==="stripe"?(order.provider_checkout_id||reference):reference;
- const target=new URL(adapter==="paystack"?path.replace(/\/$/,"")+"/"+encodeURIComponent(reference):path.replace("{reference}",encodeURIComponent(verificationReference)),binding.base_url);
- if(target.origin!==new URL(binding.base_url).origin)return {state:"pending" as const};
+ const target=new URL(adapter==="paystack"?path.replace(/\/$/,"")+"/"+encodeURIComponent(reference):path.replace("{reference}",encodeURIComponent(verificationReference)),baseUrl);
+ if(target.origin!==new URL(baseUrl).origin)return {state:"pending" as const};
  const method=adapter==="paystack"||adapter==="stripe"||path.includes("{reference}")?"GET":String(binding.settings?.verify_method??"POST").toUpperCase();
  const referenceMode=String(binding.settings?.verify_reference_mode??"body");
  const referenceField=String(binding.settings?.verify_reference_field??"reference");
@@ -159,7 +163,7 @@ serve(async(req:Request)=>{
    if(claimed&&claimToken&&typeof completedRecord?.ticket_id==="string"&&typeof completedRecord.email==="string"){
     const origin=await publicOrigin(admin);
     const deliveryUrl=origin?new URL("/live/claim?token="+encodeURIComponent(claimToken),origin).toString():null;
-    emailSent=deliveryUrl?await dispatchTicketEmail(url,service,{email:completedRecord.email,movieTitle:typeof completedRecord.title==="string"?completedRecord.title:"Live event",watchUrl:deliveryUrl,ticketCode:completedRecord.ticket_code,expiresAt:completedRecord.valid_until,location:order.metadata?.country_code||"Global",price:Number(completedRecord.price),currency:completedRecord.currency}):false;
+    emailSent=deliveryUrl?await dispatchTicketEmail(url,service,{email:completedRecord.email,movieTitle:typeof completedRecord.title==="string"?completedRecord.title:"Live event",watchUrl:deliveryUrl,ticketCode:completedRecord.ticket_code,expiresAt:completedRecord.valid_until,location:(isJsonObject(order.metadata)&&typeof order.metadata.country_code==="string"?order.metadata.country_code:"Global"),price:Number(completedRecord.price),currency:completedRecord.currency}):false;
     await admin.from("live_payment_orders").update(emailSent?{email_sent_at:new Date().toISOString(),email_delivery_claimed_at:null}:{email_delivery_claimed_at:null}).eq("id",order.id);
    }else if(claimed){
     await admin.from("live_payment_orders").update({email_delivery_claimed_at:null}).eq("id",order.id);
