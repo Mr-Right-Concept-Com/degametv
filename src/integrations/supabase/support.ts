@@ -34,11 +34,11 @@ function throwIfError(error: unknown): void {
   const parsed = ErrorSchema.safeParse(error);
   throw new Error(parsed.success ? parsed.data.message : 'Support service request failed.');
 }
-function parseRows<T>(schema: z.ZodType<T>, value: unknown): T[] {
-  return z.array(schema).parse(value ?? []);
+function parseRows<T extends z.ZodTypeAny>(schema: T, value: unknown): z.output<T>[] {
+  return z.array(schema).parse(value ?? []) as z.output<T>[];
 }
-function parseOne<T>(schema: z.ZodType<T>, value: unknown): T {
-  return schema.parse(value);
+function parseOne<T extends z.ZodTypeAny>(schema: T, value: unknown): z.output<T> {
+  return schema.parse(value) as z.output<T>;
 }
 export async function getSupportAgent(userId: string) {
   const result = await client.from('support_agents').select('user_id,is_active').eq('user_id', userId).maybeSingle();
