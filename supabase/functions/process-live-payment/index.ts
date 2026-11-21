@@ -1,5 +1,5 @@
+import { createServiceClient, createUserClient, type TypedSupabaseClient } from "../_shared/supabase.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { z } from "npm:zod@3.25.76";
 
 const schema=z.object({
@@ -13,12 +13,12 @@ const schema=z.object({
 }).strict();
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, x-client-info, content-type, cf-ipcountry","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
-const markProviderHealth=async(db:ReturnType<typeof createClient>,id:string,status:'healthy'|'unhealthy',error:string|null=null)=>{await db.from('service_provider_bindings').update({health_status:status,health_checked_at:new Date().toISOString(),health_error:error}).eq('id',id);};
+const markProviderHealth=async(db:TypedSupabaseClient,id:string,status:'healthy'|'unhealthy',error:string|null=null)=>{await db.from('service_provider_bindings').update({health_status:status,health_checked_at:new Date().toISOString(),health_error:error}).eq('id',id);};
 type PaymentProvider={id:string;provider_key:string;is_live:boolean;credential:string;settings:Record<string,unknown>;endpoints:Record<string,unknown>;base_url:string};
 type AuthUser={id:string;email?:string|null};
 const isRecord=(value:unknown):value is Record<string,unknown>=>typeof value==="object"&&value!==null&&!Array.isArray(value);
 const isPaymentProvider=(value:unknown):value is PaymentProvider=>isRecord(value)&&typeof value.id==="string"&&typeof value.provider_key==="string"&&value.is_live===true&&typeof value.credential==="string"&&isRecord(value.settings)&&isRecord(value.endpoints)&&typeof value.base_url==="string";
-async function featureEnabled(db:ReturnType<typeof createClient>,key:string,subject:string):Promise<boolean>{
+async function featureEnabled(db:TypedSupabaseClient,key:string,subject:string):Promise<boolean>{
  const {data:flag,error}=await db.from("platform_feature_controls").select("enabled,rollout_percentage,release_state").eq("feature_key",key).maybeSingle();
  if(error||!flag)return false;
  if(!flag.enabled||["draft","paused","rolled_back"].includes(flag.release_state))return false;
@@ -52,7 +52,7 @@ serve(async(req:Request)=>{
    if(ownerError||ownsWallet!==true)return json(403,{error:"Your authenticated account does not own this Personal Wallet."});
   }
  }else if(!parsed.data.email)return json(400,{error:"Enter an email address for guest ticket delivery."});
- const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
+ const db=createServiceClient(url,service);
  if(parsed.data.method==="personal_wallet"&&(!user||!user.email))return json(401,{error:"Sign in with a verified email address to use your Personal Wallet."});
  const cohortSubject=parsed.data.cohortId??user?.id??parsed.data.email?.toLowerCase()??"guest";
  if(!await featureEnabled(db,"cinema.ticketing",cohortSubject))return json(403,{error:"Ticket checkout is paused for this release cohort."});
@@ -135,7 +135,7 @@ serve(async(req:Request)=>{
   }
 
   const convertedAmount=await convertAmount(url,service,baseAmount,pricingCurrency,currency,countryCode);
-  const fractionDigits=new Intl.NumberFormat("en",{style:"currency",currency}).resolvedOptions().maximumFractionDigits;
+  const fractionDigits=new Intl.NumberFormat("en",{style:"currency",currency}).resolvedOptions().maximumFractionDigits??2;
   const minor=Math.round(convertedAmount*Math.pow(10,fractionDigits));
   const {data:commissionSetting,error:commissionError}=await db.from("platform_settings").select("setting_value").eq("setting_key","commission_rates").maybeSingle();
   const creatorCommissionRate=Number(commissionSetting?.setting_value?.creator);
@@ -170,9 +170,9 @@ serve(async(req:Request)=>{
   let checkoutUrl:string|null=null,selected:PaymentProvider|null=null,selectedCheckoutId:string|null=null;
   for(const provider of usable){
    try{
-    const target=new URL(provider.endpoints.checkout_initialize,provider.base_url);
+    const checkoutEndpoint=provider.endpoints.checkout_initialize;if(typeof checkoutEndpoint!=="string")continue;const target=new URL(checkoutEndpoint,provider.base_url);
     if(target.origin!==new URL(provider.base_url).origin){await markProviderHealth(db,provider.id,"unhealthy","Checkout endpoint host mismatch.");continue;}
-    const header=provider.settings?.credential_header||"Authorization",prefix=provider.settings?.credential_prefix??"Bearer ";
+    const header=typeof provider.settings?.credential_header==="string"?provider.settings.credential_header:"Authorization",prefix=typeof provider.settings?.credential_prefix==="string"?provider.settings.credential_prefix:"Bearer ";
     const callbackUrl=new URL("/payment/return?reference="+reference,siteOrigin).toString();
     const adapter=String(provider.settings?.checkout_adapter??provider.settings?.adapter??provider.provider_key).toLowerCase();
     const metadata={screening_id:screening.id,stream_id:stream.id,ticket_type:ticketType,country_code:countryCode,reference};
