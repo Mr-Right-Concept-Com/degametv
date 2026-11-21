@@ -68,6 +68,7 @@ Deno.serve(async (req) => {
       return json({ error: "Refund service is unavailable; cancellation was not applied." }, 503);
     }
     for (const ticket of tickets || []) {
+      if (!supabaseUrl || !serviceKey) return json({ error: "Refund service is unavailable; cancellation was not applied.", refunded, pendingRefunds }, 503);
       const response = await fetch(supabaseUrl + "/functions/v1/process-refund", {
         method: "POST",
         headers: { Authorization: "Bearer " + serviceKey, apikey: serviceKey, "Content-Type": "application/json" },
@@ -91,6 +92,7 @@ Deno.serve(async (req) => {
       return json({ error: "Refund service is unavailable; cancellation was not applied.", refunded, pendingRefunds }, 503);
     }
     for (const ticket of liveTickets || []) {
+      if (!supabaseUrl || !serviceKey) return json({ error: "Refund service is unavailable; cancellation was not applied.", refunded, pendingRefunds }, 503);
       const response = await fetch(supabaseUrl + "/functions/v1/process-refund", {
         method: "POST",
         headers: { Authorization: "Bearer " + serviceKey, apikey: serviceKey, "Content-Type": "application/json" },
@@ -118,6 +120,7 @@ Deno.serve(async (req) => {
     ).values()];
     if (contributions.length > 0 && (!serviceKey || !supabaseUrl)) return json({ error: "Refund service is unavailable; cancellation is pending.", refunded, pendingRefunds }, 503);
     for (const contribution of contributions) {
+      if (!supabaseUrl || !serviceKey) return json({ error: "Refund service is unavailable; cancellation is pending.", refunded, pendingRefunds }, 503);
       const response = await fetch(supabaseUrl + "/functions/v1/process-refund", {
         method: "POST",
         headers: { Authorization: "Bearer " + serviceKey, apikey: serviceKey, "Content-Type": "application/json" },
