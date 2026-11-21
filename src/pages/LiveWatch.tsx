@@ -35,11 +35,12 @@ export default function LiveWatch() {
   useEffect(() => {
     if (!user?.id) return;
     let active = true;
-    void supabase.from('profiles').select('preferred_currency').eq('user_id', user.id).maybeSingle()
-      .then(({ data, error: profileError }) => {
-        if (active && !profileError && data?.preferred_currency) setCurrency(data.preferred_currency);
-      })
-      .catch(() => { /* Keep the default currency when the profile lookup fails. */ });
+    void (async()=>{
+      try {
+        const {data,error:profileError}=await supabase.from('profiles').select('preferred_currency').eq('user_id',user.id).maybeSingle();
+        if(active&&!profileError&&data?.preferred_currency)setCurrency(data.preferred_currency);
+      } catch { /* Keep the default currency when the profile lookup fails. */ }
+    })();
     return () => { active = false; };
   }, [user?.id]);
 
