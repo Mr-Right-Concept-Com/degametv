@@ -47,6 +47,10 @@ serve(async(req:Request)=>{
   const {data,error:userError}=await userClient.auth.getUser();
   if(userError||!data.user)return json(401,{error:"Your sign-in session is invalid. Sign in again or use guest checkout."});
   user=data.user;
+  if(parsed.data.method==="personal_wallet"){
+   const {data:ownsWallet,error:ownerError}=await userClient.rpc("assert_personal_wallet_ticket_owner",{p_user_id:data.user.id});
+   if(ownerError||ownsWallet!==true)return json(403,{error:"Your authenticated account does not own this Personal Wallet."});
+  }
  }else if(!parsed.data.email)return json(400,{error:"Enter an email address for guest ticket delivery."});
  const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
  if(parsed.data.method==="personal_wallet"&&(!user||!user.email))return json(401,{error:"Sign in with a verified email address to use your Personal Wallet."});
