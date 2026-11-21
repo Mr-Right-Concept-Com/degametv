@@ -1,18 +1,19 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createServiceClient, createUserClient, type TypedSupabaseClient } from "../_shared/supabase.ts";
 import { z } from "npm:zod@3";
+import { toArrayBuffer } from "../_shared/crypto.ts";
 
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, x-client-info, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
 const encoder=new TextEncoder();
-const hex=(v:ArrayBuffer)=>[...new Uint8Array(v)].map(x=>x.toString(16).padStart(2,"0")).join("");
-const sha256=async(v:string|Uint8Array)=>hex(await crypto.subtle.digest("SHA-256",typeof v==="string"?encoder.encode(v):v));
-const hmac=async(key:Uint8Array|string,data:string)=>new Uint8Array(await crypto.subtle.sign("HMAC",await crypto.subtle.importKey("raw",typeof key==="string"?encoder.encode(key):key,{name:"HMAC",hash:"SHA-256"},false,["sign"]),encoder.encode(data)));
+const hex=(v:ArrayBuffer|Uint8Array)=>[...new Uint8Array(v)].map(x=>x.toString(16).padStart(2,"0")).join("");
+const sha256=async(v:string|Uint8Array)=>hex(await crypto.subtle.digest("SHA-256",typeof v==="string"?encoder.encode(v):toArrayBuffer(v)));
+const hmac=async(key:Uint8Array|string,data:string)=>new Uint8Array(await crypto.subtle.sign("HMAC",await crypto.subtle.importKey("raw",typeof key==="string"?encoder.encode(key):toArrayBuffer(key),{name:"HMAC",hash:"SHA-256"},false,["sign"]),encoder.encode(data)));
 const awsEncode=(v:string)=>encodeURIComponent(v).replace(/[!'()*]/g,c=>"%"+c.charCodeAt(0).toString(16).toUpperCase());
 const canonicalQuery=(u:URL)=>[...u.searchParams.entries()].sort(([a,av],[b,bv])=>a.localeCompare(b)||av.localeCompare(bv)).map(([k,v])=>awsEncode(k)+"="+awsEncode(v)).join("&");
 const timestamp=()=>new Date().toISOString().replace(/[:-]|\.\d{3}/g,"");
 type S3Config={endpoint:URL;bucket:string;deliveryBucket:string;region:string;accessKeyId:string;secretAccessKey:string;sessionToken?:string;pathStyle:boolean;allowedOrigins:string[];};
 type Provider={id:string;provider_key:string;base_url:string|null;endpoints:Record<string,string>;settings:Record<string,unknown>;credential:string;};
-async function getStorage(db:ReturnType<typeof createClient>):Promise<S3Config>{
+async function getStorage(db:TypedSupabaseClient):Promise<S3Config>{
  const {data,error}=await db.rpc("get_service_provider_runtime_config",{p_capability:"media_storage"});
  if(error||!Array.isArray(data)||!data.length)throw new Error("No enabled media_storage provider binding is configured.");
  const p=data[0] as Provider;
@@ -110,7 +111,7 @@ Deno.serve(async req=>{
  const caller=createClient(url,anon,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});
  const {data:{user},error:authError}=await caller.auth.getUser();if(authError||!user)return json(401,{error:"Invalid session."});
  const parsed=Body.safeParse(await req.json().catch(()=>null));if(!parsed.success)return json(400,{error:"Invalid media request.",issues:parsed.error.flatten()});
- const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}}),p=parsed.data;
+ const db=createServiceClient(url,service),p=parsed.data;
  if(p.action==="init_multipart"){
   const {data:studio,error:studioError}=await db.from("studio_accounts").select("id,base_currency").eq("user_id",user.id).eq("status","approved").maybeSingle();
   if(studioError||!studio)return json(403,{error:"An approved creator account is required."});
