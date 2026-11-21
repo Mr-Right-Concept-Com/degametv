@@ -68,29 +68,9 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - name: Type-check event, payment, media and Phase 2 functions
+      - name: Type-check every Edge Function
         run: |
-          deno check \
-            supabase/functions/process-live-payment/index.ts \
-            supabase/functions/payment-webhook/index.ts \
-            supabase/functions/payment-status/index.ts \
-            supabase/functions/manage-event-invites/index.ts \
-            supabase/functions/manage-event-settings/index.ts \
-            supabase/functions/process-event-contribution/index.ts \
-            supabase/functions/dispatch-event-notifications/index.ts \
-            supabase/functions/process-refund/index.ts \
-            supabase/functions/manage-event/index.ts \
-            supabase/functions/authorize-live-playback/index.ts \
-            supabase/functions/validate-watch-code/index.ts \
-            supabase/functions/get-playback-url/index.ts \
-            supabase/functions/record-watch-heartbeat/index.ts \
-            supabase/functions/admin-provider-control/index.ts \
-            supabase/functions/creator-onboarding/index.ts \
-            supabase/functions/admin-creator-verification/index.ts \
-            supabase/functions/domain-control/index.ts \
-            supabase/functions/runtime-config/index.ts \
-            supabase/functions/media-ingest-control/index.ts \
-            supabase/functions/media-ingest-worker/index.ts
+          deno check supabase/functions/*/index.ts
 
   database-security:
     name: Supabase migration and SQL security tests
