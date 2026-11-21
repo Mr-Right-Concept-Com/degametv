@@ -52,13 +52,31 @@ export default function StudioEarnings() {
     const [b, w, c] = await Promise.all([
       supabase.rpc('wallet_balance_by_currency', { _user_id: userId }),
       supabase.from('withdrawal_requests').select('id, amount, currency, bank_country, status, created_at, bank_name').eq('user_id', userId).order('created_at', { ascending: false }),
+      supabase.from('event_contributions').select('id,contribution_type,amount_minor,amount_major,currency,contributor_name,message,is_anonymous,status,paid_at,screening_id,content_id,live_stream_id').eq('creator_id', userId).order('created_at', { ascending: false }).limit(100),
     ]);
     if (b.error) toast.error('Wallet balances could not be loaded.');
     const rows = (b.data as Bal[] | null) || [];
     setBalances(rows.map(row => ({ ...row, gross: Number(row.gross), fees: Number(row.fees), escrow: Number(row.escrow), withdrawable: Number(row.withdrawable) })));
     setForm(current => ({ ...current, currency: current.currency || rows[0]?.currency || '', bank_country: current.bank_country || runtime.config?.geo.countryCode || '' }));
     setReqs((w.data as WR[]) || []);
-    setContributions((c.data as unknown as Contribution[]) || []);
+    if (c.error) toast.error('Tips and digital gifts could not be loaded.');
+    const contributionRows = (c.data ?? []).flatMap(row => {
+      if (row.contribution_type !== 'tip' && row.contribution_type !== 'gift') return [];
+      return [{
+        id: row.id,
+        contribution_type: row.contribution_type,
+        amount_minor: row.amount_minor,
+        amount_major: row.amount_major,
+        currency: row.currency,
+        contributor_name: row.is_anonymous ? 'Anonymous supporter' : row.contributor_name ?? 'Supporter',
+        message: row.message,
+        is_anonymous: row.is_anonymous,
+        status: row.status,
+        paid_at: row.paid_at,
+        event_title: row.content_id ? 'Content contribution' : row.screening_id ? 'Screening contribution' : 'Live contribution',
+      }];
+    });
+    setContributions(contributionRows);
     setLoading(false);
   }, [userId, runtime.config?.geo.countryCode]);
   useEffect(() => { void load(); }, [load]);
