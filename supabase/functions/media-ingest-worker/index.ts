@@ -84,11 +84,11 @@ Deno.serve(async req=>{
   if(jobUpdate)return json(503,{error:"Media job could not be finalized."});
   const {error:sessionUpdate}=await db.from("media_upload_sessions").update({status:"READY",updated_at:new Date().toISOString()}).eq("id",job.upload_session_id);
   await requestS3(storage,job.quarantine_path,"DELETE");
-  if(job.content_id){const {error:contentUpdate}=await db.from("content").update({video_url:job.clean_master_path,hls_manifest_url:hls,dash_manifest_url:dash,poster_url:poster,preview_url:preview??null,captions:toJson(p.subtitles),metadata}).eq("id",job.content_id).eq("creator_id",session?.owner_id);if(contentUpdate)return json(503,{error:"Renditions are ready but content playback metadata requires reconciliation."});}
+  if(job.content_id){if(!session?.owner_id)return json(503,{error:"Media upload ownership could not be verified for content publication."});const {error:contentUpdate}=await db.from("content").update({video_url:job.clean_master_path,hls_manifest_url:hls,dash_manifest_url:dash,poster_url:poster,preview_url:preview??null,captions:toJson(p.subtitles),metadata}).eq("id",job.content_id).eq("creator_id",session.owner_id);if(contentUpdate)return json(503,{error:"Renditions are ready but content playback metadata requires reconciliation."});}
   return json(200,{success:true,status:"READY"});
  }
  let scanner:Binding,transcoder:Binding;
- try{[scanner,transcoder]=await Promise.all([binding(db,"media_scanner"),binding(db,"media_transcoder")]);}catch(e){return json(503,{error:e instanceof Error?e.message:"Scanner and transcoder must both be configured. Quarantine is fail-closed."});}
+ try{[scanner,transcoder]=await Promise.all([binding(db,"media_scanner"),binding(db,"media_transcoder")]);if(!scanner.base_url||!transcoder.base_url)throw new Error("Scanner and transcoder endpoints must have a configured base URL.");}catch(e){return json(503,{error:e instanceof Error?e.message:"Scanner and transcoder must both be configured. Quarantine is fail-closed."});}
  const worker=typeof body.workerId==="string"&&/^[a-zA-Z0-9._:-]{3,100}$/.test(body.workerId)?body.workerId:"media-worker-"+crypto.randomUUID();
  const {data:jobs,error:claimError}=await db.rpc("claim_media_processing_jobs",{p_worker:worker,p_limit:Math.min(Math.max(Number(body.limit)||3,1),10)});
  if(claimError)return json(503,{error:"Durable media jobs could not be claimed."});
@@ -99,7 +99,7 @@ Deno.serve(async req=>{
    const sourceUrl=await presign(storage,job.quarantine_path,"GET");
    const provenance=isJsonObject(job.provenance)?job.provenance:{};
    const scannerEndpoint=typeof scanner.endpoints.scan==="string"?scanner.endpoints.scan:"/scan";
-   const scanUrl=new URL(scannerEndpoint,scanner.base_url??undefined).toString();
+   const scanUrl=new URL(scannerEndpoint,scanner.base_url).toString();
    const scanResponse=await fetch(scanUrl,{method:"POST",headers:{"Authorization":"Bearer "+scanner.credential,"Content-Type":"application/json"},body:JSON.stringify({sourceUrl,expectedSha256:typeof provenance.expected_sha256==="string"?provenance.expected_sha256:null,filename:typeof provenance.source_filename==="string"?provenance.source_filename:null}),signal:AbortSignal.timeout(120000)});
    if(!scanResponse.ok)throw new Error("scanner_http_"+scanResponse.status);
    const scan=Scan.safeParse(await scanResponse.json());if(!scan.success)throw new Error("scanner_response_invalid");
@@ -118,7 +118,7 @@ Deno.serve(async req=>{
    ];
    const uploadTargets=await Promise.all(outputs.map(async o=>({...o,uploadUrl:await presign(storage,o.path,"PUT",o.mimeType,storage.deliveryBucket,86400)})));
    const transcoderEndpoint=typeof transcoder.endpoints.transcode==="string"?transcoder.endpoints.transcode:"/transcode";
-   const transcodeUrl=new URL(transcoderEndpoint,transcoder.base_url??undefined).toString();
+   const transcodeUrl=new URL(transcoderEndpoint,transcoder.base_url).toString();
    const callbackUrl=Deno.env.get("MEDIA_TRANSCODE_CALLBACK_URL")??(url+"/functions/v1/media-ingest-worker");
    const {data:callbackSecret,error:callbackSecretError}=await db.rpc("get_media_transcoder_callback_secret");if(callbackSecretError||typeof callbackSecret!=="string"||!callbackSecret)throw new Error("transcoder_callback_secret_unavailable");
    const transcodeResponse=await fetch(transcodeUrl,{method:"POST",headers:{"Authorization":"Bearer "+transcoder.credential,"Content-Type":"application/json","Idempotency-Key":"transcode:"+job.id},body:JSON.stringify({jobId:job.id,sourceUrl:await presign(storage,masterPath,"GET",undefined,storage.deliveryBucket,21600),sourceSha256:scan.data.sha256,outputFormat:"fmp4-single-file",outputs:uploadTargets,packaging:{hls:"byte-range",dash:"SegmentBase"},callbackUrl,callbackSecret}),signal:AbortSignal.timeout(30000)});
