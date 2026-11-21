@@ -43,7 +43,7 @@ if(import.meta.main)serve(async(req:Request)=>{
   const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
   const country=(req.headers.get("cf-ipcountry")||"").toUpperCase().slice(0,2)||null;
   const {data:ticket,error}=await db.from("screening_tickets")
-   .select("id,payment_status,refunded_at,expires_at,screening_id,email,stream_count,first_played_at,access_hours,screening:screenings(id,status,lifecycle,title,poster_url,content_id,allowed_countries,blocked_countries,max_streams_per_ticket,max_concurrent_streams)")
+   .select("id,user_id,payment_status,refunded_at,expires_at,screening_id,email,stream_count,first_played_at,access_hours,screening:screenings(id,status,lifecycle,title,poster_url,content_id,allowed_countries,blocked_countries,event_visibility,invite_only,max_streams_per_ticket,max_concurrent_streams)")
    .eq("watch_code",watchCode).maybeSingle();
   if(error)return json(503,{success:false,error:"Playback authorization could not be checked. Please retry."});
   if(!ticket)return json(404,{success:false,error:"Ticket not found or payment not confirmed."});
@@ -59,6 +59,18 @@ if(import.meta.main)serve(async(req:Request)=>{
      (typeof screeningValue.lifecycle==="string"&&["cancelled","archived"].includes(screeningValue.lifecycle)))
    return json(410,{success:false,error:"This screening is no longer available."});
   const screening=screeningValue;
+  if(screening.event_visibility==="private"||screening.invite_only===true){
+   let invitationQuery=db.from("event_access_invites").select("id,expires_at")
+    .eq("screening_id",ticket.screening_id).eq("invited_email",email)
+    .eq("status","accepted").not("accepted_at","is",null);
+   invitationQuery=ticket.user_id
+    ?invitationQuery.or("invited_user_id.is.null,invited_user_id.eq."+ticket.user_id)
+    :invitationQuery.is("invited_user_id",null);
+   const {data:invitation,error:invitationError}=await invitationQuery.maybeSingle();
+   if(invitationError)return json(503,{success:false,error:"Private screening invitation status could not be verified."});
+   if(!invitation||(invitation.expires_at&&new Date(invitation.expires_at).getTime()<=Date.now()))
+    return json(403,{success:false,code:"PRIVATE_SCREENING_INVITATION_REQUIRED",error:"An accepted, unexpired invitation is required to watch this private screening."});
+  }
   if(country){
    if(isStringArray(screening.blocked_countries)&&screening.blocked_countries.includes(country))return json(451,{success:false,error:"This screening is not available in your territory."});
    if(isStringArray(screening.allowed_countries)&&screening.allowed_countries.length>0&&!screening.allowed_countries.includes(country))return json(451,{success:false,error:"This screening is not available in your territory."});
@@ -132,6 +144,7 @@ if(import.meta.main)serve(async(req:Request)=>{
     message.includes("screening_concurrency_limit_reached")?"SCREENING_CONCURRENCY_LIMIT_REACHED":
     message.includes("territory_not_permitted")?"TERRITORY_NOT_PERMITTED":
     message.includes("viewing_window_expired")?"VIEWING_WINDOW_EXPIRED":
+    message.includes("private_screening_invitation_required")?"PRIVATE_SCREENING_INVITATION_REQUIRED":
     message.includes("screening_unavailable")?"SCREENING_UNAVAILABLE":"PLAYBACK_SESSION_DENIED";
    return json(code==="SCREENING_UNAVAILABLE"?410:403,{success:false,code,error:code==="TICKET_ALREADY_STREAMING"?"This ticket is already playing in another active session.":code==="TICKET_STREAM_LIMIT_REACHED"?"This ticket has reached its allowed number of playback sessions.":code==="SCREENING_CONCURRENCY_LIMIT_REACHED"?"This screening has reached its concurrent viewer limit. Please retry shortly.":"Ticket playback authorization was denied."});
   }
