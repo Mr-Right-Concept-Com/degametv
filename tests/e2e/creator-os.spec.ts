@@ -11,6 +11,11 @@ const signatureAlgorithm = (process.env.DEGAMETV_E2E_SIGNATURE_ALGORITHM || 'SHA
 const hashAlgorithm = signatureAlgorithm === 'SHA-256' ? 'sha256' : 'sha512';
 
 test('public sign-in route renders', async ({ page }) => {
+  test.skip(
+    !process.env.VITE_SUPABASE_URL ||
+      !(process.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY),
+    'Configure the public Supabase URL and publishable key to run the sign-in browser test.',
+  );
   await page.goto('/auth');
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
   await expect(page.locator('#email')).toBeVisible();
