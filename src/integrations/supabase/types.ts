@@ -5666,6 +5666,10 @@ export type Database = {
         }
         Returns: Json
       }
+      assert_personal_wallet_ticket_owner: {
+        Args: { p_user_id: string }
+        Returns: boolean
+      }
       authorize_legacy_screening_ticket_playback: {
         Args: {
           p_country_code: string
