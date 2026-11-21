@@ -26,8 +26,9 @@ Deno.serve(async (req) => {
     if (!parsed.success) return json({ error: parsed.error.flatten().fieldErrors }, 400);
     const p = parsed.data;
 
-    const { data: s } = await admin.from("screenings").select("id, title, content_id, tenant_id").eq("id", p.screeningId).maybeSingle();
+    const { data: s } = await admin.from("screenings").select("id, title, content_id, tenant_id, lifecycle").eq("id", p.screeningId).maybeSingle();
     if (!s) return json({ error: "Event not found" }, 404);
+    if (p.action === "cancel" && s.lifecycle === "cancelled") return json({ success: true, duplicate: true, refunded: 0, pendingRefunds: [], notificationsQueued: 0, message: "This screening was already cancelled; no duplicate refund operation was started." });
     const { data: c } = await admin.from("content").select("creator_id").eq("id", s.content_id).maybeSingle();
     const { data: adminRole, error: roleError } = await admin.from("user_roles").select("user_id").eq("user_id", user.id).eq("role", "super_admin").maybeSingle();
     const isAdmin = !roleError && Boolean(adminRole);

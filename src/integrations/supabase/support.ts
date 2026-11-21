@@ -188,3 +188,50 @@ export async function updateSupportSlaPolicy(input: { priority: string; first_re
   }).eq('priority', input.priority);
   throwIfError(result.error);
 }
+
+const OperatingHoursSchema = z.object({
+  id: z.number().int().min(1).max(1), timezone: z.string().min(1),
+  weekly_schedule: z.record(z.string(), z.object({ open: z.string(), close: z.string() }).nullable()),
+  holidays: z.array(z.string()), updated_at: z.string(), updated_by: z.string().uuid().nullable(),
+});
+const EscalationSchema = z.object({
+  id: z.string().uuid(), ticket_id: z.string().uuid(), breach_type: z.enum(['first_response','resolution']),
+  due_at: z.string(), escalated_at: z.string(), previous_status: z.string(),
+});
+export type SupportOperatingHours = z.infer<typeof OperatingHoursSchema>;
+export type SupportSlaEscalationEvent = z.infer<typeof EscalationSchema>;
+export type SupportSlaMetrics = { openTickets:number; breachedFirstResponse:number; breachedResolution:number; escalatedTickets:number; resolvedLast30Days:number };
+export async function getSupportOperatingHours(): Promise<SupportOperatingHours> {
+  const result = await client.from('support_operating_hours').select('id,timezone,weekly_schedule,holidays,updated_at,updated_by').eq('id',1).single();
+  throwIfError(result.error); return parseOne(OperatingHoursSchema,result.data);
+}
+export async function saveSupportOperatingHours(input: {timezone:string; weekly_schedule:SupportOperatingHours['weekly_schedule']; holidays:string[]; updated_by:string}) {
+  if (!input.timezone.trim() || !Number.isFinite(Date.parse(input.holidays[0] ?? '2000-01-01'))) throw new Error('Operating hours configuration is invalid.');
+  const result = await client.from('support_operating_hours').upsert({id:1,...input,updated_at:new Date().toISOString()},{onConflict:'id'});
+  throwIfError(result.error);
+}
+export async function listSupportSlaEscalationEvents(ticketId?:string,limit=100): Promise<SupportSlaEscalationEvent[]> {
+  let query=client.from('support_sla_escalation_events').select('id,ticket_id,breach_type,due_at,escalated_at,previous_status').order('escalated_at',{ascending:false}).limit(Math.min(Math.max(limit,1),500));
+  if(ticketId) query=query.eq('ticket_id',ticketId);
+  const result=await query; throwIfError(result.error); return parseRows(EscalationSchema,result.data);
+}
+export async function getSupportSlaMetrics(): Promise<SupportSlaMetrics> {
+  const now=new Date().toISOString(),since=new Date(Date.now()-30*86400000).toISOString();
+  const [open,first,resolution,escalated,resolved]=await Promise.all([
+    client.from('support_tickets').select('id',{count:'exact',head:true}).not('status','in','("resolved","closed")'),
+    client.from('support_tickets').select('id',{count:'exact',head:true}).not('status','in','("resolved","closed")').lt('first_response_due_at',now).is('first_responded_at',null),
+    client.from('support_tickets').select('id',{count:'exact',head:true}).not('status','in','("resolved","closed")').lt('resolution_due_at',now),
+    client.from('support_sla_escalation_events').select('id',{count:'exact',head:true}),
+    client.from('support_tickets').select('id',{count:'exact',head:true}).gte('resolved_at',since),
+  ]);
+  for(const item of [open,first,resolution,escalated,resolved]) throwIfError(item.error);
+  return {openTickets:open.count??0,breachedFirstResponse:first.count??0,breachedResolution:resolution.count??0,escalatedTickets:escalated.count??0,resolvedLast30Days:resolved.count??0};
+}
+export function getSupportOperatingStatus(hours:SupportOperatingHours,now=new Date()) {
+  const parts=new Intl.DateTimeFormat('en-US',{timeZone:hours.timezone,weekday:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(now);
+  const weekday=parts.find(x=>x.type==='weekday')?.value??'Mon',h=Number(parts.find(x=>x.type==='hour')?.value??'0'),m=Number(parts.find(x=>x.type==='minute')?.value??'0');
+  const days:Record<string,string>={Sun:'0',Mon:'1',Tue:'2',Wed:'3',Thu:'4',Fri:'5',Sat:'6'},day=days[weekday]??'1';
+  const localDate=new Intl.DateTimeFormat('en-CA',{timeZone:hours.timezone,year:'numeric',month:'2-digit',day:'2-digit'}).format(now),slot=hours.weekly_schedule[day];
+  const minutes=(v:string)=>{const [a,b]=v.split(':').map(Number);return a*60+b;},current=h*60+m;
+  return {open:Boolean(slot&&!hours.holidays.includes(localDate)&&current>=minutes(slot.open)&&current<minutes(slot.close)),timezone:hours.timezone,localDate,opensAt:slot?.open??null,closesAt:slot?.close??null};
+}

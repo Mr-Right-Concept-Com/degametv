@@ -44,6 +44,7 @@ export default function StudioLive() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [grant, setGrant] = useState<EncoderGrant | null>(null);
+  const [provisioningNotice,setProvisioningNotice]=useState<string|null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<'idle' | 'scheduled' | 'ended'>('idle');
   const [broadcastLifecycle, setBroadcastLifecycle] = useState<BroadcastLifecycle | null>(null);
@@ -123,14 +124,18 @@ export default function StudioLive() {
     if (!parsed.success) { toast.error(parsed.error.issues[0]?.message || 'Check the event details.'); return; }
     setBusy(true);
     try {
+      const storageKey = 'degametv-live-provision:' + screeningId;
+      let idempotencyKey = window.localStorage.getItem(storageKey);
+      if (!idempotencyKey) { idempotencyKey = crypto.randomUUID(); window.localStorage.setItem(storageKey,idempotencyKey); }
       const { data, error } = await supabase.functions.invoke('media-provider-control', {
-        body: { action: 'create_live', screeningId, title: parsed.data.title, description: parsed.data.description, recordingEnabled: true },
+        body: { action: 'create_live', screeningId, title: parsed.data.title, description: parsed.data.description, recordingEnabled: true, idempotencyKey },
       });
-      if (error || !data?.success || typeof data.streamKey !== 'string' || typeof data.ingestUrl !== 'string') {
+      if (error || !data?.success || (!data.alreadyProvisioned && typeof data.streamKey !== 'string') || typeof data.ingestUrl !== 'string') {
         toast.error(data?.error || 'A configured streaming provider is required before an encoder can be provisioned.');
         return;
       }
-      setGrant({ streamId: data.streamId, ingestUrl: data.ingestUrl, streamKey: data.streamKey, playbackUrl: data.playbackUrl, ingestProtocol: data.ingestProtocol, provider: data.provider });
+      setGrant({ streamId: data.streamId, ingestUrl: data.ingestUrl, streamKey: typeof data.streamKey==='string'?data.streamKey:'', playbackUrl: data.playbackUrl, ingestProtocol: data.ingestProtocol || 'rtmp', provider: data.provider || 'configured provider' });
+      setProvisioningNotice(data.alreadyProvisioned ? (data.message || 'Stream already provisioned. The one-time stream key cannot be re-issued.') : null);
       setStatus('scheduled');
       toast.success('Encoder credentials issued. Copy and store the stream key securely; it is shown only once.');
     } catch {
@@ -148,6 +153,8 @@ export default function StudioLive() {
         return;
       }
       setStatus('ended');
+      window.localStorage.removeItem('degametv-live-provision:' + screeningId);
+      setProvisioningNotice(null);
       setReplayDraftId(data.replayDraft?.contentId || null);
       setGrant(null);
       if (data.replayDraft?.contentId) toast.success(data.replayDraft.recordingStatus === 'ready' ? 'Live ended. A replay draft is ready in your catalogue.' : 'Live ended. A replay draft was added to your catalogue; recording is processing.');
@@ -173,11 +180,11 @@ export default function StudioLive() {
                 {broadcastLifecycle && <Badge variant="outline" className="font-mono text-xs">{broadcastLifecycle.lifecycle_status .replace(/_/g, ' ')}</Badge>}
               </div>
               {replayDraftId && <Button asChild variant="outline"><Link to="/studio/movies">Open replay draft in catalogue</Link></Button>}
+              {provisioningNotice && <p role="status" className="rounded-lg border p-3 text-sm text-muted-foreground">{provisioningNotice}</p>}
               {grant ? <div className="space-y-3 rounded-xl border p-4">
                 <div className="flex items-center justify-between"><Label>Encoder server URL</Label><Button size="sm" variant="outline" onClick={() => copy(grant.ingestUrl, 'Server URL')}><Copy className="mr-1 h-4 w-4" />Copy</Button></div>
                 <Input readOnly value={grant.ingestUrl} />
-                <div className="flex items-center justify-between"><Label>One-time stream key</Label><Button size="sm" variant="outline" onClick={() => copy(grant.streamKey, 'Stream key')}><Copy className="mr-1 h-4 w-4" />Copy</Button></div>
-                <Input readOnly type="password" value={grant.streamKey} />
+                {grant.streamKey ? <><div className="flex items-center justify-between"><Label>One-time stream key</Label><Button size="sm" variant="outline" onClick={() => copy(grant.streamKey, 'Stream key')}><Copy className="mr-1 h-4 w-4" />Copy</Button></div><Input readOnly type="password" value={grant.streamKey} /></> : <p className="text-sm text-amber-600">The stream was already provisioned for this request. Its one-time key was issued previously and is not recoverable here. Stop this stream before requesting a new one.</p>}
                 <p className="text-sm text-muted-foreground">Add these values to OBS or vMix as a custom RTMP/RTMPS destination. The stream key is not saved in your editable stream settings. Keep it private.</p>
                 <Button variant="destructive" disabled={busy} onClick={endStream}><Radio className="mr-2 h-4 w-4" />End stream with provider</Button>
               </div> : <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground"><ShieldCheck className="mx-auto mb-2 h-8 w-8" />Provisioning requires an active, validated live-streaming provider binding. No credentials are fabricated or stored in browser configuration.</div>}

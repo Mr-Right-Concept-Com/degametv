@@ -10,7 +10,7 @@ import { Calendar, DollarSign, Radio, Search, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
 
-type StreamRow = Pick<Tables<'live_streams'>, 'id' | 'title' | 'description' | 'thumbnail_url' | 'banner_url' | 'status' | 'viewer_count' | 'is_ticketed' | 'ticket_price' | 'currency' | 'scheduled_start' | 'recording_enabled' | 'chat_enabled'>;
+type StreamRow = Pick<Tables<'live_streams'>, 'id' | 'title' | 'description' | 'thumbnail_url' | 'banner_url' | 'status' | 'viewer_count' | 'is_ticketed' | 'ticket_price' | 'currency' | 'scheduled_start' | 'recording_enabled' | 'chat_enabled' | 'lifecycle_status' | 'actual_started_at' | 'actual_ended_at' | 'vod_replay_asset_url' | 'provider_stream_id'>;
 type StreamTicketRow = Pick<Tables<'tickets'>, 'stream_id' | 'price' | 'currency'>;
 
 const statusClass = (status: string) => {
@@ -36,7 +36,7 @@ export default function StreamManagement() {
       setLoading(true);
       setLoadError(null);
       const [streamsResult, ticketsResult] = await Promise.all([
-        supabase.from('live_streams').select('id,title,description,thumbnail_url,banner_url,status,viewer_count,is_ticketed,ticket_price,currency,scheduled_start,recording_enabled,chat_enabled').order('created_at', { ascending: false }).limit(500),
+        supabase.from('live_streams').select('id,title,description,thumbnail_url,banner_url,status,viewer_count,is_ticketed,ticket_price,currency,scheduled_start,recording_enabled,chat_enabled,lifecycle_status,actual_started_at,actual_ended_at,vod_replay_asset_url,provider_stream_id').order('created_at', { ascending: false }).limit(500),
         supabase.from('tickets').select('stream_id,price,currency').not('stream_id', 'is', null).is('revoked_at', null).limit(5000),
       ]);
       if (!active) return;
@@ -86,7 +86,7 @@ export default function StreamManagement() {
               {loading ? <TableRow><TableCell colSpan={5} className="py-10 text-center text-muted-foreground">Loading live streams…</TableCell></TableRow>
                 : filteredStreams.length === 0 ? <TableRow><TableCell colSpan={5} className="py-10 text-center text-muted-foreground">{loadError ? 'Stream records are unavailable.' : 'No live streams match this search.'}</TableCell></TableRow>
                 : filteredStreams.map(stream => <TableRow key={stream.id}>
-                  <TableCell><div className="flex items-center gap-3">{(stream.thumbnail_url || stream.banner_url) && <img src={stream.thumbnail_url || stream.banner_url || ''} alt="" className="h-12 w-20 rounded-lg object-cover"/>}<div><p className="font-medium">{stream.title}</p><p className="line-clamp-1 text-sm text-muted-foreground">{stream.description || '—'}</p><p className="mt-1 text-xs text-muted-foreground">{stream.chat_enabled ? 'Chat enabled' : 'Chat disabled'} · {stream.recording_enabled ? 'Recording enabled' : 'Recording disabled'}</p></div></div></TableCell>
+                  <TableCell><div className="flex items-center gap-3">{(stream.thumbnail_url || stream.banner_url) && <img src={stream.thumbnail_url || stream.banner_url || ''} alt="" className="h-12 w-20 rounded-lg object-cover"/>}<div><p className="font-medium">{stream.title}</p><p className="line-clamp-1 text-sm text-muted-foreground">{stream.description || '—'}</p><p className="mt-1 text-xs text-muted-foreground">{stream.chat_enabled ? 'Chat enabled' : 'Chat disabled'} · {stream.recording_enabled ? 'Recording enabled' : 'Recording disabled'} · {stream.lifecycle_status.replaceAll('_',' ').toLowerCase()}</p><p className="mt-1 text-xs text-muted-foreground">{stream.vod_replay_asset_url ? 'Replay asset available' : stream.lifecycle_status === 'PROCESSING_REPLAY' ? 'Replay processing' : stream.lifecycle_status === 'REPLAY_FAILED' ? 'Replay failed' : stream.actual_ended_at ? 'Stream ended' : stream.provider_stream_id ? 'Provider provisioned' : 'Provisioning not confirmed'}</p></div></div></TableCell>
                   <TableCell><Badge variant="outline" className={statusClass(stream.status)}>{stream.status}</Badge></TableCell>
                   <TableCell>{(stream.viewer_count ?? 0).toLocaleString()}</TableCell>
                   <TableCell>{stream.is_ticketed ? `${Number(stream.ticket_price ?? 0).toLocaleString()} ${stream.currency ?? ''}` : 'Free'}</TableCell>

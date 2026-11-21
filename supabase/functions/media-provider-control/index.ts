@@ -3,7 +3,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3";
 const schema=z.discriminatedUnion("action",[
  z.object({action:z.literal("create_upload"),fileName:z.string().trim().min(1).max(240),contentType:z.string().min(1).max(120),sizeBytes:z.number().int().positive().max(20*1024*1024*1024),contentId:z.string().uuid().optional()}),
- z.object({action:z.literal("create_live"),screeningId:z.string().uuid(),title:z.string().trim().min(2).max(180),description:z.string().max(2000).optional(),scheduledStart:z.string().datetime({offset:true}).optional(),recordingEnabled:z.boolean().default(true)}),
+ z.object({action:z.literal("create_live"),screeningId:z.string().uuid(),title:z.string().trim().min(2).max(180),description:z.string().max(2000).optional(),scheduledStart:z.string().datetime({offset:true}).optional(),recordingEnabled:z.boolean().default(true),idempotencyKey:z.string().uuid()}),
  z.object({action:z.literal("stop_live"),streamId:z.string().uuid()}),
 ]);
 async function featureEnabled(db: ReturnType<typeof createClient>, key: string, subject: string): Promise<boolean> {
@@ -56,8 +56,24 @@ Deno.serve(async req=>{
  const operation=p.action==="create_upload"?"upload_create":p.action==="create_live"?"live_create":"live_stop";
  try{
   if(p.action==="stop_live"){
-   const {data:stream,error}=await db.from("live_streams").select("id,creator_id,metadata").eq("id",p.streamId).eq("creator_id",user.id).maybeSingle();
+   const {data:stream,error}=await db.from("live_streams").select("id,creator_id,metadata,status,actual_ended_at").eq("id",p.streamId).eq("creator_id",user.id).maybeSingle();
    if(error||!stream)return json({error:"Live stream not found."},404);
+   if(stream.status==="ended"&&stream.actual_ended_at){
+    const screeningId=typeof stream.metadata?.screening_id==="string"?stream.metadata.screening_id:null;
+    let replayDraft:null|{contentId:string;recordingStatus:string}=null;
+    if(screeningId){
+     const {data:screening}=await db.from("screenings").select("id,content_id,tenant_id,live_recording_status")
+      .eq("id",screeningId).maybeSingle();
+     if(screening){
+      const {data:content}=await db.from("content").select("id,metadata").eq("id",screening.content_id)
+       .eq("creator_id",user.id).eq("tenant_id",screening.tenant_id).maybeSingle();
+      if(content&&isRecord(content.metadata)&&isRecord(content.metadata.replay_from_live))
+       replayDraft={contentId:content.id,recordingStatus:screening.live_recording_status};
+     }
+    }
+    return json({success:true,status:"ended",duplicate:true,replayDraft,
+     message:"The provider-confirmed stream end was already reconciled; no second stop or replay draft was created."});
+   }
    const [{data:binding},{data:secrets}]=await Promise.all([
     db.from("service_provider_bindings").select("provider_key,base_url,endpoints,settings").eq("capability","live_streaming").eq("provider_key",stream.metadata?.provider).maybeSingle(),
     db.rpc("get_service_provider_admin_secret",{p_capability:"live_streaming",p_provider_key:stream.metadata?.provider})

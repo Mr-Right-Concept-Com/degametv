@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
-import { getSupportAgent, listSupportTickets, listSupportMessages, listSupportArticles, createSupportTicket, createSupportChat, reopenSupportTicket, rateSupportTicket, insertSupportMessage, type SupportTicket, type SupportMessage, type SupportArticle } from '@/integrations/supabase/support';
+import { getSupportAgent, getSupportOperatingHours, getSupportOperatingStatus, listSupportTickets, listSupportMessages, listSupportArticles, createSupportTicket, createSupportChat, reopenSupportTicket, rateSupportTicket, insertSupportMessage, type SupportTicket, type SupportMessage, type SupportArticle } from '@/integrations/supabase/support';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { BookOpen, LifeBuoy, MessageCircle, Plus, Search, Send, TicketCheck, Paperclip, Star, RotateCcw } from 'lucide-react';
@@ -36,6 +36,7 @@ export default function SupportCenter() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('requests');
   const [isSupportAgent, setIsSupportAgent] = useState(false);
+  const [operatingStatus, setOperatingStatus] = useState<{open:boolean;timezone:string;localDate:string;opensAt:string|null;closesAt:string|null}|null>(null);
   const mounted = useRef(false);
   const ticketRequest = useRef(0);
   const messageRequest = useRef(0);
@@ -77,6 +78,7 @@ export default function SupportCenter() {
   useEffect(() => {
     void loadTickets();
     void loadArticles();
+    void getSupportOperatingHours().then(hours => { if (mounted.current) setOperatingStatus(getSupportOperatingStatus(hours)); }).catch((error: unknown) => { if (mounted.current) toast.error(error instanceof Error ? error.message : 'Support hours are unavailable.'); });
     if (!user) { setIsSupportAgent(false); return; }
     let cancelled = false;
     void getSupportAgent(user.id).then(agent => {
@@ -207,6 +209,7 @@ export default function SupportCenter() {
   return <MainLayout>
     <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm text-primary font-semibold">DEGAMETV HELP CENTRE</p><h1 className="text-3xl font-bold">How can we help?</h1><p className="text-muted-foreground mt-1">Find answers or contact the support team.</p></div><div className="flex gap-2">{isSupportAgent && <Button asChild variant="outline"><Link to="/support/agent">Agent inbox</Link></Button>}<Button asChild variant="outline"><Link to="/dashboard">Back to dashboard</Link></Button></div></div>
+      <div className="rounded-xl border p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold">Support operating hours</p><p className="text-xs text-muted-foreground">{operatingStatus ? operatingStatus.timezone + ' · ' + operatingStatus.localDate : 'Loading configured schedule…'}</p></div><Badge variant={operatingStatus?.open ? 'default' : 'secondary'}>{operatingStatus ? (operatingStatus.open ? 'Open now' : 'Closed now') : 'Checking'}</Badge></div><p className="mt-1 text-xs text-muted-foreground">{operatingStatus?.opensAt && operatingStatus?.closesAt ? "Today's hours: " + operatingStatus.opensAt + '–' + operatingStatus.closesAt : 'No staffed hours are configured for today. You can still submit a support request at any time.'}</p></div>
       <div className="grid gap-3 md:grid-cols-3">
         <Card><CardContent className="p-5 flex items-center gap-3"><LifeBuoy className="h-8 w-8 text-primary"/><div><p className="font-semibold">Support requests</p><p className="text-xs text-muted-foreground">Create and track a request.</p></div></CardContent></Card>
         <Card><CardContent className="p-5 flex items-center justify-between gap-3"><div className="flex items-center gap-3"><MessageCircle className="h-8 w-8 text-primary"/><div><p className="font-semibold">Live support chat</p><p className="text-xs text-muted-foreground">Start a realtime conversation with an agent.</p></div></div><Button size="sm" onClick={() => void startLiveChat()} disabled={creating}>{creating ? 'Starting…' : 'Chat now'}</Button></CardContent></Card>
