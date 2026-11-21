@@ -12,10 +12,10 @@ interface CatalogQuery {
   signal?: AbortSignal;
 }
 
-export async function fetchCatalogRows<T>(
+export async function fetchCatalogRows<T extends z.ZodTypeAny>(
   query: CatalogQuery,
-  rowSchema: z.ZodType<T>,
-): Promise<T[]> {
+  rowSchema: T,
+): Promise<z.output<T>[]> {
   const view = catalogViewSchema.parse(query.view);
   const baseUrl = import.meta.env.VITE_SUPABASE_URL;
   const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -45,5 +45,5 @@ export async function fetchCatalogRows<T>(
   const payload: unknown = await response.json();
   const parsed = z.array(rowSchema).safeParse(payload);
   if (!parsed.success) throw new Error("Catalog response failed runtime validation.");
-  return parsed.data;
+  return parsed.data as z.output<T>[];
 }
