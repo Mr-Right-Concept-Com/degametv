@@ -206,7 +206,12 @@ export async function getSupportOperatingHours(): Promise<SupportOperatingHours>
   throwIfError(result.error); return parseOne(OperatingHoursSchema,result.data);
 }
 export async function saveSupportOperatingHours(input: {timezone:string; weekly_schedule:SupportOperatingHours['weekly_schedule']; holidays:string[]; updated_by:string}) {
-  if (!input.timezone.trim() || !Number.isFinite(Date.parse(input.holidays[0] ?? '2000-01-01'))) throw new Error('Operating hours configuration is invalid.');
+  try { new Intl.DateTimeFormat('en-US',{timeZone:input.timezone}).format(new Date()); } catch { throw new Error('Enter a valid IANA timezone.'); }
+  if (input.holidays.some(date => !/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date)))) throw new Error('Holiday dates must use YYYY-MM-DD.');
+  for (const [day,slot] of Object.entries(input.weekly_schedule)) {
+    if (!/^[0-6]$/.test(day)) throw new Error('Operating schedule contains an invalid weekday.');
+    if (slot && (!/^([01]\d|2[0-3]):[0-5]\d$/.test(slot.open) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(slot.close) || slot.open >= slot.close)) throw new Error('Each open day must have valid opening and closing times.');
+  }
   const result = await client.from('support_operating_hours').upsert({id:1,...input,updated_at:new Date().toISOString()},{onConflict:'id'});
   throwIfError(result.error);
 }

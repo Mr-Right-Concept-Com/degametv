@@ -87,6 +87,9 @@ Deno.serve(async req => {
     if (!allowedEvents.has(normalized)) return json(200, { received: true, ignored: true });
 
     const payload: Record<string, unknown> = { source_event: rawType };
+    const providerAssetId = event.recording_asset_id ?? event.asset_id ?? event.data?.asset_id;
+    if (typeof providerAssetId === "string" && providerAssetId.trim()) payload.provider_asset_id = providerAssetId.trim();
+
     if (normalized === "recording.ready") {
       const recordingUrl = event.replay_playback_url || event.replay_url || event.data?.replay_url;
       if (typeof recordingUrl !== "string") return json(400, { error: "Replay URL is required for recording-ready events" });
