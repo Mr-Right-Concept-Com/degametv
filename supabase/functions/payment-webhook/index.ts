@@ -151,7 +151,7 @@ serve(async(req:Request)=>{
    if(completeError)return json(409,{error:"Payment was verified but the contribution ledger could not be completed."});
    return json(200,{received:true,verified:true,fulfillment:completed,entitlementGranted:false});
   }
-  const liveOrderRow=liveOrder?orderLookup.data:null;
+  const liveOrderRow=liveOrder?orderLookup:null;
   let claimToken:string|null=null,emailClaimed=false;
   if(liveOrder&&liveOrderRow?.user_id===null){
    const {data:claim}=await admin.rpc("claim_live_payment_email",{p_reference:reference});
