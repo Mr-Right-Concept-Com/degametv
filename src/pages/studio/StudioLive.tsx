@@ -80,7 +80,7 @@ export default function StudioLive() {
     if (!user?.id || !screeningId) { setBroadcastLifecycle(null); return; }
     let active = true;
     const refreshLifecycle = async () => {
-      const { data, error } = await supabase.rpc('get_my_live_stream_lifecycle' as never, { p_screening_id: screeningId } as never);
+      const { data, error } = await supabase.rpc('get_my_live_stream_lifecycle', { p_screening_id: screeningId });
       if (active && !error) {
         const row: unknown = Array.isArray(data) ? data[0] : data;
         setBroadcastLifecycle(isBroadcastLifecycle(row) ? row : null);
