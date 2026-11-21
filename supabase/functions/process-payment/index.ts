@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
+import type { Database } from "../_shared/database.types.ts";
 import { z } from "npm:zod@3.25.76";
 
 const schema = z.object({
@@ -19,7 +20,7 @@ const cors = {
 };
 const json = (status: number, body: Record<string, unknown>) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
-async function featureEnabled(db: ReturnType<typeof createClient>, key: string, subject: string): Promise<boolean> {
+async function featureEnabled(db: SupabaseClient<Database>, key: string, subject: string): Promise<boolean> {
   const { data: flag, error } = await db.from("platform_feature_controls").select("enabled,rollout_percentage,release_state").eq("feature_key",key).maybeSingle();
   if (error) return false;
   if (!flag) return false;
@@ -62,12 +63,12 @@ if (import.meta.main) serve(async (req: Request) => {
   if (!parsed.success) return json(400, { success: false, error: "Check your email, screening and payment method." });
 
   const { method, email, screeningId, location } = parsed.data;
-  const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
+  const admin = createClient<Database>(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
   let walletUser: { id: string; email: string } | null = null;
   if (method === "personal_wallet") {
     const authorization = req.headers.get("Authorization") || "";
     if (!authorization.startsWith("Bearer ")) return json(401, { success: false, error: "Sign in to use your Personal Wallet." });
-    const caller = createClient(url, anon, { global: { headers: { Authorization: authorization } }, auth: { persistSession: false, autoRefreshToken: false } });
+    const caller = createClient<Database>(url, anon, { global: { headers: { Authorization: authorization } }, auth: { persistSession: false, autoRefreshToken: false } });
     const { data: authData, error: authError } = await caller.auth.getUser();
     if (authError || !authData.user || !authData.user.email) return json(401, { success: false, error: "A verified signed-in account is required for Personal Wallet checkout." });
     const { data: ownsWallet, error: ownerError } = await caller.rpc("assert_personal_wallet_ticket_owner", { p_user_id: authData.user.id });

@@ -1,12 +1,13 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import type { TypedSupabaseClient } from "../_shared/supabase.ts";
+import { corsHeaders } from "../_shared/cors.ts";
 import { z } from "npm:zod@3";
 const schema=z.discriminatedUnion("action",[
  z.object({action:z.literal("create_upload"),fileName:z.string().trim().min(1).max(240),contentType:z.string().min(1).max(120),sizeBytes:z.number().int().positive().max(20*1024*1024*1024),contentId:z.string().uuid().optional()}),
  z.object({action:z.literal("create_live"),screeningId:z.string().uuid(),title:z.string().trim().min(2).max(180),description:z.string().max(2000).optional(),scheduledStart:z.string().datetime({offset:true}).optional(),recordingEnabled:z.boolean().default(true),idempotencyKey:z.string().uuid()}),
  z.object({action:z.literal("stop_live"),streamId:z.string().uuid()}),
 ]);
-async function featureEnabled(db: ReturnType<typeof createClient>, key: string, subject: string): Promise<boolean> {
+async function featureEnabled(db: TypedSupabaseClient, key: string, subject: string): Promise<boolean> {
  const {data:flag,error}=await db.from("platform_feature_controls").select("enabled,rollout_percentage,release_state").eq("feature_key",key).maybeSingle();
  if(error)return false;
  if(!flag)return true;

@@ -9,3 +9,5 @@ export const defaultCorsHeaders: CorsHeaders = {
 export function createCorsHeaders(headers: CorsHeaders = {}): Headers {
   return new Headers({ ...defaultCorsHeaders, ...headers });
 }
+
+export const corsHeaders = defaultCorsHeaders;

@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { corsHeaders } from "../_shared/cors.ts";
 
+const isRecord=(value:unknown):value is Record<string,unknown>=>typeof value==="object"&&value!==null&&!Array.isArray(value);
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json"}});
 const endpoint=(base:string,path:unknown)=>{if(typeof path!=="string"||!path.startsWith("/")||path.startsWith("//"))throw new Error("provider_endpoint_missing");const u=new URL(path,base);if(u.origin!==new URL(base).origin)throw new Error("provider_endpoint_invalid");return u;};
 
@@ -13,7 +14,8 @@ Deno.serve(async req=>{
  const caller=createClient(url,anon,{global:{headers:{Authorization:authorization}},auth:{persistSession:false,autoRefreshToken:false}});
  const {data:{user},error:authError}=await caller.auth.getUser();
  if(authError||!user)return json({error:"Authentication required."},401);
- const body=await req.json().catch(()=>null),verificationId=typeof body?.verificationId==="string"?body.verificationId:"";
+ const body:unknown=await req.json().catch(()=>null);
+ const verificationId=isRecord(body)&&typeof body.verificationId==="string"?body.verificationId:"";
  if(!/^[0-9a-f-]{36}$/i.test(verificationId))return json({error:"A valid verification ID is required."},400);
  const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
  const {data:record,error:recordError}=await db.from("identity_verifications").select("*").eq("id",verificationId).eq("user_id",user.id).maybeSingle();
