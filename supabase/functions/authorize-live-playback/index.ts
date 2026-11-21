@@ -31,7 +31,7 @@ if(import.meta.main)serve(async(req:Request)=>{
   }
   if(input.data.mode==="live"&&stream.status!=="live")return json(409,{error:"This stream is not live"});
   if(input.data.mode==="replay"&&(screening.live_recording_status!=="ready"||!screening.live_replay_ready_at))return json(409,{error:"Replay is not ready"});
-  const {data:tickets,error:ticketError}=await db.from("tickets").select("id,ticket_type,valid_from,valid_until,revoked_at,stream_count").eq("stream_id",stream.id).eq("user_id",user.id).is("revoked_at",null).lte("valid_from",new Date().toISOString()).gt("valid_until",new Date().toISOString()).order("created_at",{ascending:false});
+  const {data:tickets,error:ticketError}=await db.from("tickets").select("id,ticket_type,valid_from,valid_until,revoked_at,stream_count,metadata").eq("stream_id",stream.id).eq("user_id",user.id).is("revoked_at",null).lte("valid_from",new Date().toISOString()).gt("valid_until",new Date().toISOString()).order("created_at",{ascending:false});
   if(ticketError)return json(503,{error:"Ticket entitlement could not be checked"});
   const entitlement=tickets?.find(ticket=>{
    const kind=String(ticket.ticket_type||"");
@@ -39,7 +39,9 @@ if(import.meta.main)serve(async(req:Request)=>{
    return correct&&new Date(ticket.valid_until).getTime()>Date.now();
   });
   if(!entitlement)return json(403,{error:"A valid paid ticket for this event is required"});
-  const paymentReference=typeof entitlement.metadata?.payment_reference==="string"?entitlement.metadata.payment_reference:null;
+  const ticketMetadata:unknown=entitlement.metadata;
+  const paymentReference=typeof ticketMetadata==="object"&&ticketMetadata!==null&&!Array.isArray(ticketMetadata)&&
+   "payment_reference" in ticketMetadata&&typeof ticketMetadata.payment_reference==="string"?ticketMetadata.payment_reference:null;
   if(paymentReference){
    const {data:paymentOrder,error:paymentOrderError}=await db.from("live_payment_orders").select("status").eq("provider_reference",paymentReference).maybeSingle();
    if(paymentOrderError)return json(503,{error:"Ticket payment status could not be verified"});
