@@ -1,4 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createServiceClient, createUserClient, type TypedSupabaseClient } from "../_shared/supabase.ts";
 import { z } from "npm:zod@3";
 const Body=z.object({
  screeningId:z.string().uuid().optional(),
@@ -18,7 +18,7 @@ const Body=z.object({
 }).strict().refine(v=>[v.screeningId,v.liveStreamId,v.contentId].filter(Boolean).length===1,"Choose exactly one support target.").refine(v=>v.contributionType==="tip"?v.amount!==undefined:Boolean(v.giftCatalogKey),"Tips require an amount; gifts require a catalogue item.");
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, x-client-info, content-type, cf-ipcountry","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
-const markProviderHealth=async(db:ReturnType<typeof createClient>,id:string,status:'healthy'|'unhealthy',error:string|null=null)=>{await db.from('service_provider_bindings').update({health_status:status,health_checked_at:new Date().toISOString(),health_error:error}).eq('id',id);};
+const markProviderHealth=async(db:TypedSupabaseClient,id:string,status:'healthy'|'unhealthy',error:string|null=null)=>{await db.from('service_provider_bindings').update({health_status:status,health_checked_at:new Date().toISOString(),health_error:error}).eq('id',id);};
 type PaymentProvider={id:string;provider_key:string;is_live:boolean;credential:string;settings:Record<string,unknown>;endpoints:Record<string,unknown>;base_url:string};
 const isRecord=(value:unknown):value is Record<string,unknown>=>typeof value==="object"&&value!==null&&!Array.isArray(value);
 const isPaymentProvider=(value:unknown):value is PaymentProvider=>isRecord(value)&&typeof value.id==="string"&&typeof value.provider_key==="string"&&value.is_live===true&&typeof value.credential==="string"&&isRecord(value.settings)&&isRecord(value.endpoints)&&typeof value.base_url==="string";
@@ -38,7 +38,7 @@ Deno.serve(async(req)=>{
  if(userError||!user||!user.email)return json(401,{error:"Your sign-in session is invalid."});
  const parsed=Body.safeParse(await req.json().catch(()=>null));
  if(!parsed.success)return json(400,{error:"Invalid contribution details."});
- const p=parsed.data,db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
+ const p=parsed.data,db=createServiceClient(url,service);
  try{
   if(p.idempotencyKey){
    const {data:existing,error:existingError}=await db.from("event_contributions")
@@ -67,7 +67,7 @@ Deno.serve(async(req)=>{
   const currency=p.currency.toUpperCase();
   const {count:currencyCount}=await db.from("country_currency_rules").select("country_code",{count:"exact",head:true}).eq("currency_code",currency).eq("enabled",true);
   if(!currencyCount)return json(422,{error:"This contribution currency is not enabled."});
-  let tenantId:string,creatorId:string,eventTitle:string;const screeningId:string|null=p.screeningId??null,liveStreamId:string|null=p.liveStreamId??null,contentId:string|null=p.contentId??null;
+  let tenantId:string|null=null,creatorId:string|null=null,eventTitle:string|null=null;const screeningId:string|null=p.screeningId??null,liveStreamId:string|null=p.liveStreamId??null,contentId:string|null=p.contentId??null;
   if(p.screeningId){
    const {data:event,error}=await db.from("screenings").select("id,tenant_id,content_id,title,status,lifecycle,event_visibility,invite_only").eq("id",p.screeningId).eq("status","published").maybeSingle();
    if(error||!event)return json(404,{error:"Event not found."});
@@ -104,6 +104,7 @@ Deno.serve(async(req)=>{
    if(!content.creator_id)return json(409,{error:"The content creator is not configured."});
    tenantId=content.tenant_id;creatorId=content.creator_id;eventTitle=content.title||"Content";
   }
+  if(!tenantId||!creatorId||!eventTitle)return json(400,{error:"A valid contribution target is required."});
   if(creatorId===user.id)return json(403,{error:"You cannot send a gift or tip to your own content."});
   let giftAmount:number|undefined;
   if(p.contributionType==="gift"){
@@ -156,8 +157,8 @@ Deno.serve(async(req)=>{
   let checkoutUrl:string|null=null,selected:PaymentProvider|null=null,checkoutId:string|null=null;
   for(const provider of usable){
    try{
-    const target=new URL(provider.endpoints.checkout_initialize,provider.base_url);if(target.origin!==new URL(provider.base_url).origin){await markProviderHealth(db,provider.id,"unhealthy","Checkout endpoint host mismatch.");continue;}
-    const header=provider.settings?.credential_header||"Authorization",prefix=provider.settings?.credential_prefix??"Bearer ";
+    const checkoutEndpoint=provider.endpoints.checkout_initialize;if(typeof checkoutEndpoint!=="string")continue;const target=new URL(checkoutEndpoint,provider.base_url);if(target.origin!==new URL(provider.base_url).origin){await markProviderHealth(db,provider.id,"unhealthy","Checkout endpoint host mismatch.");continue;}
+    const header=typeof provider.settings?.credential_header==="string"?provider.settings.credential_header:"Authorization",prefix=typeof provider.settings?.credential_prefix==="string"?provider.settings.credential_prefix:"Bearer ";
     const callback=new URL("/payment/return?reference="+reference,origin).toString();
     const adapter=String(provider.settings?.checkout_adapter??provider.settings?.adapter??provider.provider_key).toLowerCase();
     const metadata={reference,contribution_id:reference,contribution_type:p.contributionType,screening_id:screeningId,live_stream_id:liveStreamId,content_id:contentId};
