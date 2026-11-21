@@ -37,8 +37,8 @@ async function verifyProviderPayment(admin:TypedSupabaseClient,reference:string,
  const referenceMode=String(settings.verify_reference_mode??"body");
  const referenceField=String(settings.verify_reference_field??"reference");
  if(method==="GET"&&!path.includes("{reference}")&&adapter!=="paystack")target.searchParams.set(String(settings.verify_reference_param??"reference"),verificationReference);
- const authHeader=typeof settings.credential_header==="string"?binding.settings.credential_header:"Authorization";
- const authPrefix=typeof settings.credential_prefix==="string"?binding.settings.credential_prefix:"Bearer ";
+ const authHeader=typeof settings.credential_header==="string"?settings.credential_header:"Authorization";
+ const authPrefix=typeof settings.credential_prefix==="string"?settings.credential_prefix:"Bearer ";
  const response=await fetch(target,{method,headers:{[authHeader]:authPrefix+credential,"Content-Type":"application/json",Accept:"application/json"},...(method==="POST"?{body:JSON.stringify(referenceMode==="query"?{}:{[referenceField]:reference})}:{}),signal:AbortSignal.timeout(12000)}).catch(()=>null);
  if(!response)return {state:"pending" as const};
  const payload=await response.json().catch(()=>null);
