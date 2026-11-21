@@ -8,14 +8,14 @@ const InvitationAction=z.discriminatedUnion("action",[
  z.object({action:z.literal("list_invitations")}).strict(),
  z.object({action:z.literal("list_my_cases")}).strict(),
  z.object({action:z.literal("list_team"),studioAccountId:z.string().uuid()}).strict(),
- z.object({action:z.literal("accept_invitation"),token:z.string().min(20).max(200).optional(),invitationId:z.string().uuid().optional()}).strict().refine(v=>Boolean(v.token)!==Boolean(v.invitationId)),
+ z.object({action:z.literal("accept_invitation"),token:z.string().min(20).max(200).optional(),invitationId:z.string().uuid().optional()}).strict(),
  z.object({action:z.literal("reject_invitation"),token:z.string().min(20).max(200).optional(),invitationId:z.string().uuid().optional()}).strict().refine(v=>Boolean(v.token)!==Boolean(v.invitationId)),
  z.object({action:z.literal("revoke_invitation"),invitationId:z.string().uuid()}).strict(),
  z.object({action:z.literal("update_member_role"),membershipId:z.string().uuid(),role:z.enum(["ADMIN","PRODUCER","BROADCASTER","FINANCE_VIEWER","MODERATOR"])}).strict(),
  z.object({action:z.literal("revoke_member"),membershipId:z.string().uuid()}).strict(),
  z.object({action:z.literal("submit_appeal"),caseId:z.string().uuid(),reason:z.string().trim().min(20).max(4000)}).strict(),
  z.object({action:z.literal("record_content_rights"),contentId:z.string().uuid(),declaration:z.object({rightsType:z.string().min(1).max(120),ownershipType:z.enum(["SOLE_OWNER","CO_OWNED","LICENSED","PUBLIC_DOMAIN","COMMISSIONED"]),rightsHolder:z.string().trim().min(2).max(240),exclusivity:z.enum(["EXCLUSIVE","NON_EXCLUSIVE"]),distributionScope:z.string().min(1).max(120),territories:z.array(z.string().regex(/^(WORLD|[A-Z]{2})$/)).max(250),contentFormat:z.string().min(1).max(40),attestedAt:z.string().datetime(),statement:z.string().trim().min(10).max(4000)}).strict()}).strict(),
-]);
+]).superRefine((v,c)=>{if((v.action==="accept_invitation"||v.action==="reject_invitation")&&Boolean(v.token)===Boolean(v.invitationId))c.addIssue({code:"custom",path:["token"],message:"Provide exactly one invitation token or ID."});});
 const hash=async(v:string)=>[...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v)))].map(x=>x.toString(16).padStart(2,"0")).join("");
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
