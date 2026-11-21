@@ -77,6 +77,7 @@ export default function BuyTicket() {
   const [email, setEmail] = useState('');
   const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<Array<{id:string;name:string;mode:string;available:boolean;supportedCurrencies:string[]}>>([]);
+  const [walletBalance, setWalletBalance] = useState<{currency:string;balanceMajor:number}|null>(null);
   const [processing, setProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState('');
   const [screening, setScreening] = useState<Screening | null>(null);
@@ -149,6 +150,30 @@ export default function BuyTicket() {
     });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setWalletBalance(null);
+      return;
+    }
+    let active = true;
+    void supabase.rpc('get_my_personal_wallet_balances').then(({ data, error }) => {
+      const schema = z.array(z.object({
+        currency: z.string(),
+        balance_major: z.union([z.number(), z.string()]),
+      }));
+      const parsed = schema.safeParse(data as unknown);
+      if (!active) return;
+      if (error || !parsed.success) {
+        setWalletBalance(null);
+        return;
+      }
+      const expectedCurrency = (localCurrency || screening?.base_currency || (location === 'nigeria' ? 'NGN' : 'USD')).toUpperCase();
+      const match = parsed.data.find(row => row.currency === expectedCurrency);
+      setWalletBalance(match ? { currency: match.currency, balanceMajor: Number(match.balance_major) } : { currency: expectedCurrency, balanceMajor: 0 });
+    });
+    return () => { active = false; };
+  }, [user?.id, localCurrency, screening?.base_currency, location]);
 
   useEffect(() => {
     const config = runtime.config;
@@ -278,6 +303,9 @@ export default function BuyTicket() {
   const currency = hasBasePrice ? String(screening.base_currency || runtime.config?.baseCurrency || 'USD') : (location === 'nigeria' ? 'NGN' : 'USD');
   const symbol = currency;
   const total = basePrice;
+  const walletCurrency = (localCurrency ?? currency).toUpperCase();
+  const walletBalanceMatches = walletBalance?.currency === walletCurrency;
+  const walletCanPay = Boolean(user && walletBalanceMatches && walletBalance && walletBalance.balanceMajor >= (localConverted ?? total));
   const eligiblePaymentMethods = paymentMethods.filter(method => method.available && method.supportedCurrencies.includes(localCurrency ?? currency));
   const localPriceLabel = localConverted !== null && localCurrency ? new Intl.NumberFormat(undefined,{style:'currency',currency:localCurrency,maximumFractionDigits:2}).format(localConverted) : null;
 
@@ -310,7 +338,8 @@ export default function BuyTicket() {
   const handlePayment = async () => {
     if (!selectedPayment) return;
     setPaymentError('');
-    const emailCheck = emailSchema.safeParse(email);
+    const walletCheckout = selectedPayment === 'personal_wallet';
+    const emailCheck = emailSchema.safeParse(walletCheckout ? (user?.email ?? email) : email);
     if (!emailCheck.success) {
       toast.error(emailCheck.error.errors[0].message);
       setStep('email');
@@ -322,8 +351,24 @@ export default function BuyTicket() {
         const { data, error } = await supabase.functions.invoke('process-live-payment', {
           body: { screeningId: screening.id, ticketType: isReplay ? 'replay' : 'live', method: selectedPayment, currency: localCurrency ?? currency, countryCode: countryCode ?? undefined, email: emailCheck.data, cohortId: runtime.config?.cohortId },
         });
-        if (error || !data?.success || typeof data.checkoutUrl !== 'string' || typeof data.reference !== 'string') {
+        if (error || !data?.success) {
           const message = data?.error || error?.message || 'Live event checkout could not be started. No charge was made.';
+          setPaymentError(message); toast.error(message); return;
+        }
+        if (data.walletPaid === true) {
+          setEmail(emailCheck.data);
+          setLivePaid(true);
+          setStep('confirmation');
+          toast.success('Personal Wallet payment confirmed. Your live event ticket is ready in My Tickets.');
+          void supabase.rpc('get_my_personal_wallet_balances').then(({ data: balances }) => {
+            const parsedBalances = z.array(z.object({ currency: z.string(), balance_major: z.union([z.number(), z.string()]) })).safeParse(balances as unknown);
+            const match = parsedBalances.success ? parsedBalances.data.find(row => row.currency === walletCurrency) : undefined;
+            if (match) setWalletBalance({ currency: match.currency, balanceMajor: Number(match.balance_major) });
+          });
+          return;
+        }
+        if (typeof data.checkoutUrl !== 'string' || typeof data.reference !== 'string') {
+          const message = 'Live event checkout did not return a valid provider checkout link.';
           setPaymentError(message); toast.error(message); return;
         }
         sessionStorage.setItem('degame_checkout_email', emailCheck.data);
@@ -334,8 +379,31 @@ export default function BuyTicket() {
         return;
       }
       const { data, error } = await supabase.functions.invoke('process-payment', { body: { method: selectedPayment, email: emailCheck.data, screeningId: screening.id, location, countryCode: countryCode ?? undefined, currency: localCurrency ?? currency, cohortId: runtime.config?.cohortId } });
-      if (error || !data?.success || typeof data?.authorizationUrl !== 'string') {
+      if (error || !data?.success) {
         const message = data?.error || error?.message || 'Checkout could not be started. No charge was made.';
+        setPaymentError(message); toast.error(message); return;
+      }
+      if (data.walletPaid === true) {
+        setEmail(emailCheck.data);
+        setConfirmation({
+          ticketCode: String(data.ticketCode || ''),
+          watchCode: String(data.watchCode || ''),
+          emailSent: false,
+          location,
+          price: Number(data.amount),
+          currency: String(data.currency || walletCurrency),
+        });
+        setStep('confirmation');
+        toast.success('Personal Wallet payment confirmed. Your ticket is ready.');
+        void supabase.rpc('get_my_personal_wallet_balances').then(({ data: balances }) => {
+          const parsedBalances = z.array(z.object({ currency: z.string(), balance_major: z.union([z.number(), z.string()]) })).safeParse(balances as unknown);
+          const match = parsedBalances.success ? parsedBalances.data.find(row => row.currency === walletCurrency) : undefined;
+          if (match) setWalletBalance({ currency: match.currency, balanceMajor: Number(match.balance_major) });
+        });
+        return;
+      }
+      if (typeof data.authorizationUrl !== 'string') {
+        const message = 'Checkout did not return a valid provider authorization link.';
         setPaymentError(message); toast.error(message); return;
       }
       sessionStorage.setItem('degame_checkout_email', emailCheck.data);
@@ -537,7 +605,28 @@ export default function BuyTicket() {
 
                 {/* Methods */}
                 <div className="space-y-2">
-                  {eligiblePaymentMethods.length === 0 && <div role="status" className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-muted-foreground">No payment method is enabled for this screening.</div>}
+                  {user && (
+                    <button
+                      type="button"
+                      disabled={!walletCanPay}
+                      onClick={() => setSelectedPayment('personal_wallet')}
+                      className={`w-full p-3.5 border-2 rounded-xl transition-all flex items-center gap-3 ${selectedPayment === 'personal_wallet' ? 'border-primary bg-primary/5 shadow-sm' : 'border-border'} ${walletCanPay ? '' : 'opacity-60 cursor-not-allowed'}`}
+                    >
+                      <span className="text-xl">◈</span>
+                      <span className="flex-1 text-left">
+                        <span className="block text-sm font-medium">Personal Wallet</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {walletBalanceMatches && walletBalance
+                            ? `Balance: ${new Intl.NumberFormat(undefined, { style: 'currency', currency: walletCurrency }).format(walletBalance.balanceMajor)}`
+                            : `Loading ${walletCurrency} wallet balance…`}
+                        </span>
+                      </span>
+                      <span className="text-xs text-muted-foreground">{walletCanPay ? 'Instant' : 'Insufficient balance'}</span>
+                      {selectedPayment === 'personal_wallet' && <Check className="w-4 h-4 text-primary" />}
+                    </button>
+                  )}
+                  {!user && <p className="rounded-md border border-border p-3 text-xs text-muted-foreground">Sign in to pay with your Personal Wallet.</p>}
+                  {eligiblePaymentMethods.length === 0 && <div role="status" className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-muted-foreground">No external payment method is enabled for this screening.</div>}
                   {eligiblePaymentMethods.map((m) => (
                     <button
                       key={m.id}
@@ -562,10 +651,10 @@ export default function BuyTicket() {
                   <Button
                     className="flex-1 rounded-full h-10"
                     onClick={handlePayment}
-                    disabled={!selectedPayment || processing || !paymentMethods.some(method => method.id === selectedPayment && method.available)}
+                    disabled={!selectedPayment || processing || (selectedPayment === 'personal_wallet' ? !walletCanPay : !paymentMethods.some(method => method.id === selectedPayment && method.available))}
                   >
                     {processing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                    Pay {symbol}{total.toLocaleString()}
+                    {selectedPayment === 'personal_wallet' ? 'Pay with Wallet' : `Pay ${symbol}${total.toLocaleString()}`}
                   </Button>
                 </div>
               </CardContent>
