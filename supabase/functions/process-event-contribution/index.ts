@@ -1,5 +1,6 @@
 import { createServiceClient, createUserClient, type TypedSupabaseClient } from "../_shared/supabase.ts";
 import { isJsonObject } from "../_shared/json.ts";
+import { countryCurrencyMatches } from "../_shared/country-currency.ts";
 import { z } from "npm:zod@3";
 const Body=z.object({
  screeningId:z.string().uuid().optional(),
@@ -69,7 +70,7 @@ Deno.serve(async(req)=>{
   const {data:countryRule}=await db.from("country_currency_rules").select("currency_code").eq("country_code",country).eq("enabled",true).maybeSingle();
   if(!countryRule)return json(422,{error:"Contributions are not enabled for this country."});
   const currency=p.currency.toUpperCase();
-  if(currency!==countryRule.currency_code){
+  if(!countryCurrencyMatches(countryRule.currency_code,currency)){
    return json(422,{error:"The selected currency does not match the enabled currency for this country."});
   }
   let tenantId:string|null=null,creatorId:string|null=null,eventTitle:string|null=null;const screeningId:string|null=p.screeningId??null,liveStreamId:string|null=p.liveStreamId??null,contentId:string|null=p.contentId??null;
