@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
-import type { Database } from "../_shared/database.types.ts";
+import type { Database, Json } from "../_shared/database.types.ts";
 import { z } from "npm:zod@3.25.76";
 
 const schema = z.object({
@@ -42,7 +42,7 @@ async function convertAmount(baseUrl: string, serviceKey: string, amount: number
   return Number(result.converted);
 }
 
-type PaymentProvider={provider_key:string;is_live:boolean;credential:string;settings:Record<string,unknown>;endpoints:Record<string,unknown>;base_url:string};
+type PaymentProvider={id:string;capability:string;credential:string;endpoints:Json;is_live:boolean;provider_key:string;settings:Json;webhook_secret:string;base_url:string};
 const isRecord=(value:unknown):value is Record<string,unknown>=>typeof value==="object"&&value!==null&&!Array.isArray(value);
 const isPaymentProvider=(value:unknown):value is PaymentProvider=>isRecord(value)&&typeof value.provider_key==="string"&&value.is_live===true&&typeof value.credential==="string"&&isRecord(value.settings)&&isRecord(value.endpoints)&&typeof value.base_url==="string";
 const randomCode = (bytes: number) => {
@@ -112,11 +112,11 @@ if (import.meta.main) serve(async (req: Request) => {
     if (method !== "personal_wallet") {
       const { data: configs, error: configError } = await admin.rpc("get_service_provider_runtime_config", { p_capability: "payments" });
       if (configError || !Array.isArray(configs) || !configs.length) return json(503, { success: false, error: "No live payment adapter is available." });
-      config = configs.find((provider): provider is PaymentProvider => isPaymentProvider(provider) && provider.provider_key === method) ?? null;
+      config = configs.find((provider) => isPaymentProvider(provider) && provider.provider_key === method) ?? null;
       if (!config) return json(503, { success: false, error: "The selected live payment adapter is not active or its Vault credentials are incomplete." });
-      const endpoint = config.endpoints?.checkout_initialize;
-      if (!config.credential || typeof endpoint !== "string" || !endpoint.startsWith("/") || endpoint.startsWith("//") || typeof config.endpoints?.payment_verify !== "string" || !config.endpoints.payment_verify.startsWith("/") || config.endpoints.payment_verify.startsWith("//") || typeof config.endpoints?.refund !== "string" || !config.endpoints.refund.startsWith("/") || config.endpoints.refund.startsWith("//")) return json(503, { success: false, error: "The active payment adapter is missing its checkout contract." });
-      checkoutEndpoint = endpoint;
+      const providerEndpoints = isRecord(config.endpoints) ? config.endpoints : {};
+      if (!config.credential || typeof providerEndpoints.checkout_initialize !== "string" || !providerEndpoints.checkout_initialize.startsWith("/") || providerEndpoints.checkout_initialize.startsWith("//") || typeof providerEndpoints.payment_verify !== "string" || !providerEndpoints.payment_verify.startsWith("/") || providerEndpoints.payment_verify.startsWith("//") || typeof providerEndpoints.refund !== "string" || !providerEndpoints.refund.startsWith("/") || providerEndpoints.refund.startsWith("//")) return json(503, { success: false, error: "The active payment adapter is missing its checkout contract." });
+      checkoutEndpoint = providerEndpoints.checkout_initialize;
       if (config.is_live) {
         const { data: delivery } = await admin.rpc("get_service_provider_runtime_config", { p_capability: "video_delivery" });
         if (!Array.isArray(delivery) || !delivery.length || !isRecord(delivery[0]) || !isRecord(delivery[0].endpoints) || typeof delivery[0].endpoints.playback_authorize !== "string") return json(503, { success: false, error: "Live sales require configured secure playback entitlement. No charge was made." });
@@ -142,7 +142,7 @@ if (import.meta.main) serve(async (req: Request) => {
     if (!Number.isFinite(major) || major <= 0 || !/^[A-Z]{3}$/.test(priceCurrency)) return json(409, { success: false, error: "Ticket pricing is not configured in a supported currency." });
 
     if (method !== "personal_wallet") {
-      const supportedCurrencies = Array.isArray(config?.settings?.supported_currencies) ? config.settings.supported_currencies : [];
+      const supportedCurrencies = isRecord(config?.settings) && Array.isArray(config.settings.supported_currencies) ? config.settings.supported_currencies : [];
       if (!supportedCurrencies.includes(currency)) return json(422, { success: false, error: "The selected payment provider does not support this transaction currency." });
     }
     const convertedMajor = await convertAmount(url, service, major, priceCurrency, currency, countryCode);
@@ -176,6 +176,7 @@ if (import.meta.main) serve(async (req: Request) => {
         screeningTitle: screening.title, amount: convertedMajor, currency, balanceMinor: walletPurchase.balance_minor });
     }
     if (!config) return json(503, { success: false, error: "The selected payment provider is unavailable." });
+    const providerSettings = isRecord(config.settings) ? config.settings : {};
     const reference = "DTV_" + crypto.randomUUID().replaceAll("-", "");
     const ticketCode = randomCode(8).toUpperCase();
     const watchCode = randomCode(20);
@@ -192,10 +193,10 @@ if (import.meta.main) serve(async (req: Request) => {
       await admin.from("service_provider_bindings").update({health_status:"unhealthy",health_checked_at:new Date().toISOString(),health_error:"Checkout endpoint host mismatch."}).eq("capability","payments").eq("provider_key",config.provider_key);
       throw new Error("invalid_payment_endpoint");
     }
-    const authHeader = typeof config.settings?.credential_header === "string" ? config.settings.credential_header : "Authorization";
-    const authPrefix = typeof config.settings?.credential_prefix === "string" ? config.settings.credential_prefix : "Bearer ";
+    const authHeader = typeof providerSettings.credential_header === "string" ? providerSettings.credential_header : "Authorization";
+    const authPrefix = typeof providerSettings.credential_prefix === "string" ? providerSettings.credential_prefix : "Bearer ";
     const callback = new URL("/buy/" + encodeURIComponent(screening.slug), siteOrigin).toString();
-    const checkoutAdapter = String(config.settings?.checkout_adapter ?? config.settings?.adapter ?? config.provider_key).toLowerCase();
+    const checkoutAdapter = String(providerSettings.checkout_adapter ?? providerSettings.adapter ?? config.provider_key).toLowerCase();
     const metadata = { screening_id: screening.id, ticket_id: ticketId, platform: "degame_tv", reference };
     let requestBody: string;
     let contentType = "application/json";
