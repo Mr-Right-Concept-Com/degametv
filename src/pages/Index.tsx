@@ -15,7 +15,7 @@ const screeningSchema = z.object({
   banner_url: z.string().nullable().optional(), screening_date: z.string().nullable().optional(),
   duration: z.number().nullable().optional(), location_pricing: z.unknown().nullable().optional(),
   status: z.string(),
-}).passthrough();
+});
 type Screening = Omit<z.infer<typeof screeningSchema>, 'location_pricing'> & { location_pricing: { nigeria?: number | string } | null };
 
 export default function Index() {
