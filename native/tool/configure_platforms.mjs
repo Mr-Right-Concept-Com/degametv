@@ -42,7 +42,7 @@ for (const file of ['ios/Runner/Info.plist', 'macos/Runner/Info.plist']) {
     );
     if (branded.includes('<string>degametv</string>')) return branded;
     return branded.replace(
-      /\n[ \t]*<\/dict>\s*<\/plist>$/,
+      /\n[ \t]*<\/dict>\s*<\/plist>\s*$/,
       `
   <key>CFBundleURLTypes</key>
   <array>
