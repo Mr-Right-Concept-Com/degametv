@@ -45,6 +45,7 @@ const Scan=z.object({clean:z.boolean(),engine:z.string().min(1),signatureVersion
 const Transcode=z.object({jobId:z.string().uuid(),status:z.literal("accepted"),providerJobId:z.string().min(1),renditions:z.array(z.object({path:z.string().min(1),kind:z.enum(["hls","dash","thumbnail","preview","caption"]),mimeType:z.string().optional(),width:z.number().int().positive().optional(),height:z.number().int().positive().optional(),language:z.string().optional()})).default([]),subtitles:z.array(z.record(z.unknown())).default([])});
 const Callback=z.object({action:z.literal("transcode_callback"),jobId:z.string().uuid(),status:z.enum(["complete","failed"]),renditions:z.array(z.object({path:z.string().min(1).max(1000),kind:z.enum(["hls","dash","thumbnail","preview","caption"]),mimeType:z.string().optional(),width:z.number().int().positive().optional(),height:z.number().int().positive().optional(),language:z.string().optional()})).default([]),subtitles:z.array(z.record(z.unknown())).default([]),error:z.string().max(1000).optional()}).strict();
 Deno.serve(async req=>{
+ try {
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});if(req.method!=="POST")return json(405,{error:"Method not allowed."});
  const url=Deno.env.get("SUPABASE_URL"),key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");if(!url||!key)return json(503,{error:"Media worker is not configured."});
  const db=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
@@ -55,8 +56,16 @@ Deno.serve(async req=>{
   const {data:callbackSecret,error:callbackSecretError}=await db.rpc("get_media_transcoder_callback_secret");
   if(callbackSecretError||typeof callbackSecret!=="string"||!callbackSecret||req.headers.get("x-media-transcoder-callback-secret")!==callbackSecret)return json(401,{error:"Transcoder callback authentication failed."});
  }else if(req.headers.get("x-media-worker-secret")!==workerSecret)return json(401,{error:"Worker authentication failed."});
+ if(body?.action!=="transcode_callback"){
+  const {count,error:queueError}=await db.from("media_processing_jobs")
+   .select("id",{count:"exact",head:true})
+   .in("status",["QUARANTINED","RETRY_WAIT"])
+   .lte("available_at",new Date().toISOString());
+  if(queueError)return json(503,{error:"Durable media queue could not be inspected.",code:"MEDIA_QUEUE_UNAVAILABLE"});
+  if((count??0)===0)return json(200,{success:true,status:"idle",claimed:0,results:[]});
+ }
  let storage:Storage;
- try{storage=storageConfig(await binding(db,"media_storage"));}catch(e){return json(503,{error:e instanceof Error?e.message:"Storage provider unavailable."});}
+ try{storage=storageConfig(await binding(db,"media_storage"));}catch(e){return json(503,{error:e instanceof Error?e.message:"Storage provider unavailable.",code:"MEDIA_STORAGE_PROVIDER_UNAVAILABLE"});}
  if(body?.action==="transcode_callback"){
   const parsed=Callback.safeParse(body);if(!parsed.success)return json(400,{error:"Invalid transcoder callback."});const p=parsed.data;
   const {data:job,error}=await db.from("media_processing_jobs").select("id,upload_session_id,content_id,status,attempts,max_attempts,clean_master_path,quarantine_path").eq("id",p.jobId).maybeSingle();
@@ -118,4 +127,8 @@ Deno.serve(async req=>{
   }catch(e){const attempts=Number(job.attempts??1),dead=attempts>=Number(job.max_attempts??8),delay=Math.min(3600,Math.pow(2,attempts)*15);await db.from("media_processing_jobs").update({status:dead?"DEAD_LETTER":"RETRY_WAIT",available_at:new Date(Date.now()+delay*1000).toISOString(),dead_lettered_at:dead?new Date().toISOString():null,last_error:String(e).slice(0,1000),locked_at:null,locked_by:null,updated_at:new Date().toISOString()}).eq("id",job.id);await db.from("media_upload_sessions").update({status:dead?"FAILED":"QUARANTINED",updated_at:new Date().toISOString()}).eq("id",job.upload_session_id);results.push({jobId:job.id,status:dead?"DEAD_LETTER":"RETRY_WAIT",retryAfterSeconds:dead?null:delay});}
  }
  return json(200,{claimed:jobs?.length??0,results});
+ } catch(error) {
+  console.error("media_ingest_worker_unhandled",error instanceof Error?error.stack??error.message:String(error));
+  return json(500,{error:"Unexpected media worker failure.",code:"MEDIA_WORKER_UNHANDLED"});
+ }
 });

@@ -1,6 +1,6 @@
 name: DeGameTV Quality Gate
 
-on:
+'on':
   push:
     branches:
       - main
