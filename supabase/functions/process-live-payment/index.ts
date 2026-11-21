@@ -49,6 +49,7 @@ serve(async(req:Request)=>{
   user=data.user;
  }else if(!parsed.data.email)return json(400,{error:"Enter an email address for guest ticket delivery."});
  const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
+ if(parsed.data.method==="personal_wallet"&&(!user||!user.email))return json(401,{error:"Sign in with a verified email address to use your Personal Wallet."});
  const cohortSubject=parsed.data.cohortId??user?.id??parsed.data.email?.toLowerCase()??"guest";
  if(!await featureEnabled(db,"cinema.ticketing",cohortSubject))return json(403,{error:"Ticket checkout is paused for this release cohort."});
  try{
@@ -94,14 +95,17 @@ serve(async(req:Request)=>{
   if(!/^[A-Z]{3}$/.test(sourceCurrency)||!Number.isFinite(baseAmount)||baseAmount<=0)return json(409,{error:"This ticket price is not configured in a supported currency."});
 
 
-  const {data:providers,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:"payments"});
-  if(providerError||!Array.isArray(providers)||!providers.length)return json(503,{error:"No payment provider is enabled in Admin Provider Vault."});
-  const usable=providers.filter((value:unknown):value is PaymentProvider=>isPaymentProvider(value)&&(
-   value.is_live===true&&value.credential&&Array.isArray(value.settings.supported_currencies)&&value.settings.supported_currencies.includes(currency)
-   &&typeof value.endpoints.checkout_initialize==="string"&&value.endpoints.checkout_initialize.startsWith("/")&&!value.endpoints.checkout_initialize.startsWith("//")&&typeof value.endpoints.payment_verify==="string"&&value.endpoints.payment_verify.startsWith("/")&&!value.endpoints.payment_verify.startsWith("//")&&typeof value.endpoints.refund==="string"&&value.endpoints.refund.startsWith("/")&&!value.endpoints.refund.startsWith("//")
-   &&(!parsed.data.method||value.provider_key===parsed.data.method)
-  ));
-  if(!usable.length)return json(503,{error:"No live payment provider is enabled for this currency and payment method."});
+  let usable: PaymentProvider[] = [];
+  if(parsed.data.method!=="personal_wallet"){
+   const {data:providers,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:"payments"});
+   if(providerError||!Array.isArray(providers)||!providers.length)return json(503,{error:"No payment provider is enabled in Admin Provider Vault."});
+   usable=providers.filter((value:unknown):value is PaymentProvider=>isPaymentProvider(value)&&(
+    value.is_live===true&&value.credential&&Array.isArray(value.settings.supported_currencies)&&value.settings.supported_currencies.includes(currency)
+    &&typeof value.endpoints.checkout_initialize==="string"&&value.endpoints.checkout_initialize.startsWith("/")&&!value.endpoints.checkout_initialize.startsWith("//")&&typeof value.endpoints.payment_verify==="string"&&value.endpoints.payment_verify.startsWith("/")&&!value.endpoints.payment_verify.startsWith("//")&&typeof value.endpoints.refund==="string"&&value.endpoints.refund.startsWith("/")&&!value.endpoints.refund.startsWith("//")
+    &&(!parsed.data.method||value.provider_key===parsed.data.method)
+   ));
+   if(!usable.length)return json(503,{error:"No live payment provider is enabled for this currency and payment method."});
+  }
   const {data:authUser}=user?await db.auth.admin.getUserById(user.id):{data:null};
   const email=user?.email||authUser?.user?.email||parsed.data.email;
   if(!email)return json(400,{error:"An email address is required for ticket delivery."});
@@ -112,7 +116,7 @@ serve(async(req:Request)=>{
   try{const site=new URL(siteUrl);if(siteError||siteSetting?.is_public!==true||site.protocol!=="https:"||site.username||site.password)throw new Error("invalid_site");siteOrigin=site.origin;}
   catch{return json(503,{error:"The canonical public return URL has not been published in God Mode."});}
 
-  const reference="DTVL_"+crypto.randomUUID().replaceAll("-","");
+  const reference=(parsed.data.method==="personal_wallet"?"DTVLW_":"DTVL_")+crypto.randomUUID().replaceAll("-","");
   let earlyBirdReserved=false;
   if(["live","combo"].includes(ticketType)&&screening.early_bird_price!==null&&screening.early_bird_price!==undefined&&screening.early_bird_ends_at&&Date.now()<Date.parse(screening.early_bird_ends_at)&&Number(screening.early_bird_capacity)>0){
    const earlyBirdAmount=Number(screening.early_bird_price);
@@ -132,6 +136,24 @@ serve(async(req:Request)=>{
   if(commissionError||!Number.isFinite(creatorCommissionRate)||creatorCommissionRate<0||creatorCommissionRate>0.5)return json(503,{error:"Creator commission policy is not configured safely."});
   const platformFeeMajor=Math.round(minor*creatorCommissionRate)/Math.pow(10,fractionDigits);
   if(!Number.isSafeInteger(minor)||minor<=0)return json(422,{error:"The converted ticket amount is invalid."});
+  if(parsed.data.method==="personal_wallet"){
+   if(!user||!email)return json(401,{error:"Sign in with a verified email address to use your Personal Wallet."});
+   const {data:walletPurchase,error:walletError}=await db.rpc("purchase_personal_wallet_live_ticket",{
+    p_user_id:user.id,p_screening_id:screening.id,p_stream_id:stream.id,p_ticket_type:ticketType,p_email:email,
+    p_amount_minor:minor,p_amount_major:convertedAmount,p_platform_fee_major:platformFeeMajor,
+    p_currency:currency,p_reference:reference,p_early_bird_reserved:earlyBirdReserved,
+   });
+   if(walletError||!isRecord(walletPurchase)||walletPurchase.success!==true){
+    if(earlyBirdReserved)await db.rpc("release_event_early_bird_slot",{p_provider_reference:reference});
+    const message=walletError?.message.includes("insufficient_personal_wallet_funds")
+     ?"Your Personal Wallet balance is insufficient in "+currency+"."
+     :"Personal Wallet checkout could not be completed. Your balance was not charged.";
+    return json(409,{success:false,error:message});
+   }
+   return json(200,{success:true,walletPaid:true,reference,ticketId:walletPurchase.ticket_id,
+    ticketCode:walletPurchase.ticket_code,screeningTitle:screening.title,email,amount:convertedAmount,currency,
+    balanceMinor:walletPurchase.balance_minor});
+  }
   const candidate=usable[0];
   const {error:insertError}=await db.from("live_payment_orders").insert({
    tenant_id:screening.tenant_id,user_id:user?.id??null,guest_checkout:!user,screening_id:screening.id,stream_id:stream.id,
