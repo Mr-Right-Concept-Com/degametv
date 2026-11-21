@@ -17,7 +17,7 @@ export function EventContributionFeed({screeningId,liveStreamId,contentId}:{scre
  const [totals,setTotals]=useState<TotalsRow[]>([]);
  const [celebration,setCelebration]=useState<Item|null>(null);
  const latestSeen=useRef<string|null>(null);
- const celebrationTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+ const celebrationTimer=useRef<number|null>(null);
  const aggregateRefreshAt=useRef(0);
  useEffect(()=>{
   if(!screeningId&&!liveStreamId&&!contentId)return;
@@ -30,7 +30,7 @@ export function EventContributionFeed({screeningId,liveStreamId,contentId}:{scre
      if(result.error)throw result.error;
      data=result.data;
     }else{
-     const result=await supabase.rpc("get_event_contribution_feed",{p_screening_id:screeningId??null,p_live_stream_id:liveStreamId??null});
+     const result=await supabase.rpc("get_event_contribution_feed",{p_screening_id:screeningId??undefined,p_live_stream_id:liveStreamId??undefined});
      if(result.error)throw result.error;
      data=result.data;
     }
