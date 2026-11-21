@@ -161,7 +161,8 @@ Deno.serve(async req=>{
   const {error:jobUpdate}=await db.from("media_processing_jobs").update({content_id:content.id,updated_at:new Date().toISOString()}).eq("id",job.id);
   if(jobUpdate)return json(503,{error:"Media job could not be linked to this production."});
   const renditions=(job.renditions??[]) as Array<{path:string;kind:string}>;
-  const metadata={...(isJsonObject(content.metadata)?content.metadata:{}),media_ingestion:{status:job.status,job_id:job.id,master_object_path:job.clean_master_path??session.object_path,sha256:job.sha256}};
+  const contentMetadata=isJsonObject(content.metadata)?content.metadata:{};
+  const metadata={...contentMetadata,media_ingestion:{status:job.status,job_id:job.id,master_object_path:job.clean_master_path??session.object_path,sha256:job.sha256}};
   const playback=job.status==="READY"?{
    video_url:job.clean_master_path,
    hls_manifest_url:renditions.find(r=>r.kind==="hls")?.path??null,
