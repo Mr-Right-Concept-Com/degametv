@@ -68,6 +68,7 @@ jobs:
     defaults:
       run:
         working-directory: native
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - if: matrix.platform == 'linux'
