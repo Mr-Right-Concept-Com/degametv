@@ -24,7 +24,7 @@ BEGIN
       WHERE item='pg_temp'
     ) THEN
       EXECUTE format(
-        'ALTER FUNCTION %s SET search_path = %L',
+        'ALTER FUNCTION %s SET search_path TO %s',
         v_function.signature,
         v_path || ', pg_temp'
       );

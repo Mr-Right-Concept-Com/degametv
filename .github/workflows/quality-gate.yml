@@ -139,4 +139,5 @@ jobs:
         run: supabase test db --linked
       - name: Report skipped database tests when credentials are unavailable
         if: ${{ env.SUPABASE_DB_URL == '' && (env.SUPABASE_ACCESS_TOKEN == '' || env.SUPABASE_DB_PASSWORD == '') }}
-        run: echo "Database security tests skipped: configure SUPABASE_DB_URL or SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD."
+        run: |
+          echo "Database security tests skipped: configure SUPABASE_DB_URL or SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD."
