@@ -248,7 +248,7 @@ if (import.meta.main) serve(async (req: Request) => {
     }
     const returnedCheckout = new URL(providerCheckoutUrl);
     if (returnedCheckout.protocol !== "https:") throw new Error("invalid_checkout_url");
-    const allowedCheckoutOrigins = Array.isArray(config.settings?.allowed_checkout_origins) ? config.settings.allowed_checkout_origins : [];
+    const allowedCheckoutOrigins = Array.isArray(providerSettings.allowed_checkout_origins) ? providerSettings.allowed_checkout_origins : [];
     if (!allowedCheckoutOrigins.includes(returnedCheckout.origin)) {
       await admin.from("service_provider_bindings").update({health_status:"unhealthy",health_checked_at:new Date().toISOString(),health_error:"Provider returned an untrusted checkout URL."}).eq("capability","payments").eq("provider_key",config.provider_key);
       throw new Error("untrusted_checkout_origin");
