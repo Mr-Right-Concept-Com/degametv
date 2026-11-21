@@ -55,14 +55,24 @@ if (import.meta.main) serve(async (req: Request) => {
 
   const url = Deno.env.get("SUPABASE_URL");
   const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !service) return json(503, { success: false, error: "Checkout is temporarily unavailable." });
+  const anon = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!url || !service || !anon) return json(503, { success: false, error: "Checkout is temporarily unavailable." });
 
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return json(400, { success: false, error: "Check your email, screening and payment method." });
 
   const { method, email, screeningId, location } = parsed.data;
   const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
-  if (!await featureEnabled(admin, "cinema.ticketing", parsed.data.cohortId ?? email)) return json(403, { success: false, error: "Ticket checkout is paused for this release cohort." });
+  let walletUser: { id: string; email: string } | null = null;
+  if (method === "personal_wallet") {
+    const authorization = req.headers.get("Authorization") || "";
+    if (!authorization.startsWith("Bearer ")) return json(401, { success: false, error: "Sign in to use your Personal Wallet." });
+    const caller = createClient(url, anon, { global: { headers: { Authorization: authorization } }, auth: { persistSession: false, autoRefreshToken: false } });
+    const { data: authData, error: authError } = await caller.auth.getUser();
+    if (authError || !authData.user || !authData.user.email) return json(401, { success: false, error: "A verified signed-in account is required for Personal Wallet checkout." });
+    walletUser = { id: authData.user.id, email: authData.user.email.toLowerCase() };
+  }
+  if (!await featureEnabled(admin, "cinema.ticketing", parsed.data.cohortId ?? walletUser?.id ?? email)) return json(403, { success: false, error: "Ticket checkout is paused for this release cohort." });
 
   const edgeCountry = req.headers.get("cf-ipcountry")?.toUpperCase();
   const countryCode = parsed.data.countryCode?.toUpperCase() ?? (edgeCountry && /^[A-Z]{2}$/.test(edgeCountry) ? edgeCountry : location === "nigeria" ? "NG" : null);
@@ -92,20 +102,19 @@ if (import.meta.main) serve(async (req: Request) => {
       return json(503, { success: false, error: "Secure payment return URL is invalid. Contact platform support." });
     }
 
-    const { data: configs, error: configError } = await admin.rpc("get_service_provider_runtime_config", { p_capability: "payments" });
-    if (configError || !Array.isArray(configs) || !configs.length) {
-      return json(503, { success: false, error: "No live payment adapter is available." });
-    }
-    const config = configs.find((provider: unknown): provider is PaymentProvider => isPaymentProvider(provider) && provider.provider_key === method);
-    if (!config) return json(503, { success: false, error: "The selected live payment adapter is not active or its Vault credentials are incomplete." });
-    const checkoutEndpoint = config.endpoints?.checkout_initialize;
-    if (!config.credential || typeof checkoutEndpoint !== "string" || !checkoutEndpoint.startsWith("/") || checkoutEndpoint.startsWith("//") || typeof config.endpoints?.payment_verify !== "string" || !config.endpoints.payment_verify.startsWith("/") || config.endpoints.payment_verify.startsWith("//") || typeof config.endpoints?.refund !== "string" || !config.endpoints.refund.startsWith("/") || config.endpoints.refund.startsWith("//")) {
-      return json(503, { success: false, error: "The active payment adapter is missing its checkout contract." });
-    }
-    if (config.is_live) {
-      const { data: delivery } = await admin.rpc("get_service_provider_runtime_config", { p_capability: "video_delivery" });
-      if (!Array.isArray(delivery) || !delivery.length || !isRecord(delivery[0]) || !isRecord(delivery[0].endpoints) || typeof delivery[0].endpoints.playback_authorize !== "string") {
-        return json(503, { success: false, error: "Live sales require configured secure playback entitlement. No charge was made." });
+    let config: PaymentProvider | null = null;
+    let checkoutEndpoint = "";
+    if (method !== "personal_wallet") {
+      const { data: configs, error: configError } = await admin.rpc("get_service_provider_runtime_config", { p_capability: "payments" });
+      if (configError || !Array.isArray(configs) || !configs.length) return json(503, { success: false, error: "No live payment adapter is available." });
+      config = configs.find((provider: unknown): provider is PaymentProvider => isPaymentProvider(provider) && provider.provider_key === method) ?? null;
+      if (!config) return json(503, { success: false, error: "The selected live payment adapter is not active or its Vault credentials are incomplete." });
+      const endpoint = config.endpoints?.checkout_initialize;
+      if (!config.credential || typeof endpoint !== "string" || !endpoint.startsWith("/") || endpoint.startsWith("//") || typeof config.endpoints?.payment_verify !== "string" || !config.endpoints.payment_verify.startsWith("/") || config.endpoints.payment_verify.startsWith("//") || typeof config.endpoints?.refund !== "string" || !config.endpoints.refund.startsWith("/") || config.endpoints.refund.startsWith("//")) return json(503, { success: false, error: "The active payment adapter is missing its checkout contract." });
+      checkoutEndpoint = endpoint;
+      if (config.is_live) {
+        const { data: delivery } = await admin.rpc("get_service_provider_runtime_config", { p_capability: "video_delivery" });
+        if (!Array.isArray(delivery) || !delivery.length || !isRecord(delivery[0]) || !isRecord(delivery[0].endpoints) || typeof delivery[0].endpoints.playback_authorize !== "string") return json(503, { success: false, error: "Live sales require configured secure playback entitlement. No charge was made." });
       }
     }
 
@@ -127,8 +136,10 @@ if (import.meta.main) serve(async (req: Request) => {
     const priceCurrency = hasBasePrice ? String(screening.base_currency || "").toUpperCase() : sourceCurrency;
     if (!Number.isFinite(major) || major <= 0 || !/^[A-Z]{3}$/.test(priceCurrency)) return json(409, { success: false, error: "Ticket pricing is not configured in a supported currency." });
 
-    const supportedCurrencies = Array.isArray(config.settings?.supported_currencies) ? config.settings.supported_currencies : [];
-    if (!supportedCurrencies.includes(currency)) return json(422, { success: false, error: "The selected payment provider does not support this transaction currency." });
+    if (method !== "personal_wallet") {
+      const supportedCurrencies = Array.isArray(config?.settings?.supported_currencies) ? config.settings.supported_currencies : [];
+      if (!supportedCurrencies.includes(currency)) return json(422, { success: false, error: "The selected payment provider does not support this transaction currency." });
+    }
     const convertedMajor = await convertAmount(url, service, major, priceCurrency, currency, countryCode);
     const fractionDigits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits;
     const amountMinor = Math.round(convertedMajor * Math.pow(10, fractionDigits));
@@ -137,6 +148,28 @@ if (import.meta.main) serve(async (req: Request) => {
     if (commissionError || !Number.isFinite(creatorCommissionRate) || creatorCommissionRate < 0 || creatorCommissionRate > 0.5) return json(503, { success: false, error: "Creator commission policy is not configured safely." });
     const platformFeeMinor = Math.round(amountMinor * creatorCommissionRate);
     const platformFeeMajor = platformFeeMinor / Math.pow(10, fractionDigits);
+    if (method === "personal_wallet") {
+      if (!walletUser) return json(401, { success: false, error: "Sign in to use your Personal Wallet." });
+      const reference = "DTVW_" + crypto.randomUUID().replaceAll("-", "");
+      const ticketCode = randomCode(8).toUpperCase();
+      const watchCode = randomCode(20);
+      const { data: walletPurchase, error: walletError } = await admin.rpc("purchase_personal_wallet_screening_ticket", {
+        p_user_id: walletUser.id, p_screening_id: screening.id, p_email: walletUser.email,
+        p_amount_minor: amountMinor, p_amount_major: convertedMajor, p_platform_fee_major: platformFeeMajor,
+        p_currency: currency, p_location: effectiveLocation, p_ticket_code: ticketCode,
+        p_watch_code: watchCode, p_reference: reference,
+      });
+      if (walletError || !isRecord(walletPurchase) || walletPurchase.success !== true) {
+        const message = walletError?.message.includes("insufficient_personal_wallet_funds")
+          ? "Your Personal Wallet balance is insufficient in " + currency + "."
+          : "Personal Wallet checkout could not be completed. Your balance was not charged.";
+        return json(409, { success: false, error: message });
+      }
+      return json(200, { success: true, walletPaid: true, reference, ticketId: walletPurchase.ticket_id,
+        ticketCode: walletPurchase.ticket_code, watchCode: walletPurchase.watch_code, email: walletUser.email,
+        screeningTitle: screening.title, amount: convertedMajor, currency, balanceMinor: walletPurchase.balance_minor });
+    }
+    if (!config) return json(503, { success: false, error: "The selected payment provider is unavailable." });
     const reference = "DTV_" + crypto.randomUUID().replaceAll("-", "");
     const ticketCode = randomCode(8).toUpperCase();
     const watchCode = randomCode(20);
