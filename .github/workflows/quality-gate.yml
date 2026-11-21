@@ -14,17 +14,15 @@ jobs:
     timeout-minutes: 45
     env:
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
       DEGAMETV_E2E_CREATOR_EMAIL: ${{ secrets.DEGAMETV_E2E_CREATOR_EMAIL }}
       DEGAMETV_E2E_CREATOR_PASSWORD: ${{ secrets.DEGAMETV_E2E_CREATOR_PASSWORD }}
       DEGAMETV_E2E_ADMIN_EMAIL: ${{ secrets.DEGAMETV_E2E_ADMIN_EMAIL }}
       DEGAMETV_E2E_ADMIN_PASSWORD: ${{ secrets.DEGAMETV_E2E_ADMIN_PASSWORD }}
       DEGAMETV_E2E_IDENTITY_VERIFICATION_ID: ${{ secrets.DEGAMETV_E2E_IDENTITY_VERIFICATION_ID }}
       DEGAMETV_E2E_STOREFRONT_HOST: ${{ secrets.DEGAMETV_E2E_STOREFRONT_HOST }}
-      DEGAMETV_E2E_BASE_URL: http://127.0.0.1:4173
     steps:
-      - name: Checkout
+      - name: Checkout main
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
@@ -53,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout
+      - name: Checkout main
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
@@ -62,7 +60,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Install locked dependencies for Deno npm specifiers
+      - name: Install npm dependencies for Deno npm specifiers
         run: npm ci
       - name: Setup Deno
         uses: denoland/setup-deno@v2
@@ -93,7 +91,7 @@ jobs:
             supabase/functions/media-ingest-worker/index.ts
 
   database-security:
-    name: Linked Supabase migration and SQL security tests
+    name: Supabase migration and SQL security tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -102,7 +100,7 @@ jobs:
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       SUPABASE_PROJECT_REF: dxijsbbdtwtbwdaajiyn
     steps:
-      - name: Checkout
+      - name: Checkout main
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
@@ -110,17 +108,18 @@ jobs:
         uses: supabase/setup-cli@v1
         with:
           version: latest
-      - name: Verify required SQL security contracts exist
+      - name: Verify SQL security test files
         run: |
           test -n "$(find supabase/tests -maxdepth 1 -type f -name 'phase1_*.sql' -print -quit)"
           test -f supabase/tests/phase2_creator_os_security.sql
           test -f supabase/tests/pass4b_release_gate_security.sql
-      - name: Link Supabase project
-        if: ${{ env.SUPABASE_DB_URL == '' && env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_DB_PASSWORD != '' }}
-        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
-      - name: Run SQL security tests with direct database URL
-        if: ${{ env.SUPABASE_DB_URL != '' }}
-        run: supabase test db --db-url "$SUPABASE_DB_URL"
-      - name: Run linked SQL security tests
-        if: ${{ env.SUPABASE_DB_URL == '' && env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_DB_PASSWORD != '' }}
-        run: supabase test db --linked
+      - name: Run linked database security tests when credentials exist
+        run: |
+          if [ -n "$SUPABASE_DB_URL" ]; then
+            supabase test db --db-url "$SUPABASE_DB_URL"
+          elif [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$SUPABASE_DB_PASSWORD" ]; then
+            supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+            supabase test db --linked
+          else
+            echo "Database tests skipped: configure SUPABASE_DB_URL or SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD."
+          fi
