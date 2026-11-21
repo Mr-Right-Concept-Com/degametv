@@ -439,3 +439,13 @@ export default function UserDashboard() {
                           const text = String(value ?? '');
                           const protectedText = /^[=+\-@\t\r]/.test(text) ? "'" + text : text;
                           return '"' + protectedText.replaceAll('"', '""') + '"';
+                        };
+                        const csv = [columns, ...rows.map(row => [row.created_at,row.activity_type,row.direction,row.amount_major,row.currency,row.status,row.description,row.counterparty,row.reference])].map(row => row.map(safeCell).join(',')).join('\r\n');
+                        const url = URL.createObjectURL(new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' }));
+                        const anchor = document.createElement('a');
+                        anchor.href = url;
+                        anchor.download = 'degametv-wallet-activity.csv';
+                        anchor.click();
+                        URL.revokeObjectURL(url);
+                      }}><Download className="mr-2 h-4 w-4"/>Export CSV</Button>
+                    </div>
