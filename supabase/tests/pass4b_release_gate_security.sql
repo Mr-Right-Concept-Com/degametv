@@ -110,5 +110,5 @@ begin
      or not has_function_privilege('authenticated','public.create_support_chat()','execute')
      or not has_function_privilege('authenticated','public.reopen_support_ticket(uuid)','execute') then
     raise exception 'required authenticated self-service RPC grants were removed'; end if;
-end $;
+end $$;
 rollback;
