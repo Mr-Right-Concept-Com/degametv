@@ -28,7 +28,7 @@ function readPath(value: unknown, path: string): unknown {
   }, value);
 }
 function currencyDigits(currency: string): number {
-  try { return new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits; }
+  try { return new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2; }
   catch { return 2; }
 }
 function endpointFor(baseUrl: string, path: string): URL {

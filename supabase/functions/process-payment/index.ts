@@ -112,7 +112,7 @@ if (import.meta.main) serve(async (req: Request) => {
     if (method !== "personal_wallet") {
       const { data: configs, error: configError } = await admin.rpc("get_service_provider_runtime_config", { p_capability: "payments" });
       if (configError || !Array.isArray(configs) || !configs.length) return json(503, { success: false, error: "No live payment adapter is available." });
-      config = configs.find((provider: unknown): provider is PaymentProvider => isPaymentProvider(provider) && provider.provider_key === method) ?? null;
+      config = configs.find((provider): provider is PaymentProvider => isPaymentProvider(provider) && provider.provider_key === method) ?? null;
       if (!config) return json(503, { success: false, error: "The selected live payment adapter is not active or its Vault credentials are incomplete." });
       const endpoint = config.endpoints?.checkout_initialize;
       if (!config.credential || typeof endpoint !== "string" || !endpoint.startsWith("/") || endpoint.startsWith("//") || typeof config.endpoints?.payment_verify !== "string" || !config.endpoints.payment_verify.startsWith("/") || config.endpoints.payment_verify.startsWith("//") || typeof config.endpoints?.refund !== "string" || !config.endpoints.refund.startsWith("/") || config.endpoints.refund.startsWith("//")) return json(503, { success: false, error: "The active payment adapter is missing its checkout contract." });
@@ -146,10 +146,11 @@ if (import.meta.main) serve(async (req: Request) => {
       if (!supportedCurrencies.includes(currency)) return json(422, { success: false, error: "The selected payment provider does not support this transaction currency." });
     }
     const convertedMajor = await convertAmount(url, service, major, priceCurrency, currency, countryCode);
-    const fractionDigits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits;
+    const fractionDigits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2;
     const amountMinor = Math.round(convertedMajor * Math.pow(10, fractionDigits));
     const { data: commissionSetting, error: commissionError } = await admin.from("platform_settings").select("setting_value").eq("setting_key", "commission_rates").maybeSingle();
-    const creatorCommissionRate = Number(commissionSetting?.setting_value?.creator);
+    const commissionValue = isRecord(commissionSetting?.setting_value) ? commissionSetting.setting_value.creator : undefined;
+    const creatorCommissionRate = Number(commissionValue);
     if (commissionError || !Number.isFinite(creatorCommissionRate) || creatorCommissionRate < 0 || creatorCommissionRate > 0.5) return json(503, { success: false, error: "Creator commission policy is not configured safely." });
     const platformFeeMinor = Math.round(amountMinor * creatorCommissionRate);
     const platformFeeMajor = platformFeeMinor / Math.pow(10, fractionDigits);

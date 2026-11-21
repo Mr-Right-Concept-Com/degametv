@@ -77,7 +77,7 @@ if (import.meta.main) {
       );
     } catch (err) {
       return new Response(
-        JSON.stringify({ valid: false, error: err.message }),
+        JSON.stringify({ valid: false, error: err instanceof Error ? err.message : "Unexpected promo validation failure." }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

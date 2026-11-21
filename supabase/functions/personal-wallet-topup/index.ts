@@ -18,7 +18,7 @@ Deno.serve(async(req)=>{
  if(!parsed.success)return json(400,{success:false,error:"Enter a valid top-up amount and currency."});
  const p=parsed.data,currency=p.currency.toUpperCase();
  let scale:number;
- try{scale=new Intl.NumberFormat("en",{style:"currency",currency}).resolvedOptions().maximumFractionDigits;}catch{return json(422,{success:false,error:"Choose a supported ISO currency."});}
+ try{scale=new Intl.NumberFormat("en",{style:"currency",currency}).resolvedOptions().maximumFractionDigits ?? 2;}catch{return json(422,{success:false,error:"Choose a supported ISO currency."});}
  const amountMinor=Math.round(p.amount*Math.pow(10,scale)),amountMajor=amountMinor/Math.pow(10,scale);
  if(!Number.isSafeInteger(amountMinor)||amountMinor<=0||Math.abs(amountMajor-p.amount)>0.0000001)return json(422,{success:false,error:"The top-up amount has too many decimal places for this currency."});
  const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});

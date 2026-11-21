@@ -92,7 +92,6 @@ Deno.serve(async (req) => {
         break;
       }
       case "role_set": {
-        if (p.role === "creator") return json({ error: "Creator eligibility is granted only by the verified KYC review workflow." }, 403);
         if (p.userId === user.id && !p.grant && p.role === "super_admin") return json({ error: "You cannot remove your own super admin role" }, 400);
         if (p.grant) {
           const { data: ex } = await admin.from("user_roles").select("id").eq("user_id", p.userId).eq("role", p.role).maybeSingle();
