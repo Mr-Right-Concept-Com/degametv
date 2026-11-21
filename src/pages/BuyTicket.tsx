@@ -305,7 +305,7 @@ export default function BuyTicket() {
   const total = basePrice;
   const walletCurrency = (localCurrency ?? currency).toUpperCase();
   const walletBalanceMatches = walletBalance?.currency === walletCurrency;
-  const walletCanPay = Boolean(user && walletBalanceMatches && walletBalance && walletBalance.balanceMajor >= (localConverted ?? total));
+  const walletCanPay = Boolean(user?.email && walletBalanceMatches && walletBalance && walletBalance.balanceMajor >= (localConverted ?? total));
   const eligiblePaymentMethods = paymentMethods.filter(method => method.available && method.supportedCurrencies.includes(localCurrency ?? currency));
   const localPriceLabel = localConverted !== null && localCurrency ? new Intl.NumberFormat(undefined,{style:'currency',currency:localCurrency,maximumFractionDigits:2}).format(localConverted) : null;
 
