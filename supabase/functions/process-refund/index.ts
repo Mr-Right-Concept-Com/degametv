@@ -38,7 +38,7 @@ Deno.serve(async(req)=>{
   }
   const screeningTicket=contributionOrder?{data:null}:await admin.from("screening_tickets").select("id,screening_id,payment_status,refunded_at,price,currency").eq("id",parsed.data.ticketId).maybeSingle();
   if(contributionOrder){
-   if(contribution.status!=="paid")return json({error:"Only paid contributions can be refunded."},409);
+   if(!contribution||contribution.status!=="paid")return json({error:"Only paid contributions can be refunded."},409);
   }else if(screeningTicket.data){
    ticket=screeningTicket.data as ScreeningTicket;
    if(ticket.refunded_at||ticket.payment_status==="refunded")return json({error:"This ticket has already been refunded."},409);
@@ -107,7 +107,7 @@ Deno.serve(async(req)=>{
   if(target.origin!==new URL(binding.base_url).origin){await admin.from("payment_refunds").update({status:"failed",error_code:"refund_host_mismatch"}).eq("id",refundId);return json({error:"Refund endpoint host mismatch."},400);}
   const header=typeof binding.settings?.credential_header==="string"?binding.settings.credential_header:"Authorization";
   const prefix=typeof binding.settings?.credential_prefix==="string"?binding.settings.credential_prefix:"Bearer ";
-  const amountMajor=contributionOrder?Number(contribution.amount_major??(Number(order.amount_minor)/100)):liveOrder?Number(order.amount_major??(Number(order.amount_minor)/100)):Number(ticket.price);
+  const amountMajor=contributionOrder?Number(contribution?.amount_major??(Number(order.amount_minor)/100)):liveOrder?Number(order.amount_major??(Number(order.amount_minor)/100)):Number(ticket?.price??liveTicket?.price??(Number(order.amount_minor)/100));
   let requestBody:Record<string,unknown>;
   if(adapter==="paystack")requestBody={transaction:transactionId,amount:order.amount_minor,customer_note:parsed.data.reason};
   else if(adapter==="stripe")requestBody={payment_intent:transactionId,amount:order.amount_minor,reason:"requested_by_customer",metadata:{degame_ticket_id:parsed.data.ticketId??null,degame_contribution_id:parsed.data.contributionId??null,reason:parsed.data.reason}};
