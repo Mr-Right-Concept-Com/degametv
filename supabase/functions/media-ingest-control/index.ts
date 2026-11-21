@@ -1,6 +1,7 @@
 import { createServiceClient, createUserClient, type TypedSupabaseClient } from "../_shared/supabase.ts";
 import { z } from "npm:zod@3";
 import { toArrayBuffer } from "../_shared/crypto.ts";
+import { isJsonObject, toJson } from "../_shared/json.ts";
 
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, x-client-info, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
@@ -214,9 +215,9 @@ Deno.serve(async req=>{
    }
    const {data:job,error:jobError}=await db.from("media_processing_jobs").insert({upload_session_id:session.id,content_id:session.content_id,idempotency_key:"media:"+session.id,status:"QUARANTINED",stage:"inspection",quarantine_path:session.object_path,sha256:null,provenance:{algorithm:"S3-MULTIPART-PER-PART-SHA256",expected_sha256:session.expected_sha256??null,parts:manifest,storage_etag:storageEtag,source_filename:session.original_filename,completed_at:new Date().toISOString()}}).select("id,status").single();
    let finalJob=job;if(jobError?.code==="23505"){const {data:existing}=await db.from("media_processing_jobs").select("id,status").eq("idempotency_key","media:"+session.id).single();finalJob=existing;}else if(jobError)return json(503,{error:"Media processing job could not be queued."});
-   const {error:updateError}=await db.from("media_upload_sessions").update({status:"QUARANTINED",received_size_bytes:session.expected_size_bytes,chunk_manifest:manifest,completed_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",session.id).eq("status","UPLOADING");
+   const {error:updateError}=await db.from("media_upload_sessions").update({status:"QUARANTINED",received_size_bytes:session.expected_size_bytes,chunk_manifest:toJson(manifest),completed_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",session.id).eq("status","UPLOADING");
    if(updateError)return json(503,{error:"Upload completed but the session state could not be committed."});
-   if(session.content_id){const {data:content}=await db.from("content").select("metadata").eq("id",session.content_id).single();const metadata={...(content?.metadata??{}),media_ingestion:{status:"QUARANTINED",job_id:finalJob?.id,master_object_path:session.object_path,sha256:session.expected_sha256??null}};const {error:linkError}=await db.from("content").update({metadata}).eq("id",session.content_id).eq("creator_id",user.id);if(linkError)return json(503,{error:"Media job was queued but content attachment requires reconciliation.",jobId:finalJob?.id});}
+   if(session.content_id){const {data:content}=await db.from("content").select("metadata").eq("id",session.content_id).single();const metadata={...(isJsonObject(content?.metadata)?content.metadata:{}),media_ingestion:{status:"QUARANTINED",job_id:finalJob?.id,master_object_path:session.object_path,sha256:session.expected_sha256??null}};const {error:linkError}=await db.from("content").update({metadata}).eq("id",session.content_id).eq("creator_id",user.id);if(linkError)return json(503,{error:"Media job was queued but content attachment requires reconciliation.",jobId:finalJob?.id});}
    return json(202,{success:true,status:"QUARANTINED",job:finalJob,parts:manifest.length,objectPath:session.object_path});
   }catch(e){return json(503,{error:e instanceof Error?e.message:"Multipart completion failed."});}
  }
