@@ -143,6 +143,7 @@ Deno.serve(async req=>{
   await db.from("audit_logs").insert({user_id:user.id,action:"studio.member.invited",entity_type:"studio_invitation",entity_id:invite.id,new_data:{studio_account_id:studio.id,role:p.role,email}});
   return json(200,{success:true,invitation:{...invite,acceptanceToken:token}});
  }
+ if(!a.success)return json(400,{error:"Invalid creator application request.",issues:a.error.flatten()});
  const p=a.data;
  const {data:country,error:countryError}=await db.from("country_currency_rules").select("country_code").eq("country_code",p.countryCode).eq("enabled",true).maybeSingle();
  if(countryError||!country)return json(422,{error:"The selected country is not in the active country registry."});
