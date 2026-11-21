@@ -6141,6 +6141,38 @@ export type Database = {
       is_studio_member: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       publish_creator_content: { Args: { p_content_id: string }; Returns: Json }
+      purchase_personal_wallet_live_ticket: {
+        Args: {
+          p_amount_major: number
+          p_amount_minor: number
+          p_currency: string
+          p_early_bird_reserved?: boolean
+          p_email: string
+          p_platform_fee_major: number
+          p_reference: string
+          p_screening_id: string
+          p_stream_id: string
+          p_ticket_type: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      purchase_personal_wallet_screening_ticket: {
+        Args: {
+          p_amount_major: number
+          p_amount_minor: number
+          p_currency: string
+          p_email: string
+          p_location: string
+          p_platform_fee_major: number
+          p_reference: string
+          p_screening_id: string
+          p_ticket_code: string
+          p_user_id: string
+          p_watch_code: string
+        }
+        Returns: Json
+      }
       rate_support_ticket: {
         Args: { p_rating: number; p_ticket_id: string }
         Returns: Json
@@ -6151,6 +6183,10 @@ export type Database = {
       }
       refund_personal_wallet_contribution: {
         Args: { p_contribution_id: string }
+        Returns: Json
+      }
+      refund_personal_wallet_ticket: {
+        Args: { p_reason: string; p_ticket_id: string }
         Returns: Json
       }
       register_release_domain: {
