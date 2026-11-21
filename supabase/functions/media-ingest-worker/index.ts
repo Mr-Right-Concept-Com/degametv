@@ -1,9 +1,10 @@
 import { createServiceClient, type TypedSupabaseClient } from "../_shared/supabase.ts";
 import {z} from "npm:zod@3";
+import { toArrayBuffer } from "../_shared/crypto.ts";
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"content-type,x-media-worker-secret,x-media-transcoder-callback-secret","Access-Control-Allow-Methods":"POST,OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
-const enc=new TextEncoder(),hex=(v:ArrayBuffer)=>[...new Uint8Array(v)].map(x=>x.toString(16).padStart(2,"0")).join("");
-const hash=async(v:string|Uint8Array)=>hex(await crypto.subtle.digest("SHA-256",typeof v==="string"?enc.encode(v):v));
+const enc=new TextEncoder(),hex=(v:ArrayBuffer|Uint8Array)=>[...new Uint8Array(v)].map(x=>x.toString(16).padStart(2,"0")).join("");
+const hash=async(v:string|Uint8Array)=>hex(await crypto.subtle.digest("SHA-256",typeof v==="string"?enc.encode(v):toArrayBuffer(v)));
 const hmac=async(k:Uint8Array|string,v:string)=>new Uint8Array(await crypto.subtle.sign("HMAC",await crypto.subtle.importKey("raw",typeof k==="string"?enc.encode(k):toArrayBuffer(k),{name:"HMAC",hash:"SHA-256"},false,["sign"]),enc.encode(v)));
 const encode=(v:string)=>encodeURIComponent(v).replace(/[!'()*]/g,c=>"%"+c.charCodeAt(0).toString(16).toUpperCase());
 const query=(u:URL)=>[...u.searchParams.entries()].sort(([a,av],[b,bv])=>a.localeCompare(b)||av.localeCompare(bv)).map(([k,v])=>encode(k)+"="+encode(v)).join("&");
