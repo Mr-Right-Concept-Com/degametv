@@ -4,8 +4,8 @@ const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"au
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
 const Body=z.discriminatedUnion("action",[
  z.object({action:z.literal("list"),status:z.enum(["SUBMITTED","UNDER_REVIEW","APPEAL_PENDING","REJECTED","SUSPENDED"]).optional()}).strict(),
- z.object({caseId:z.string().uuid(),action:z.enum(["approve","reject","request_information","suspend","resolve_appeal"]),reason:z.string().trim().min(3).max(2000),decision:z.enum(["approve","reject"]).optional()}).strict().superRefine((v,c)=>{if(v.action==="resolve_appeal"&&!v.decision)c.addIssue({code:"custom",path:["decision"],message:"Appeal resolution requires a decision."});})
-]);
+ z.object({caseId:z.string().uuid(),action:z.enum(["approve","reject","request_information","suspend","resolve_appeal"]),reason:z.string().trim().min(3).max(2000),decision:z.enum(["approve","reject"]).optional()}).strict()
+]).superRefine((v,c)=>{if(v.action==="resolve_appeal"&&!v.decision)c.addIssue({code:"custom",path:["decision"],message:"Appeal resolution requires a decision."});});
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
  if(req.method!=="POST")return json(405,{error:"Method not allowed."});
