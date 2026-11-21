@@ -108,7 +108,7 @@ Deno.serve(async req=>{
  if(req.method!=="POST")return json(405,{error:"Method not allowed."});
  const url=Deno.env.get("SUPABASE_URL"),service=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),anon=Deno.env.get("SUPABASE_ANON_KEY"),auth=req.headers.get("Authorization");
  if(!url||!service||!anon||!auth?.startsWith("Bearer "))return json(401,{error:"Authentication required."});
- const caller=createClient(url,anon,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});
+ const caller=createUserClient(url,anon,auth);
  const {data:{user},error:authError}=await caller.auth.getUser();if(authError||!user)return json(401,{error:"Invalid session."});
  const parsed=Body.safeParse(await req.json().catch(()=>null));if(!parsed.success)return json(400,{error:"Invalid media request.",issues:parsed.error.flatten()});
  const db=createServiceClient(url,service),p=parsed.data;
