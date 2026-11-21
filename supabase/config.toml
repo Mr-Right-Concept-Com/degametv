@@ -7,7 +7,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.seed-data]
-verify_jwt = false
+verify_jwt = true
 
 [functions.send-watch-email]
 verify_jwt = false
