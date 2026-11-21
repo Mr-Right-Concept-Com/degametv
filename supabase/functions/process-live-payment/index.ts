@@ -43,7 +43,7 @@ serve(async(req:Request)=>{
  if(!parsed.success)return json(400,{error:"Invalid event checkout request."});
  let user:AuthUser|null=null;
  if(authorization){
-  const userClient=createClient(url,anon,{global:{headers:{Authorization:authorization}},auth:{persistSession:false,autoRefreshToken:false}});
+  const userClient=createUserClient(url,anon,authorization);
   const {data,error:userError}=await userClient.auth.getUser();
   if(userError||!data.user)return json(401,{error:"Your sign-in session is invalid. Sign in again or use guest checkout."});
   user=data.user;
