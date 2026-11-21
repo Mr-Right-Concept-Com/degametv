@@ -42,7 +42,7 @@ begin
  if not found then raise exception 'invalid_support_timezone'; end if;
  while v_remaining > 0 loop
   v_local := v_cursor at time zone v_hours.timezone; v_day := extract(dow from v_local)::integer; v_slot := v_hours.weekly_schedule -> v_day::text;
-  if v_slot is null or v_slot = 'null'::jsonb or v_local::date = any(v_hours.holidays) then
+  if v_slot is null or v_slot = 'null'::jsonb or exists (select 1 from unnest(v_hours.holidays) as holiday(value) where holiday.value = v_local::date) then
    v_cursor := (date_trunc('day', v_local) + interval '1 day') at time zone v_hours.timezone;
   else
    v_open := (v_slot->>'open')::time; v_close := (v_slot->>'close')::time;
