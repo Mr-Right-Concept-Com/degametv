@@ -87,19 +87,21 @@ if (import.meta.main) serve(async (req: Request) => {
   if (!currencySupported) return json(422, { success: false, error: "The requested transaction currency is not enabled on the platform." });
 
   try {
-    const { data: siteSetting, error: siteError } = await admin.from("platform_settings")
-      .select("setting_value,is_public").eq("setting_key", "public_site_url").maybeSingle();
-    const configuredSiteUrl = typeof siteSetting?.setting_value === "string" ? siteSetting.setting_value : "";
-    if (siteError || siteSetting?.is_public !== true || !configuredSiteUrl) {
-      return json(503, { success: false, error: "Secure payment return URL is not configured. Contact platform support." });
-    }
-    let siteOrigin: string;
-    try {
-      const configured = new URL(configuredSiteUrl);
-      if (configured.protocol !== "https:" || configured.username || configured.password) throw new Error("invalid_site_url");
-      siteOrigin = configured.origin;
-    } catch {
-      return json(503, { success: false, error: "Secure payment return URL is invalid. Contact platform support." });
+    let siteOrigin = "";
+    if (method !== "personal_wallet") {
+      const { data: siteSetting, error: siteError } = await admin.from("platform_settings")
+        .select("setting_value,is_public").eq("setting_key", "public_site_url").maybeSingle();
+      const configuredSiteUrl = typeof siteSetting?.setting_value === "string" ? siteSetting.setting_value : "";
+      if (siteError || siteSetting?.is_public !== true || !configuredSiteUrl) {
+        return json(503, { success: false, error: "Secure payment return URL is not configured. Contact platform support." });
+      }
+      try {
+        const configured = new URL(configuredSiteUrl);
+        if (configured.protocol !== "https:" || configured.username || configured.password) throw new Error("invalid_site_url");
+        siteOrigin = configured.origin;
+      } catch {
+        return json(503, { success: false, error: "Secure payment return URL is invalid. Contact platform support." });
+      }
     }
 
     let config: PaymentProvider | null = null;
