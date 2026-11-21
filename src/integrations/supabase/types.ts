@@ -2003,6 +2003,7 @@ export type Database = {
           playback_url: string | null
           presale_enabled: boolean
           provider_stream_id: string | null
+          provisioning_idempotency_key: string | null
           reconnect_grace_expires_at: string | null
           recording_enabled: boolean | null
           recording_url: string | null
@@ -2051,6 +2052,7 @@ export type Database = {
           playback_url?: string | null
           presale_enabled?: boolean
           provider_stream_id?: string | null
+          provisioning_idempotency_key?: string | null
           reconnect_grace_expires_at?: string | null
           recording_enabled?: boolean | null
           recording_url?: string | null
@@ -2099,6 +2101,7 @@ export type Database = {
           playback_url?: string | null
           presale_enabled?: boolean
           provider_stream_id?: string | null
+          provisioning_idempotency_key?: string | null
           reconnect_grace_expires_at?: string | null
           recording_enabled?: boolean | null
           recording_url?: string | null
@@ -4530,6 +4533,68 @@ export type Database = {
           },
         ]
       }
+      support_operating_hours: {
+        Row: {
+          holidays: string[]
+          id: number
+          timezone: string
+          updated_at: string
+          updated_by: string | null
+          weekly_schedule: Json
+        }
+        Insert: {
+          holidays?: string[]
+          id?: number
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+          weekly_schedule?: Json
+        }
+        Update: {
+          holidays?: string[]
+          id?: number
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+          weekly_schedule?: Json
+        }
+        Relationships: []
+      }
+      support_sla_escalation_events: {
+        Row: {
+          breach_type: string
+          due_at: string
+          escalated_at: string
+          id: string
+          previous_status: string
+          ticket_id: string
+        }
+        Insert: {
+          breach_type: string
+          due_at: string
+          escalated_at?: string
+          id?: string
+          previous_status: string
+          ticket_id: string
+        }
+        Update: {
+          breach_type?: string
+          due_at?: string
+          escalated_at?: string
+          id?: string
+          previous_status?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_sla_escalation_events_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_sla_policies: {
         Row: {
           first_response_minutes: number
@@ -5891,6 +5956,10 @@ export type Database = {
         Args: { p_screening_id: string }
         Returns: number
       }
+      escalate_breached_support_tickets: {
+        Args: { p_limit?: number }
+        Returns: number
+      }
       get_business_verification_material: {
         Args: { p_verification_id: string }
         Returns: {
@@ -6368,6 +6437,10 @@ export type Database = {
           status: string
           tier: string
         }[]
+      }
+      support_add_business_minutes: {
+        Args: { p_minutes: number; p_start: string }
+        Returns: string
       }
       transition_platform_release: {
         Args: {
