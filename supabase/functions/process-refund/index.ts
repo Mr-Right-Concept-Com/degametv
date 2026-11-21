@@ -64,6 +64,15 @@ Deno.serve(async(req)=>{
    if(walletRefundError)return json({error:"Personal Wallet refund could not be completed. No provider refund was initiated."},409);
    return json({success:true,personalWalletRefund:walletRefund,providerRefundRequired:false});
   }
+  if(!contributionOrder&&order.provider_mode==="wallet"){
+   const walletTicketId=ticket?.id??liveTicket?.id;
+   if(!walletTicketId)return json({error:"The Personal Wallet ticket identity is missing."},409);
+   const {data:walletRefund,error:walletRefundError}=await admin.rpc("refund_personal_wallet_ticket",{
+    p_ticket_id:walletTicketId,p_reason:parsed.data.reason,
+   });
+   if(walletRefundError)return json({error:"Personal Wallet ticket refund could not be completed. No external refund was initiated."},409);
+   return json({success:true,personalWalletRefund:walletRefund,providerRefundRequired:false});
+  }
   const bindingResult=await admin.from("service_provider_bindings").select("base_url,endpoints,settings,is_live").eq("capability","payments").eq("provider_key",order.provider).maybeSingle();
   const {data:secretRows,error:secretError}=await admin.rpc("get_service_provider_admin_secret",{p_capability:"payments",p_provider_key:order.provider});
   const secret=Array.isArray(secretRows)?secretRows[0]:null;
