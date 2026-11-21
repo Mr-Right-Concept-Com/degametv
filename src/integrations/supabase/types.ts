@@ -5511,6 +5511,28 @@ export type Database = {
         }
         Relationships: []
       }
+      user_ticket_entitlements: {
+        Row: {
+          currency: string | null
+          email: string | null
+          entitlement_id: string | null
+          entitlement_status: string | null
+          is_active: boolean | null
+          payment_reference: string | null
+          payment_status: string | null
+          price: number | null
+          purchased_at: string | null
+          revoked_at: string | null
+          screening_id: string | null
+          source_type: string | null
+          stream_id: string | null
+          ticket_code: string | null
+          ticket_type: string | null
+          user_id: string | null
+          valid_until: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       accept_studio_invitation: {
