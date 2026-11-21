@@ -68,6 +68,8 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      - name: Test shared Edge Function contracts
+        run: deno test supabase/functions/_shared/country-currency.test.ts
       - name: Type-check every Edge Function
         run: |
           deno check supabase/functions/*/index.ts
