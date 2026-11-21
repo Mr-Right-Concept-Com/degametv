@@ -1,5 +1,5 @@
+import { createServiceClient, type TypedSupabaseClient } from "../_shared/supabase.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json","Cache-Control":"no-store"}});
 const isRecord=(value:unknown):value is Record<string,unknown> =>
  value!==null&&typeof value==="object"&&!Array.isArray(value);
@@ -9,7 +9,7 @@ async function hmac(secret:string,body:string,algorithm:"SHA-256"|"SHA-512"){con
 function equal(a:string,b:string){if(a.length!==b.length)return false;let mismatch=0;for(let i=0;i<a.length;i++)mismatch|=a.charCodeAt(i)^b.charCodeAt(i);return mismatch===0;}
 const randomToken=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,"0")).join("");
 const sha256=async(value:string)=>hex(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value)));
-async function sendTicketEmail(admin:ReturnType<typeof createClient>,url:string,service:string,reference:string){
+async function sendTicketEmail(admin:TypedSupabaseClient,url:string,service:string,reference:string){
  const {data:order}=await admin.from("guest_payment_orders").select("id,ticket_id,email,currency,email_sent_at").eq("provider_reference",reference).maybeSingle();
  if(!order||order.email_sent_at)return false;
  const {data:siteSetting}=await admin.from("platform_settings").select("setting_value,is_public").eq("setting_key","public_site_url").maybeSingle();
@@ -32,7 +32,7 @@ serve(async(req:Request)=>{
  if(!url||!service)return json(503,{error:"Webhook processor unavailable."});
  const raw=await req.text();
  try{
-  const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
+  const admin=createServiceClient(url,service);
   const parsedEvent:unknown=JSON.parse(raw);
   const event=isRecord(parsedEvent)?parsedEvent:{};
   const eventDataValue=isRecord(event.data)
