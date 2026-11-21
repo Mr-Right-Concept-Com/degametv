@@ -1,4 +1,5 @@
 import { createServiceClient, createUserClient, type TypedSupabaseClient } from "../_shared/supabase.ts";
+import { isJsonObject } from "../_shared/json.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "npm:zod@3.25.76";
 
@@ -17,7 +18,10 @@ const markProviderHealth=async(db:TypedSupabaseClient,id:string,status:'healthy'
 type PaymentProvider={id:string;provider_key:string;is_live:boolean;credential:string;settings:Record<string,unknown>;endpoints:Record<string,unknown>;base_url:string};
 type AuthUser={id:string;email?:string|null};
 const isRecord=(value:unknown):value is Record<string,unknown>=>typeof value==="object"&&value!==null&&!Array.isArray(value);
-const isPaymentProvider=(value:unknown):value is PaymentProvider=>isRecord(value)&&typeof value.id==="string"&&typeof value.provider_key==="string"&&value.is_live===true&&typeof value.credential==="string"&&isRecord(value.settings)&&isRecord(value.endpoints)&&typeof value.base_url==="string";
+const parsePaymentProvider=(value:unknown):PaymentProvider|null=>{
+ if(!isRecord(value)||typeof value.id!=="string"||typeof value.provider_key!=="string"||value.is_live!==true||typeof value.credential!=="string"||!value.credential||!isRecord(value.settings)||!isRecord(value.endpoints)||typeof value.base_url!=="string")return null;
+ return {id:value.id,provider_key:value.provider_key,is_live:true,credential:value.credential,settings:value.settings,endpoints:value.endpoints,base_url:value.base_url};
+};
 async function featureEnabled(db:TypedSupabaseClient,key:string,subject:string):Promise<boolean>{
  const {data:flag,error}=await db.from("platform_feature_controls").select("enabled,rollout_percentage,release_state").eq("feature_key",key).maybeSingle();
  if(error||!flag)return false;
@@ -103,8 +107,8 @@ serve(async(req:Request)=>{
   if(parsed.data.method!=="personal_wallet"){
    const {data:providers,error:providerError}=await db.rpc("get_service_provider_runtime_config",{p_capability:"payments"});
    if(providerError||!Array.isArray(providers)||!providers.length)return json(503,{error:"No payment provider is enabled in Admin Provider Vault."});
-   usable=providers.filter((value:unknown):value is PaymentProvider=>isPaymentProvider(value)&&(
-    value.is_live===true&&value.credential&&Array.isArray(value.settings.supported_currencies)&&value.settings.supported_currencies.includes(currency)
+   usable=(Array.isArray(providers)?providers:[]).map((value:unknown)=>parsePaymentProvider(value)).filter((value):value is PaymentProvider=>value!==null).filter(value=>(
+    value.is_live===true&&value.credential.length>0&&Array.isArray(value.settings.supported_currencies)&&value.settings.supported_currencies.some((item:unknown)=>item===currency)
     &&typeof value.endpoints.checkout_initialize==="string"&&value.endpoints.checkout_initialize.startsWith("/")&&!value.endpoints.checkout_initialize.startsWith("//")&&typeof value.endpoints.payment_verify==="string"&&value.endpoints.payment_verify.startsWith("/")&&!value.endpoints.payment_verify.startsWith("//")&&typeof value.endpoints.refund==="string"&&value.endpoints.refund.startsWith("/")&&!value.endpoints.refund.startsWith("//")
     &&(!parsed.data.method||value.provider_key===parsed.data.method)
    ));
@@ -138,7 +142,8 @@ serve(async(req:Request)=>{
   const fractionDigits=new Intl.NumberFormat("en",{style:"currency",currency}).resolvedOptions().maximumFractionDigits??2;
   const minor=Math.round(convertedAmount*Math.pow(10,fractionDigits));
   const {data:commissionSetting,error:commissionError}=await db.from("platform_settings").select("setting_value").eq("setting_key","commission_rates").maybeSingle();
-  const creatorCommissionRate=Number(commissionSetting?.setting_value?.creator);
+  const commissionConfig=isJsonObject(commissionSetting?.setting_value)?commissionSetting.setting_value:{};
+  const creatorCommissionRate=Number(commissionConfig.creator);
   if(commissionError||!Number.isFinite(creatorCommissionRate)||creatorCommissionRate<0||creatorCommissionRate>0.5)return json(503,{error:"Creator commission policy is not configured safely."});
   const platformFeeMajor=Math.round(minor*creatorCommissionRate)/Math.pow(10,fractionDigits);
   if(!Number.isSafeInteger(minor)||minor<=0)return json(422,{error:"The converted ticket amount is invalid."});
