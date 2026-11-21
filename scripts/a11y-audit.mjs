@@ -39,7 +39,6 @@ async function waitForServer(url, timeoutMs = 60_000) {
 async function runAxe(page) {
   await page.addScriptTag({ content: axeSource });
   return page.evaluate(async () => {
-    // @ts-ignore
     const res = await window.axe.run(document, {
       resultTypes: ['violations'],
       runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'] },
