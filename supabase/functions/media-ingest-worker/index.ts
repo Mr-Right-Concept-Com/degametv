@@ -1,16 +1,16 @@
-import {createClient} from "npm:@supabase/supabase-js@2";
+import { createServiceClient, type TypedSupabaseClient } from "../_shared/supabase.ts";
 import {z} from "npm:zod@3";
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"content-type,x-media-worker-secret,x-media-transcoder-callback-secret","Access-Control-Allow-Methods":"POST,OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
 const enc=new TextEncoder(),hex=(v:ArrayBuffer)=>[...new Uint8Array(v)].map(x=>x.toString(16).padStart(2,"0")).join("");
 const hash=async(v:string|Uint8Array)=>hex(await crypto.subtle.digest("SHA-256",typeof v==="string"?enc.encode(v):v));
-const hmac=async(k:Uint8Array|string,v:string)=>new Uint8Array(await crypto.subtle.sign("HMAC",await crypto.subtle.importKey("raw",typeof k==="string"?enc.encode(k):k,{name:"HMAC",hash:"SHA-256"},false,["sign"]),enc.encode(v)));
+const hmac=async(k:Uint8Array|string,v:string)=>new Uint8Array(await crypto.subtle.sign("HMAC",await crypto.subtle.importKey("raw",typeof k==="string"?enc.encode(k):toArrayBuffer(k),{name:"HMAC",hash:"SHA-256"},false,["sign"]),enc.encode(v)));
 const encode=(v:string)=>encodeURIComponent(v).replace(/[!'()*]/g,c=>"%"+c.charCodeAt(0).toString(16).toUpperCase());
 const query=(u:URL)=>[...u.searchParams.entries()].sort(([a,av],[b,bv])=>a.localeCompare(b)||av.localeCompare(bv)).map(([k,v])=>encode(k)+"="+encode(v)).join("&");
 const stamp=()=>new Date().toISOString().replace(/[:-]|\.\d{3}/g,"");
 type Binding={id:string;provider_key:string;base_url:string|null;endpoints:Record<string,string>;settings:Record<string,unknown>;credential:string;webhook_secret:string|null;};
 type Storage={endpoint:URL;bucket:string;deliveryBucket:string;region:string;accessKeyId:string;secretAccessKey:string;sessionToken?:string;pathStyle:boolean;};
-async function binding(db:ReturnType<typeof createClient>,capability:string):Promise<Binding>{
+async function binding(db:TypedSupabaseClient,capability:string):Promise<Binding>{
  const {data,error}=await db.rpc("get_service_provider_runtime_config",{p_capability:capability});
  if(error||!Array.isArray(data)||!data.length)throw new Error("No enabled "+capability+" provider binding is configured.");
  return data[0] as Binding;
@@ -48,7 +48,7 @@ Deno.serve(async req=>{
  try {
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});if(req.method!=="POST")return json(405,{error:"Method not allowed."});
  const url=Deno.env.get("SUPABASE_URL"),key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");if(!url||!key)return json(503,{error:"Media worker is not configured."});
- const db=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
+ const db=createServiceClient(url,key);
  const {data:workerSecret,error:workerSecretError}=await db.rpc("get_media_worker_secret");
  if(workerSecretError||typeof workerSecret!=="string"||!workerSecret)return json(503,{error:"Worker authentication material is unavailable."});
  const body=await req.json().catch(()=>({}));
