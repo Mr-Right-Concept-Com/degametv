@@ -46,9 +46,12 @@ if(import.meta.main)serve(async(req:Request)=>{
    .select("id,payment_status,refunded_at,expires_at,screening_id,email,stream_count,first_played_at,access_hours,screening:screenings(id,status,lifecycle,title,poster_url,content_id,allowed_countries,blocked_countries,max_streams_per_ticket,max_concurrent_streams)")
    .eq("watch_code",watchCode).maybeSingle();
   if(error)return json(503,{success:false,error:"Playback authorization could not be checked. Please retry."});
-  if(!ticket||ticket.payment_status!=="completed")return json(404,{success:false,error:"Ticket not found or payment not confirmed."});
+  if(!ticket)return json(404,{success:false,error:"Ticket not found or payment not confirmed."});
+  const {data:paymentOrder,error:orderError}=await db.from("guest_payment_orders").select("status").eq("ticket_id",ticket.id).maybeSingle();
+  if(orderError)return json(503,{success:false,error:"Ticket payment status could not be verified."});
+  if(ticket.payment_status==="refunded"||ticket.refunded_at||paymentOrder?.status==="refunded")return json(403,{success:false,error:"This ticket has been refunded."});
+  if(ticket.payment_status!=="completed")return json(404,{success:false,error:"Ticket not found or payment not confirmed."});
   if(String(ticket.email||"").trim().toLowerCase()!==email)return json(403,{success:false,error:"Email does not match this ticket."});
-  if(ticket.refunded_at)return json(403,{success:false,error:"This ticket has been refunded."});
   if(!ticket.expires_at||new Date(ticket.expires_at).getTime()<=Date.now())return json(403,{success:false,error:"This ticket has expired."});
   const screeningValue=Array.isArray(ticket.screening)?ticket.screening[0]:ticket.screening;
   if(!isRecord(screeningValue)||typeof screeningValue.status!=="string"||
