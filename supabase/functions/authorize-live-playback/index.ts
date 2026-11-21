@@ -39,6 +39,12 @@ if(import.meta.main)serve(async(req:Request)=>{
    return correct&&new Date(ticket.valid_until).getTime()>Date.now();
   });
   if(!entitlement)return json(403,{error:"A valid paid ticket for this event is required"});
+  const paymentReference=typeof entitlement.metadata?.payment_reference==="string"?entitlement.metadata.payment_reference:null;
+  if(paymentReference){
+   const {data:paymentOrder,error:paymentOrderError}=await db.from("live_payment_orders").select("status").eq("provider_reference",paymentReference).maybeSingle();
+   if(paymentOrderError)return json(503,{error:"Ticket payment status could not be verified"});
+   if(paymentOrder?.status==="refunded")return json(403,{error:"This live ticket has been refunded"});
+  }
   const providerKey=typeof stream.metadata?.provider==="string"?stream.metadata.provider:"";
   if(!providerKey)return json(503,{error:"This stream has no pinned delivery provider"});
   const [{data:binding,error:bindingError},{data:secrets,error:secretError}]=await Promise.all([
