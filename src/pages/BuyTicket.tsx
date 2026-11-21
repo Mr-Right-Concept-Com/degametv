@@ -146,7 +146,13 @@ export default function BuyTicket() {
     let active = true;
     void supabase.functions.invoke('list-payment-methods', { method: 'GET' }).then(({ data, error }) => {
       const parsed = paymentMethodsSchema.safeParse(data as unknown);
-      if (active) setPaymentMethods(!error && parsed.success ? parsed.data.methods : []);
+      if (active) setPaymentMethods(!error && parsed.success ? parsed.data.methods.map(method => ({
+        id: method.id ?? '',
+        name: method.name ?? '',
+        mode: method.mode ?? '',
+        available: method.available === true,
+        supportedCurrencies: method.supportedCurrencies ?? [],
+      })) : []);
     });
     return () => { active = false; };
   }, []);
