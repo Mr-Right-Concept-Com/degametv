@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Automated axe-core accessibility audit.
- * Boots a preview server, crawls key routes, and fails (exit 1) on any
+ * Boots a preview server, crawls key routes, and fails (exit 1) on
  * serious or critical violations. Used in CI to block merges.
  */
 import { chromium } from 'playwright';
