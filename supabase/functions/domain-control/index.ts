@@ -15,10 +15,13 @@ const Body=z.discriminatedUnion("action",[
 const hash=async(v:string)=>[...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v)))].map(x=>x.toString(16).padStart(2,"0")).join("");
 const hex=(v:ArrayBuffer)=>[...new Uint8Array(v)].map(x=>x.toString(16).padStart(2,"0")).join("");
 const providerUrl=(base:string,path:string)=>{if(!path.startsWith("/")||path.startsWith("//"))throw new Error("domain_provider_endpoint_invalid");const u=new URL(path,base);if(u.origin!==new URL(base).origin)throw new Error("domain_provider_endpoint_invalid");return u.toString();};
-const dns=async(name:string,type:"TXT"|"CNAME"|"A")=>{
- const r=await fetch("https://cloudflare-dns.com/dns-query?name="+encodeURIComponent(name)+"&type="+type,{headers:{accept:"application/dns-json"},signal:AbortSignal.timeout(10000)});
- if(!r.ok)throw new Error("dns_provider_unavailable");
- const j=await r.json();return (j.Answer??[]).map((a:{data:string})=>String(a.data).replace(/^"|"$/g,"").replace(/\.$/,"").toLowerCase());
+const DnsResponse=z.object({Answer:z.array(z.object({data:z.string()})).optional()}).passthrough();
+const dns=async(name:string,type:"TXT"|"CNAME"|"A"):Promise<string[]>=>{
+ const response=await fetch("https://cloudflare-dns.com/dns-query?name="+encodeURIComponent(name)+"&type="+type,{headers:{accept:"application/dns-json"},signal:AbortSignal.timeout(10000)});
+ if(!response.ok)throw new Error("dns_provider_unavailable");
+ const parsed=DnsResponse.safeParse(await response.json());
+ if(!parsed.success)throw new Error("dns_response_invalid");
+ return (parsed.data.Answer??[]).map(answer=>String(answer.data).replace(/^"|"$/g,"").replace(/\.$/,"").toLowerCase());
 };
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
