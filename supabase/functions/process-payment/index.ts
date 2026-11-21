@@ -70,6 +70,8 @@ if (import.meta.main) serve(async (req: Request) => {
     const caller = createClient(url, anon, { global: { headers: { Authorization: authorization } }, auth: { persistSession: false, autoRefreshToken: false } });
     const { data: authData, error: authError } = await caller.auth.getUser();
     if (authError || !authData.user || !authData.user.email) return json(401, { success: false, error: "A verified signed-in account is required for Personal Wallet checkout." });
+    const { data: ownsWallet, error: ownerError } = await caller.rpc("assert_personal_wallet_ticket_owner", { p_user_id: authData.user.id });
+    if (ownerError || ownsWallet !== true) return json(403, { success: false, error: "Your authenticated account does not own this Personal Wallet." });
     walletUser = { id: authData.user.id, email: authData.user.email.toLowerCase() };
   }
   if (!await featureEnabled(admin, "cinema.ticketing", parsed.data.cohortId ?? walletUser?.id ?? email)) return json(403, { success: false, error: "Ticket checkout is paused for this release cohort." });
