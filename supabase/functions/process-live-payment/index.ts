@@ -110,11 +110,13 @@ serve(async(req:Request)=>{
   const email=user?.email||authUser?.user?.email||parsed.data.email;
   if(!email)return json(400,{error:"An email address is required for ticket delivery."});
 
-  const {data:siteSetting,error:siteError}=await db.from("platform_settings").select("setting_value,is_public").eq("setting_key","public_site_url").maybeSingle();
-  const siteUrl=typeof siteSetting?.setting_value==="string"?siteSetting.setting_value:"";
-  let siteOrigin:string;
-  try{const site=new URL(siteUrl);if(siteError||siteSetting?.is_public!==true||site.protocol!=="https:"||site.username||site.password)throw new Error("invalid_site");siteOrigin=site.origin;}
-  catch{return json(503,{error:"The canonical public return URL has not been published in God Mode."});}
+  let siteOrigin="";
+  if(parsed.data.method!=="personal_wallet"){
+   const {data:siteSetting,error:siteError}=await db.from("platform_settings").select("setting_value,is_public").eq("setting_key","public_site_url").maybeSingle();
+   const siteUrl=typeof siteSetting?.setting_value==="string"?siteSetting.setting_value:"";
+   try{const site=new URL(siteUrl);if(siteError||siteSetting?.is_public!==true||site.protocol!=="https:"||site.username||site.password)throw new Error("invalid_site");siteOrigin=site.origin;}
+   catch{return json(503,{error:"The canonical public return URL has not been published in God Mode."});}
+  }
 
   const reference=(parsed.data.method==="personal_wallet"?"DTVLW_":"DTVL_")+crypto.randomUUID().replaceAll("-","");
   let earlyBirdReserved=false;
