@@ -33,7 +33,7 @@ Deno.serve(async(req)=>{
  if(req.method!=="POST")return json(405,{error:"Method not allowed."});
  const url=Deno.env.get("SUPABASE_URL"),service=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),anon=Deno.env.get("SUPABASE_ANON_KEY"),auth=req.headers.get("Authorization")||"";
  if(!url||!service||!anon||!auth.startsWith("Bearer "))return json(401,{error:"Sign in before sending a tip or gift."});
- const userClient=createClient(url,anon,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});
+ const userClient=createUserClient(url,anon,auth);
  const {data:{user},error:userError}=await userClient.auth.getUser();
  if(userError||!user||!user.email)return json(401,{error:"Your sign-in session is invalid."});
  const parsed=Body.safeParse(await req.json().catch(()=>null));
