@@ -4,7 +4,7 @@ const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"au
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
 const Apply=z.object({action:z.literal("apply"),entityType:z.enum(["INDIVIDUAL_CREATOR","STUDIO","PRODUCTION_COMPANY","BUSINESS"]),displayName:z.string().trim().min(2).max(180),legalName:z.string().trim().min(2).max(240),countryCode:z.string().regex(/^[A-Z]{2}$/),baseCurrency:z.string().regex(/^[A-Z]{3}$/),bio:z.string().trim().max(4000).optional(),rightsDeclaration:z.record(z.unknown()),identityVerificationId:z.string().uuid().optional(),businessVerificationId:z.string().uuid().optional(),taxIdentifier:z.string().trim().min(4).max(64).optional(),bankAccountNumber:z.string().trim().min(4).max(34).optional(),bankName:z.string().trim().min(2).max(180).optional(),bankCountry:z.string().regex(/^[A-Z]{2}$/).optional(),bankAccountName:z.string().trim().min(2).max(180).optional()}).strict();
 const Invite=z.object({action:z.literal("invite"),studioAccountId:z.string().uuid(),email:z.string().email().max(254).optional(),userId:z.string().uuid().optional(),role:z.enum(["ADMIN","PRODUCER","BROADCASTER","FINANCE_VIEWER","MODERATOR"])}).strict().refine(v=>Boolean(v.email)!==Boolean(v.userId));
-const InvitationAction=z.discriminatedUnion("action",[
+const InvitationAction=z.union([
  z.object({action:z.literal("list_invitations")}).strict(),
  z.object({action:z.literal("list_my_cases")}).strict(),
  z.object({action:z.literal("list_team"),studioAccountId:z.string().uuid()}).strict(),
