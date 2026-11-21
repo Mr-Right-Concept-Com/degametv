@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
     locale,
     currency,
     baseCurrency: configuredBaseCurrency,
-    currencySymbol: currency === country?.currency_code ? country.currency_symbol : null,
+    currencySymbol: country && currency === country.currency_code ? country.currency_symbol : null,
     countryCurrency: country ?? null,
     countries: countries.data ?? [],
     features: runtimeFeatures,
