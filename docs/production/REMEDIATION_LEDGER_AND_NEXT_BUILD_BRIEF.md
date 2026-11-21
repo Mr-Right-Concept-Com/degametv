@@ -50,9 +50,10 @@ This register is an implementation ledger, not a claim that every capability is 
 1. Commit `31eab7c7b619f13fe74e1c0eeba379e6e70d1cef` added `supabase/migrations/20261121210000_align_wallet_withdrawal_reservations.sql`.
 2. The migration was applied successfully to Supabase project `dxijsbbdtwtbwdaajiyn`.
 3. Both `wallet_balance` and `wallet_balance_by_currency` now use the same terminal reservation predicate as `request_wallet_withdrawal`: rejected and failed requests release reservations; all other statuses continue reserving funds.
-4. Both live function definitions were re-read after migration and confirmed to contain the corrected predicate. No withdrawal rows currently exist, so a real withdrawal transaction replay remains NOT TESTED.
+4. Both live function definitions were re-read after migration and confirmed to contain the corrected predicate. A regression guard was added at `supabase/tests/phase1_wallet_withdrawal_reservation_consistency.sql`; the same structural assertions were executed against the live database and returned true for both summary RPCs and the request RPC. No withdrawal rows currently exist, so a real withdrawal transaction replay remains NOT TESTED.
 5. The earlier speculative migration was removed and was never applied. The current migration is a separately evidenced correction based on the canonical request function's explicit reservation predicate.
 6. No credentials were read or printed; no live provider was activated.
+7. Commit `a4f179f678dc65c13a8262c41b8114e7d8397dcc` added the SQL regression test. Quality Gate and Phase 2 Certification were triggered for this HEAD; at last inspection the Quality Gate edge-function check was installing dependencies and the main Quality Gate/Phase 2 jobs were queued or in progress. No CI PASS is claimed yet.
 
 ## Sequencing / dependency graph
 
