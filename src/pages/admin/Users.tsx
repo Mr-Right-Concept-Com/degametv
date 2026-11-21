@@ -64,7 +64,7 @@ export default function UsersPage() {
         .from('user_roles')
         .select('id, user_id, role');
 
-      const roleMap = new Map<string, { role: string; id: string }>();
+      const roleMap = new Map<string, { role: Enums<'app_role'>; id: string }>();
       (roles || []).forEach(r => roleMap.set(r.user_id, { role: r.role, id: r.id }));
 
       const merged: UserRow[] = (profiles || []).map(p => ({
@@ -168,7 +168,7 @@ export default function UsersPage() {
                   <TableCell>
                     <Select
                       value={u.role || 'viewer'}
-                      onValueChange={(val) => handleRoleChange(u.user_id, val)}
+                      onValueChange={(val) => { if (assignableRoles.some(role => role === val)) void handleRoleChange(u.user_id, val as (typeof assignableRoles)[number]); }}
                       disabled={updatingRole === u.user_id || u.role === 'super_admin'}
                     >
                       <SelectTrigger className="w-36 h-8 text-xs">
