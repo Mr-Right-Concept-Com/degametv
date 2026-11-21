@@ -26,10 +26,12 @@ if(import.meta.main)serve(async(req:Request)=>{
    .select("id,watch_code,email,payment_status,refunded_at,expires_at,screening_id,location,currency,price,stream_count,first_played_at,access_hours,screening:screenings(id,content_id,title,poster_url,status,lifecycle,allowed_countries,blocked_countries,max_streams_per_ticket,max_concurrent_streams)")
    .eq("watch_code",watchCode).maybeSingle();
   if(error)return json(503,{success:false,error:"Ticket validation could not be completed. Please retry."});
-  if(!ticket||ticket.payment_status!=="completed")return json(404,{success:false,error:"Invalid or unpaid watch link."});
+  if(!ticket)return json(404,{success:false,error:"Invalid or unpaid watch link."});
+  const {data:paymentOrder,error:orderError}=await db.from("guest_payment_orders").select("status").eq("ticket_id",ticket.id).maybeSingle();
+  if(orderError)return json(503,{success:false,error:"Ticket payment status could not be verified."});
+  if(ticket.payment_status==="refunded"||ticket.refunded_at||paymentOrder?.status==="refunded")return json(403,{success:false,error:"This ticket has been refunded."});
+  if(ticket.payment_status!=="completed")return json(404,{success:false,error:"Invalid or unpaid watch link."});
   if(String(ticket.email||"").trim().toLowerCase()!==email)return json(403,{success:false,error:"Email does not match this ticket."});
-
-  if(ticket.refunded_at)return json(403,{success:false,error:"This ticket has been refunded."});
   if(!ticket.expires_at||new Date(ticket.expires_at).getTime()<=Date.now())return json(403,{success:false,error:"This ticket has expired."});
   const s:unknown=ticket.screening;
   if(!isRecord(s)||s.status!=="published"||(typeof s.lifecycle==="string"&&["cancelled","archived"].includes(s.lifecycle)))return json(410,{success:false,error:"This screening is no longer available."});
