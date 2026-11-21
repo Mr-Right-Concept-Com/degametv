@@ -61,6 +61,7 @@ export default function StudioFanBlast() {
     setSending(true);
     const r = await invokeFn<{ sent: number; total: number }>('send-fan-blast', { ...form, ...parsed.data });
     if (!r.ok) toast.error(r.error);
+    else if (!r.data) toast.error('The campaign service returned an invalid response.');
     else if (r.data.sent < r.data.total) toast.warning(`Sent to ${r.data.sent} of ${r.data.total} fans — some emails were not accepted.`);
     else toast.success(`Sent to ${r.data.sent} fans`);
     setSending(false);
