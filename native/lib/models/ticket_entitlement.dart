@@ -34,8 +34,12 @@ class TicketEntitlement {
   final DateTime? revokedAt;
 
   bool get isLocallyActive {
-    if (!isActive || revokedAt != null) return false;
-    if (validUntil != null && !validUntil!.isAfter(DateTime.now())) return false;
+    if (!isActive || revokedAt != null) {
+      return false;
+    }
+    if (validUntil != null && !validUntil!.isAfter(DateTime.now())) {
+      return false;
+    }
     return !const {'expired', 'revoked', 'refunded', 'pending'}.contains(
       entitlementStatus.toLowerCase(),
     );
@@ -45,7 +49,9 @@ class TicketEntitlement {
     DateTime? dateValue(Object? value) =>
         value == null ? null : DateTime.tryParse(value.toString());
     num? numberValue(Object? value) {
-      if (value is num) return value;
+      if (value is num) {
+        return value;
+      }
       return value == null ? null : num.tryParse(value.toString());
     }
 

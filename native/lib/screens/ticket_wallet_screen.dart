@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
 
@@ -69,7 +69,9 @@ class _TicketWalletScreenState extends State<TicketWalletScreen> {
     });
     try {
       snapshot = await entitlementRepository.load();
-      if (mounted) setState(() => loading = false);
+      if (mounted) {
+        setState(() => loading = false);
+      }
     } catch (exception) {
       if (mounted) {
         setState(() {
@@ -84,7 +86,9 @@ class _TicketWalletScreenState extends State<TicketWalletScreen> {
         walletRepository.activity(limit: 30),
         walletRepository.tenantConfig(),
       ]);
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() {
         balances = values[0] as List<WalletBalance>;
         activity = values[1] as List<WalletActivity>;
@@ -113,7 +117,9 @@ class _TicketWalletScreenState extends State<TicketWalletScreen> {
 
   Future<void> _authorizeLive(TicketEntitlement entitlement, String mode) async {
     final streamId = entitlement.streamId;
-    if (streamId == null || streamId.isEmpty) return;
+    if (streamId == null || streamId.isEmpty) {
+      return;
+    }
     await _runPlayback(() => playbackRepository.authorizeLivePlayback(
           streamId: streamId,
           mode: mode,
@@ -128,19 +134,25 @@ class _TicketWalletScreenState extends State<TicketWalletScreen> {
     });
     try {
       final result = await authorize();
-      if (mounted) setState(() => grant = result);
+      if (mounted) {
+        setState(() => grant = result);
+      }
     } catch (exception) {
       if (mounted) {
         setState(() => playbackError =
             exception.toString().replaceFirst('Exception: ', ''));
       }
     } finally {
-      if (mounted) setState(() => authorizing = false);
+      if (mounted) {
+        setState(() => authorizing = false);
+      }
     }
   }
 
   String _date(DateTime? value) {
-    if (value == null) return 'Not specified';
+    if (value == null) {
+      return 'Not specified';
+    }
     final local = value.toLocal();
     return '${local.day.toString().padLeft(2, '0')}/'
         '${local.month.toString().padLeft(2, '0')}/${local.year}';

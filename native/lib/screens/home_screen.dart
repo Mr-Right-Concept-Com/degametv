@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:app_links/app_links.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -56,7 +56,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             .clearForSignedOutUser(lastUserId!));
       }
       lastUserId = currentUserId;
-      if (mounted) setState(() => refreshEpoch++);
+      if (mounted) {
+        setState(() => refreshEpoch++);
+      }
     });
   }
 
@@ -67,7 +69,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
     try {
       final initial = await appLinks.getInitialLink();
-      if (initial != null) _handleDeepLink(initial);
+      if (initial != null) {
+        _handleDeepLink(initial);
+      }
     } catch (_) {
       // Initial-link lookup is optional; stream delivery remains active.
     }
@@ -83,7 +87,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       uri,
       canonicalWebHost: host,
     );
-    if (destination == null || !mounted) return;
+    if (destination == null || !mounted) {
+      return;
+    }
 
     switch (destination) {
       case NativeDestination.tickets:
@@ -117,8 +123,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    if (authSubscription != null) unawaited(authSubscription!.cancel());
-    if (deepLinkSubscription != null) unawaited(deepLinkSubscription!.cancel());
+    if (authSubscription != null) {
+      unawaited(authSubscription!.cancel());
+    }
+    if (deepLinkSubscription != null) {
+      unawaited(deepLinkSubscription!.cancel());
+    }
     if (subscription != null) {
       unawaited(Supabase.instance.client.removeChannel(subscription!).then((_) {}));
     }
@@ -141,7 +151,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final result = await repository.publishedScreenings(
         countryCode: resolvedCountry,
       );
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() {
         items = result;
         countryCode = resolvedCountry;
@@ -155,7 +167,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       });
       final pending = pendingDeepLink;
       pendingDeepLink = null;
-      if (pending != null) _handleDeepLink(pending);
+      if (pending != null) {
+        _handleDeepLink(pending);
+      }
     } catch (_) {
       if (mounted) {
         setState(() {

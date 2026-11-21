@@ -29,7 +29,9 @@ class PlaybackRepository {
       );
     }
     final ticket = data['ticket'];
-    if (ticket is! Map) throw const FormatException('Ticket response is invalid.');
+    if (ticket is! Map) {
+      throw const FormatException('Ticket response is invalid.');
+    }
     return Map<String, dynamic>.from(ticket);
   }
 

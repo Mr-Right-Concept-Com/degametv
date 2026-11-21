@@ -108,7 +108,9 @@ class CheckoutHandoff {
     Uri? checkout;
     if (!walletPaid) {
       final value = data['authorizationUrl'] ?? data['checkoutUrl'];
-      if (value is! String) throw const FormatException('Checkout URL is missing.');
+      if (value is! String) {
+        throw const FormatException('Checkout URL is missing.');
+      }
       checkout = Uri.tryParse(value);
       if (checkout == null || checkout.scheme != 'https' || checkout.host.isEmpty) {
         throw const FormatException('Checkout URL is not a trusted HTTPS URL.');

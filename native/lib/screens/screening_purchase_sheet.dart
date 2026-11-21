@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -48,7 +48,9 @@ class _ScreeningPurchaseSheetState extends State<ScreeningPurchaseSheet> {
 
   Future<void> _load() async {
     if (Supabase.instance.client.auth.currentUser == null) {
-      if (mounted) setState(() => loading = false);
+      if (mounted) {
+        setState(() => loading = false);
+      }
       return;
     }
     if (widget.countryCode == null || widget.countryCode!.isEmpty) {
@@ -74,7 +76,9 @@ class _ScreeningPurchaseSheetState extends State<ScreeningPurchaseSheet> {
     } catch (exception) {
       loadError ??= exception.toString().replaceFirst('Exception: ', '');
     }
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     final configuredCurrency = widget.currencyCode?.toUpperCase();
     setState(() {
@@ -132,7 +136,9 @@ class _ScreeningPurchaseSheetState extends State<ScreeningPurchaseSheet> {
               method: selectedMethod,
             );
       if (result.walletPaid) {
-        if (!mounted) return;
+        if (!mounted) {
+      return;
+    }
         final issuedCodes = [
           if (result.watchCode != null && result.watchCode!.isNotEmpty)
             'Watch code: ${result.watchCode}',
@@ -154,7 +160,9 @@ class _ScreeningPurchaseSheetState extends State<ScreeningPurchaseSheet> {
             ],
           ),
         );
-        if (mounted) Navigator.of(context).pop(true);
+        if (mounted) {
+          Navigator.of(context).pop(true);
+        }
         return;
       }
       final checkoutUrl = result.checkoutUrl;
@@ -162,7 +170,9 @@ class _ScreeningPurchaseSheetState extends State<ScreeningPurchaseSheet> {
           !await launchUrl(checkoutUrl, mode: LaunchMode.externalApplication)) {
         throw StateError('The external checkout page could not be opened.');
       }
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) {
+          Navigator.of(context).pop(true);
+        }
     } catch (exception) {
       if (mounted) {
         setState(() {
@@ -250,7 +260,9 @@ class _ScreeningPurchaseSheetState extends State<ScreeningPurchaseSheet> {
                   onChanged: submitting
                       ? null
                       : (value) {
-                          if (value != null) setState(() => selectedMethod = value);
+                          if (value != null) {
+                            setState(() => selectedMethod = value);
+                          }
                         },
                 ),
                 if (!selectedExists)

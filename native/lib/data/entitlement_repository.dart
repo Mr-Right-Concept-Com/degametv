@@ -41,10 +41,14 @@ class EntitlementSnapshot {
 
   factory EntitlementSnapshot.fromCache(String value) {
     final decoded = jsonDecode(value);
-    if (decoded is! Map) throw const FormatException('Invalid entitlement cache.');
+    if (decoded is! Map) {
+      throw const FormatException('Invalid entitlement cache.');
+    }
     final data = Map<String, dynamic>.from(decoded);
     final rows = data['entitlements'];
-    if (rows is! List) throw const FormatException('Invalid entitlement rows.');
+    if (rows is! List) {
+      throw const FormatException('Invalid entitlement rows.');
+    }
     return EntitlementSnapshot(
       entitlements: rows
           .whereType<Map>()
@@ -75,8 +79,8 @@ class EntitlementRepository {
   Future<EntitlementSnapshot> load() async {
     final user = client.auth.currentUser;
     if (user == null) {
-      return EntitlementSnapshot(
-        entitlements: const [],
+      return const EntitlementSnapshot(
+        entitlements: [],
         fetchedAt: null,
         isStale: false,
       );
@@ -108,7 +112,9 @@ class EntitlementRepository {
       return snapshot;
     } catch (_) {
       final cached = await _cache.read(_cacheKey(user.id));
-      if (cached == null) rethrow;
+      if (cached == null) {
+        rethrow;
+      }
       return EntitlementSnapshot.fromCache(cached);
     }
   }

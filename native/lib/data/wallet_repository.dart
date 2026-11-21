@@ -10,7 +10,9 @@ class WalletRepository {
   Future<List<WalletBalance>> balances() async {
     _requireUser();
     final rows = await client.rpc('get_my_personal_wallet_balances');
-    if (rows is! List) throw const FormatException('Wallet balance response is invalid.');
+    if (rows is! List) {
+      throw const FormatException('Wallet balance response is invalid.');
+    }
     return rows
         .whereType<Map>()
         .map((row) => WalletBalance.fromJson(Map<String, dynamic>.from(row)))
@@ -23,7 +25,9 @@ class WalletRepository {
       'get_my_wallet_activity',
       params: {'p_limit': limit},
     );
-    if (rows is! List) throw const FormatException('Wallet activity response is invalid.');
+    if (rows is! List) {
+      throw const FormatException('Wallet activity response is invalid.');
+    }
     return rows
         .whereType<Map>()
         .map((row) => WalletActivity.fromJson(Map<String, dynamic>.from(row)))
@@ -36,7 +40,9 @@ class WalletRepository {
     if (result is List && result.isNotEmpty && result.first is Map) {
       return Map<String, dynamic>.from(result.first as Map);
     }
-    if (result is Map) return Map<String, dynamic>.from(result);
+    if (result is Map) {
+      return Map<String, dynamic>.from(result);
+    }
     return null;
   }
 
@@ -50,7 +56,9 @@ class WalletRepository {
     }
     final data = Map<String, dynamic>.from(response.data as Map);
     final methods = data['methods'];
-    if (methods is! List) return const [];
+    if (methods is! List) {
+      return const [];
+    }
     return methods
         .whereType<Map>()
         .map((row) => PaymentMethod.fromJson(Map<String, dynamic>.from(row)))
@@ -126,7 +134,9 @@ class WalletRepository {
 
   User _requireUser() {
     final user = client.auth.currentUser;
-    if (user == null) throw StateError('Sign in before accessing your wallet.');
+    if (user == null) {
+      throw StateError('Sign in before accessing your wallet.');
+    }
     return user;
   }
 }
