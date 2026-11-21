@@ -41,21 +41,30 @@ export function EventContribution({screeningId,liveStreamId,contentId,currency="
  useEffect(()=>{
   if(!user)return;
   let active=true;setWalletBalanceLoading(true);
-  supabase.rpc("get_my_personal_wallet_balances").then(({data,error})=>{
-   if(!active)return;
-   if(error){toast.error("Personal Wallet balance could not be loaded.");setPersonalBalances([]);}
-   else setPersonalBalances(data??[]);
-  }).finally(()=>{if(active)setWalletBalanceLoading(false);});
+  void (async()=>{
+   try {
+    const {data,error}=await supabase.rpc("get_my_personal_wallet_balances");
+    if(!active)return;
+    if(error){toast.error("Personal Wallet balance could not be loaded.");setPersonalBalances([]);}
+    else setPersonalBalances(data??[]);
+   } catch { if(active){toast.error("Personal Wallet balance could not be loaded.");setPersonalBalances([]);} }
+   finally {if(active)setWalletBalanceLoading(false);}
+  })();
   return()=>{active=false;};
  },[user?.id]);
  useEffect(()=>{
   if(type!=="gift")return;
   let active=true;setLoadingGifts(true);
-  supabase.from("creator_gift_catalog").select("id,gift_key,name,description,emoji,asset_url,animation_url,currency,amount_minor,animation_duration_ms")
-   .eq("is_enabled",true).eq("currency",currency.toUpperCase()).order("sort_order",{ascending:true})
-   .then(({data,error})=>{if(!active)return;if(error){toast.error("Gift catalogue could not be loaded.");setGiftItems([]);return;}const gifts=data??[];setGiftItems(gifts);setSelectedGift(gifts[0]?.gift_key||"");})
-   .catch(()=>{if(active)toast.error("Gift catalogue could not be loaded.");})
-   .finally(()=>{if(active)setLoadingGifts(false);});
+  void (async()=>{
+   try {
+    const {data,error}=await supabase.from("creator_gift_catalog").select("id,gift_key,name,description,emoji,asset_url,animation_url,currency,amount_minor,animation_duration_ms")
+     .eq("is_enabled",true).eq("currency",currency.toUpperCase()).order("sort_order",{ascending:true});
+    if(!active)return;
+    if(error){toast.error("Gift catalogue could not be loaded.");setGiftItems([]);return;}
+    const gifts=data??[];setGiftItems(gifts);setSelectedGift(gifts[0]?.gift_key||"");
+   } catch {if(active)toast.error("Gift catalogue could not be loaded.");}
+   finally {if(active)setLoadingGifts(false);}
+  })();
   return()=>{active=false;};
  },[type,currency]);
  const send=async()=>{
