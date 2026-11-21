@@ -1,6 +1,7 @@
 import { createServiceClient, type TypedSupabaseClient } from "../_shared/supabase.ts";
 import {z} from "npm:zod@3";
 import { toArrayBuffer } from "../_shared/crypto.ts";
+import { isJsonObject, toJson } from "../_shared/json.ts";
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"content-type,x-media-worker-secret,x-media-transcoder-callback-secret","Access-Control-Allow-Methods":"POST,OPTIONS"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
 const enc=new TextEncoder(),hex=(v:ArrayBuffer|Uint8Array)=>[...new Uint8Array(v)].map(x=>x.toString(16).padStart(2,"0")).join("");
@@ -78,12 +79,12 @@ Deno.serve(async req=>{
   const hls=p.renditions.find(r=>r.kind==="hls")!.path,dash=p.renditions.find(r=>r.kind==="dash")!.path,poster=p.renditions.find(r=>r.kind==="thumbnail")!.path,preview=p.renditions.find(r=>r.kind==="preview")?.path;
   const {data:session}=await db.from("media_upload_sessions").select("owner_id").eq("id",job.upload_session_id).maybeSingle();
   const {data:content}=job.content_id?await db.from("content").select("metadata").eq("id",job.content_id).maybeSingle():{data:null};
-  const metadata={...(content?.metadata??{}),media_ingestion:{status:"READY",job_id:job.id,master_object_path:job.clean_master_path,ready_at:new Date().toISOString()}};
-  const {error:jobUpdate}=await db.from("media_processing_jobs").update({status:"READY",stage:"complete",renditions:p.renditions,subtitles:p.subtitles,locked_at:null,locked_by:null,last_error:null,updated_at:new Date().toISOString()}).eq("id",job.id);
+  const metadata={...(isJsonObject(content?.metadata)?content.metadata:{}),media_ingestion:{status:"READY",job_id:job.id,master_object_path:job.clean_master_path,ready_at:new Date().toISOString()}};
+  const {error:jobUpdate}=await db.from("media_processing_jobs").update({status:"READY",stage:"complete",renditions:toJson(p.renditions),subtitles:toJson(p.subtitles),locked_at:null,locked_by:null,last_error:null,updated_at:new Date().toISOString()}).eq("id",job.id);
   if(jobUpdate)return json(503,{error:"Media job could not be finalized."});
   const {error:sessionUpdate}=await db.from("media_upload_sessions").update({status:"READY",updated_at:new Date().toISOString()}).eq("id",job.upload_session_id);
   await requestS3(storage,job.quarantine_path,"DELETE");
-  if(job.content_id){const {error:contentUpdate}=await db.from("content").update({video_url:job.clean_master_path,hls_manifest_url:hls,dash_manifest_url:dash,poster_url:poster,preview_url:preview??null,captions:p.subtitles,metadata}).eq("id",job.content_id).eq("creator_id",session?.owner_id);if(contentUpdate)return json(503,{error:"Renditions are ready but content playback metadata requires reconciliation."});}
+  if(job.content_id){const {error:contentUpdate}=await db.from("content").update({video_url:job.clean_master_path,hls_manifest_url:hls,dash_manifest_url:dash,poster_url:poster,preview_url:preview??null,captions:toJson(p.subtitles),metadata}).eq("id",job.content_id).eq("creator_id",session?.owner_id);if(contentUpdate)return json(503,{error:"Renditions are ready but content playback metadata requires reconciliation."});}
   return json(200,{success:true,status:"READY"});
  }
  let scanner:Binding,transcoder:Binding;
@@ -96,11 +97,13 @@ Deno.serve(async req=>{
   try{
    await db.from("media_upload_sessions").update({status:"SCANNING",updated_at:new Date().toISOString()}).eq("id",job.upload_session_id);
    const sourceUrl=await presign(storage,job.quarantine_path,"GET");
-   const scanUrl=new URL(scanner.endpoints.scan??"/scan",scanner.base_url??undefined).toString();
-   const scanResponse=await fetch(scanUrl,{method:"POST",headers:{"Authorization":"Bearer "+scanner.credential,"Content-Type":"application/json"},body:JSON.stringify({sourceUrl,expectedSha256:job.provenance?.expected_sha256??null,filename:job.provenance?.source_filename}),signal:AbortSignal.timeout(120000)});
+   const provenance=isJsonObject(job.provenance)?job.provenance:{};
+   const scannerEndpoint=typeof scanner.endpoints.scan==="string"?scanner.endpoints.scan:"/scan";
+   const scanUrl=new URL(scannerEndpoint,scanner.base_url??undefined).toString();
+   const scanResponse=await fetch(scanUrl,{method:"POST",headers:{"Authorization":"Bearer "+scanner.credential,"Content-Type":"application/json"},body:JSON.stringify({sourceUrl,expectedSha256:typeof provenance.expected_sha256==="string"?provenance.expected_sha256:null,filename:typeof provenance.source_filename==="string"?provenance.source_filename:null}),signal:AbortSignal.timeout(120000)});
    if(!scanResponse.ok)throw new Error("scanner_http_"+scanResponse.status);
    const scan=Scan.safeParse(await scanResponse.json());if(!scan.success)throw new Error("scanner_response_invalid");
-   if(job.provenance?.expected_sha256&&String(job.provenance.expected_sha256).toLowerCase()!==scan.data.sha256.toLowerCase())throw new Error("whole_file_sha256_mismatch");
+   if(typeof provenance.expected_sha256==="string"&&provenance.expected_sha256.toLowerCase()!==scan.data.sha256.toLowerCase())throw new Error("whole_file_sha256_mismatch");
    if(!scan.data.clean){await db.from("media_processing_jobs").update({status:"FAILED",stage:"malware_scan",last_error:"malware_detected:"+scan.data.findings.join(","),locked_at:null,locked_by:null,updated_at:new Date().toISOString()}).eq("id",job.id);await db.from("media_upload_sessions").update({status:"FAILED",updated_at:new Date().toISOString()}).eq("id",job.upload_session_id);await requestS3(storage,job.quarantine_path,"DELETE");results.push({jobId:job.id,status:"REJECTED_MALWARE"});continue;}
    await db.from("media_upload_sessions").update({status:"PROMOTING",updated_at:new Date().toISOString()}).eq("id",job.upload_session_id);
    const masterPath="masters/"+job.id+"/source";
@@ -114,7 +117,8 @@ Deno.serve(async req=>{
     {kind:"caption",path:outputPrefix+"captions.vtt",mimeType:"text/vtt"}
    ];
    const uploadTargets=await Promise.all(outputs.map(async o=>({...o,uploadUrl:await presign(storage,o.path,"PUT",o.mimeType,storage.deliveryBucket,86400)})));
-   const transcodeUrl=new URL(transcoder.endpoints.transcode??"/transcode",transcoder.base_url??undefined).toString();
+   const transcoderEndpoint=typeof transcoder.endpoints.transcode==="string"?transcoder.endpoints.transcode:"/transcode";
+   const transcodeUrl=new URL(transcoderEndpoint,transcoder.base_url??undefined).toString();
    const callbackUrl=Deno.env.get("MEDIA_TRANSCODE_CALLBACK_URL")??(url+"/functions/v1/media-ingest-worker");
    const {data:callbackSecret,error:callbackSecretError}=await db.rpc("get_media_transcoder_callback_secret");if(callbackSecretError||typeof callbackSecret!=="string"||!callbackSecret)throw new Error("transcoder_callback_secret_unavailable");
    const transcodeResponse=await fetch(transcodeUrl,{method:"POST",headers:{"Authorization":"Bearer "+transcoder.credential,"Content-Type":"application/json","Idempotency-Key":"transcode:"+job.id},body:JSON.stringify({jobId:job.id,sourceUrl:await presign(storage,masterPath,"GET",undefined,storage.deliveryBucket,21600),sourceSha256:scan.data.sha256,outputFormat:"fmp4-single-file",outputs:uploadTargets,packaging:{hls:"byte-range",dash:"SegmentBase"},callbackUrl,callbackSecret}),signal:AbortSignal.timeout(30000)});
@@ -122,7 +126,7 @@ Deno.serve(async req=>{
    const parsed=Transcode.safeParse(await transcodeResponse.json());if(!parsed.success||parsed.data.jobId!==job.id)throw new Error("transcoder_response_invalid");
    await db.from("media_upload_sessions").update({status:"TRANSCODING",updated_at:new Date().toISOString()}).eq("id",job.upload_session_id);
 
-   const {error:updateError}=await db.from("media_processing_jobs").update({status:"TRANSCODING",stage:"transcode",clean_master_path:masterPath,sha256:scan.data.sha256,renditions:parsed.data.renditions,subtitles:parsed.data.subtitles,provenance:{...(job.provenance??{}),malware_scan:{engine:scan.data.engine,signatureVersion:scan.data.signatureVersion,clean:true,scannedAt:new Date().toISOString(),sha256:scan.data.sha256},transcoder:{provider:transcoder.provider_key,providerJobId:parsed.data.providerJobId,acceptedAt:new Date().toISOString()}},locked_at:null,locked_by:null,last_error:null,updated_at:new Date().toISOString()}).eq("id",job.id);
+   const {error:updateError}=await db.from("media_processing_jobs").update({status:"TRANSCODING",stage:"transcode",clean_master_path:masterPath,sha256:scan.data.sha256,renditions:parsed.data.renditions,subtitles:parsed.data.subtitles,provenance:{...(isJsonObject(job.provenance)?job.provenance:{}),malware_scan:{engine:scan.data.engine,signatureVersion:scan.data.signatureVersion,clean:true,scannedAt:new Date().toISOString(),sha256:scan.data.sha256},transcoder:{provider:transcoder.provider_key,providerJobId:parsed.data.providerJobId,acceptedAt:new Date().toISOString()}},locked_at:null,locked_by:null,last_error:null,updated_at:new Date().toISOString()}).eq("id",job.id);
    if(updateError)throw new Error("job_state_update_failed");
    results.push({jobId:job.id,status:"TRANSCODING",providerJobId:parsed.data.providerJobId});
   }catch(e){const attempts=Number(job.attempts??1),dead=attempts>=Number(job.max_attempts??8),delay=Math.min(3600,Math.pow(2,attempts)*15);await db.from("media_processing_jobs").update({status:dead?"DEAD_LETTER":"RETRY_WAIT",available_at:new Date(Date.now()+delay*1000).toISOString(),dead_lettered_at:dead?new Date().toISOString():null,last_error:String(e).slice(0,1000),locked_at:null,locked_by:null,updated_at:new Date().toISOString()}).eq("id",job.id);await db.from("media_upload_sessions").update({status:dead?"FAILED":"QUARANTINED",updated_at:new Date().toISOString()}).eq("id",job.upload_session_id);results.push({jobId:job.id,status:dead?"DEAD_LETTER":"RETRY_WAIT",retryAfterSeconds:dead?null:delay});}
