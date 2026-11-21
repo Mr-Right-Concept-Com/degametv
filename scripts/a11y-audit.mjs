@@ -50,15 +50,16 @@ async function runAxe(page) {
 let server;
 if (!process.env.A11Y_SKIP_SERVER) {
   console.log('› Starting vite preview on port', PORT);
-  server = spawn('npx', ['vite', 'preview', '--port', PORT, '--strictPort'], {
+  server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', '--port', PORT, '--strictPort'], {
     stdio: ['ignore', 'inherit', 'inherit'],
   });
 }
 
 let exitCode = 0;
+let browser;
 try {
   await waitForServer(BASE);
-  const browser = await chromium.launch();
+  browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 1280, height: 1024 } });
   const page = await context.newPage();
 
@@ -86,8 +87,6 @@ try {
     }
   }
 
-  await browser.close();
-
   if (failures.length) {
     console.error(`\n✗ ${failures.length} blocking a11y violation(s) across ${new Set(failures.map(f => f.route)).size} route(s)`);
     exitCode = 1;
@@ -98,6 +97,15 @@ try {
   console.error('a11y audit crashed:', e);
   exitCode = 2;
 } finally {
-  if (server) server.kill('SIGTERM');
-  process.exit(exitCode);
+  if (browser) await browser.close().catch(() => {});
+  if (server && server.exitCode === null) {
+    const closed = new Promise(resolve => server.once('close', resolve));
+    server.kill('SIGTERM');
+    const exited = await Promise.race([closed.then(() => true), sleep(5000).then(() => false)]);
+    if (!exited) {
+      server.kill('SIGKILL');
+      await closed;
+    }
+  }
+  process.exitCode = exitCode;
 }
